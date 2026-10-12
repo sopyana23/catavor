@@ -8745,9 +8745,9 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   }))
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
-  const [mobileSettingsTab, setMobileSettingsTabState] = useState<'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger'>('menu')
+  const [mobileSettingsTab, setMobileSettingsTabState] = useState<'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger' | 'account'>('menu')
 
-  const setMobileSettingsTab = (tab: 'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger') => {
+  const setMobileSettingsTab = (tab: 'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger' | 'account') => {
     setMobileSettingsTabState(tab);
     try {
       if (tab === 'menu') {
@@ -8757,6 +8757,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       }
     } catch (e) {}
   };
+
+  const [mobileAccountSubTab, setMobileAccountSubTab] = useState<'menu' | 'profile' | 'devices' | 'audit_logs' | 'danger'>('menu');
 
   // Intercept back actions for open overlays/modals (conforming to AGENTS.md Rule 2)
   useModalBackHandler({ isOpen: showLightbox, onClose: () => setShowLightbox(false), modalId: 'lightbox' });
@@ -9255,8 +9257,17 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             if (mappedSec === 'features') mappedSec = 'general';
             if (['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(mappedSec)) {
               setMobileSettingsTab(mappedSec as any);
+            } else if (['account', 'akun', 'keamanan', 'security', 'danger', 'profile', 'devices', 'audit-logs'].includes(mappedSec)) {
+              setMobileSettingsTab('account');
+              const fourth = parts[3]?.toLowerCase();
+              if (fourth === 'profile' || mappedSec === 'profile') setMobileAccountSubTab('profile');
+              else if (fourth === 'devices' || mappedSec === 'security' || mappedSec === 'devices') setMobileAccountSubTab('devices');
+              else if (fourth === 'audit-logs' || fourth === 'logs' || mappedSec === 'audit-logs') { setMobileAccountSubTab('audit_logs'); fetchActivityLogs(1, false); }
+              else if (fourth === 'danger' || mappedSec === 'danger') setMobileAccountSubTab('danger');
+              else setMobileAccountSubTab('menu');
             } else {
               setMobileSettingsTab('menu');
+              setMobileAccountSubTab('menu');
             }
           } else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik') {
             setAdminSubTab('analytics');
@@ -9346,8 +9357,17 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             if (mappedSec === 'features') mappedSec = 'general';
             if (['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(mappedSec)) {
               setMobileSettingsTab(mappedSec as any);
+            } else if (['account', 'akun', 'keamanan', 'security', 'danger', 'profile', 'devices', 'audit-logs'].includes(mappedSec)) {
+              setMobileSettingsTab('account');
+              const subParam = (urlParams.get('sub') || '').toLowerCase();
+              if (subParam === 'profile' || mappedSec === 'profile') setMobileAccountSubTab('profile');
+              else if (subParam === 'devices' || mappedSec === 'security' || mappedSec === 'devices') setMobileAccountSubTab('devices');
+              else if (subParam === 'audit-logs' || subParam === 'logs' || mappedSec === 'audit-logs') { setMobileAccountSubTab('audit_logs'); fetchActivityLogs(1, false); }
+              else if (subParam === 'danger' || mappedSec === 'danger') setMobileAccountSubTab('danger');
+              else setMobileAccountSubTab('menu');
             } else {
               setMobileSettingsTab('menu');
+              setMobileAccountSubTab('menu');
             }
           } else if (pageSub === 'profile') setAdminSubTab('profile');
           else if (pageSub === 'policies') setAdminSubTab('policies');
@@ -9552,8 +9572,17 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               if (mappedSec === 'features') mappedSec = 'general';
               if (['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(mappedSec)) {
                 setMobileSettingsTab(mappedSec as any);
+              } else if (['account', 'akun', 'keamanan', 'security', 'danger', 'profile', 'devices', 'audit-logs'].includes(mappedSec)) {
+                setMobileSettingsTab('account');
+                const fourth = parts[3]?.toLowerCase();
+                if (fourth === 'profile' || mappedSec === 'profile') setMobileAccountSubTab('profile');
+                else if (fourth === 'devices' || mappedSec === 'security' || mappedSec === 'devices') setMobileAccountSubTab('devices');
+                else if (fourth === 'audit-logs' || fourth === 'logs' || mappedSec === 'audit-logs') { setMobileAccountSubTab('audit_logs'); fetchActivityLogs(1, false); }
+                else if (fourth === 'danger' || mappedSec === 'danger') setMobileAccountSubTab('danger');
+                else setMobileAccountSubTab('menu');
               } else {
                 setMobileSettingsTab('menu');
+                setMobileAccountSubTab('menu');
               }
             } else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik' || pageSub === 'trafik') {
               setAdminSubTab('analytics');
@@ -10481,7 +10510,16 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         targetPath += `/admin/analytics`;
       } else if (adminSubTab === 'settings') {
         if (mobileSettingsTab && mobileSettingsTab !== 'menu') {
-          targetPath += `/admin/settings/${mobileSettingsTab}`;
+          if (mobileSettingsTab === 'account') {
+            if (mobileAccountSubTab && mobileAccountSubTab !== 'menu') {
+              const subPath = mobileAccountSubTab === 'audit_logs' ? 'audit-logs' : mobileAccountSubTab;
+              targetPath += `/admin/settings/account/${subPath}`;
+            } else {
+              targetPath += `/admin/settings/account`;
+            }
+          } else {
+            targetPath += `/admin/settings/${mobileSettingsTab}`;
+          }
         } else {
           targetPath += `/admin/settings`;
         }
@@ -15802,6 +15840,571 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     );
   }
 
+  // Helper renderer: User Profile Form Content for Mobile
+  const renderMobileUserProfileContent = () => (
+    <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient, var(--bg-card))' }}>
+      {profileSuccess && (
+        <div className="alert-box alert-success" style={{ marginBottom: '1rem' }}>
+          {profileSuccess}
+        </div>
+      )}
+      {profileError && (
+        <div className="alert-box alert-success" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', marginBottom: '1rem' }}>
+          {profileError}
+        </div>
+      )}
+
+      {/* Account Summary Mini Card */}
+      <div style={{
+        padding: '0.85rem',
+        borderRadius: '0.65rem',
+        backgroundColor: 'var(--bg-deep)',
+        border: '1px solid var(--border-light)',
+        marginBottom: '1.15rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.5rem'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Role Akun</span>
+          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <Shield size={12} />
+            {(adminUser as any)?.role === 'superadmin' || (adminUser as any)?.is_superadmin ? 'Superadmin' : 'Pengelola Katalog'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>ID Akun</span>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+            #{(adminUser as any)?.id || '-'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Status</span>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <Check size={12} /> Terverifikasi
+          </span>
+        </div>
+      </div>
+
+      <form onSubmit={handleProfileUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="form-group">
+          <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Nama Lengkap Pengelola *</label>
+          <input 
+            type="text" 
+            className="form-input" 
+            required
+            placeholder="Nama lengkap Anda..."
+            value={profileForm.name}
+            onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+          />
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0' }}>
+            Nama ini digunakan sebagai identitas akun pengelola di seluruh sistem.
+          </p>
+        </div>
+
+        <div className="form-group">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+            <label className="form-label" style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700 }}>Email Login Terdaftar</label>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+              <Lock size={10} /> Terkunci
+            </span>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <input 
+              type="email" 
+              className="form-input" 
+              disabled
+              value={profileForm.email || adminUser?.email || ''}
+              style={{
+                opacity: 0.85,
+                cursor: 'not-allowed',
+                backgroundColor: 'var(--bg-deep)',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-light)',
+                paddingRight: '2rem',
+                fontSize: '0.82rem'
+              }}
+            />
+            <div style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
+              <Lock size={13} />
+            </div>
+          </div>
+          <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0', lineHeight: 1.35 }}>
+            Email dikunci untuk keamanan otentikasi Single Sign-On (SSO).
+          </p>
+        </div>
+
+        <button 
+          type="submit" 
+          className="btn-full btn-primary" 
+          disabled={profileLoading}
+          style={{ fontSize: '0.82rem', padding: '0.65rem', fontWeight: 800 }}
+        >
+          {profileLoading ? 'Memproses...' : 'Simpan Nama Profil'}
+        </button>
+      </form>
+
+      {/* Mobile Backup Password Accordion */}
+      <div style={{
+        marginTop: '1.25rem',
+        backgroundColor: 'var(--bg-deep)',
+        border: '1px solid var(--border-light)',
+        borderRadius: '0.75rem',
+        padding: '1rem'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+          <div>
+            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Key size={14} style={{ color: 'var(--primary)' }} />
+              <span>{Boolean((adminUser as any)?.has_custom_password) ? 'Ubah Kata Sandi Akun' : 'Kata Sandi Cadangan'}</span>
+            </div>
+            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+              {Boolean((adminUser as any)?.has_custom_password)
+                ? 'Perbarui kata sandi akun Anda secara berkala untuk menjaga keamanan.'
+                : 'Untuk login darurat jika Google SSO bermasalah.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowBackupPasswordSection(!showBackupPasswordSection)}
+            className="btn-secondary"
+            style={{ padding: '0.35rem 0.65rem', fontSize: '0.7rem', borderRadius: '0.45rem', fontWeight: 700 }}
+          >
+            {showBackupPasswordSection ? 'Tutup' : (Boolean((adminUser as any)?.has_custom_password) ? 'Ubah' : 'Setel')}
+          </button>
+        </div>
+
+        {showBackupPasswordSection && (
+          <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)' }}>
+            {backupPasswordSuccess && (
+              <div 
+                className="animate-fade-in"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.65rem',
+                  padding: '0.75rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.28)',
+                  backdropFilter: 'blur(8px)',
+                  marginBottom: '0.85rem',
+                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.08)'
+                }}
+              >
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#10b981',
+                  flexShrink: 0,
+                  marginTop: '1px'
+                }}>
+                  <Check size={14} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981', margin: '0 0 0.2rem 0' }}>
+                    Kata Sandi Berhasil Disimpan
+                  </p>
+                  <p style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    {backupPasswordSuccess}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {backupPasswordError && (
+              <div 
+                className="animate-fade-in"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.65rem',
+                  padding: '0.75rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.28)',
+                  backdropFilter: 'blur(8px)',
+                  marginBottom: '0.85rem',
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.08)'
+                }}
+              >
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  flexShrink: 0,
+                  marginTop: '1px'
+                }}>
+                  <AlertTriangle size={14} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ef4444', margin: '0 0 0.2rem 0' }}>
+                    Gagal Menyimpan
+                  </p>
+                  <p style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                    {backupPasswordError}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Password Saat Ini (Jika sudah pernah dibuat) */}
+            {Boolean((adminUser as any)?.has_custom_password) && (
+              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Kata Sandi Saat Ini *</label>
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type={showBackupCurrentPasswordText ? 'text' : 'password'}
+                    className="form-input" 
+                    placeholder="Masukkan kata sandi lama Anda..."
+                    value={backupPasswordForm.current_password}
+                    onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, current_password: e.target.value })}
+                    style={{ paddingRight: '2.4rem', fontSize: '0.78rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowBackupCurrentPasswordText(!showBackupCurrentPasswordText)}
+                    style={{
+                      position: 'absolute',
+                      right: '0.65rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    title={showBackupCurrentPasswordText ? 'Sembunyikan kata sandi saat ini' : 'Tampilkan kata sandi saat ini'}
+                  >
+                    {showBackupCurrentPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+              <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Kata Sandi Baru *</label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type={showBackupPasswordText ? 'text' : 'password'}
+                  className="form-input" 
+                  placeholder="Minimal 8 karakter..."
+                  value={backupPasswordForm.password}
+                  onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
+                  style={{ paddingRight: '2.4rem', fontSize: '0.78rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowBackupPasswordText(!showBackupPasswordText)}
+                  style={{
+                    position: 'absolute',
+                    right: '0.65rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title={showBackupPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                >
+                  {showBackupPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Ulangi Kata Sandi *</label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type={showBackupConfirmPasswordText ? 'text' : 'password'}
+                  className="form-input" 
+                  placeholder="Ketik ulang kata sandi baru..."
+                  value={backupPasswordForm.confirm_password}
+                  onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, confirm_password: e.target.value })}
+                  style={{ paddingRight: '2.4rem', fontSize: '0.78rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowBackupConfirmPasswordText(!showBackupConfirmPasswordText)}
+                  style={{
+                    position: 'absolute',
+                    right: '0.65rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title={showBackupConfirmPasswordText ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
+                >
+                  {showBackupConfirmPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveBackupPassword}
+              disabled={backupPasswordLoading}
+              className="btn-full btn-primary"
+              style={{ padding: '0.55rem', fontSize: '0.75rem', fontWeight: 800 }}
+            >
+              {backupPasswordLoading ? 'Menyimpan...' : (Boolean((adminUser as any)?.has_custom_password) ? 'Perbarui Kata Sandi' : 'Simpan Kata Sandi Cadangan')}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Helper renderer: Activity / Audit Logs Content for Mobile
+  const renderMobileAuditLogsContent = () => (
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+      {/* Top Stats Banner */}
+      <div className="glass-panel" style={{ padding: '0.95rem 1.15rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient, var(--bg-card))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '0.55rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+            <History size={17} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+              Riwayat Aktivitas &amp; Log
+            </h3>
+            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
+              {activityTotal} rekaman aksi operasional tercatat
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => fetchActivityLogs(1, false)}
+          disabled={activityLoading}
+          className="btn-secondary"
+          style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', borderRadius: '0.5rem' }}
+        >
+          <RefreshCw size={12} className={activityLoading ? 'animate-spin' : ''} />
+          <span>Segarkan</span>
+        </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="search-wrapper" style={{ position: 'relative', width: '100%' }}>
+        <Search className="search-icon" size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Cari aksi, produk, atau IP..."
+          value={activitySearch}
+          onChange={(e) => {
+            const val = e.target.value;
+            setActivitySearch(val);
+            fetchActivityLogs(1, false, activityCategory, val);
+          }}
+          style={{ paddingLeft: '2.2rem', fontSize: '0.78rem' }}
+        />
+      </div>
+
+      {/* Horizontal Scrollable Category Filter Chips */}
+      <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.35rem', WebkitOverflowScrolling: 'touch' }}>
+        {[
+          { key: 'all', label: 'Semua' },
+          { key: 'security', label: 'Autentikasi' },
+          { key: 'catalog', label: 'Produk' },
+          { key: 'store', label: 'Katalog' },
+          { key: 'billing', label: 'Paket' },
+        ].map(cat => {
+          const isActive = activityCategory === cat.key;
+          return (
+            <button
+              key={cat.key}
+              type="button"
+              onClick={() => {
+                setActivityCategory(cat.key);
+                setActivityPage(1);
+                fetchActivityLogs(1, false, cat.key, activitySearch);
+              }}
+              style={{
+                padding: '0.35rem 0.75rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+                border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
+                color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {cat.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Activity Logs Timeline Stream */}
+      {activityLoading && activityLogs.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1.5rem', gap: '0.65rem', color: 'var(--text-secondary)' }}>
+          <Loader size={24} className="animate-spin" style={{ color: 'var(--primary)' }} />
+          <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Memuat riwayat log...</span>
+        </div>
+      ) : activityLogs.length === 0 ? (
+        <div className="glass-panel" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient, var(--bg-card))' }}>
+          <History size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.65rem', opacity: 0.6 }} />
+          <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Belum Ada Log Aktivitas</h4>
+          <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0 }}>Setiap aksi perubahan data &amp; login akan tercatat otomatis di sini.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          {activityLogs.map((logItem: any) => {
+            const isSecurity = logItem.category === 'security';
+            const isCatalog = logItem.category === 'catalog';
+            const isStore = logItem.category === 'store';
+            const isBilling = logItem.category === 'billing';
+
+            let iconBg = 'rgba(59, 130, 246, 0.12)';
+            let iconColor = '#60a5fa';
+            let IconComp = FileText;
+
+            if (isSecurity) {
+              iconBg = 'rgba(16, 185, 129, 0.12)';
+              iconColor = '#10b981';
+              IconComp = ShieldCheck;
+            } else if (isCatalog) {
+              iconBg = 'rgba(59, 130, 246, 0.12)';
+              iconColor = '#60a5fa';
+              IconComp = Package;
+            } else if (isStore) {
+              iconBg = 'rgba(168, 85, 247, 0.12)';
+              iconColor = '#c084fc';
+              IconComp = Store;
+            } else if (isBilling) {
+              iconBg = 'rgba(245, 158, 11, 0.12)';
+              iconColor = '#f59e0b';
+              IconComp = CreditCard;
+            }
+
+            return (
+              <div
+                key={logItem.id}
+                className="glass-panel"
+                style={{
+                  padding: '0.85rem 0.95rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid var(--border-light)',
+                  background: 'var(--card-bg-gradient, var(--bg-card))',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <IconComp size={14} />
+                    </div>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: iconBg, color: iconColor }}>
+                      {logItem.action}
+                    </span>
+                  </div>
+
+                  <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                    {new Date(logItem.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                  </span>
+                </div>
+
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.4, fontWeight: 500 }}>
+                  {logItem.description}
+                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border-light)', paddingTop: '0.45rem', marginTop: '0.1rem' }}>
+                  <span>Oleh: <strong style={{ color: 'var(--text-primary)' }}>{logItem.actor_name}</strong></span>
+                  {logItem.changes && (
+                    <button
+                      type="button"
+                      onClick={() => setActivitySelectedLog(logItem)}
+                      style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: 0 }}
+                    >
+                      <Eye size={12} />
+                      <span>Detail Diff</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Load More Button for Mobile */}
+          {activityHasMore && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => fetchActivityLogs(activityPage + 1, true, activityCategory, activitySearch)}
+                disabled={activityLoading}
+                className="btn-secondary"
+                style={{ padding: '0.5rem 1.25rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '0.6rem' }}
+              >
+                {activityLoading ? <Loader size={14} className="animate-spin" /> : <ChevronDown size={14} />}
+                <span>Muat Log Sebelumnya</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mobile Diff Bottom Sheet / Modal */}
+      {activitySelectedLog && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', borderRadius: '1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient, var(--bg-card))', boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)', overflow: 'hidden' }}>
+            <div style={{ padding: '1rem 1.15rem', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-deep)' }}>
+              <div>
+                <span style={{ fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Snapshot Perubahan</span>
+                <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.1rem 0 0 0' }}>{activitySelectedLog.action}</h4>
+              </div>
+              <button type="button" onClick={() => setActivitySelectedLog(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.15rem', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            </div>
+
+            <div style={{ padding: '1rem 1.15rem', maxHeight: '320px', overflowY: 'auto' }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.65rem' }}>{activitySelectedLog.description}</p>
+              <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--primary)', whiteSpace: 'pre-wrap', overflowX: 'auto', lineHeight: 1.4 }}>
+                {JSON.stringify(activitySelectedLog.changes, null, 2)}
+              </div>
+            </div>
+
+            <div style={{ padding: '0.75rem 1.15rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', backgroundColor: 'var(--bg-deep)' }}>
+              <button type="button" className="btn-primary" onClick={() => setActivitySelectedLog(null)} style={{ padding: '0.4rem 1rem', fontSize: '0.75rem' }}>Tutup</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // Native App Standard: Show bottom nav at top-level merchant pages (menu, items, settings), hide on modal/detail views
   const isBottomNavVisible = Boolean(
     !error &&
@@ -19890,6 +20493,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       if (mobileSettingsTab === 'theme') return { title: 'Tema & Tampilan Visual', subtitle: 'Palet Warna & Gaya Estetik' };
                       if (mobileSettingsTab === 'domain') return { title: 'Custom Domain', subtitle: 'Hubungkan Domain Brand Anda' };
                       if (mobileSettingsTab === 'master') return { title: 'Master Data Katalog', subtitle: 'Opsi Kategori, Status & Wilayah' };
+                      if (mobileSettingsTab === 'account') {
+                        if (mobileAccountSubTab === 'profile') return { title: 'Profil Pengguna', subtitle: adminUser?.email || 'Akun Pengelola' };
+                        if (mobileAccountSubTab === 'devices') return { title: 'Sesi & Perangkat', subtitle: 'Lacak & Cabut Sesi Login' };
+                        if (mobileAccountSubTab === 'audit_logs') return { title: 'Riwayat Log & Audit', subtitle: `${activityTotal} Rekaman Tercatat` };
+                        if (mobileAccountSubTab === 'danger') return { title: 'Zona Berbahaya', subtitle: 'Hapus Katalog & Tutup Akun' };
+                        return { title: 'Akun & Keamanan', subtitle: 'Profil, Sesi, Log & Keamanan' };
+                      }
                       if (mobileSettingsTab === 'security') return { title: 'Perangkat & Sesi Aktif', subtitle: 'Lacak & Cabut Sesi Login' };
                       if (mobileSettingsTab === 'danger') return { title: 'Zona Berbahaya', subtitle: 'Hapus Katalog & Tutup Akun' };
                       return { title: 'Pengaturan Katalog', subtitle: 'Konfigurasi & Branding Katalog' };
@@ -19981,9 +20591,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 }
                               }
                             } else if (adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') {
-                              setMobileSettingsTab('menu');
-                              if (slug) {
-                                window.history.replaceState({}, '', `/${slug}/admin/settings`);
+                              if (mobileSettingsTab === 'account' && mobileAccountSubTab !== 'menu') {
+                                setMobileAccountSubTab('menu');
+                                if (slug) {
+                                  window.history.replaceState({}, '', `/${slug}/admin/settings/account`);
+                                }
+                              } else {
+                                setMobileSettingsTab('menu');
+                                setMobileAccountSubTab('menu');
+                                if (slug) {
+                                  window.history.replaceState({}, '', `/${slug}/admin/settings`);
+                                }
                               }
                             } else if (adminSubTab === 'share') {
                               setAdminSubTab('menu');
@@ -23474,13 +24092,14 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         </div>
                       )}
 
-                      {/* Keamanan & Sesi Perangkat */}
+                      {/* Akun & Keamanan (Menu Khusus) */}
                       <div 
                         className="glass-panel"
                         onClick={() => {
                           const slug = getStoreSlug();
-                          setMobileSettingsTab('security');
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/security`);
+                          setMobileSettingsTab('account');
+                          setMobileAccountSubTab('menu');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/account`);
                         }}
                         style={{
                           padding: '1rem 1.25rem',
@@ -23489,7 +24108,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           display: 'flex',
                           gap: '1rem',
                           alignItems: 'center',
-                          border: '1px solid var(--border-light)'
+                          border: '1px solid var(--border-light)',
+                          background: 'var(--card-bg-gradient, var(--bg-card))'
                         }}
                       >
                         <div style={{
@@ -23507,60 +24127,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <ShieldCheck size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Perangkat &amp; Sesi Aktif</h4>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Akun &amp; Keamanan</h4>
                           <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
-                            Lacak perangkat login aktif &amp; cabut sesi mencurigakan
+                            Profil pengguna, sesi &amp; perangkat, log audit, dan zona berbahaya
                           </p>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                      </div>
-
-                      {/* Zona Berbahaya */}
-                      <div 
-                        className="glass-panel"
-                        onClick={() => {
-                          const slug = getStoreSlug();
-                          setMobileSettingsTab('danger');
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/danger`);
-                        }}
-                        style={{
-                          padding: '1rem 1.25rem',
-                          borderRadius: '0.75rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          gap: '1rem',
-                          alignItems: 'center',
-                          border: '1px solid rgba(239, 68, 68, 0.25)',
-                          background: 'rgba(239, 68, 68, 0.03)'
-                        }}
-                      >
-                        <div style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '0.65rem',
-                          background: 'rgba(239, 68, 68, 0.12)',
-                          border: '1px solid rgba(239, 68, 68, 0.2)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#ef4444',
-                          flexShrink: 0
-                        }}>
-                          <AlertTriangle size={20} style={{ color: '#ef4444' }} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ef4444', margin: 0 }}>Zona Berbahaya</h4>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
-                            Hapus profil katalog atau tutup akun permanen
-                          </p>
-                        </div>
-                        <ChevronRight size={16} style={{ color: '#ef4444' }} />
                       </div>
                     </div>
                   ) : (
                     /* Active Settings Sub-Tab View */
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {mobileSettingsTab !== 'master' && mobileSettingsTab !== 'domain' && mobileSettingsTab !== 'security' && mobileSettingsTab !== 'danger' && (
+                      {mobileSettingsTab !== 'master' && mobileSettingsTab !== 'domain' && mobileSettingsTab !== 'security' && mobileSettingsTab !== 'danger' && mobileSettingsTab !== 'account' && (
                         <form onSubmit={handleSettingsSave} className="glass-panel animate-fade-in" style={{ padding: '1rem', border: '1px solid var(--border-light)' }}>
                           {/* SUB-TAB 4: TEMA */}
                           {mobileSettingsTab === 'theme' && (
@@ -24723,6 +25301,310 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           />
                         </div>
                       )}
+
+                      {/* Akun dan Keamanan on Mobile */}
+                      {mobileSettingsTab === 'account' && (
+                        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                          {mobileAccountSubTab === 'menu' ? (
+                            /* Sub-menu Halaman Akun & Keamanan */
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                              {/* 1. Profil Pengguna */}
+                              <div
+                                className="glass-panel"
+                                onClick={() => {
+                                  const slug = getStoreSlug();
+                                  setMobileAccountSubTab('profile');
+                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/account/profile`);
+                                }}
+                                style={{
+                                  padding: '1rem 1.15rem',
+                                  borderRadius: '0.75rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  gap: '1rem',
+                                  alignItems: 'center',
+                                  border: '1px solid var(--border-light)',
+                                  background: 'var(--card-bg-gradient, var(--bg-card))',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                <div style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '0.65rem',
+                                  background: 'var(--primary-glow)',
+                                  border: '1px solid var(--border-light)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'var(--primary)',
+                                  flexShrink: 0
+                                }}>
+                                  <User size={20} style={{ color: 'var(--primary)' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Profil Pengguna</h4>
+                                  <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
+                                    Nama pengelola, email login, &amp; kata sandi cadangan
+                                  </p>
+                                </div>
+                                <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                              </div>
+
+                              {/* 2. Sesi dan Perangkat */}
+                              <div
+                                className="glass-panel"
+                                onClick={() => {
+                                  const slug = getStoreSlug();
+                                  setMobileAccountSubTab('devices');
+                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/account/devices`);
+                                }}
+                                style={{
+                                  padding: '1rem 1.15rem',
+                                  borderRadius: '0.75rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  gap: '1rem',
+                                  alignItems: 'center',
+                                  border: '1px solid var(--border-light)',
+                                  background: 'var(--card-bg-gradient, var(--bg-card))',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                <div style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '0.65rem',
+                                  background: 'var(--primary-glow)',
+                                  border: '1px solid var(--border-light)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'var(--primary)',
+                                  flexShrink: 0
+                                }}>
+                                  <Smartphone size={20} style={{ color: 'var(--primary)' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Sesi dan Perangkat</h4>
+                                  <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
+                                    Kelola sesi browser aktif &amp; cabut akses perangkat
+                                  </p>
+                                </div>
+                                <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                              </div>
+
+                              {/* 3. Riwayat Log dan Audit */}
+                              <div
+                                className="glass-panel"
+                                onClick={() => {
+                                  const slug = getStoreSlug();
+                                  setMobileAccountSubTab('audit_logs');
+                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/account/audit-logs`);
+                                }}
+                                style={{
+                                  padding: '1rem 1.15rem',
+                                  borderRadius: '0.75rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  gap: '1rem',
+                                  alignItems: 'center',
+                                  border: '1px solid var(--border-light)',
+                                  background: 'var(--card-bg-gradient, var(--bg-card))',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                <div style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '0.65rem',
+                                  background: 'var(--primary-glow)',
+                                  border: '1px solid var(--border-light)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'var(--primary)',
+                                  flexShrink: 0
+                                }}>
+                                  <History size={20} style={{ color: 'var(--primary)' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Riwayat Log dan Audit</h4>
+                                  <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
+                                    Lacak aktivitas keamanan, riwayat login, &amp; data katalog
+                                  </p>
+                                </div>
+                                <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                              </div>
+
+                              {/* 4. Zona Berbahaya */}
+                              <div
+                                className="glass-panel"
+                                onClick={() => {
+                                  const slug = getStoreSlug();
+                                  setMobileAccountSubTab('danger');
+                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/account/danger`);
+                                }}
+                                style={{
+                                  padding: '1rem 1.15rem',
+                                  borderRadius: '0.75rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  gap: '1rem',
+                                  alignItems: 'center',
+                                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                <div style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '0.65rem',
+                                  background: 'rgba(239, 68, 68, 0.15)',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#ef4444',
+                                  flexShrink: 0
+                                }}>
+                                  <ShieldAlert size={20} style={{ color: '#ef4444' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ef4444', margin: 0 }}>Zona Berbahaya</h4>
+                                  <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
+                                    Hapus katalog ini atau tutup akun pengelola permanen
+                                  </p>
+                                </div>
+                                <ChevronRight size={16} style={{ color: 'rgba(239, 68, 68, 0.6)' }} />
+                              </div>
+                            </div>
+                          ) : (
+                            /* Sub-views with Horizontal Segmented Pill Switcher */
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                              {/* Horizontal Quick Pill Switcher */}
+                              <div style={{
+                                display: 'flex',
+                                gap: '0.35rem',
+                                background: 'var(--btn-secondary-bg)',
+                                padding: '0.3rem',
+                                borderRadius: '0.65rem',
+                                border: '1px solid var(--border-light)',
+                                overflowX: 'auto',
+                                WebkitOverflowScrolling: 'touch'
+                              }}>
+                                {[
+                                  { key: 'profile', label: 'Profil Pengguna', icon: <User size={12} /> },
+                                  { key: 'devices', label: 'Sesi & Perangkat', icon: <Smartphone size={12} /> },
+                                  { key: 'audit_logs', label: 'Log & Audit', icon: <History size={12} /> },
+                                  { key: 'danger', label: 'Zona Berbahaya', icon: <ShieldAlert size={12} />, isDanger: true }
+                                ].map((tabItem) => {
+                                  const isActive = mobileAccountSubTab === tabItem.key;
+                                  return (
+                                    <button
+                                      key={tabItem.key}
+                                      type="button"
+                                      onClick={() => {
+                                        const slug = getStoreSlug();
+                                        setMobileAccountSubTab(tabItem.key as any);
+                                        const subPath = tabItem.key === 'audit_logs' ? 'audit-logs' : tabItem.key;
+                                        if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/account/${subPath}`);
+                                      }}
+                                      style={{
+                                        flex: 1,
+                                        padding: '0.45rem 0.65rem',
+                                        borderRadius: '0.45rem',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 800,
+                                        border: isActive 
+                                          ? (tabItem.isDanger ? '1px solid #ef4444' : '1px solid var(--primary)') 
+                                          : '1px solid transparent',
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.35rem',
+                                        backgroundColor: isActive 
+                                          ? (tabItem.isDanger ? '#ef4444' : 'var(--primary)') 
+                                          : 'transparent',
+                                        color: isActive 
+                                          ? '#ffffff' 
+                                          : (tabItem.isDanger ? '#ef4444' : 'var(--text-secondary)'),
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                    >
+                                      {tabItem.icon}
+                                      <span>{tabItem.label}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Active Sub-tab View */}
+                              {mobileAccountSubTab === 'profile' && (
+                                <div className="animate-fade-in">
+                                  {renderMobileUserProfileContent()}
+                                </div>
+                              )}
+
+                              {mobileAccountSubTab === 'devices' && (
+                                <div className="animate-fade-in">
+                                  <ConnectedDevicesView 
+                                    token={token || ''}
+                                    apiBase={API_BASE}
+                                    onLogoutCurrent={handleLogout}
+                                    showToast={(type, msg) => showToast(msg, type)}
+                                  />
+                                </div>
+                              )}
+
+                              {mobileAccountSubTab === 'audit_logs' && (
+                                <div className="animate-fade-in">
+                                  {renderMobileAuditLogsContent()}
+                                </div>
+                              )}
+
+                              {mobileAccountSubTab === 'danger' && (
+                                <div className="animate-fade-in">
+                                  <DangerZoneSettingsView 
+                                    currentStore={
+                                      (userStores && userStores.find(s => s.slug?.toLowerCase() === (storeSlug || '').toLowerCase())) ||
+                                      (userStores && userStores[0]) ||
+                                      (settings ? { id: (settings as any).id || (settings as any).store_id || 0, slug: storeSlug || '', store_title: (settings as any).store_title } : null)
+                                    }
+                                    currentUser={adminUser ? { id: adminUser.id, email: adminUser.email, name: adminUser.name } : null}
+                                    userStores={userStores || []}
+                                    token={token || ''}
+                                    apiBase={API_BASE}
+                                    onStoreDeleted={(deletedSlug, remainingStores) => {
+                                      setUserStores(remainingStores);
+                                      try {
+                                        localStorage.setItem('catavor_stores', JSON.stringify(remainingStores));
+                                      } catch {}
+                                      if (remainingStores && remainingStores.length > 0) {
+                                        handleSwitchStore(remainingStores[0].slug);
+                                      } else {
+                                        setStoreSlug(null);
+                                        setIsFirstTimeLogin(true);
+                                        setView('tabs');
+                                        setAdminSubTab('menu');
+                                        window.history.pushState({}, '', '/admin');
+                                        window.location.reload();
+                                      }
+                                    }}
+                                    onAccountDeleted={() => {
+                                      handleLogout();
+                                    }}
+                                    showToast={(type, msg) => showToast(msg, type)}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -24731,915 +25613,14 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               {adminSubTab === 'profile' && (
                 /* TAB: ADMIN PROFILE (MOBILE) */
                 <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
-                      {profileSuccess && (
-                        <div className="alert-box alert-success" style={{ marginBottom: '1rem' }}>
-                          {profileSuccess}
-                        </div>
-                      )}
-                      {profileError && (
-                        <div className="alert-box alert-success" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', marginBottom: '1rem' }}>
-                          {profileError}
-                        </div>
-                      )}
-
-                      {/* Account Summary Mini Card */}
-                      <div style={{
-                        padding: '0.85rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        marginBottom: '1.15rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.5rem'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Role Akun</span>
-                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <Shield size={12} />
-                            {(adminUser as any)?.role === 'superadmin' || (adminUser as any)?.is_superadmin ? 'Superadmin' : 'Pengelola Katalog'}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>ID Akun</span>
-                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
-                            #{(adminUser as any)?.id || '-'}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Status</span>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <Check size={12} /> Terverifikasi
-                          </span>
-                        </div>
-                      </div>
-
-                      <form onSubmit={handleProfileUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div className="form-group">
-                          <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Nama Lengkap Pengelola *</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            required
-                            placeholder="Nama lengkap Anda..."
-                            value={profileForm.name}
-                            onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                          />
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0' }}>
-                            Nama ini digunakan sebagai identitas akun pengelola di seluruh sistem.
-                          </p>
-                        </div>
-
-                        <div className="form-group">
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                            <label className="form-label" style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700 }}>Email Login Terdaftar</label>
-                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                              <Lock size={10} /> Terkunci
-                            </span>
-                          </div>
-                          <div style={{ position: 'relative' }}>
-                            <input 
-                              type="email" 
-                              className="form-input" 
-                              disabled
-                              value={profileForm.email || adminUser?.email || ''}
-                              style={{
-                                opacity: 0.85,
-                                cursor: 'not-allowed',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-secondary)',
-                                border: '1px solid var(--border-light)',
-                                paddingRight: '2rem',
-                                fontSize: '0.82rem'
-                              }}
-                            />
-                            <div style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
-                              <Lock size={13} />
-                            </div>
-                          </div>
-                          <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0', lineHeight: 1.35 }}>
-                            Email dikunci untuk keamanan otentikasi Single Sign-On (SSO).
-                          </p>
-                        </div>
-
-                        <button 
-                          type="submit" 
-                          className="btn-full btn-primary" 
-                          disabled={profileLoading}
-                          style={{ fontSize: '0.82rem', padding: '0.65rem', fontWeight: 800 }}
-                        >
-                          {profileLoading ? 'Memproses...' : 'Simpan Nama Profil'}
-                        </button>
-                      </form>
-
-                      {/* Mobile Backup Password Accordion */}
-                      <div style={{
-                        marginTop: '1.25rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        borderRadius: '0.75rem',
-                        padding: '1rem'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                          <div>
-                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <Key size={14} style={{ color: 'var(--primary)' }} />
-                              <span>{Boolean((adminUser as any)?.has_custom_password) ? 'Ubah Kata Sandi Akun' : 'Kata Sandi Cadangan'}</span>
-                            </div>
-                            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                              {Boolean((adminUser as any)?.has_custom_password)
-                                ? 'Perbarui kata sandi akun Anda secara berkala untuk menjaga keamanan.'
-                                : 'Untuk login darurat jika Google SSO bermasalah.'}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowBackupPasswordSection(!showBackupPasswordSection)}
-                            className="btn-secondary"
-                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.7rem', borderRadius: '0.45rem', fontWeight: 700 }}
-                          >
-                            {showBackupPasswordSection ? 'Tutup' : (Boolean((adminUser as any)?.has_custom_password) ? 'Ubah' : 'Setel')}
-                          </button>
-                        </div>
-
-                        {showBackupPasswordSection && (
-                          <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)' }}>
-                            {backupPasswordSuccess && (
-                              <div 
-                                className="animate-fade-in"
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'flex-start',
-                                  gap: '0.65rem',
-                                  padding: '0.75rem 0.85rem',
-                                  borderRadius: '0.65rem',
-                                  background: 'rgba(16, 185, 129, 0.08)',
-                                  border: '1px solid rgba(16, 185, 129, 0.28)',
-                                  backdropFilter: 'blur(8px)',
-                                  marginBottom: '0.85rem',
-                                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.08)'
-                                }}
-                              >
-                                <div style={{
-                                  width: '24px',
-                                  height: '24px',
-                                  borderRadius: '50%',
-                                  background: 'rgba(16, 185, 129, 0.16)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0,
-                                  color: '#10b981',
-                                  marginTop: '1px'
-                                }}>
-                                  <CheckCircle2 size={14} strokeWidth={2.5} />
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.15rem' }}>
-                                    <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#10b981' }}>
-                                      Berhasil Disimpan
-                                    </span>
-                                    <span style={{
-                                      fontSize: '0.6rem',
-                                      fontWeight: 700,
-                                      padding: '0.05rem 0.35rem',
-                                      borderRadius: '999px',
-                                      background: 'rgba(16, 185, 129, 0.2)',
-                                      color: '#10b981',
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.03em'
-                                    }}>
-                                      Aktif
-                                    </span>
-                                  </div>
-                                  <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                                    {backupPasswordSuccess}
-                                  </p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setBackupPasswordSuccess(null)}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    padding: '0.2rem',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    opacity: 0.7,
-                                    flexShrink: 0
-                                  }}
-                                  aria-label="Tutup"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            )}
-
-                            {backupPasswordError && (
-                              <div 
-                                className="animate-fade-in"
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'flex-start',
-                                  gap: '0.65rem',
-                                  padding: '0.75rem 0.85rem',
-                                  borderRadius: '0.65rem',
-                                  background: 'rgba(239, 68, 68, 0.08)',
-                                  border: '1px solid rgba(239, 68, 68, 0.28)',
-                                  backdropFilter: 'blur(8px)',
-                                  marginBottom: '0.85rem',
-                                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.08)'
-                                }}
-                              >
-                                <div style={{
-                                  width: '24px',
-                                  height: '24px',
-                                  borderRadius: '50%',
-                                  background: 'rgba(239, 68, 68, 0.16)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0,
-                                  color: '#ef4444',
-                                  marginTop: '1px'
-                                }}>
-                                  <AlertCircle size={14} strokeWidth={2.5} />
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.15rem' }}>
-                                    <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#ef4444' }}>
-                                      Gagal Menyimpan
-                                    </span>
-                                    <span style={{
-                                      fontSize: '0.6rem',
-                                      fontWeight: 700,
-                                      padding: '0.05rem 0.35rem',
-                                      borderRadius: '999px',
-                                      background: 'rgba(239, 68, 68, 0.2)',
-                                      color: '#ef4444',
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.03em'
-                                    }}>
-                                      Perhatian
-                                    </span>
-                                  </div>
-                                  <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                                    {backupPasswordError}
-                                  </p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setBackupPasswordError(null)}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    padding: '0.2rem',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    opacity: 0.7,
-                                    flexShrink: 0
-                                  }}
-                                  aria-label="Tutup"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            )}
-
-                            {/* Petunjuk Kriteria Kata Sandi Standar Industri */}
-                            <div style={{
-                              padding: '0.75rem 0.85rem',
-                              borderRadius: '0.65rem',
-                              background: 'rgba(255, 255, 255, 0.03)',
-                              border: '1px solid var(--border-light)',
-                              marginBottom: '0.85rem'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.35rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                  <ShieldCheck size={14} style={{ color: 'var(--primary)' }} />
-                                  <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                                    Kriteria Keamanan (Standar Industri)
-                                  </span>
-                                </div>
-                                <span style={{
-                                  fontSize: '0.6rem',
-                                  fontWeight: 700,
-                                  padding: '0.1rem 0.4rem',
-                                  borderRadius: '999px',
-                                  background: 'rgba(59, 130, 246, 0.12)',
-                                  color: '#60a5fa',
-                                  border: '1px solid rgba(59, 130, 246, 0.25)'
-                                }}>
-                                  Wajib
-                                </span>
-                              </div>
-                              <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-                                Wajib memenuhi kombinasi karakter berikut:
-                              </p>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.35rem' }}>
-                                {[
-                                  { label: 'Minimal 8 karakter', valid: (backupPasswordForm.password?.length || 0) >= 8 },
-                                  { label: 'Huruf besar (A-Z) & kecil (a-z)', valid: /[A-Z]/.test(backupPasswordForm.password || '') && /[a-z]/.test(backupPasswordForm.password || '') },
-                                  { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(backupPasswordForm.password || '') },
-                                  { label: 'Karakter khusus / simbol (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(backupPasswordForm.password || '') },
-                                ].map((req, idx) => (
-                                  <div
-                                    key={idx}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '0.35rem',
-                                      fontSize: '0.68rem',
-                                      fontWeight: req.valid ? 700 : 500,
-                                      color: req.valid ? '#10b981' : 'var(--text-secondary)',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                  >
-                                    <div style={{
-                                      width: '13px',
-                                      height: '13px',
-                                      borderRadius: '50%',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      background: req.valid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                                      color: req.valid ? '#10b981' : 'var(--text-secondary)',
-                                      flexShrink: 0
-                                    }}>
-                                      {req.valid ? <Check size={9} strokeWidth={3} /> : <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'currentColor' }} />}
-                                    </div>
-                                    <span>{req.label}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '0.75rem' }}>
-                              {Boolean((adminUser as any)?.has_custom_password) && profilePasswordMode === 'otp' ? (
-                                <div style={{
-                                  padding: '0.85rem',
-                                  borderRadius: '0.75rem',
-                                  background: 'var(--bg-deep, rgba(0, 0, 0, 0.05))',
-                                  border: '1.5px solid var(--border-light)',
-                                  marginBottom: '0.5rem',
-                                  boxShadow: '0 3px 12px rgba(0, 0, 0, 0.05)'
-                                }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                      <div style={{
-                                        width: '26px',
-                                        height: '26px',
-                                        borderRadius: '7px',
-                                        background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
-                                        color: 'var(--primary)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexShrink: 0
-                                      }}>
-                                        <Key size={13} />
-                                      </div>
-                                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                        Reset Sandi via OTP
-                                      </span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setProfilePasswordMode('standard');
-                                        setProfileOtpError(null);
-                                        setProfileOtpSuccess(null);
-                                      }}
-                                      className="btn-dynamic-outline"
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '0.35rem',
-                                        padding: '0.35rem 0.75rem',
-                                        borderRadius: '0.5rem',
-                                        fontSize: '0.72rem',
-                                        fontWeight: 800,
-                                        background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
-                                        border: '1.5px solid var(--primary)',
-                                        color: 'var(--primary)',
-                                        cursor: 'pointer',
-                                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
-                                        transition: 'all 0.2s ease-in-out',
-                                        whiteSpace: 'nowrap'
-                                      }}
-                                      title="Kembali menggunakan kata sandi lama / saat ini"
-                                    >
-                                      <ArrowLeft size={11} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-                                      <span>Batal & Gunakan Sandi Lama</span>
-                                    </button>
-                                  </div>
-                                  <p style={{ margin: '0 0 0.65rem 0', fontSize: '0.69rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-                                    Kode OTP dikirim ke: <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>{profileForm.email || (adminUser as any)?.email}</strong>
-                                  </p>
-
-                                  {profileOtpSuccess && (
-                                    <div style={{
-                                      fontSize: '0.7rem',
-                                      color: '#10b981',
-                                      marginBottom: '0.55rem',
-                                      padding: '0.45rem 0.65rem',
-                                      borderRadius: '0.45rem',
-                                      background: 'rgba(16, 185, 129, 0.12)',
-                                      border: '1px solid rgba(16, 185, 129, 0.3)',
-                                      fontWeight: 600,
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '0.35rem'
-                                    }}>
-                                      <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
-                                      <span>{profileOtpSuccess}</span>
-                                    </div>
-                                  )}
-                                  {profileOtpError && (
-                                    <div style={{
-                                      fontSize: '0.7rem',
-                                      color: '#ef4444',
-                                      marginBottom: '0.55rem',
-                                      padding: '0.45rem 0.65rem',
-                                      borderRadius: '0.45rem',
-                                      background: 'rgba(239, 68, 68, 0.12)',
-                                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                                      fontWeight: 600,
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '0.35rem'
-                                    }}>
-                                      <AlertCircle size={13} style={{ flexShrink: 0 }} />
-                                      <span>{profileOtpError}</span>
-                                    </div>
-                                  )}
-
-                                  {!profileOtpSent ? (
-                                    <div style={{
-                                      padding: '0.65rem 0.75rem',
-                                      borderRadius: '0.55rem',
-                                      background: 'rgba(59, 130, 246, 0.06)',
-                                      border: '1px solid rgba(59, 130, 246, 0.2)',
-                                      marginBottom: '0.5rem'
-                                    }}>
-                                      <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-                                        Tekan tombol di bawah untuk menerima 6-digit kode OTP ke kontak email Anda:
-                                      </p>
-                                      <button
-                                        type="button"
-                                        onClick={handleRequestProfileOtp}
-                                        disabled={profileOtpLoading}
-                                        className="btn-primary"
-                                        style={{
-                                          width: '100%',
-                                          padding: '0.52rem',
-                                          fontSize: '0.74rem',
-                                          fontWeight: 800,
-                                          borderRadius: '0.5rem',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          gap: '0.4rem',
-                                          cursor: profileOtpLoading ? 'not-allowed' : 'pointer'
-                                        }}
-                                      >
-                                        <Mail size={14} />
-                                        <span>{profileOtpLoading ? 'Mengirim Kode OTP...' : 'Kirim Kode Verifikasi OTP'}</span>
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div style={{
-                                      padding: '0.65rem 0.75rem',
-                                      borderRadius: '0.55rem',
-                                      background: 'var(--card-bg, rgba(255, 255, 255, 0.04))',
-                                      border: '1.5px solid var(--primary)',
-                                      marginBottom: '0.5rem'
-                                    }}>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                                        <label style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                          Kode OTP
-                                        </label>
-                                        <button
-                                          type="button"
-                                          onClick={handleRequestProfileOtp}
-                                          disabled={profileOtpLoading || profileOtpCooldown > 0}
-                                          style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            padding: 0,
-                                            fontSize: '0.68rem',
-                                            fontWeight: 700,
-                                            color: profileOtpCooldown > 0 ? 'var(--text-muted)' : 'var(--primary)',
-                                            cursor: profileOtpCooldown > 0 ? 'default' : 'pointer',
-                                            textDecoration: profileOtpCooldown > 0 ? 'none' : 'underline'
-                                          }}
-                                        >
-                                          {profileOtpLoading ? 'Mengirim...' : profileOtpCooldown > 0 ? `Kirim ulang (${profileOtpCooldown}s)` : 'Kirim Ulang OTP'}
-                                        </button>
-                                      </div>
-                                      <input
-                                        type="text"
-                                        maxLength={6}
-                                        placeholder="Contoh: 123456"
-                                        value={profileOtpCode}
-                                        onChange={(e) => setProfileOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                                        className="form-input"
-                                        style={{
-                                          fontSize: '1.15rem',
-                                          fontWeight: 800,
-                                          textAlign: 'center',
-                                          letterSpacing: '6px',
-                                          padding: '0.5rem',
-                                          fontFamily: 'monospace',
-                                          border: '1.5px solid var(--primary)',
-                                          background: 'var(--bg-deep)',
-                                          color: 'var(--primary)'
-                                        }}
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-                              ) : Boolean((adminUser as any)?.has_custom_password) ? (
-                                <div>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.35rem' }}>
-                                    <label className="form-label" style={{ fontSize: '0.72rem', fontWeight: 700, margin: 0 }}>Kata Sandi Saat Ini</label>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setProfilePasswordMode('otp');
-                                        setProfileOtpError(null);
-                                        setProfileOtpSuccess(null);
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        padding: '0.25rem 0.65rem',
-                                        borderRadius: '0.45rem',
-                                        background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
-                                        border: '1px solid var(--primary)',
-                                        color: 'var(--primary)',
-                                        fontSize: '0.7rem',
-                                        fontWeight: 700,
-                                        cursor: 'pointer',
-                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                                        transition: 'all 0.15s ease'
-                                      }}
-                                      title="Verifikasi via kode OTP email jika lupa kata sandi lama"
-                                    >
-                                      Lupa Kata Sandi?
-                                    </button>
-                                  </div>
-                                  <div style={{ position: 'relative' }}>
-                                    <input
-                                      type={showBackupCurrentPasswordText ? 'text' : 'password'}
-                                      className="form-input"
-                                      placeholder="Masukkan kata sandi lama/saat ini"
-                                      value={backupPasswordForm.current_password}
-                                      onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, current_password: e.target.value })}
-                                      style={{ fontSize: '0.8rem', paddingRight: '2.4rem' }}
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowBackupCurrentPasswordText(!showBackupCurrentPasswordText)}
-                                      style={{
-                                        position: 'absolute',
-                                        right: '0.5rem',
-                                        top: '50%',
-                                        transform: 'translateY(-50%)',
-                                        background: 'none',
-                                        border: 'none',
-                                        padding: '0.25rem',
-                                        cursor: 'pointer',
-                                        color: 'var(--text-secondary)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                      }}
-                                      title={showBackupCurrentPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
-                                    >
-                                      {showBackupCurrentPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : null}
-                              <div>
-                                <label className="form-label" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Kata Sandi Baru</label>
-                                <div style={{ position: 'relative' }}>
-                                  <input
-                                    type={showBackupPasswordText ? 'text' : 'password'}
-                                    className="form-input"
-                                    placeholder="Minimal 8 karakter"
-                                    value={backupPasswordForm.password}
-                                    onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
-                                    style={{ fontSize: '0.8rem', paddingRight: '2.4rem' }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowBackupPasswordText(!showBackupPasswordText)}
-                                    style={{
-                                      position: 'absolute',
-                                      right: '0.5rem',
-                                      top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      background: 'none',
-                                      border: 'none',
-                                      padding: '0.25rem',
-                                      cursor: 'pointer',
-                                      color: 'var(--text-secondary)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}
-                                    title={showBackupPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
-                                  >
-                                    {showBackupPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
-                                  </button>
-                                </div>
-                              </div>
-                              <div>
-                                <label className="form-label" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Konfirmasi Kata Sandi Baru</label>
-                                <div style={{ position: 'relative' }}>
-                                  <input
-                                    type={showBackupConfirmPasswordText ? 'text' : 'password'}
-                                    className="form-input"
-                                    placeholder="Ulangi kata sandi baru"
-                                    value={backupPasswordForm.confirm_password}
-                                    onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, confirm_password: e.target.value })}
-                                    style={{ fontSize: '0.8rem', paddingRight: '2.4rem' }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowBackupConfirmPasswordText(!showBackupConfirmPasswordText)}
-                                    style={{
-                                      position: 'absolute',
-                                      right: '0.5rem',
-                                      top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      background: 'none',
-                                      border: 'none',
-                                      padding: '0.25rem',
-                                      cursor: 'pointer',
-                                      color: 'var(--text-secondary)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}
-                                    title={showBackupConfirmPasswordText ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
-                                  >
-                                    {showBackupConfirmPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleSaveBackupPassword}
-                              disabled={backupPasswordLoading}
-                              className="btn-full btn-primary"
-                              style={{ padding: '0.55rem', fontSize: '0.75rem', fontWeight: 800 }}
-                            >
-                              {backupPasswordLoading ? 'Menyimpan...' : (Boolean((adminUser as any)?.has_custom_password) ? 'Perbarui Kata Sandi' : 'Simpan Kata Sandi Cadangan')}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  {renderMobileUserProfileContent()}
                 </div>
               )}
 
               {adminSubTab === 'audit_logs' && (
                 /* TAB: RIWAYAT & LOG AUDIT (MOBILE) */
                 <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                      {/* Top Stats Banner */}
-                      <div className="glass-panel" style={{ padding: '0.95rem 1.15rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <div style={{ width: '32px', height: '32px', borderRadius: '0.55rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                            <History size={17} />
-                          </div>
-                          <div>
-                            <h3 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                              Riwayat Aktivitas &amp; Log
-                            </h3>
-                            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
-                              {activityTotal} rekaman aksi operasional tercatat
-                            </p>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => fetchActivityLogs(1, false)}
-                          disabled={activityLoading}
-                          className="btn-secondary"
-                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', borderRadius: '0.5rem' }}
-                        >
-                          <RefreshCw size={12} className={activityLoading ? 'animate-spin' : ''} />
-                          <span>Segarkan</span>
-                        </button>
-                      </div>
-
-                      {/* Search Bar */}
-                      <div className="search-wrapper" style={{ position: 'relative', width: '100%' }}>
-                        <Search className="search-icon" size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                        <input
-                          type="text"
-                          className="search-input"
-                          placeholder="Cari aksi, produk, atau IP..."
-                          value={activitySearch}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setActivitySearch(val);
-                            fetchActivityLogs(1, false, activityCategory, val);
-                          }}
-                          style={{ paddingLeft: '2.2rem', fontSize: '0.78rem' }}
-                        />
-                      </div>
-
-                      {/* Horizontal Scrollable Category Filter Chips */}
-                      <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.35rem', WebkitOverflowScrolling: 'touch' }}>
-                        {[
-                          { key: 'all', label: 'Semua' },
-                          { key: 'security', label: 'Autentikasi' },
-                          { key: 'catalog', label: 'Produk' },
-                          { key: 'store', label: 'Katalog' },
-                          { key: 'billing', label: 'Paket' },
-                        ].map(cat => {
-                          const isActive = activityCategory === cat.key;
-                          return (
-                            <button
-                              key={cat.key}
-                              type="button"
-                              onClick={() => {
-                                setActivityCategory(cat.key);
-                                setActivityPage(1);
-                                fetchActivityLogs(1, false, cat.key, activitySearch);
-                              }}
-                              style={{
-                                padding: '0.35rem 0.75rem',
-                                borderRadius: '0.5rem',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                whiteSpace: 'nowrap',
-                                cursor: 'pointer',
-                                border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                                backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
-                                color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                                boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none',
-                                transition: 'all 0.2s ease'
-                              }}
-                            >
-                              {cat.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Activity Logs Timeline Stream */}
-                      {activityLoading && activityLogs.length === 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1.5rem', gap: '0.65rem', color: 'var(--text-secondary)' }}>
-                          <Loader size={24} className="animate-spin" style={{ color: 'var(--primary)' }} />
-                          <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Memuat riwayat log...</span>
-                        </div>
-                      ) : activityLogs.length === 0 ? (
-                        <div className="glass-panel" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
-                          <History size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.65rem', opacity: 0.6 }} />
-                          <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Belum Ada Log Aktivitas</h4>
-                          <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0 }}>Setiap aksi perubahan data &amp; login akan tercatat otomatis di sini.</p>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                          {activityLogs.map((logItem: any) => {
-                            const isSecurity = logItem.category === 'security';
-                            const isCatalog = logItem.category === 'catalog';
-                            const isStore = logItem.category === 'store';
-                            const isBilling = logItem.category === 'billing';
-
-                            let iconBg = 'rgba(59, 130, 246, 0.12)';
-                            let iconColor = '#60a5fa';
-                            let IconComp = FileText;
-
-                            if (isSecurity) {
-                              iconBg = 'rgba(16, 185, 129, 0.12)';
-                              iconColor = '#10b981';
-                              IconComp = ShieldCheck;
-                            } else if (isCatalog) {
-                              iconBg = 'rgba(59, 130, 246, 0.12)';
-                              iconColor = '#60a5fa';
-                              IconComp = Package;
-                            } else if (isStore) {
-                              iconBg = 'rgba(168, 85, 247, 0.12)';
-                              iconColor = '#c084fc';
-                              IconComp = Store;
-                            } else if (isBilling) {
-                              iconBg = 'rgba(245, 158, 11, 0.12)';
-                              iconColor = '#f59e0b';
-                              IconComp = CreditCard;
-                            }
-
-                            return (
-                              <div
-                                key={logItem.id}
-                                className="glass-panel"
-                                style={{
-                                  padding: '0.85rem 0.95rem',
-                                  borderRadius: '0.75rem',
-                                  border: '1px solid var(--border-light)',
-                                  background: 'var(--card-bg-gradient)',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '0.5rem'
-                                }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                    <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                      <IconComp size={14} />
-                                    </div>
-                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: iconBg, color: iconColor }}>
-                                      {logItem.action}
-                                    </span>
-                                  </div>
-
-                                  <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                                    {new Date(logItem.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
-                                  </span>
-                                </div>
-
-                                <p style={{ fontSize: '0.78rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.4, fontWeight: 500 }}>
-                                  {logItem.description}
-                                </p>
-
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border-light)', paddingTop: '0.45rem', marginTop: '0.1rem' }}>
-                                  <span>Oleh: <strong style={{ color: 'var(--text-primary)' }}>{logItem.actor_name}</strong></span>
-                                  {logItem.changes && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setActivitySelectedLog(logItem)}
-                                      style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: 0 }}
-                                    >
-                                      <Eye size={12} />
-                                      <span>Detail Diff</span>
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-
-                          {/* Load More Button for Mobile */}
-                          {activityHasMore && (
-                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem' }}>
-                              <button
-                                type="button"
-                                onClick={() => fetchActivityLogs(activityPage + 1, true, activityCategory, activitySearch)}
-                                disabled={activityLoading}
-                                className="btn-secondary"
-                                style={{ padding: '0.5rem 1.25rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '0.6rem' }}
-                              >
-                                {activityLoading ? <Loader size={14} className="animate-spin" /> : <ChevronDown size={14} />}
-                                <span>Muat Log Sebelumnya</span>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Mobile Diff Bottom Sheet / Modal */}
-                      {activitySelectedLog && (
-                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                          <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', borderRadius: '1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)', overflow: 'hidden' }}>
-                            <div style={{ padding: '1rem 1.15rem', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-deep)' }}>
-                              <div>
-                                <span style={{ fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Snapshot Perubahan</span>
-                                <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.1rem 0 0 0' }}>{activitySelectedLog.action}</h4>
-                              </div>
-                              <button type="button" onClick={() => setActivitySelectedLog(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.15rem', cursor: 'pointer', fontWeight: 700 }}>✕</button>
-                            </div>
-
-                            <div style={{ padding: '1rem 1.15rem', maxHeight: '320px', overflowY: 'auto' }}>
-                              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.65rem' }}>{activitySelectedLog.description}</p>
-                              <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--primary)', whiteSpace: 'pre-wrap', overflowX: 'auto', lineHeight: 1.4 }}>
-                                {JSON.stringify(activitySelectedLog.changes, null, 2)}
-                              </div>
-                            </div>
-
-                            <div style={{ padding: '0.75rem 1.15rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', backgroundColor: 'var(--bg-deep)' }}>
-                              <button type="button" className="btn-primary" onClick={() => setActivitySelectedLog(null)} style={{ padding: '0.4rem 1rem', fontSize: '0.75rem' }}>Tutup</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                  {renderMobileAuditLogsContent()}
                 </div>
               )}
 
