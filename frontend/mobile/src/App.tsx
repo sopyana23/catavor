@@ -14215,6 +14215,146 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 </div>
               </div>
 
+              {/* MITRA RESMI REKBER & TRANSAKSI AMAN ESCROW MOBILE */}
+              <div id="escrow-partner-mobile" style={{ scrollMarginTop: '5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '0.3rem 0.8rem', borderRadius: '999px', fontSize: '0.68rem', fontWeight: 800, marginBottom: '0.65rem' }}>
+                    <ShieldCheck size={14} style={{ color: '#16a34a' }} />
+                    <span>Kemitraan Resmi &amp; Escrow Terpercaya</span>
+                  </div>
+                  <h2 style={{ fontSize: '1.55rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.4rem 0', letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+                    Belanja Tenang Bersama <span style={{ color: '#2563eb' }}>{platformSettings.rekber_partner_name || 'Rekber Syariah'}</span>
+                  </h2>
+                  <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0, lineHeight: 1.5 }}>
+                    Platform Catavor bekerja sama resmi dengan <strong>{platformSettings.rekber_partner_name || 'Rekber Syariah'}</strong> ({getCleanDomain(platformSettings.rekber_website_url)}) untuk proteksi transaksi anti-penipuan 100% bebas riba.
+                  </p>
+                </div>
+
+                {/* Partner Card Mobile */}
+                <div className="portal-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)', border: '1.5px solid #bfdbfe', borderRadius: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <BadgeCheck size={20} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <h4 style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                          {platformSettings.rekber_partner_name || 'Rekber Syariah'}
+                        </h4>
+                        <span style={{ fontSize: '0.6rem', fontWeight: 800, background: '#dcfce7', color: '#15803d', padding: '0.1rem 0.35rem', borderRadius: '999px', border: '1px solid #bbf7d0' }}>
+                          RESMI
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: '#2563eb', fontWeight: 700 }}>
+                        Mitra Escrow Catavor • {getCleanDomain(platformSettings.rekber_website_url)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                    <div style={{ padding: '0.65rem 0.75rem', background: '#ffffff', borderRadius: '0.65rem', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Format</div>
+                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#0f172a' }}>Grup WA 3 Pihak</div>
+                    </div>
+                    <div style={{ padding: '0.65rem 0.75rem', background: '#ffffff', borderRadius: '0.65rem', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Prinsip</div>
+                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#16a34a' }}>Bebas Riba &amp; Adil</div>
+                    </div>
+                  </div>
+
+                  {/* Contact Info */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#ffffff', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#64748b', fontWeight: 600 }}>Web Mitra:</span>
+                      <a href={platformSettings.rekber_website_url || 'https://rekbersyariah.com'} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', textDecoration: 'none' }}>
+                        <span>{getCleanDomain(platformSettings.rekber_website_url)}</span>
+                        <ExternalLink size={12} />
+                      </a>
+                    </div>
+                    <div style={{ height: '1px', backgroundColor: '#f1f5f9' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#64748b', fontWeight: 600 }}>WhatsApp Admin:</span>
+                      <a href={`https://wa.me/${(platformSettings.rekber_wa_number || '62811220227').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" style={{ color: '#16a34a', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', textDecoration: 'none' }}>
+                        <MessageCircle size={13} />
+                        <span>+{(platformSettings.rekber_wa_number || '62811220227').replace(/\D/g, '')}</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <a
+                      href={platformSettings.rekber_website_url || 'https://rekbersyariah.com'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-portal-secondary"
+                      style={{ flex: 1, padding: '0.55rem', fontSize: '0.75rem', fontWeight: 700, borderRadius: '0.55rem', justifyContent: 'center', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                    >
+                      <ExternalLink size={13} />
+                      <span>Situs Web</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/${(platformSettings.rekber_wa_number || '62811220227').replace(/\D/g, '')}?text=${encodeURIComponent('Halo Admin Rekber Syariah, saya ingin berkonsultasi mengenai transaksi pembelian barang melalui platform Catavor.')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-portal-primary"
+                      style={{ flex: 1, padding: '0.55rem', fontSize: '0.75rem', fontWeight: 800, borderRadius: '0.55rem', justifyContent: 'center', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: '#16a34a', color: '#ffffff' }}
+                    >
+                      <MessageCircle size={13} />
+                      <span>Chat Rekber</span>
+                    </a>
+                  </div>
+                </div>
+
+                {/* What is Rekber Card Mobile */}
+                <div className="portal-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', background: '#ffffff', borderRadius: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Scale size={18} />
+                    </div>
+                    <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                      Kenapa Ada Fitur Rekber?
+                    </h4>
+                  </div>
+                  <p style={{ fontSize: '0.76rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>
+                    Catavor membebaskan 0% komisi penjualan. Demi menjembatani transaksi antar kota tanpa rasa takut tertipu, dana pembeli ditahan aman di escrow {platformSettings.rekber_partner_name || 'Rekber Syariah'} sampai pesanan tiba dan dicek pembeli.
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
+                    <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: '#2563eb', color: '#ffffff', fontSize: '0.72rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
+                      <div style={{ fontSize: '0.74rem', color: '#334155', lineHeight: 1.4 }}>
+                        <strong>Pilih Produk:</strong> Klik tombol Rekber di produk atau minta penjual memproses via Rekber.
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: '#2563eb', color: '#ffffff', fontSize: '0.72rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
+                      <div style={{ fontSize: '0.74rem', color: '#334155', lineHeight: 1.4 }}>
+                        <strong>Grup WA 3 Pihak:</strong> Admin resmi rekber membuat grup bersama Pembeli &amp; Penjual.
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: '#2563eb', color: '#ffffff', fontSize: '0.72rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</div>
+                      <div style={{ fontSize: '0.74rem', color: '#334155', lineHeight: 1.4 }}>
+                        <strong>Transfer &amp; Kirim:</strong> Pembeli transfer ke rekening escrow resmi, lalu Penjual mengirimkan barang.
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: '#16a34a', color: '#ffffff', fontSize: '0.72rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>4</div>
+                      <div style={{ fontSize: '0.74rem', color: '#334155', lineHeight: 1.4 }}>
+                        <strong>Verifikasi &amp; Cair:</strong> Pembeli cek barang. Setelah disetujui, dana langsung dicairkan ke Penjual.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Buyer tips callout */}
+                  <div style={{ padding: '0.75rem', borderRadius: '0.75rem', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.72rem', color: '#1e3a8a', lineHeight: 1.45 }}>
+                    <div style={{ fontWeight: 800, marginBottom: '0.2rem' }}>💡 Belum ada tombol Rekber di toko penjual?</div>
+                    Minta santun via chat WhatsApp penjual: <em>&ldquo;Halo kak, apakah pesanan ini bisa melalui mitra resmi Rekber Syariah ({getCleanDomain(platformSettings.rekber_website_url)}) agar lebih aman?&rdquo;</em>
+                  </div>
+                </div>
+              </div>
+
               {/* PRICING SECTION MOBILE */}
               <div id="pricing-mobile">
                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
