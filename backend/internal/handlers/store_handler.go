@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -1792,3 +1794,139 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 		},
 	})
 }
+
+type DeleteStoreRequest struct {
+	ConfirmSlug string `json:"confirm_slug"`
+	Password    string `json:"password"`
+}
+
+// DeleteStore handles single store deletion with safe multi-tenant storage cleanup
+func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
+	user := c.Locals("user").(*models.User)
+	storeIDStr := c.Params("id")
+	storeID, err := strconv.ParseUint(storeIDStr, 10, 32)
+	if err != nil || storeID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID katalog tidak valid.",
+		})
+	}
+
+	var store models.Store
+	if err := database.DB.First(&store, uint(storeID)).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Profil katalog tidak ditemukan.",
+		})
+	}
+
+	// Authorization Check: Must be the owner or platform admin
+	isStaff := user.PlatformRole == "superadmin" || user.PlatformRole == "platform_admin" || user.PlatformRole == "admin"
+	if store.UserID != user.ID && !isStaff {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Anda tidak memiliki wewenang untuk menghapus profil katalog ini.",
+		})
+	}
+
+	var req DeleteStoreRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data konfirmasi tidak valid.",
+		})
+	}
+
+	// 1. Validate slug confirmation
+	cleanSlug := strings.ToLower(strings.TrimSpace(req.ConfirmSlug))
+	if cleanSlug != strings.ToLower(strings.TrimSpace(store.Slug)) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Konfirmasi tautan tidak cocok. Silakan ketik '%s' untuk mengonfirmasi.", store.Slug),
+		})
+	}
+
+	// 2. Validate password if user has password (skip for staff or Google users without password)
+	if !isStaff && user.HasCustomPassword && user.Password != "" {
+		if req.Password == "" || !user.CheckPassword(req.Password) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Kata sandi akun yang Anda masukkan salah.",
+			})
+		}
+	}
+
+	// 3. Multi-Tenant Storage & Database Purge Transaction (AGENTS.md Rule 4)
+	cfg := h.cfg
+	if cfg == nil {
+		cfg = config.LoadConfig()
+	}
+
+	tx := database.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Delete all products and variants
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.ProductVariant{}).Error
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.ProductImage{}).Error
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.Product{}).Error
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.Category{}).Error
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.Article{}).Error
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.StoreDailyAnalytics{}).Error
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.ProductDailyAnalytics{}).Error
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.StoreDailyTrafficSource{}).Error
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.NotificationRead{}).Error
+	_ = tx.Where("store_id = ?", store.ID).Delete(&models.ActivityLog{}).Error
+
+	// Delete store record
+	if err := tx.Delete(&store).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghapus data katalog dari basis data.",
+		})
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyelesaikan transaksi penghapusan.",
+		})
+	}
+
+	// Hard-delete physical media files from disk (AGENTS.md Rule 4)
+	if cfg.StorageLocalRoot != "" {
+		storeMediaDir := filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", store.ID))
+		_ = os.RemoveAll(storeMediaDir)
+		legacyMediaDir := filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", store.ID))
+		_ = os.RemoveAll(legacyMediaDir)
+	}
+
+	// Fetch remaining active stores of user
+	var remainingStores []models.Store
+	database.DB.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).
+		Order("id asc").Find(&remainingStores)
+
+	var nextToken string
+	var nextStore *models.Store
+	if len(remainingStores) > 0 {
+		nextStore = &remainingStores[0]
+		nextToken, _ = middleware.GenerateToken(user, nextStore, cfg)
+	} else {
+		// No stores left, generate token with nil store
+		nextToken, _ = middleware.GenerateToken(user, nil, cfg)
+	}
+
+	return c.JSON(fiber.Map{
+		"success":          true,
+		"message":          fmt.Sprintf("Profil katalog '%s' berhasil dihapus permanen.", store.StoreTitle),
+		"remaining_stores": remainingStores,
+		"remaining_count":  len(remainingStores),
+		"new_token":        nextToken,
+		"next_store":       nextStore,
+	})
+}
+

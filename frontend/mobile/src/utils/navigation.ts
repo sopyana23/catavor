@@ -220,3 +220,39 @@ export function useModalBackHandler({
     };
   }, [isOpen, modalId, disabled]);
 }
+
+/**
+ * Procedural helper to setup a modal back interceptor within a useEffect cleanup cycle (Mobile).
+ */
+export function setupModalBackInterceptor(onClose: () => void, modalId: string = 'mobile_modal'): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  ensurePopstateListener();
+
+  const uniqueKey = `modal_${modalId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  window.history.pushState({ modalKey: uniqueKey, __catavor_modal: true }, '');
+
+  const entry: ModalEntry = {
+    id: modalId,
+    stateKey: uniqueKey,
+    onClose,
+  };
+  modalStack.push(entry);
+
+  return () => {
+    const index = modalStack.findIndex((m) => m.stateKey === uniqueKey);
+    if (index !== -1) {
+      modalStack.splice(index, 1);
+    }
+    if (!isInternalBackTriggered && window.history.state?.modalKey === uniqueKey) {
+      window.__catavor_is_modal_popping = true;
+      window.history.back();
+      setTimeout(() => {
+        window.__catavor_is_modal_popping = false;
+      }, 120);
+    }
+    isInternalBackTriggered = false;
+  };
+}
+

@@ -69,6 +69,7 @@ func main() {
 	}
 
 	authHandler := handlers.NewAuthHandler(cfg)
+	sessionHandler := handlers.NewSessionHandler(cfg)
 	storeHandler := handlers.NewStoreHandler(cfg)
 	subscriptionHandler := handlers.NewSubscriptionHandler()
 	productHandler := handlers.NewProductHandler(cfg)
@@ -268,6 +269,17 @@ func main() {
 		authOnly.Post("/user/stores", storeHandler.CreateStore)
 		authOnly.Post("/user/stores/create", storeHandler.CreateStore)
 		authOnly.Post("/user/stores/switch", storeHandler.SwitchStore)
+
+		// Connected Devices & Active Session Management
+		authOnly.Get("/user/sessions", sessionHandler.GetSessions)
+		authOnly.Post("/user/sessions/:id/revoke", sessionHandler.RevokeSession)
+		authOnly.Post("/user/sessions/revoke-others", sessionHandler.RevokeOtherSessions)
+
+		// Danger Zone: Single Store & Entire User Account Deletion
+		authOnly.Delete("/stores/:id", storeHandler.DeleteStore)
+		authOnly.Post("/stores/:id/delete", storeHandler.DeleteStore)
+		authOnly.Delete("/user/account", authHandler.DeleteAccount)
+		authOnly.Post("/user/account/delete", authHandler.DeleteAccount)
 
 		// Dynamic Notifications & Real-Time SSE (User-Level Rights: Available during suspension/appeal)
 		authOnly.Get("/notifications", notificationHandler.GetNotifications)

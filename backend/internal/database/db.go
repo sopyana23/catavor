@@ -66,6 +66,29 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_custom_password BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("UPDATE users SET has_custom_password = TRUE WHERE (google_id IS NULL OR google_id = '') AND has_custom_password = FALSE;").Error
 
+	// Idempotent creation for user_sessions table
+	_ = db.Exec(`CREATE TABLE IF NOT EXISTS user_sessions (
+		id BIGSERIAL PRIMARY KEY,
+		user_id BIGINT NOT NULL,
+		token_id VARCHAR(255) NOT NULL,
+		ip_address VARCHAR(100) NOT NULL,
+		user_agent TEXT,
+		device_name VARCHAR(255) NOT NULL,
+		device_type VARCHAR(50) NOT NULL,
+		browser VARCHAR(100),
+		os VARCHAR(100),
+		location VARCHAR(255),
+		last_active_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		is_revoked BOOLEAN DEFAULT FALSE,
+		revoked_at TIMESTAMP WITH TIME ZONE,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	);`).Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_user_sessions_token_id ON user_sessions(token_id);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_user_sessions_last_active ON user_sessions(last_active_at);").Error
+
 	if !cfg.DBAutoMigrate {
 		DB = db
 		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED)")
@@ -78,6 +101,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	// 2. Auto-Migrate Schemas to PostgreSQL
 	err = db.AutoMigrate(
 		&models.User{},
+		&models.UserSession{},
 		&models.Store{},
 		&models.SubscriptionPlan{},
 		&models.SubscriptionOrder{},
