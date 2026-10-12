@@ -243,6 +243,7 @@ func main() {
 	api.Post("/forgot-password", middleware.AuthRateLimiter(), authHandler.ForgotPasswordRequest)
 	api.Post("/auth/forgot-password-reset", middleware.AuthRateLimiter(), authHandler.ForgotPasswordReset)
 	api.Post("/reset-password", middleware.AuthRateLimiter(), authHandler.ForgotPasswordReset)
+	api.Post("/profile/request-password-otp", middleware.AuthRateLimiter(), authHandler.RequestProfilePasswordOTP)
 
 	// Public Slug Availability Checking
 	api.Get("/check-slug/:slug", storeHandler.CheckSlug)
@@ -259,6 +260,7 @@ func main() {
 		authOnly.Post("/logout", authHandler.Logout)
 		authOnly.Post("/profile", authHandler.UpdateProfile)
 		authOnly.Put("/profile", authHandler.UpdateProfile)
+		authOnly.Post("/profile/request-password-otp", middleware.AuthRateLimiter(), authHandler.RequestProfilePasswordOTP)
 
 		// Multi-Store User Management
 		authOnly.Get("/user/stores", storeHandler.GetMyStores)

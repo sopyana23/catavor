@@ -99,6 +99,7 @@ type UpdateProfileRequest struct {
 	CurrentPassword string `json:"current_password"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
+	OTP             string `json:"otp"`
 }
 
 type StoreSummary struct {
@@ -1405,17 +1406,28 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	passwordWasChanged := false
 	if req.Password != "" {
 		if user.HasCustomPassword {
-			if strings.TrimSpace(req.CurrentPassword) == "" {
-				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-					"success": false,
-					"message": "Kata sandi saat ini wajib diisi untuk mengubah kata sandi akun.",
-				})
-			}
-			if !user.CheckPassword(req.CurrentPassword) {
-				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-					"success": false,
-					"message": "Kata sandi saat ini yang Anda masukkan salah.",
-				})
+			if strings.TrimSpace(req.OTP) != "" {
+				token, err := services.GetOTPService().VerifyOTP(user.Email, strings.TrimSpace(req.OTP), "password_reset")
+				if err != nil {
+					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+						"success": false,
+						"message": err.Error(),
+					})
+				}
+				_ = services.GetOTPService().ValidateAndConsumeToken(user.Email, token, "password_reset")
+			} else {
+				if strings.TrimSpace(req.CurrentPassword) == "" {
+					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+						"success": false,
+						"message": "Kata sandi saat ini wajib diisi untuk mengubah kata sandi akun.",
+					})
+				}
+				if !user.CheckPassword(req.CurrentPassword) {
+					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+						"success": false,
+						"message": "Kata sandi saat ini yang Anda masukkan salah.",
+					})
+				}
 			}
 		}
 
@@ -1753,6 +1765,64 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Kata sandi Anda berhasil diperbarui.",
 		"token":   newToken,
+	})
+}
+
+// RequestProfilePasswordOTP sends a password recovery OTP for the authenticated user (or provided email).
+func (h *AuthHandler) RequestProfilePasswordOTP(c *fiber.Ctx) error {
+	var user *models.User
+	if u, ok := c.Locals("user").(*models.User); ok && u != nil {
+		user = u
+	} else {
+		claims := middleware.ExtractOptionalClaims(c, h.cfg)
+		if claims != nil && claims.UserID > 0 {
+			var u models.User
+			if err := database.DB.First(&u, claims.UserID).Error; err == nil {
+				user = &u
+			}
+		}
+		if user == nil {
+			var bodyReq struct {
+				Email string `json:"email"`
+			}
+			if err := c.BodyParser(&bodyReq); err != nil || bodyReq.Email == "" {
+				_ = json.Unmarshal(c.Body(), &bodyReq)
+			}
+			reqEmail := strings.TrimSpace(strings.ToLower(bodyReq.Email))
+			if reqEmail != "" {
+				var u models.User
+				if err := database.DB.Where("LOWER(email) = ?", reqEmail).First(&u).Error; err == nil {
+					user = &u
+				}
+			}
+		}
+	}
+
+	if user == nil || user.ID == 0 || user.Email == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Sesi tidak valid atau pengguna tidak ditemukan.",
+		})
+	}
+
+	if user.IsBlacklisted {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akun Anda telah dinonaktifkan.",
+		})
+	}
+
+	_, err := services.GetOTPService().GenerateAndSendPasswordResetOTP(user.Email, user.Name)
+	if err != nil {
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Kode verifikasi telah dikirimkan ke %s.", user.Email),
 	})
 }
 
