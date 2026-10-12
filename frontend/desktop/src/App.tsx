@@ -5505,7 +5505,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [previewProductModal, setPreviewProductModal] = useState<any | null>(null);
   const [simulatedOrderToast, setSimulatedOrderToast] = useState<string | null>(null);
   // Policy & Privacy System States
-  const [policies, setPolicies] = useState<{ [key: string]: { type: string, version: string, title: string, content: string, published_at?: string } }>({
+  const [policies, setPolicies] = useState<{ [key: string]: { type: string, version: string, title: string, content: string, published_at?: string, effective_date?: string, updated_at?: string } }>({
     terms: {
       type: 'terms',
       version: 'v1.0.0',
@@ -5525,6 +5525,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       content: '1. Larangan Konten & Barang Ilegal\nPengguna dilarang keras menampilkan, menawarkan, atau menjual narkotika, senjata api/tajam ilegal, satwa liar dilindungi, atau produk bajakan.\n\n2. Penangguhan & Pemblokiran Akun\nPelanggaran terhadap ketentuan penggunaan ini akan mengakibatkan penangguhan atau pemblokiran permanen.'
     }
   });
+
+  const formatPolicyEffectiveDate = (dateStr?: string) => {
+    if (!dateStr) return '1 Januari 2025';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '1 Januari 2025';
+      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    } catch {
+      return '1 Januari 2025';
+    }
+  };
 
   const [activePolicyModal, setActivePolicyModal] = useState<string | null>(null);
   const [policyAuditLogs, setPolicyAuditLogs] = useState<any[]>([]);
@@ -5994,8 +6005,30 @@ Terima kasih.`;
       content: 'Memuat kebijakan...'
     };
 
+    const effectiveDateStr = formatPolicyEffectiveDate(policy.effective_date || policy.updated_at);
+
     return (
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2.5rem 1.5rem 5rem 1.5rem', animation: 'fadeIn 0.3s ease-in-out' }}>
+        {/* Document Header Panel */}
+        <div style={{ marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '0.2rem 0.65rem', borderRadius: '999px', border: '1px solid #bfdbfe', letterSpacing: '0.03em' }}>
+              DOKUMEN RESMI
+            </span>
+            <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
+              PT Catavor Media Digital
+            </span>
+          </div>
+          <h1 style={{ fontSize: '2.25rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', margin: '0 0 0.5rem 0' }}>
+            {policy.title}
+          </h1>
+          <p style={{ fontSize: '0.92rem', color: '#64748b', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>Terakhir diperbarui: <strong>{effectiveDateStr}</strong></span>
+            <span>•</span>
+            <span>Berlaku bagi seluruh pengguna &amp; merchant Catavor</span>
+          </p>
+        </div>
+
         {/* Main Content Card Panel */}
         <div className="glass-panel" style={{ padding: '2.5rem 2rem', borderRadius: '1.25rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6)' }}>
           {renderFormattedPolicyContent(policy.content)}
@@ -13974,15 +14007,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', fontSize: '0.82rem' }}>
                   <button type="button" onClick={() => setPortalTab('terms')} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
-                    Syarat &amp; Ketentuan ({policies.terms?.version || 'v1.0.0'})
+                    Syarat &amp; Ketentuan
                   </button>
                   <span style={{ color: '#cbd5e1' }}>•</span>
                   <button type="button" onClick={() => setPortalTab('privacy')} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
-                    Kebijakan Privasi ({policies.privacy?.version || 'v1.0.0'})
+                    Kebijakan Privasi
                   </button>
                   <span style={{ color: '#cbd5e1' }}>•</span>
                   <button type="button" onClick={() => setPortalTab('acceptable_use')} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
-                    Ketentuan Penggunaan ({policies.acceptable_use?.version || 'v1.0.0'})
+                    Ketentuan Penggunaan
                   </button>
                 </div>
               </div>
@@ -14379,11 +14412,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.76rem', color: '#64748b', lineHeight: 1.5 }}>
                       Dengan mendaftar, Anda menyetujui{' '}
                       <button type="button" onClick={() => setActivePolicyModal('terms')} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontWeight: 700, padding: 0 }}>
-                        Syarat &amp; Ketentuan ({policies.terms?.version || 'v1.0.0'})
+                        Syarat &amp; Ketentuan
                       </button>{' '}
                       dan{' '}
                       <button type="button" onClick={() => setActivePolicyModal('privacy')} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontWeight: 700, padding: 0 }}>
-                        Kebijakan Privasi ({policies.privacy?.version || 'v1.0.0'})
+                        Kebijakan Privasi
                       </button>{' '}
                       Catavor.
                     </div>
@@ -29642,11 +29675,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   {policies[activePolicyModal].title}
                 </h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '0.15rem 0.6rem', borderRadius: '999px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                    Versi {policies[activePolicyModal].version}
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.12)', padding: '0.15rem 0.6rem', borderRadius: '999px', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
+                    Dokumen Resmi
                   </span>
                   <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                    Resmi • PT Catavor Media Digital
+                    Terakhir diperbarui: {formatPolicyEffectiveDate(policies[activePolicyModal].effective_date || (policies[activePolicyModal] as any).updated_at)}
                   </span>
                 </div>
               </div>
