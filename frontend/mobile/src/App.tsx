@@ -25482,62 +25482,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               </div>
                             </div>
                           ) : (
-                            /* Sub-views with Horizontal Segmented Pill Switcher */
+                            /* Sub-views without redundant top tab switcher */
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                              {/* Horizontal Quick Pill Switcher */}
-                              <div style={{
-                                display: 'flex',
-                                gap: '0.35rem',
-                                background: 'var(--btn-secondary-bg)',
-                                padding: '0.3rem',
-                                borderRadius: '0.65rem',
-                                border: '1px solid var(--border-light)',
-                                overflowX: 'auto',
-                                WebkitOverflowScrolling: 'touch'
-                              }}>
-                                {[
-                                  { key: 'profile', label: 'Profil Pengguna', icon: <User size={12} /> },
-                                  { key: 'devices', label: 'Sesi & Perangkat', icon: <Smartphone size={12} /> },
-                                  { key: 'audit_logs', label: 'Log & Audit', icon: <History size={12} /> },
-                                  { key: 'danger', label: 'Penutupan Akun', icon: <FolderMinus size={12} /> }
-                                ].map((tabItem) => {
-                                  const isActive = mobileAccountSubTab === tabItem.key;
-                                  return (
-                                    <button
-                                      key={tabItem.key}
-                                      type="button"
-                                      onClick={() => {
-                                        const slug = getStoreSlug();
-                                        setMobileAccountSubTab(tabItem.key as any);
-                                        const subPath = tabItem.key === 'audit_logs' ? 'audit-logs' : tabItem.key;
-                                        if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/account/${subPath}`);
-                                      }}
-                                      style={{
-                                        flex: 1,
-                                        padding: '0.45rem 0.65rem',
-                                        borderRadius: '0.45rem',
-                                        fontSize: '0.72rem',
-                                        fontWeight: 800,
-                                        border: isActive ? '1px solid var(--primary)' : '1px solid transparent',
-                                        cursor: 'pointer',
-                                        whiteSpace: 'nowrap',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '0.35rem',
-                                        backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-                                        color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                                        boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
-                                        transition: 'all 0.15s ease'
-                                      }}
-                                    >
-                                      {tabItem.icon}
-                                      <span>{tabItem.label}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-
                               {/* Active Sub-tab View */}
                               {mobileAccountSubTab === 'profile' && (
                                 <div className="animate-fade-in">
