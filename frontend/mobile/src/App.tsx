@@ -16218,7 +16218,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               Riwayat Aktivitas &amp; Log
             </h3>
             <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
-              {activityTotal} rekaman aksi operasional tercatat
+              {activityTotal.toLocaleString('id-ID')} rekaman aksi operasional tercatat
             </p>
           </div>
         </div>
