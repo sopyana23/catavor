@@ -825,6 +825,43 @@ export const renderLandingItemSubtitle = (item: any): string => {
   return `${item.habitat ? item.habitat + ' • ' : ''}${item.detailed_info?.native_region ? item.detailed_info.native_region + ' • ' : ''}${item.scientific_name && item.scientific_name !== 'N/A' ? item.scientific_name : (item.class || 'Satwa')}`;
 };
 
+export const generateLandingWAMessage = (item: any): string => {
+  if (!item) return '';
+  const pType = item.product_type || 'physical';
+  const name = item.name || item.title || 'Produk';
+  const price = formatDisplayPrice(item.price);
+  const merchant = item.merchant || 'Admin';
+
+  if (pType === 'property') {
+    const trx = item.attributes?.transaction_type || 'Dijual';
+    return `Halo *${merchant}*, saya tertarik dengan listing properti berikut:\n*${name}* (${trx} - Harga: ${price})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
+  }
+  if (pType === 'service') {
+    return `Halo *${merchant}*, saya tertarik untuk berkonsultasi & memesan layanan jasa berikut:\n*${name}* (Tarif: ${price})\n\nBerikut ringkasan kebutuhan / kendala saya: [...]\nMohon info mengenai estimasi waktu dan ketersediaan jadwal pengerjaan. Terima kasih.`;
+  }
+  if (pType === 'food') {
+    return `Halo *${merchant}*, saya ingin memesan menu kuliner berikut:\n*${name}* (Harga: ${price})\n\nJumlah Pesanan: [1 Porsi]\nCatatan / Level Pedas / Varian: [...]\nAlamat Pengiriman (jika pesan antar): [...]\nMohon info ketersediaan menu dan total estimasi pengiriman. Terima kasih.`;
+  }
+  if (pType === 'digital') {
+    return `Halo *${merchant}*, saya ingin membeli produk digital berlisensi resmi berikut:\n*${name}* (Harga: ${price})\n\nMohon instruksi pembayaran dan link pengiriman file digital resminya. Terima kasih.`;
+  }
+  if (pType === 'fauna') {
+    return `Halo *${merchant}*, saya tertarik membeli / mengadopsi satwa berikut:\n*${name}* (Harga: ${price})\n\nMohon info ketersediaan, kondisi kesehatan, dan opsi pengiriman bergaransi hidup. Terima kasih.`;
+  }
+  if (pType === 'plant') {
+    return `Halo *${merchant}*, saya tertarik membeli tanaman hias berikut:\n*${name}* (Harga: ${price})\n\nMohon info ketersediaan stok, kondisi tanaman, dan panduan pengiriman amannya. Terima kasih.`;
+  }
+  return `Halo *${merchant}*, saya tertarik untuk membeli *${name}* (Harga: ${price})\n\nJumlah Pesanan: [1 Pcs]\nVarian / Ukuran / Warna: [...]\nAlamat Pengiriman: [...]\nMohon info ketersediaan stok & ongkos kirim. Terima kasih.`;
+};
+
+export const generateLandingRekberMessage = (item: any): string => {
+  if (!item) return '';
+  const name = item.name || item.title || 'Produk';
+  const price = formatDisplayPrice(item.price);
+  const merchant = item.merchant || 'Admin';
+  return `Halo *${merchant}*, saya ingin memesan produk berikut melalui Rekening Bersama Syariah Catavor:\n\n*Produk:* ${name}\n*Nominal:* ${price}\n\nSaya ingin bertransaksi secara aman menggunakan proteksi Rekber Syariah agar pesanan terverifikasi dan dana aman hingga produk/layanan diterima. Mohon bantuannya untuk dibuatkan transaksi bersama. Terima kasih.`;
+};
+
 export const LANDING_INDUSTRIES = [
   {
     id: 'physical' as ItemCategoryType,
@@ -1264,23 +1301,23 @@ export const LANDING_FAQS = [
   },
   {
     q: 'Bagaimana alur pelanggan memesan produk di katalog saya?',
-    a: 'Pelanggan cukup membuka link katalog Anda di ponsel atau komputer, memilih produk yang disukai, lalu menekan tombol "Pesan via WhatsApp". Sistem kami secara otomatis membuat draf pesan WhatsApp yang terstruktur rapi (berisi nama produk, harga, varian, dan catatan) sehingga penjual bisa langsung memproses pesanan dengan cepat.'
+    a: 'Pelanggan cukup membuka link katalog Anda di ponsel atau komputer, memilih produk yang disukai, lalu menekan tombol "Pesan via WhatsApp". Sistem kami secara otomatis membuat draf pesan WhatsApp yang terstruktur rapi per kategori produk (berisi nama produk, harga, varian, dan catatan) sehingga penjual bisa langsung memproses pesanan dengan cepat.'
+  },
+  {
+    q: 'Apa itu fitur Rekber Syariah di platform Catavor?',
+    a: 'Rekber Syariah adalah fasilitas Rekening Bersama berprinsip Syariah untuk menjembatani transaksi yang aman, adil, dan transparan antara pembeli dan penjual. Dana pembeli diamankan terlebih dahulu hingga produk atau layanan diterima dengan baik tanpa ada unsur riba maupun manipulasi.'
   },
   {
     q: 'Apakah ada potongan komisi atau biaya transaksi per penjualan?',
     a: '0% Komisi! Catavor tidak memotong sepeser pun dari nominal penjualan Anda. Seluruh pembayaran dari pembeli dan data pelanggan 100% menjadi milik Anda seutuhnya.'
   },
   {
+    q: 'Apa keunggulan 7 format katalog di Catavor dibanding biolink biasa?',
+    a: 'Biolink biasa hanya berupa daftar link teks statis. Catavor menyediakan formulir atribut khusus sesuai industrinya: bobot & bahan untuk barang fisik, masa simpan & suhu untuk kuliner, durasi pengerjaan untuk jasa, spesifikasi file & lisensi untuk produk digital, taksonomi latin untuk hewan & tanaman hias, serta legalitas sertifikat & luas tanah/bangunan untuk properti.'
+  },
+  {
     q: 'Apakah saya bisa mengubah foto, harga, atau menambah produk kapan saja?',
-    a: 'Tentu! Anda memiliki akses penuh ke Dashboard Admin yang sangat mudah digunakan. Anda dapat menambah item baru, mengedit harga promo, mengganti foto produk, hingga mengatur jam operasional toko langsung dari ponsel maupun laptop dalam hitungan detik.'
-  },
-  {
-    q: 'Bagaimana jika usaha saya memiliki banyak varian atau jenis layanan berbeda?',
-    a: 'Catavor dirancang multi-kategori dan sangat fleksibel. Anda dapat mengelompokkan produk ke dalam berbagai kategori, menambahkan opsi varian (seperti rasa, ukuran, warna), mencantumkan estimasi pengerjaan jasa, hingga menyertakan link marketplace cadangan.'
-  },
-  {
-    q: 'Apakah saya bisa mencetak QR Code untuk dipajang di kasir atau meja toko fisik?',
-    a: 'Bisa! Di dalam Dashboard Admin, Anda dapat mengunduh file QR Code beresolusi tinggi secara gratis dalam 1 klik. Anda dapat mencetaknya pada standing acrylic meja kasir, kartu nama bisnis, banner, ataupun stiker packaging pengiriman.'
+    a: 'Tentu! Anda memiliki akses penuh ke Dashboard Admin. Anda dapat menambah item baru, mengedit harga promo, mengganti foto produk (dengan kompresi WebP otomatis), hingga mengatur jam operasional toko langsung dari ponsel maupun laptop dalam hitungan detik.'
   }
 ];
 
@@ -14143,7 +14180,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         {/* Mobile Product Detail & Order Simulation Modal */}
         {previewProductModal && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setPreviewProductModal(null)}>
-            <div className="animate-fade-in" style={{ width: '100%', maxHeight: '88vh', overflowY: 'auto', borderTopLeftRadius: '1.25rem', borderTopRightRadius: '1.25rem', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: '1.25rem', border: '1px solid #e2e8f0', background: '#ffffff', boxShadow: '0 -15px 40px rgba(15, 23, 42, 0.2)' }} onClick={e => e.stopPropagation()}>
+            <div className="animate-fade-in" style={{ width: '100%', maxHeight: '90vh', overflowY: 'auto', borderTopLeftRadius: '1.25rem', borderTopRightRadius: '1.25rem', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: '1.25rem', border: '1px solid #e2e8f0', background: '#ffffff', boxShadow: '0 -15px 40px rgba(15, 23, 42, 0.2)' }} onClick={e => e.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                   <span style={{
@@ -14194,7 +14231,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: '0 0 0.2rem 0', color: '#0f172a', lineHeight: 1.3 }}>
                     {previewProductModal.name || previewProductModal.title}
                   </h3>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.4rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.35rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {renderLandingItemSubtitle(previewProductModal)}
                   </div>
                   <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#2563eb' }}>
@@ -14204,20 +14241,29 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               </div>
 
               {previewProductModal.description && (
-                <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.5, marginBottom: '1rem', background: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '0.6rem', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.76rem', color: '#475569', lineHeight: 1.5, marginBottom: '1rem', background: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '0.6rem', border: '1px solid #e2e8f0' }}>
                   {previewProductModal.description}
                 </div>
               )}
 
-              {/* Chat Format Preview Box Mobile */}
-              <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', marginBottom: '1.15rem' }}>
-                <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <MessageCircle size={13} /> Format Pesan WhatsApp Otomatis:
+              {/* 2 Authentic Order Options Mobile */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.15rem' }}>
+                <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <MessageCircle size={13} /> Opsi 1: Draf Pesan WhatsApp Otomatis:
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#166534', fontFamily: 'monospace', backgroundColor: '#ffffff', padding: '0.65rem', borderRadius: '0.45rem', border: '1px solid #dcfce7', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+{generateLandingWAMessage(previewProductModal)}
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.74rem', color: '#166534', fontFamily: 'monospace', backgroundColor: '#ffffff', padding: '0.65rem', borderRadius: '0.45rem', border: '1px solid #dcfce7', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
-{`Halo ${previewProductModal.merchant || 'Admin'}, saya ingin memesan:
-• ${previewProductModal.name || previewProductModal.title} (${formatDisplayPrice(previewProductModal.price)})
-Mohon info ketersediaan stok & proses pemesanan ya!`}
+
+                <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <ShieldCheck size={13} /> Opsi 2: Proteksi Rekber Syariah:
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#1e40af', fontFamily: 'monospace', backgroundColor: '#ffffff', padding: '0.65rem', borderRadius: '0.45rem', border: '1px solid #dbeafe', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+{generateLandingRekberMessage(previewProductModal)}
+                  </div>
                 </div>
               </div>
 
@@ -14421,8 +14467,8 @@ Mohon info ketersediaan stok & proses pemesanan ya!`}
                   <span className="hero-value-pill-clean"><Zap size={12} style={{ color: '#2563eb' }} /> 60 Detik Siap</span>
                   <span className="hero-value-pill-clean"><Layers size={12} style={{ color: '#2563eb' }} /> 7 Format Katalog</span>
                   <span className="hero-value-pill-clean"><MessageCircle size={12} style={{ color: '#16a34a' }} /> WhatsApp Direct</span>
-                  <span className="hero-value-pill-clean"><ShieldCheck size={12} style={{ color: '#2563eb' }} /> 0% Komisi</span>
-                  <span className="hero-value-pill-clean"><QrCode size={12} style={{ color: '#2563eb' }} /> QR Code Instan</span>
+                  <span className="hero-value-pill-clean"><ShieldCheck size={12} style={{ color: '#2563eb' }} /> Rekber Syariah</span>
+                  <span className="hero-value-pill-clean"><Scale size={12} style={{ color: '#2563eb' }} /> 0% Komisi</span>
                 </div>
 
                 {/* Primary CTA Buttons */}
@@ -14439,40 +14485,7 @@ Mohon info ketersediaan stok & proses pemesanan ya!`}
                   </button>
                 </div>
 
-                {/* Mobile Store Preview Mockup */}
-                <div className="portal-card" style={{ padding: '1rem', textAlign: 'left', borderRadius: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid #f1f5f9', marginBottom: '0.85rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontWeight: 900, fontSize: '0.9rem' }}>
-                        M
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                          Maison &amp; Coffee <CheckCircle2 size={13} style={{ color: '#2563eb' }} />
-                        </div>
-                        <div style={{ fontSize: '0.65rem', color: '#64748b' }}>catavor.com/maison-coffee</div>
-                      </div>
-                    </div>
-                    <span style={{ fontSize: '0.65rem', color: '#15803d', background: '#dcfce7', border: '1px solid #bbf7d0', padding: '0.18rem 0.55rem', borderRadius: '999px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#16a34a' }} />
-                      <span>Toko Aktif</span>
-                    </span>
-                  </div>
 
-                  <div style={{ display: 'flex', gap: '0.65rem', padding: '0.65rem', borderRadius: '0.65rem', background: '#f8fafc', border: '1px solid #e2e8f0', alignItems: 'center' }}>
-                    <img src="https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=150&auto=format&fit=crop&q=80" alt="Cold brew" style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover' }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Artisan Cold Brew</div>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#2563eb' }}>Rp 28.000</div>
-                    </div>
-                    <button type="button" className="btn-portal-whatsapp" onClick={() => {
-                      setSimulatedOrderToast('Pesanan "Artisan Cold Brew" siap diteruskan ke WhatsApp!');
-                      setTimeout(() => setSimulatedOrderToast(null), 4000);
-                    }} style={{ padding: '0.35rem 0.65rem', fontSize: '0.68rem', fontWeight: 700 }}>
-                      Pesan
-                    </button>
-                  </div>
-                </div>
               </div>
 
               {/* MULTI-INDUSTRY LIVE CATALOG EXPLORER MOBILE */}
@@ -14722,10 +14735,10 @@ Mohon info ketersediaan stok & proses pemesanan ya!`}
                   </div>
                   <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                     <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#faf5ff', border: '1px solid #e9d5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed' }}>
-                      <QrCode size={18} />
+                      <PackageCheck size={18} />
                     </div>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>QR Code Kasir</h4>
-                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>File QR Code resolusi cetak siap dipajang di meja kasir &amp; kemasan.</p>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Dashboard Multi-Item</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>Kelola produk, status ketersediaan &amp; kompresi WebP dari satu panel.</p>
                   </div>
                   <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                     <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#ecfeff', border: '1px solid #a5f3fc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0891b2' }}>
@@ -14770,8 +14783,8 @@ Mohon info ketersediaan stok & proses pemesanan ya!`}
                   <div className="portal-card" style={{ padding: '1rem', display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</div>
                     <div>
-                      <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.15rem 0' }}>Bagikan di Bio &amp; Kasir</h4>
-                      <p style={{ fontSize: '0.73rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Pasang link di bio medsos &amp; terima order via WA.</p>
+                      <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.15rem 0' }}>Bagikan Biolink Katalog</h4>
+                      <p style={{ fontSize: '0.73rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Pasang link di bio medsos &amp; terima pesanan WhatsApp / Rekber.</p>
                     </div>
                   </div>
                 </div>
@@ -14875,73 +14888,6 @@ Mohon info ketersediaan stok & proses pemesanan ya!`}
                   </div>
                 </div>
               </div>
-              {/* FEATURED STORES DIRECTORY MOBILE */}
-              {featuredStores && featuredStores.length > 0 && (
-                <div>
-                  <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Katalog Bisnis Aktif</span>
-                    <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
-                      Jelajahi Katalog &amp; Bisnis Nyata
-                    </h2>
-                    
-                    {/* Mobile Search Input for Stores */}
-                    <div style={{ marginTop: '0.85rem', position: 'relative' }}>
-                      <input 
-                        type="text" 
-                        placeholder="Cari nama katalog / bidang bisnis..." 
-                        value={searchStoreQuery}
-                        onChange={(e) => setSearchStoreQuery(e.target.value)}
-                        className="form-input"
-                        style={{ paddingLeft: '2.4rem', fontSize: '0.82rem' }}
-                      />
-                      <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    {filteredStores.slice(0, 6).map((st: any) => (
-                      <div 
-                        key={st.id || st.slug} 
-                        className="portal-card" 
-                        style={{ padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer' }}
-                        onClick={() => {
-                          if (st.slug) {
-                            setStoreSlug(st.slug);
-                            setActiveTab('catalog');
-                          }
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.5rem' }}>
-                            {st.store_logo_url ? (
-                              <img src={st.store_logo_url} alt={st.store_title} style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
-                            ) : (
-                              <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.9rem', border: '1px solid #bfdbfe' }}>
-                                {(st.store_title || 'T')[0]}
-                              </div>
-                            )}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {st.store_title || 'Katalog Bisnis'}
-                              </h4>
-                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>catavor.com/{st.slug}</div>
-                            </div>
-                          </div>
-                          <p style={{ fontSize: '0.75rem', color: '#475569', margin: '0 0 0.65rem 0', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                            {st.store_slogan || st.store_description || 'Katalog digital resmi terpercaya di platform Catavor.'}
-                          </p>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem', borderTop: '1px solid #f1f5f9', fontSize: '0.74rem', color: '#2563eb', fontWeight: 700 }}>
-                          <span>Buka Katalog Digital</span>
-                          <ArrowRight size={13} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* FAQ ACCORDION MOBILE */}
               <div>
                 <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
