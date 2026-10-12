@@ -8900,7 +8900,13 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
   const setMobileSettingsTab = (tab: 'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain') => {
     setMobileSettingsTabState(tab);
-    try { sessionStorage.setItem('catavor_last_mobile_settings_tab', tab); } catch (e) {}
+    try {
+      if (tab === 'menu') {
+        sessionStorage.removeItem('catavor_last_mobile_settings_tab');
+      } else {
+        sessionStorage.setItem('catavor_last_mobile_settings_tab', tab);
+      }
+    } catch (e) {}
   };
 
   // Intercept back actions for open overlays/modals (conforming to AGENTS.md Rule 2)
@@ -9398,15 +9404,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             let mappedSec = sec ? sec.toLowerCase().trim() : '';
             if (mappedSec === 'social') mappedSec = 'contact';
             if (mappedSec === 'features') mappedSec = 'general';
-            if (['general', 'contact', 'about', 'theme', 'master', 'domain', 'menu'].includes(mappedSec)) {
+            if (['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(mappedSec)) {
               setMobileSettingsTab(mappedSec as any);
             } else {
-              const saved = sessionStorage.getItem('catavor_last_mobile_settings_tab');
-              if (saved && ['general', 'contact', 'about', 'theme', 'master', 'domain', 'menu'].includes(saved)) {
-                setMobileSettingsTab(saved as any);
-              } else {
-                setMobileSettingsTab('menu');
-              }
+              setMobileSettingsTab('menu');
             }
           } else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik') {
             setAdminSubTab('analytics');
@@ -9494,15 +9495,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             let mappedSec = sec ? sec.toLowerCase().trim() : '';
             if (mappedSec === 'social') mappedSec = 'contact';
             if (mappedSec === 'features') mappedSec = 'general';
-            if (['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(mappedSec)) {
+            if (['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(mappedSec)) {
               setMobileSettingsTab(mappedSec as any);
             } else {
-              const saved = sessionStorage.getItem('catavor_last_mobile_settings_tab');
-              if (saved && ['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(saved)) {
-                setMobileSettingsTab(saved as any);
-              } else {
-                setMobileSettingsTab('menu');
-              }
+              setMobileSettingsTab('menu');
             }
           } else if (pageSub === 'profile') setAdminSubTab('profile');
           else if (pageSub === 'policies') setAdminSubTab('policies');
@@ -9705,15 +9701,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               let mappedSec = sec ? sec.toLowerCase().trim() : '';
               if (mappedSec === 'social') mappedSec = 'contact';
               if (mappedSec === 'features') mappedSec = 'general';
-              if (['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(mappedSec)) {
+              if (['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(mappedSec)) {
                 setMobileSettingsTab(mappedSec as any);
               } else {
-                const saved = sessionStorage.getItem('catavor_last_mobile_settings_tab');
-                if (saved && ['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(saved)) {
-                  setMobileSettingsTab(saved as any);
-                } else {
-                  setMobileSettingsTab('menu');
-                }
+                setMobileSettingsTab('menu');
               }
             } else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik' || pageSub === 'trafik') {
               setAdminSubTab('analytics');
@@ -21190,7 +21181,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 transition: 'all 0.2s ease'
                               }}
                             >
-                              Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                              Hewan ({faunas.filter(f => f.product_type === 'fauna').length})
                             </button>
                           )}
                           {availableProductTypes.includes('property') && (
@@ -23256,7 +23247,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         {isHybridStore && availableProductTypes.map(t => {
                           const isSelected = adminProductTypeFilter === t;
                           const typeCount = faunas.filter(f => (f.product_type || 'physical') === t).length;
-                          const typeLabel = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : t === 'plant' ? 'Tanaman' : 'Fauna';
+                          const typeLabel = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : t === 'plant' ? 'Tanaman' : 'Hewan';
                           return (
                             <button
                               key={t}
@@ -24733,7 +24724,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 { id: 'food', label: 'Kuliner', desc: 'Makanan, minuman, snack & katering' },
                                 { id: 'service', label: 'Jasa', desc: 'Jasa konsultasi, servis & freelance' },
                                 { id: 'digital', label: 'Digital', desc: 'E-book, template, software & aset' },
-                                { id: 'fauna', label: 'Fauna', desc: 'Satwa peliharaan & fauna hidup' },
+                                { id: 'fauna', label: 'Hewan', desc: 'Satwa peliharaan & hewan hidup' },
                                 { id: 'plant', label: 'Tanaman', desc: 'Tanaman hias, bibit & perkebunan' },
                                 { id: 'property', label: 'Properti', desc: 'Rumah, kavling, ruko & apartemen' }
                               ];
@@ -31106,7 +31097,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </button>
                     {availableProductTypes.map(t => {
                       const isSelected = adminProductTypeFilter === t;
-                      const label = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : t === 'plant' ? 'Tanaman' : 'Fauna';
+                      const label = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : t === 'plant' ? 'Tanaman' : 'Hewan';
                       return (
                         <button
                           key={t}
