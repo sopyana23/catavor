@@ -20484,45 +20484,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               </div>
                             </div>
 
-                            {/* Kelola Kategori shortcut button */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAdminTab("categories");
-                                const curType = (adminProductTypeFilter !== "all" ? adminProductTypeFilter : ((settings as any)?.primary_category || (settings as any)?.catalog_type || (settings as any)?.shop_type || "physical")) as ItemCategoryType;
-                                setMasterCategoryContextTab(curType);
-                                const slug = storeSlug || getStoreSlug() || "";
-                                if (slug) window.history.pushState({}, "", `/${slug}/admin/categories`);
-                              }}
-                              className="btn-secondary"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.35rem",
-                                padding: "0.28rem 0.65rem",
-                                borderRadius: "6px",
-                                fontSize: "0.74rem",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                                backgroundColor: "rgba(255, 255, 255, 0.04)",
-                                border: "1px solid var(--border-light)",
-                                color: "var(--text-primary)",
-                                transition: "all 0.15s ease"
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.borderColor = "var(--primary)";
-                                e.currentTarget.style.color = "var(--primary)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.borderColor = "var(--border-light)";
-                                e.currentTarget.style.color = "var(--text-primary)";
-                              }}
-                              title="Buka Pengaturan Kategori Etalase Katalog"
-                            >
-                              <FolderTree size={12} style={{ color: "var(--primary)" }} />
-                              <span>Kelola Kategori</span>
-                            </button>
-
                             {/* Reset filter button */}
                             {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all' || adminActiveFilter !== 'all' || adminSortBy !== 'newest') && (
                               <button
