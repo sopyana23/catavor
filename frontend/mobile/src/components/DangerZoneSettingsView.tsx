@@ -8,7 +8,8 @@ import {
   UserX, 
   X, 
   FolderMinus,
-  AlertOctagon
+  AlertOctagon,
+  CheckCircle2
 } from 'lucide-react';
 import { setupModalBackInterceptor } from '../utils/navigation';
 
@@ -190,13 +191,13 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} className="animate-fade-in">
-      {/* Top Banner Alert */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }} className="animate-fade-in">
+      {/* Top Banner: Tenang & Profesional */}
       <div style={{
-        padding: '1rem',
+        padding: '0.95rem 1rem',
         borderRadius: '0.85rem',
-        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.04) 100%)',
-        border: '1px solid rgba(239, 68, 68, 0.25)',
+        background: 'var(--card-bg-gradient, var(--bg-card))',
+        border: '1px solid var(--border-light)',
         display: 'flex',
         alignItems: 'flex-start',
         gap: '0.75rem'
@@ -205,32 +206,34 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
           width: '36px',
           height: '36px',
           borderRadius: '8px',
-          background: 'rgba(239, 68, 68, 0.15)',
+          background: 'var(--btn-secondary-bg, rgba(255,255,255,0.05))',
+          border: '1px solid var(--border-light)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#ef4444',
+          color: 'var(--text-secondary)',
           flexShrink: 0
         }}>
-          <AlertTriangle size={20} />
+          <FolderMinus size={18} />
         </div>
         <div>
           <span style={{
             padding: '2px 6px',
             borderRadius: '4px',
-            backgroundColor: 'rgba(239, 68, 68, 0.18)',
-            color: '#ef4444',
-            fontWeight: 800,
+            backgroundColor: 'var(--btn-secondary-bg, rgba(255,255,255,0.06))',
+            color: 'var(--text-secondary)',
+            fontWeight: 700,
             fontSize: '0.65rem',
-            letterSpacing: '0.04em'
+            letterSpacing: '0.04em',
+            border: '1px solid var(--border-light)'
           }}>
-            ZONA BERISIKO TINGGI
+            PENGATURAN LANJUTAN
           </span>
           <h3 style={{ fontSize: '0.95rem', margin: '0.25rem 0 0 0', fontWeight: 800, color: 'var(--text-primary)' }}>
-            Zona Berbahaya &amp; Hapus Data
+            Penutupan Akun &amp; Katalog
           </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', margin: '0.2rem 0 0 0', lineHeight: 1.45 }}>
-            Tindakan pada menu ini berdampak permanen. Seluruh file gambar produk di server akan dihapus fisik dan tidak dapat dipulihkan.
+            Opsi lanjutan untuk menghapus profil katalog aktif atau permohonan penutupan akun pengelola secara permanen.
           </p>
         </div>
       </div>
@@ -238,18 +241,29 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
       {/* PANEL 1: HAPUS PROFIL KATALOG AKTIF */}
       <div className="glass-panel" style={{
         borderRadius: '0.85rem',
-        border: '1px solid rgba(239, 68, 68, 0.25)',
+        border: '1px solid var(--border-light)',
         padding: '1.15rem',
-        background: 'var(--bg-surface, rgba(255,255,255,0.02))'
+        background: 'var(--card-bg-gradient, var(--bg-card))'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-          <Store size={16} style={{ color: '#ef4444' }} />
+          <div style={{
+            width: '28px',
+            height: '28px',
+            borderRadius: '6px',
+            background: 'var(--btn-secondary-bg, rgba(255,255,255,0.05))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--text-secondary)'
+          }}>
+            <Store size={15} />
+          </div>
           <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-            Hapus Profil Katalog Aktif
+            Hapus Profil Katalog Ini
           </h4>
         </div>
         <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: '0 0 0.75rem 0', lineHeight: 1.45 }}>
-          Hapus profil katalog <strong>"{currentStore?.store_title || expectedStoreSlug}"</strong>. Semua produk, banner, foto dari penyimpanan server toko ini akan dibersihkan permanen.
+          Hapus profil katalog <strong>"{currentStore?.store_title || expectedStoreSlug}"</strong>. Semua produk, banner, dan foto server toko ini akan dibersihkan. Katalog lain dan akun email Anda tetap aktif.
         </p>
 
         <div style={{
@@ -258,14 +272,14 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
           gap: '0.4rem',
           padding: '0.4rem 0.6rem',
           borderRadius: '6px',
-          background: 'rgba(239, 68, 68, 0.06)',
-          border: '1px solid rgba(239, 68, 68, 0.15)',
+          background: 'var(--btn-secondary-bg, rgba(255,255,255,0.04))',
+          border: '1px solid var(--border-light)',
           fontSize: '0.7rem',
-          color: '#ef4444',
+          color: 'var(--text-secondary)',
           marginBottom: '0.85rem'
         }}>
           <FolderMinus size={13} />
-          <span>Katalog lain milik Anda: <strong>{Math.max(0, userStores.length - 1)} katalog</strong></span>
+          <span>Katalog lain milik Anda: <strong style={{ color: 'var(--text-primary)' }}>{Math.max(0, userStores.length - 1)} katalog</strong></span>
         </div>
 
         <button
@@ -280,16 +294,17 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
             width: '100%',
             padding: '0.7rem',
             borderRadius: '0.6rem',
-            border: '1px solid rgba(239, 68, 68, 0.4)',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            color: '#ef4444',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--btn-secondary-bg, rgba(255,255,255,0.05))',
+            color: 'var(--text-primary)',
             fontWeight: 700,
             fontSize: '0.8rem',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '0.45rem'
+            gap: '0.45rem',
+            transition: 'all 0.2s ease'
           }}
         >
           <Trash2 size={15} />
@@ -297,33 +312,45 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
         </button>
       </div>
 
-      {/* PANEL 2: HAPUS AKUN KESELURUHAN (GDPR / PDP) */}
+      {/* PANEL 2: PENUTUPAN AKUN PENGGUNA (GDPR / PDP) */}
       <div className="glass-panel" style={{
         borderRadius: '0.85rem',
-        border: '1.5px solid rgba(220, 38, 38, 0.35)',
+        border: '1px solid var(--border-light)',
         padding: '1.15rem',
-        background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.04) 0%, rgba(220, 38, 38, 0.08) 100%)'
+        background: 'var(--card-bg-gradient, var(--bg-card))'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <UserX size={17} style={{ color: '#dc2626' }} />
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '6px',
+              background: 'var(--btn-secondary-bg, rgba(255,255,255,0.05))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--text-secondary)'
+            }}>
+              <UserX size={15} />
+            </div>
             <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              Hapus Akun &amp; Semua Data
+              Penutupan Akun Pengguna
             </h4>
           </div>
           <span style={{
             fontSize: '0.62rem',
-            fontWeight: 800,
-            padding: '2px 5px',
+            fontWeight: 700,
+            padding: '2px 6px',
             borderRadius: '4px',
-            backgroundColor: '#dc2626',
-            color: '#ffffff'
+            backgroundColor: 'var(--btn-secondary-bg, rgba(255,255,255,0.06))',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border-light)'
           }}>
-            GDPR / PDP
+            Privasi &amp; UU PDP
           </span>
         </div>
         <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: '0 0 0.75rem 0', lineHeight: 1.45 }}>
-          Tutup akun <strong>{currentUser?.email}</strong>. Menghapus akun Anda, <strong>semua {userStores.length} profil katalog</strong>, semua produk, foto fisik server, dan mencabut sesi di seluruh perangkat.
+          Tutup akun <strong>{currentUser?.email}</strong>. Menghapus akun pengelola, seluruh <strong>{userStores.length} profil katalog</strong>, produk, media server, dan mengakhiri sesi di seluruh perangkat.
         </p>
 
         <div style={{
@@ -332,14 +359,14 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
           gap: '0.4rem',
           padding: '0.4rem 0.6rem',
           borderRadius: '6px',
-          background: 'rgba(220, 38, 38, 0.08)',
-          border: '1px solid rgba(220, 38, 38, 0.2)',
+          background: 'var(--btn-secondary-bg, rgba(255,255,255,0.04))',
+          border: '1px solid var(--border-light)',
           fontSize: '0.7rem',
-          color: '#dc2626',
+          color: 'var(--text-secondary)',
           marginBottom: '0.85rem'
         }}>
-          <AlertOctagon size={13} />
-          <span>Permanen dan tidak dapat dipulihkan kembali.</span>
+          <CheckCircle2 size={13} style={{ color: 'var(--primary)' }} />
+          <span>Email dapat didaftarkan kembali jika dibutuhkan di masa depan.</span>
         </div>
 
         <button
@@ -354,21 +381,21 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
             width: '100%',
             padding: '0.75rem',
             borderRadius: '0.6rem',
-            border: 'none',
-            backgroundColor: '#dc2626',
-            color: '#ffffff',
-            fontWeight: 800,
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--btn-secondary-bg, rgba(255,255,255,0.05))',
+            color: 'var(--text-primary)',
+            fontWeight: 700,
             fontSize: '0.8rem',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.45rem',
-            boxShadow: '0 4px 12px rgba(220, 38, 38, 0.35)'
+            transition: 'all 0.2s ease'
           }}
         >
-          <ShieldAlert size={16} />
-          Hapus Akun Selamanya
+          <UserX size={15} />
+          Tutup Akun Pengguna
         </button>
       </div>
 
@@ -397,7 +424,7 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
               borderTopLeftRadius: '1.25rem',
               borderTopRightRadius: '1.25rem',
               padding: '1.25rem 1.25rem 2rem 1.25rem',
-              border: '1px solid rgba(239, 68, 68, 0.35)',
+              border: '1px solid var(--border-light)',
               maxHeight: '90vh',
               overflowY: 'auto'
             }}
@@ -405,10 +432,27 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Trash2 size={18} style={{ color: '#ef4444' }} />
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Konfirmasi Hapus Katalog
-                </h4>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'var(--btn-secondary-bg, rgba(255,255,255,0.06))',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Store size={16} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Konfirmasi Hapus Katalog
+                  </h4>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                    Verifikasi identitas katalog &amp; kata sandi
+                  </span>
+                </div>
               </div>
               <button 
                 type="button" 
@@ -421,8 +465,8 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
             </div>
 
             <div style={{
-              background: 'rgba(239, 68, 68, 0.06)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
+              background: 'var(--btn-secondary-bg, rgba(255,255,255,0.04))',
+              border: '1px solid var(--border-light)',
               borderRadius: '0.65rem',
               padding: '0.75rem',
               marginBottom: '1rem',
@@ -430,15 +474,15 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
               color: 'var(--text-secondary)'
             }}>
               <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>
-                Dampak penghapusan:
+                Rincian data yang akan dibersihkan:
               </strong>
-              Semua produk, foto fisik server, dan URL publik <code style={{ color: '#ef4444' }}>/{expectedStoreSlug}</code> akan dihapus permanen.
+              Semua produk, berkas foto server, dan URL <code style={{ color: 'var(--primary)' }}>/{expectedStoreSlug}</code> akan dinonaktifkan.
             </div>
 
             <form onSubmit={handleConfirmDeleteStore}>
               <div style={{ marginBottom: '0.85rem' }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
-                  Ketik persis slug katalog: <span style={{ color: '#ef4444' }}>{expectedStoreSlug}</span>
+                  Ketik persis slug katalog: <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{expectedStoreSlug}</span>
                 </label>
                 <input
                   type="text"
@@ -524,13 +568,13 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
                     padding: '0.7rem',
                     borderRadius: '0.55rem',
                     border: 'none',
-                    background: (!isStoreSlugMatched || !storePassword || isDeletingStore) ? 'rgba(239, 68, 68, 0.3)' : '#ef4444',
-                    color: '#ffffff',
+                    background: (!isStoreSlugMatched || !storePassword || isDeletingStore) ? 'var(--btn-secondary-bg, rgba(255,255,255,0.08))' : 'rgba(239, 68, 68, 0.85)',
+                    color: (!isStoreSlugMatched || !storePassword || isDeletingStore) ? 'var(--text-muted)' : '#ffffff',
                     fontWeight: 800,
                     fontSize: '0.8rem'
                   }}
                 >
-                  {isDeletingStore ? 'Menghapus...' : 'Ya, Hapus Katalog'}
+                  {isDeletingStore ? 'Memproses...' : 'Konfirmasi Hapus'}
                 </button>
               </div>
             </form>
@@ -538,7 +582,7 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
         </div>
       )}
 
-      {/* BOTTOM SHEET 2: HAPUS AKUN KESELURUHAN */}
+      {/* BOTTOM SHEET 2: PENUTUPAN AKUN KESELURUHAN */}
       {showAccountDeleteModal && (
         <div 
           style={{
@@ -563,7 +607,7 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
               borderTopLeftRadius: '1.25rem',
               borderTopRightRadius: '1.25rem',
               padding: '1.25rem 1.25rem 2rem 1.25rem',
-              border: '1.5px solid rgba(220, 38, 38, 0.5)',
+              border: '1px solid var(--border-light)',
               maxHeight: '90vh',
               overflowY: 'auto'
             }}
@@ -571,10 +615,27 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <ShieldAlert size={20} style={{ color: '#dc2626' }} />
-                <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Hapus Akun &amp; Seluruh Data
-                </h4>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'var(--btn-secondary-bg, rgba(255,255,255,0.06))',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <UserX size={16} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Konfirmasi Penutupan Akun
+                  </h4>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                    Verifikasi otentikasi &amp; konfirmasi penutupan
+                  </span>
+                </div>
               </div>
               <button 
                 type="button" 
@@ -587,24 +648,24 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
             </div>
 
             <div style={{
-              background: 'rgba(220, 38, 38, 0.08)',
-              border: '1px solid rgba(220, 38, 38, 0.25)',
+              background: 'var(--btn-secondary-bg, rgba(255,255,255,0.04))',
+              border: '1px solid var(--border-light)',
               borderRadius: '0.65rem',
               padding: '0.75rem',
               marginBottom: '1rem',
               fontSize: '0.72rem',
               color: 'var(--text-secondary)'
             }}>
-              <strong style={{ color: '#dc2626', display: 'block', marginBottom: '0.25rem' }}>
-                Perhatian: Tindakan tidak dapat dibatalkan!
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>
+                Rincian data yang akan ditutup:
               </strong>
-              Akun ({currentUser?.email}), semua {userStores.length} katalog, semua produk, aset gambar di server, dan seluruh sesi perangkat akan dimusnahkan.
+              Akun ({currentUser?.email}), semua {userStores.length} profil katalog, etalase, berkas di server, serta seluruh sesi perangkat akan diakhiri permanen.
             </div>
 
             <form onSubmit={handleConfirmDeleteAccount}>
               <div style={{ marginBottom: '0.85rem' }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
-                  Ketik persis kalimat: <span style={{ color: '#dc2626', fontWeight: 800 }}>{REQUIRED_ACCOUNT_PHRASE}</span>
+                  Ketik persis kalimat: <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{REQUIRED_ACCOUNT_PHRASE}</span>
                 </label>
                 <input
                   type="text"
@@ -655,8 +716,8 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
                 <div style={{
                   padding: '0.5rem 0.75rem',
                   borderRadius: '0.5rem',
-                  background: 'rgba(220, 38, 38, 0.12)',
-                  color: '#dc2626',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  color: '#ef4444',
                   fontSize: '0.74rem',
                   marginBottom: '1rem'
                 }}>
@@ -690,13 +751,13 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
                     padding: '0.7rem',
                     borderRadius: '0.55rem',
                     border: 'none',
-                    background: (!isAccountPhraseMatched || !accountPassword || isDeletingAccount) ? 'rgba(220, 38, 38, 0.35)' : '#dc2626',
-                    color: '#ffffff',
+                    background: (!isAccountPhraseMatched || !accountPassword || isDeletingAccount) ? 'var(--btn-secondary-bg, rgba(255,255,255,0.08))' : 'rgba(239, 68, 68, 0.85)',
+                    color: (!isAccountPhraseMatched || !accountPassword || isDeletingAccount) ? 'var(--text-muted)' : '#ffffff',
                     fontWeight: 800,
                     fontSize: '0.8rem'
                   }}
                 >
-                  {isDeletingAccount ? 'Menghapus...' : 'Hapus Akun Selamanya'}
+                  {isDeletingAccount ? 'Memproses...' : 'Konfirmasi Tutup Akun'}
                 </button>
               </div>
             </form>

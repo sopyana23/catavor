@@ -66,6 +66,7 @@ import {
   Scissors,
   Zap,
   Store,
+  FolderMinus,
   Layers,
   Globe,
   ShoppingBag,
@@ -20497,11 +20498,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         if (mobileAccountSubTab === 'profile') return { title: 'Profil Pengguna', subtitle: adminUser?.email || 'Akun Pengelola' };
                         if (mobileAccountSubTab === 'devices') return { title: 'Sesi & Perangkat', subtitle: 'Lacak & Cabut Sesi Login' };
                         if (mobileAccountSubTab === 'audit_logs') return { title: 'Riwayat Log & Audit', subtitle: `${activityTotal} Rekaman Tercatat` };
-                        if (mobileAccountSubTab === 'danger') return { title: 'Zona Berbahaya', subtitle: 'Hapus Katalog & Tutup Akun' };
-                        return { title: 'Akun & Keamanan', subtitle: 'Profil, Sesi, Log & Keamanan' };
+                        if (mobileAccountSubTab === 'danger') return { title: 'Penutupan Akun & Katalog', subtitle: 'Hapus Katalog & Tutup Akun' };
+                        return { title: 'Akun & Keamanan', subtitle: 'Profil, Sesi, Log & Penutupan' };
                       }
                       if (mobileSettingsTab === 'security') return { title: 'Perangkat & Sesi Aktif', subtitle: 'Lacak & Cabut Sesi Login' };
-                      if (mobileSettingsTab === 'danger') return { title: 'Zona Berbahaya', subtitle: 'Hapus Katalog & Tutup Akun' };
+                      if (mobileSettingsTab === 'danger') return { title: 'Penutupan Akun & Katalog', subtitle: 'Hapus Katalog & Tutup Akun' };
                       return { title: 'Pengaturan Katalog', subtitle: 'Konfigurasi & Branding Katalog' };
                     case 'help':
                       if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
@@ -24129,7 +24130,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <div style={{ flex: 1 }}>
                           <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Akun &amp; Keamanan</h4>
                           <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
-                            Profil pengguna, sesi &amp; perangkat, log audit, dan zona berbahaya
+                            Profil pengguna, sesi &amp; perangkat, log audit, dan penutupan akun
                           </p>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
@@ -25437,7 +25438,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                               </div>
 
-                              {/* 4. Zona Berbahaya */}
+                              {/* 4. Penutupan Akun & Katalog */}
                               <div
                                 className="glass-panel"
                                 onClick={() => {
@@ -25452,8 +25453,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   display: 'flex',
                                   gap: '1rem',
                                   alignItems: 'center',
-                                  border: '1px solid rgba(239, 68, 68, 0.35)',
-                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: 'var(--card-bg-gradient, var(--bg-card))',
                                   transition: 'all 0.2s ease'
                                 }}
                               >
@@ -25461,23 +25462,23 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   width: '40px',
                                   height: '40px',
                                   borderRadius: '0.65rem',
-                                  background: 'rgba(239, 68, 68, 0.15)',
-                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                  background: 'var(--btn-secondary-bg, rgba(255,255,255,0.05))',
+                                  border: '1px solid var(--border-light)',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  color: '#ef4444',
+                                  color: 'var(--text-secondary)',
                                   flexShrink: 0
                                 }}>
-                                  <ShieldAlert size={20} style={{ color: '#ef4444' }} />
+                                  <FolderMinus size={18} />
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ef4444', margin: 0 }}>Zona Berbahaya</h4>
+                                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Penutupan Akun &amp; Katalog</h4>
                                   <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
-                                    Hapus katalog ini atau tutup akun pengelola permanen
+                                    Hapus profil katalog aktif atau tutup akun pengguna
                                   </p>
                                 </div>
-                                <ChevronRight size={16} style={{ color: 'rgba(239, 68, 68, 0.6)' }} />
+                                <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                               </div>
                             </div>
                           ) : (
@@ -25498,7 +25499,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   { key: 'profile', label: 'Profil Pengguna', icon: <User size={12} /> },
                                   { key: 'devices', label: 'Sesi & Perangkat', icon: <Smartphone size={12} /> },
                                   { key: 'audit_logs', label: 'Log & Audit', icon: <History size={12} /> },
-                                  { key: 'danger', label: 'Zona Berbahaya', icon: <ShieldAlert size={12} />, isDanger: true }
+                                  { key: 'danger', label: 'Penutupan Akun', icon: <FolderMinus size={12} /> }
                                 ].map((tabItem) => {
                                   const isActive = mobileAccountSubTab === tabItem.key;
                                   return (
@@ -25517,22 +25518,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         borderRadius: '0.45rem',
                                         fontSize: '0.72rem',
                                         fontWeight: 800,
-                                        border: isActive 
-                                          ? (tabItem.isDanger ? '1px solid #ef4444' : '1px solid var(--primary)') 
-                                          : '1px solid transparent',
+                                        border: isActive ? '1px solid var(--primary)' : '1px solid transparent',
                                         cursor: 'pointer',
                                         whiteSpace: 'nowrap',
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         gap: '0.35rem',
-                                        backgroundColor: isActive 
-                                          ? (tabItem.isDanger ? '#ef4444' : 'var(--primary)') 
-                                          : 'transparent',
-                                        color: isActive 
-                                          ? '#ffffff' 
-                                          : (tabItem.isDanger ? '#ef4444' : 'var(--text-secondary)'),
-                                        transition: 'all 0.2s ease'
+                                        backgroundColor: isActive ? 'var(--primary)' : 'transparent',
+                                        color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                                        boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
+                                        transition: 'all 0.15s ease'
                                       }}
                                     >
                                       {tabItem.icon}

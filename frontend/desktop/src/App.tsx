@@ -58,6 +58,7 @@ import {
   Sparkles,
   Package,
   FolderTree,
+  FolderMinus,
   FileCode,
   Wrench,
   Star,
@@ -22149,15 +22150,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.45rem',
-                            border: profileSubTab === 'danger' ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid transparent',
-                            backgroundColor: profileSubTab === 'danger' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
-                            color: profileSubTab === 'danger' ? '#ef4444' : 'var(--text-secondary)',
-                            boxShadow: profileSubTab === 'danger' ? '0 2px 8px rgba(239, 68, 68, 0.2)' : 'none',
+                            border: profileSubTab === 'danger' ? '1px solid var(--border-light)' : '1px solid transparent',
+                            backgroundColor: profileSubTab === 'danger' ? 'var(--bg-card, rgba(255,255,255,0.06))' : 'transparent',
+                            color: profileSubTab === 'danger' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            boxShadow: profileSubTab === 'danger' ? 'var(--shadow-sm)' : 'none',
                             transition: 'all 0.2s ease'
                           }}
                         >
-                          <AlertTriangle size={15} color="#ef4444" />
-                          <span>Zona Berbahaya</span>
+                          <FolderMinus size={15} />
+                          <span>Penutupan Akun &amp; Katalog</span>
                         </button>
                       </div>
                     </div>
@@ -22166,14 +22167,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     <div style={{ minHeight: '38px', display: 'flex', alignItems: 'center' }}>
                       <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                         <strong style={{ color: 'var(--text-primary)', marginRight: '0.35rem' }}>
-                          {profileSubTab === 'info' ? 'Profil Pengelola Katalog:' : profileSubTab === 'security' ? 'Keamanan & Sesi Perangkat:' : profileSubTab === 'danger' ? 'Zona Berbahaya Akun & Katalog:' : (adminUser?.email === 'admin@catavor.com' ? 'System-Wide Audit Trail (Superadmin):' : 'Riwayat Aktivitas & Log Audit:')}
+                          {profileSubTab === 'info' ? 'Profil Pengelola Katalog:' : profileSubTab === 'security' ? 'Keamanan & Sesi Perangkat:' : profileSubTab === 'danger' ? 'Penutupan Akun & Katalog:' : (adminUser?.email === 'admin@catavor.com' ? 'System-Wide Audit Trail (Superadmin):' : 'Riwayat Aktivitas & Log Audit:')}
                         </strong>
                         {profileSubTab === 'info' 
                           ? 'Kelola identitas akun pengelola katalog Anda dan perbarui nama profil tampilan.' 
                           : profileSubTab === 'security'
                             ? 'Pantau semua perangkat komputer dan smartphone yang sedang aktif terhubung ke akun Anda.'
                             : profileSubTab === 'danger'
-                              ? 'Tindakan permanen: hapus profil katalog aktif atau hapus akun pengguna keseluruhan.'
+                              ? 'Opsi lanjutan untuk menghapus profil katalog aktif atau mengajukan penutupan akun pengguna permanen.'
                               : (adminUser?.email === 'admin@catavor.com' 
                                   ? 'Audit trail seluruh aksi administratif, penertiban katalog, broadcast notifikasi, dan perubahan kebijakan lintas platform.' 
                                   : 'Riwayat aktivitas katalog, perubahan harga, password, serta login Anda')}
