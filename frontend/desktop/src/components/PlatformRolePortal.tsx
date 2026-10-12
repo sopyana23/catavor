@@ -83,7 +83,9 @@ import {
   PawPrint,
   ShoppingBag,
   PhoneCall,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -1241,9 +1243,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     rekber_partner_name: 'Rekber Syariah',
     rekber_website_url: 'https://rekbersyariah.com',
     rekber_wa_number: '62811220227',
+    rekber_logo_url: '',
     ...REKBER_FACTORY_DEFAULTS
   });
   const [rekberActiveTemplateTab, setRekberActiveTemplateTab] = useState<'physical' | 'food' | 'digital' | 'service' | 'plant' | 'fauna'>('physical');
+  const [isUploadingRekberLogo, setIsUploadingRekberLogo] = useState(false);
+  const rekberLogoInputRef = useRef<HTMLInputElement | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [copiedAdsTxt, setCopiedAdsTxt] = useState(false);
 
@@ -3034,6 +3039,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           rekber_partner_name: googleSettings.rekber_partner_name || 'Rekber Syariah',
           rekber_website_url: googleSettings.rekber_website_url || 'https://rekbersyariah.com',
           rekber_wa_number: (googleSettings.rekber_wa_number || '').trim(),
+          rekber_logo_url: (googleSettings.rekber_logo_url || '').trim(),
           rekber_template_physical: stripIcons(googleSettings.rekber_template_physical),
           rekber_template_general: stripIcons(googleSettings.rekber_template_physical || googleSettings.rekber_template_general),
           rekber_template_food: stripIcons(googleSettings.rekber_template_food),
@@ -3075,6 +3081,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           rekber_partner_name: 'Rekber Syariah',
           rekber_website_url: 'https://rekbersyariah.com',
           rekber_wa_number: '62811220227',
+          rekber_logo_url: '',
           ...REKBER_FACTORY_DEFAULTS
         }));
         loadData();
@@ -3085,6 +3092,39 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       showToast('Kesalahan jaringan saat reset', 'error');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleUploadRekberLogo = async (file: File) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Ukuran file logo maksimal 5MB', 'error');
+      return;
+    }
+    setIsUploadingRekberLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('category', 'branding');
+      const res = await fetch('/api/storage/upload?category=branding', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        setGoogleSettings(prev => ({
+          ...prev,
+          rekber_logo_url: data.url
+        }));
+        showToast('Logo partner rekber berhasil diunggah!', 'success');
+      } else {
+        showToast(data.message || 'Gagal mengunggah logo partner', 'error');
+      }
+    } catch {
+      showToast('Terjadi kesalahan jaringan saat mengunggah logo', 'error');
+    } finally {
+      setIsUploadingRekberLogo(false);
     }
   };
 
@@ -12811,6 +12851,146 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
                         Format internasional tanpa tanda '+' atau spasi (misal: 6281234567890). Dicantumkan pada pesan permohonan.
                       </span>
+                    </div>
+
+                    {/* Partner Logo / Icon */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <ImageIcon size={14} style={{ color: '#10b981' }} />
+                        <span>Logo / Ikon Resmi Partner Rekber</span>
+                      </label>
+
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        gap: '1rem',
+                        padding: '0.85rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : '#f8fafc',
+                        border: `1px dashed ${theme.border}`
+                      }}>
+                        {/* Live Preview Box */}
+                        <div style={{
+                          width: '64px',
+                          height: '64px',
+                          borderRadius: '12px',
+                          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                          border: `1px solid ${theme.border}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                          flexShrink: 0
+                        }}>
+                          {googleSettings.rekber_logo_url ? (
+                            <img
+                              src={googleSettings.rekber_logo_url}
+                              alt="Logo Partner"
+                              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: theme.textMuted }}>
+                              <ShieldCheck size={26} style={{ color: '#10b981' }} />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Controls & Inputs */}
+                        <div style={{ flex: 1, minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <input
+                              type="file"
+                              ref={rekberLogoInputRef}
+                              accept="image/*"
+                              style={{ display: 'none' }}
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  handleUploadRekberLogo(e.target.files[0]);
+                                  e.target.value = '';
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => rekberLogoInputRef.current?.click()}
+                              disabled={isUploadingRekberLogo}
+                              className="btn-portal-secondary"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0.45rem 0.85rem',
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                borderRadius: '0.5rem',
+                                cursor: isUploadingRekberLogo ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              {isUploadingRekberLogo ? (
+                                <>
+                                  <Loader2 size={13} className="animate-spin" />
+                                  <span>Mengunggah...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Upload size={13} />
+                                  <span>Unggah File Logo</span>
+                                </>
+                              )}
+                            </button>
+
+                            {googleSettings.rekber_logo_url && (
+                              <button
+                                type="button"
+                                onClick={() => setGoogleSettings(prev => ({ ...prev, rekber_logo_url: '' }))}
+                                className="btn-portal-secondary"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  padding: '0.45rem 0.75rem',
+                                  fontSize: '0.74rem',
+                                  color: '#ef4444',
+                                  borderRadius: '0.5rem',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                                }}
+                              >
+                                <Trash2 size={13} />
+                                <span>Hapus Logo</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <input
+                              type="text"
+                              value={googleSettings.rekber_logo_url || ''}
+                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, rekber_logo_url: e.target.value }))}
+                              placeholder="Atau tempel URL gambar logo (https://...)"
+                              className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                              style={{
+                                flex: 1,
+                                padding: '0.45rem 0.75rem',
+                                borderRadius: '0.5rem',
+                                border: `1px solid ${theme.border}`,
+                                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : '#ffffff',
+                                color: theme.textPrimary,
+                                fontSize: '0.75rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
+                            Format PNG transparan, WebP, SVG, atau JPG disarankan. Logo ini tampil elegan di Landing Page platform (section Transaksi Aman) dan modal panduan rekber.
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

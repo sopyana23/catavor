@@ -5579,6 +5579,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     rekber_partner_name: 'Rekber Syariah',
     rekber_website_url: 'https://rekbersyariah.com',
     rekber_wa_number: '62811220227',
+    rekber_logo_url: '',
     rekber_template_physical: '',
     rekber_template_general: '',
     rekber_template_food: '',
@@ -13495,7 +13496,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     <a href="#catalog-types" className="portal-nav-link">Tipe Katalog</a>
                     <a href="#features-section" className="portal-nav-link">Keunggulan</a>
                     <a href="#steps-section" className="portal-nav-link">Cara Kerja</a>
-                    <a href="#escrow-partner" className="portal-nav-link">Transaksi Aman</a>
+                    {platformSettings.rekber_enabled !== '0' && platformSettings.rekber_enabled !== 'false' && (
+                      <a href="#escrow-partner" className="portal-nav-link">Transaksi Aman</a>
+                    )}
                     <a href="#pricing-desktop" className="portal-nav-link">Paket &amp; Harga</a>
                     <a href="#faq-section" className="portal-nav-link">FAQ</a>
                   </nav>
@@ -13832,6 +13835,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
               </section>
 
               {/* 5. KEMITRAAN RESMI REKBER & TRANSAKSI AMAN ESCROW */}
+              {platformSettings.rekber_enabled !== '0' && platformSettings.rekber_enabled !== 'false' && (
               <section id="escrow-partner" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '5.5rem', scrollMarginTop: '6rem' }}>
                 <div style={{ textAlign: 'center', maxWidth: '820px', margin: '0 auto 3.5rem auto' }}>
                   <div className="hero-pill-badge-clean" style={{ marginBottom: '1.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '0.35rem 0.95rem', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 800 }}>
@@ -13894,9 +13898,35 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   <div className="portal-card" style={{ padding: '2.25rem', display: 'flex', flexDirection: 'column', gap: '1.35rem', background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)', border: '1.5px solid #bfdbfe', borderRadius: '1.25rem', boxShadow: '0 12px 35px -10px rgba(37, 99, 235, 0.08)', position: 'relative' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                        <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)' }}>
-                          <BadgeCheck size={22} />
-                        </div>
+                        {platformSettings.rekber_logo_url ? (
+                          <div style={{
+                            width: '46px',
+                            height: '46px',
+                            borderRadius: '12px',
+                            background: '#ffffff',
+                            border: '1.5px solid #bfdbfe',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.12)',
+                            padding: '4px',
+                            overflow: 'hidden'
+                          }}>
+                            <img
+                              src={platformSettings.rekber_logo_url}
+                              alt={platformSettings.rekber_partner_name || 'Mitra Rekber'}
+                              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)' }}>
+                            <BadgeCheck size={22} />
+                          </div>
+                        )}
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                             <h3 style={{ fontSize: '1.22rem', fontWeight: 900, margin: 0, color: '#0f172a' }}>
@@ -14050,6 +14080,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   </div>
                 </div>
               </section>
+              )}
 
               {/* 6. TRANSPARENT PRICING SECTION */}
               <section id="pricing-desktop" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '5.5rem', scrollMarginTop: '6rem' }}>
