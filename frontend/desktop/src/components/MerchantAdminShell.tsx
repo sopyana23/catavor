@@ -11,6 +11,7 @@ import {
   Scale,
   LifeBuoy,
   Shield,
+  ShieldCheck,
   Layers,
   ChevronDown,
   Store,
@@ -177,8 +178,8 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
         },
         {
           id: 'profile',
-          label: 'Profil & Log Akun',
-          icon: <UserCheck size={18} />
+          label: 'Akun & Keamanan',
+          icon: <ShieldCheck size={18} />
         }
       ]
     },
