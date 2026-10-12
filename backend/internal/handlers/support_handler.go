@@ -19,8 +19,10 @@ import (
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
+	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
@@ -37,11 +39,12 @@ var (
 )
 
 type SupportHandler struct {
-	cfg *config.Config
+	cfg     *config.Config
+	storage storage.StorageService
 }
 
-func NewSupportHandler(cfg *config.Config) *SupportHandler {
-	return &SupportHandler{cfg: cfg}
+func NewSupportHandler(cfg *config.Config, strg storage.StorageService) *SupportHandler {
+	return &SupportHandler{cfg: cfg, storage: strg}
 }
 
 func generateTicketNumber() string {
@@ -1598,9 +1601,16 @@ func (h *SupportHandler) runLifecycleTasks() {
 			Update("sla_breached", true)
 	}
 
-	// 5. Report Heartbeat to Automation Tracker
-	totalProcessed := int64(len(staleWaitingTickets) + len(ticketsToResolve) + len(staleResolvedTickets))
-	summary := fmt.Sprintf("Siklus Helpdesk SLA berjalan normal (%d tiket diproses).", totalProcessed)
+	// 5. Automated PDP Ticket Retention & Physical File Hard Purge (UU PDP No. 27/2022)
+	pdpStats, err := services.PurgeExpiredClosedTickets(database.DB, h.storage)
+	if err != nil {
+		log.Warn().Err(err).Msg("PDP Ticket Retention Sweeper error during routine lifecycle")
+	}
+
+	// 6. Report Heartbeat to Automation Tracker
+	totalProcessed := int64(len(staleWaitingTickets) + len(ticketsToResolve) + len(staleResolvedTickets) + int(pdpStats.PurgedTickets))
+	summary := fmt.Sprintf("Siklus Helpdesk SLA & PDP: %d pengingat, %d auto-resolved, %d auto-closed, %d tiket PDP dimusnahkan (%d berkas fisik dihapus).",
+		len(staleWaitingTickets), len(ticketsToResolve), len(staleResolvedTickets), pdpStats.PurgedTickets, pdpStats.PurgedFiles)
 	services.GetAutomationTracker().RecordWorkerHeartbeat(
 		"support_lifecycle",
 		"running",
@@ -1613,14 +1623,14 @@ func (h *SupportHandler) runLifecycleTasks() {
 	if totalProcessed > 0 || breachCount > 0 {
 		services.GetAutomationTracker().RecordLog(services.AutomationLogEntry{
 			BotName:       "support_lifecycle",
-			BotTitle:      "Bot Helpdesk SLA Escalation & Auto-Resolve",
-			Target:        "Antrean Tiket Bantuan",
+			BotTitle:      "Bot Helpdesk SLA Escalation & Pemusnahan PDP",
+			Target:        "Antrean Tiket Bantuan & Storage",
 			Action:        "executed_cycle",
 			TriggerType:   "cron",
 			TriggeredBy:   "Support Daemon",
 			Status:        "success",
 			AffectedCount: totalProcessed,
-			Details:       fmt.Sprintf("Siklus otomatis: %d pengingat terkirim, %d auto-resolved, %d auto-closed, %d SLA breach.", len(staleWaitingTickets), len(ticketsToResolve), len(staleResolvedTickets), breachCount),
+			Details:       fmt.Sprintf("Siklus otomatis: %d pengingat, %d auto-resolved, %d auto-closed, %d SLA breach, %d tiket PDP dimusnahkan (%d berkas fisik).", len(staleWaitingTickets), len(ticketsToResolve), len(staleResolvedTickets), breachCount, pdpStats.PurgedTickets, pdpStats.PurgedFiles),
 			Timestamp:     now,
 		})
 	}

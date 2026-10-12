@@ -1941,6 +1941,9 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 	_ = tx.Where("user_id = ?", user.ID).Delete(&models.UserSession{}).Error
 	_ = tx.Where("user_id = ?", user.ID).Delete(&models.UserPolicyAgreement{}).Error
 
+	// Clean up user's support tickets and physical media attachments under UU PDP / GDPR Right to Erasure
+	_, _, _ = services.PurgeUserTicketsAndAttachments(database.DB, nil, user.ID)
+
 	// Invalidate tokens in memory/Redis
 	user.TokenVersion += 10
 	_ = tx.Save(&user).Error

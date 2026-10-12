@@ -1321,7 +1321,18 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
-			"message": "Bot Helpdesk SLA Escalation berhasil memproses pengingat tiket dan auto-resolve.",
+			"message": "Bot Helpdesk SLA Escalation & Retensi berhasil memproses pengingat tiket dan pemusnahan PDP.",
+		})
+
+	case "ticket_retention", "ticket_retention_worker", "ticket_purge", "pdp_purge":
+		stats, err := tracker.TriggerTicketRetentionManual(h.DB)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": fmt.Sprintf("Bot Retensi & Pemusnahan Data PDP berhasil dieksekusi: %d tiket dimusnahkan, %d berkas fisik dihapus.", stats.PurgedTickets, stats.PurgedFiles),
+			"stats":   stats,
 		})
 
 	case "weekly_summary", "summary", "weekly_summary_worker":
