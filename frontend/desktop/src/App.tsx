@@ -21021,15 +21021,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                   {/* Desktop Settings Segmented Sub-Tab Bar (Full-Width Responsive Grid) */}
                   {(() => {
-                    const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger'; label: string; icon: any; isPro?: boolean; isDanger?: boolean }> = [
+                    const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain'; label: string; icon: any; isPro?: boolean }> = [
                       { id: 'general', label: 'Profil & Identitas Utama', icon: Store },
                       { id: 'contact', label: 'Kontak & Saluran Resmi', icon: MessageCircle },
                       { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
                       { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
                       { id: 'master', label: 'Master Data Katalog', icon: Database },
-                      ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', icon: Globe, isPro: true }] : []),
-                      { id: 'security', label: 'Keamanan Sesi', icon: ShieldCheck },
-                      { id: 'danger', label: 'Zona Bahaya', icon: AlertTriangle, isDanger: true }
+                      ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', icon: Globe, isPro: true }] : [])
                     ];
 
                     return (
@@ -21045,7 +21043,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               key={tab.id}
                               type="button"
                               onClick={() => setSettingsSubTab(tab.id as any)}
-                              className={`desktop-settings-tab-btn ${isActive ? 'active' : ''} ${tab.isDanger ? 'danger-tab' : ''}`}
+                              className={`desktop-settings-tab-btn ${isActive ? 'active' : ''}`}
                             >
                               <Icon size={16} strokeWidth={2.2} style={{ flexShrink: 0 }} />
                               <span className="tab-label">{tab.label}</span>
@@ -22020,63 +22018,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   )}
 
-                  {/* Keamanan & Sesi Perangkat Section */}
-                  {settingsSubTab === 'security' && (
-                    <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
-                      <ConnectedDevicesView
-                        token={token || ''}
-                        apiBase={API_BASE}
-                        onLogoutCurrent={handleLogout}
-                        showToast={(type, msg) => showToast(msg, type)}
-                      />
-                    </div>
-                  )}
-
-                  {/* Zona Bahaya (Hapus Profil Katalog & Hapus Akun) Section */}
-                  {settingsSubTab === 'danger' && (() => {
-                    const activeStoreItem = userStores.find(s => s.slug === storeSlug) || (userStores.length > 0 ? userStores[0] : null);
-                    const currentStoreObj = activeStoreItem ? {
-                      id: activeStoreItem.id,
-                      store_title: activeStoreItem.store_title || settings.store_title || 'Katalog Aktif',
-                      slug: activeStoreItem.slug || storeSlug || ''
-                    } : (storeSlug ? {
-                      id: 0,
-                      store_title: settings.store_title || storeSlug,
-                      slug: storeSlug
-                    } : null);
-
-                    const handleStoreDeleted = (deletedSlug: string, remainingStores: any[]) => {
-                      setUserStores(remainingStores);
-                      try {
-                        localStorage.setItem('catavor_stores', JSON.stringify(remainingStores));
-                      } catch (e) {
-                        console.error(e);
-                      }
-                      if (remainingStores.length > 0) {
-                        handleSwitchStore(remainingStores[0].slug);
-                      } else {
-                        setStoreSlug(null);
-                        localStorage.removeItem('catavor_active_slug');
-                        sessionStorage.removeItem('catavor_active_slug_selected');
-                        setShowStoreSwitcherModal(true);
-                      }
-                    };
-
-                    return (
-                      <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
-                        <DangerZoneSettingsView
-                          token={token || ''}
-                          apiBase={API_BASE}
-                          currentStore={currentStoreObj}
-                          currentUser={adminUser}
-                          userStores={userStores}
-                          onStoreDeleted={handleStoreDeleted}
-                          onAccountDeleted={handleLogout}
-                          showToast={(type, msg) => showToast(msg, type)}
-                        />
-                      </div>
-                    );
-                  })()}
                 </>
               )}
 
@@ -22109,18 +22050,124 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
               {(adminTab === 'profile' || adminTab === 'audit_logs') && (
                 <div style={{ marginTop: '0.5rem' }}>
-                  {/* Segmented Control Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.35rem' }}>
-                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                          {profileSubTab === 'info' ? <UserCheck size={20} /> : profileSubTab === 'security' ? <ShieldCheck size={20} /> : profileSubTab === 'danger' ? <AlertTriangle size={20} color="#ef4444" /> : <History size={20} />}
+                  {/* Segmented Control Header with Guaranteed Consistent Tab Bar Position */}
+                  <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
+                    {/* Top Row: Page Title on the Left, Tabs on the Right - Fixed single-line alignment */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                          <ShieldCheck size={20} />
                         </div>
-                        <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                          {profileSubTab === 'info' ? 'Profil Pengelola Katalog' : profileSubTab === 'security' ? 'Keamanan & Sesi Perangkat' : profileSubTab === 'danger' ? 'Zona Berbahaya Akun & Katalog' : (adminUser?.email === 'admin@catavor.com' ? 'System-Wide Audit Trail (Superadmin)' : 'Riwayat Aktivitas & Log Audit')}
+                        <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                          Akun &amp; Keamanan
                         </h2>
                       </div>
+
+                      {/* Segmented SubTab Pills - Posisi selalu konsisten & tidak terpengaruh panjang/pendek deskripsi */}
+                      <div style={{ display: 'flex', gap: '0.45rem', backgroundColor: 'var(--bg-deep)', padding: '0.3rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', flexWrap: 'wrap', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => setProfileSubTab('info')}
+                          style={{
+                            padding: '0.5rem 1.15rem',
+                            borderRadius: '0.55rem',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            border: profileSubTab === 'info' ? '1px solid var(--primary)' : '1px solid transparent',
+                            backgroundColor: profileSubTab === 'info' ? 'var(--primary)' : 'transparent',
+                            color: profileSubTab === 'info' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: profileSubTab === 'info' ? '0 2px 8px var(--primary-glow)' : 'none',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <UserCheck size={15} />
+                          <span>Profil Pengguna</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setProfileSubTab('security')}
+                          style={{
+                            padding: '0.5rem 1.15rem',
+                            borderRadius: '0.55rem',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            border: profileSubTab === 'security' ? '1px solid var(--primary)' : '1px solid transparent',
+                            backgroundColor: profileSubTab === 'security' ? 'var(--primary)' : 'transparent',
+                            color: profileSubTab === 'security' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: profileSubTab === 'security' ? '0 2px 8px var(--primary-glow)' : 'none',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <ShieldCheck size={15} />
+                          <span>Sesi &amp; Perangkat</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfileSubTab('logs');
+                            fetchActivityLogs(1, false);
+                          }}
+                          style={{
+                            padding: '0.5rem 1.15rem',
+                            borderRadius: '0.55rem',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            border: profileSubTab === 'logs' ? '1px solid var(--primary)' : '1px solid transparent',
+                            backgroundColor: profileSubTab === 'logs' ? 'var(--primary)' : 'transparent',
+                            color: profileSubTab === 'logs' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: profileSubTab === 'logs' ? '0 2px 8px var(--primary-glow)' : 'none',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <History size={15} />
+                          <span>Riwayat Log &amp; Audit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setProfileSubTab('danger')}
+                          style={{
+                            padding: '0.5rem 1.15rem',
+                            borderRadius: '0.55rem',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            border: profileSubTab === 'danger' ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid transparent',
+                            backgroundColor: profileSubTab === 'danger' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                            color: profileSubTab === 'danger' ? '#ef4444' : 'var(--text-secondary)',
+                            boxShadow: profileSubTab === 'danger' ? '0 2px 8px rgba(239, 68, 68, 0.2)' : 'none',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <AlertTriangle size={15} color="#ef4444" />
+                          <span>Zona Berbahaya</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Dedicated Description Row: Ditempatkan di bawah baris judul & tab dengan min-height stabil */}
+                    <div style={{ minHeight: '38px', display: 'flex', alignItems: 'center' }}>
                       <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                        <strong style={{ color: 'var(--text-primary)', marginRight: '0.35rem' }}>
+                          {profileSubTab === 'info' ? 'Profil Pengelola Katalog:' : profileSubTab === 'security' ? 'Keamanan & Sesi Perangkat:' : profileSubTab === 'danger' ? 'Zona Berbahaya Akun & Katalog:' : (adminUser?.email === 'admin@catavor.com' ? 'System-Wide Audit Trail (Superadmin):' : 'Riwayat Aktivitas & Log Audit:')}
+                        </strong>
                         {profileSubTab === 'info' 
                           ? 'Kelola identitas akun pengelola katalog Anda dan perbarui nama profil tampilan.' 
                           : profileSubTab === 'security'
@@ -22131,104 +22178,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   ? 'Audit trail seluruh aksi administratif, penertiban katalog, broadcast notifikasi, dan perubahan kebijakan lintas platform.' 
                                   : 'Riwayat aktivitas katalog, perubahan harga, password, serta login Anda')}
                       </p>
-                    </div>
-
-                    {/* Segmented SubTab Pills */}
-                    <div style={{ display: 'flex', gap: '0.45rem', backgroundColor: 'var(--bg-deep)', padding: '0.3rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => setProfileSubTab('info')}
-                        style={{
-                          padding: '0.5rem 1.15rem',
-                          borderRadius: '0.55rem',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          border: profileSubTab === 'info' ? '1px solid var(--primary)' : '1px solid transparent',
-                          backgroundColor: profileSubTab === 'info' ? 'var(--primary)' : 'transparent',
-                          color: profileSubTab === 'info' ? '#ffffff' : 'var(--text-secondary)',
-                          boxShadow: profileSubTab === 'info' ? '0 2px 8px var(--primary-glow)' : 'none',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <UserCheck size={15} />
-                        <span>Profil Pengguna</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setProfileSubTab('security')}
-                        style={{
-                          padding: '0.5rem 1.15rem',
-                          borderRadius: '0.55rem',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          border: profileSubTab === 'security' ? '1px solid var(--primary)' : '1px solid transparent',
-                          backgroundColor: profileSubTab === 'security' ? 'var(--primary)' : 'transparent',
-                          color: profileSubTab === 'security' ? '#ffffff' : 'var(--text-secondary)',
-                          boxShadow: profileSubTab === 'security' ? '0 2px 8px var(--primary-glow)' : 'none',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <ShieldCheck size={15} />
-                        <span>Sesi &amp; Perangkat</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProfileSubTab('logs');
-                          fetchActivityLogs(1, false);
-                        }}
-                        style={{
-                          padding: '0.5rem 1.15rem',
-                          borderRadius: '0.55rem',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          border: profileSubTab === 'logs' ? '1px solid var(--primary)' : '1px solid transparent',
-                          backgroundColor: profileSubTab === 'logs' ? 'var(--primary)' : 'transparent',
-                          color: profileSubTab === 'logs' ? '#ffffff' : 'var(--text-secondary)',
-                          boxShadow: profileSubTab === 'logs' ? '0 2px 8px var(--primary-glow)' : 'none',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <History size={15} />
-                        <span>Riwayat Log &amp; Audit</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setProfileSubTab('danger')}
-                        style={{
-                          padding: '0.5rem 1.15rem',
-                          borderRadius: '0.55rem',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          border: profileSubTab === 'danger' ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid transparent',
-                          backgroundColor: profileSubTab === 'danger' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
-                          color: profileSubTab === 'danger' ? '#ef4444' : 'var(--text-secondary)',
-                          boxShadow: profileSubTab === 'danger' ? '0 2px 8px rgba(239, 68, 68, 0.2)' : 'none',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <AlertTriangle size={15} color="#ef4444" />
-                        <span>Zona Berbahaya</span>
-                      </button>
                     </div>
                   </div>
 
