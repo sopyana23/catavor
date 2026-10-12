@@ -205,7 +205,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	}
 
 	var storeID uint = 0
-	if !isPlatformScope {
+	if !isPlatformScope && category != "support" {
 		// Prioritaskan slug spesifik jika dikirim oleh klien (Multi Profil Katalog)
 		requestedSlug := strings.TrimSpace(c.Get("X-Store-Slug"))
 		if requestedSlug == "" {
@@ -252,8 +252,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	// - Platform Partners: platform/partners/rekber/YYYY/MM/uuid.ext
 	// - Platform Branding: platform/branding/YYYY/MM/uuid.ext
 	// - Support Tickets (Staff): support/staff/YYYY/MM/uuid.ext
-	// - Support Tickets (Merchant/Store): stores/:id/support/YYYY/MM/uuid.ext
-	// - Support Tickets (User without store): support/users/:id/YYYY/MM/uuid.ext
+	// - Support Tickets (Tickets): support/tickets/YYYY/MM/uuid.ext
 	// - Billing & Invoices: stores/:id/billing/YYYY/MM/uuid.ext or billing/users/:id/...
 	// - Store Media (Products/Branding): stores/:id/:category/YYYY/MM/uuid.ext
 	// - Articles & News: articles/YYYY/MM/uuid.ext
@@ -262,14 +261,10 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	} else if category == "platform_branding" {
 		objectKey = fmt.Sprintf("platform/branding/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
 	} else if category == "support" {
-		if isStaffUser && storeID == 0 {
+		if isStaffUser {
 			objectKey = fmt.Sprintf("support/staff/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
-		} else if storeID > 0 {
-			objectKey = fmt.Sprintf("stores/%d/support/%d/%02d/%s%s", storeID, now.Year(), now.Month(), uniqueID, ext)
-		} else if userID > 0 {
-			objectKey = fmt.Sprintf("support/users/%d/%d/%02d/%s%s", userID, now.Year(), now.Month(), uniqueID, ext)
 		} else {
-			objectKey = fmt.Sprintf("support/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
+			objectKey = fmt.Sprintf("support/tickets/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
 		}
 	} else if category == "billing" {
 		if storeID > 0 {
