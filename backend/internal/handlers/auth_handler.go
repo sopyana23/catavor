@@ -75,6 +75,7 @@ type ForgotPasswordResetRequest struct {
 	Email           string `json:"email"`
 	OTP             string `json:"otp"`
 	NewPassword     string `json:"new_password"`
+	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
 }
 
@@ -1663,6 +1664,9 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	}
 
 	reqEmail := strings.TrimSpace(strings.ToLower(req.Email))
+	if req.NewPassword == "" && req.Password != "" {
+		req.NewPassword = req.Password
+	}
 	if req.NewPassword == "" || req.ConfirmPassword == "" {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
@@ -1696,7 +1700,7 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	_ = services.GetOTPService().ValidateAndConsumeToken(reqEmail, token, "password_reset")
 
 	var user models.User
-	if err := database.DB.Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
+	if err := database.DB.Preload("Store").Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Pengguna tidak ditemukan.",
@@ -1743,9 +1747,12 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 		UserAgent:   c.Get("User-Agent"),
 	})
 
+	newToken, _ := middleware.GenerateToken(&user, user.Store, h.cfg)
+
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Kata sandi Anda berhasil diperbarui. Silakan login dengan kata sandi baru Anda.",
+		"message": "Kata sandi Anda berhasil diperbarui.",
+		"token":   newToken,
 	})
 }
 

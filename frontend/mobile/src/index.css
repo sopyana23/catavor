@@ -543,6 +543,33 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   width: 100%;
 }
 
+/* High-Contrast Dynamic Outline Button (Non-Nyaru, Distinct Theme Accent) */
+.btn-dynamic-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border-radius: 0.55rem;
+  background: var(--primary-glow, rgba(16, 185, 129, 0.15));
+  background: color-mix(in srgb, var(--primary) 14%, var(--bg-card, #ffffff));
+  border: 1.5px solid var(--primary);
+  color: var(--primary) !important;
+  box-shadow: 0 2px 8px var(--primary-glow, rgba(0, 0, 0, 0.08));
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-dynamic-outline:active {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px var(--primary-glow, rgba(0, 0, 0, 0.2));
+}
+
+
 .theme-toggle-btn {
   display: inline-flex;
   align-items: center;

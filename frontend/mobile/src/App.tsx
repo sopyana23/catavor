@@ -5954,6 +5954,8 @@ Terima kasih.`;
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
   const [forgotCooldown, setForgotCooldown] = useState(0);
+  const [showForgotNewPasswordText, setShowForgotNewPasswordText] = useState(false);
+  const [showForgotConfirmPasswordText, setShowForgotConfirmPasswordText] = useState(false);
 
   // Backup Password State (Mobile)
   const [showBackupPasswordSection, setShowBackupPasswordSection] = useState(false);
@@ -5965,6 +5967,15 @@ Terima kasih.`;
   const [backupPasswordError, setBackupPasswordError] = useState<string | null>(null);
   const [backupPasswordSuccess, setBackupPasswordSuccess] = useState<string | null>(null);
 
+  // Profile In-Place OTP Recovery State (Mobile)
+  const [profilePasswordMode, setProfilePasswordMode] = useState<'standard' | 'otp'>('standard');
+  const [profileOtpSent, setProfileOtpSent] = useState<boolean>(false);
+  const [profileOtpCode, setProfileOtpCode] = useState<string>('');
+  const [profileOtpLoading, setProfileOtpLoading] = useState<boolean>(false);
+  const [profileOtpCooldown, setProfileOtpCooldown] = useState<number>(0);
+  const [profileOtpError, setProfileOtpError] = useState<string | null>(null);
+  const [profileOtpSuccess, setProfileOtpSuccess] = useState<string | null>(null);
+
   useEffect(() => {
     let timer: any;
     if (regOTPCooldown > 0) {
@@ -5972,6 +5983,14 @@ Terima kasih.`;
     }
     return () => clearInterval(timer);
   }, [regOTPCooldown]);
+
+  useEffect(() => {
+    let timer: any;
+    if (profileOtpCooldown > 0) {
+      timer = setInterval(() => setProfileOtpCooldown(c => Math.max(0, c - 1)), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [profileOtpCooldown]);
 
   useEffect(() => {
     let timer: any;
@@ -11686,15 +11705,54 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     }
   };
 
+  // Profile In-Place OTP Handler (Mobile)
+  const handleRequestProfileOtp = async () => {
+    setProfileOtpLoading(true);
+    setProfileOtpError(null);
+    setProfileOtpSuccess(null);
+    try {
+      const res = await fetch(`${API_BASE}/profile/request-password-otp`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProfileOtpSent(true);
+        setProfileOtpCooldown(60);
+        const sMsg = data.message || 'Kode verifikasi telah dikirim ke WhatsApp / Email akun Anda.';
+        setProfileOtpSuccess(sMsg);
+        showToast(sMsg, 'success');
+      } else {
+        const errMsg = data.message || 'Gagal mengirim kode verifikasi.';
+        setProfileOtpError(errMsg);
+        showToast(errMsg, 'error');
+      }
+    } catch {
+      const netMsg = 'Gagal menghubungi server. Periksa koneksi internet Anda.';
+      setProfileOtpError(netMsg);
+      showToast(netMsg, 'error');
+    } finally {
+      setProfileOtpLoading(false);
+    }
+  };
+
   // Mobile Backup Password Handler
   const handleSaveBackupPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const isUpdating = Boolean((adminUser as any)?.has_custom_password);
-    if (isUpdating && !backupPasswordForm.current_password) {
-      const msg = 'Kata sandi saat ini wajib diisi.';
-      setBackupPasswordError(msg);
-      showToast(msg, 'error');
-      return;
+    if (isUpdating) {
+      if (profilePasswordMode === 'standard' && !backupPasswordForm.current_password) {
+        const msg = 'Kata sandi saat ini wajib diisi.';
+        setBackupPasswordError(msg);
+        showToast(msg, 'error');
+        return;
+      }
+      if (profilePasswordMode === 'otp' && (!profileOtpCode || profileOtpCode.trim().length < 4)) {
+        const msg = 'Kode verifikasi OTP wajib diisi (minimal 4 digit).';
+        setBackupPasswordError(msg);
+        showToast(msg, 'error');
+        return;
+      }
     }
     const pass = backupPasswordForm.password || '';
     if (pass.length < 8) {
@@ -11737,15 +11795,22 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     setBackupPasswordError(null);
     setBackupPasswordSuccess(null);
     try {
+      const payload: any = {
+        name: profileForm.name || (adminUser as any)?.name || 'Admin',
+        password: backupPasswordForm.password,
+        confirm_password: backupPasswordForm.confirm_password
+      };
+      if (isUpdating) {
+        if (profilePasswordMode === 'otp') {
+          payload.otp = profileOtpCode.trim();
+        } else {
+          payload.current_password = backupPasswordForm.current_password;
+        }
+      }
       const res = await fetch(`${API_BASE}/profile`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name: profileForm.name || (adminUser as any)?.name || 'Admin',
-          current_password: backupPasswordForm.current_password,
-          password: backupPasswordForm.password,
-          confirm_password: backupPasswordForm.confirm_password
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -11760,6 +11825,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         setShowBackupCurrentPasswordText(false);
         setShowBackupPasswordText(false);
         setShowBackupConfirmPasswordText(false);
+        setProfileOtpCode('');
+        setProfilePasswordMode('standard');
         if (adminUser) {
           setAdminUser({ ...adminUser, has_custom_password: true });
         }
@@ -25208,9 +25275,222 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '0.75rem' }}>
-                              {Boolean((adminUser as any)?.has_custom_password) && (
+                              {Boolean((adminUser as any)?.has_custom_password) && profilePasswordMode === 'otp' ? (
+                                <div style={{
+                                  padding: '0.85rem',
+                                  borderRadius: '0.75rem',
+                                  background: 'var(--bg-deep, rgba(0, 0, 0, 0.05))',
+                                  border: '1.5px solid var(--border-light)',
+                                  marginBottom: '0.5rem',
+                                  boxShadow: '0 3px 12px rgba(0, 0, 0, 0.05)'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                      <div style={{
+                                        width: '26px',
+                                        height: '26px',
+                                        borderRadius: '7px',
+                                        background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+                                        color: 'var(--primary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0
+                                      }}>
+                                        <Key size={13} />
+                                      </div>
+                                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                        Reset Sandi via OTP
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setProfilePasswordMode('standard');
+                                        setProfileOtpError(null);
+                                        setProfileOtpSuccess(null);
+                                      }}
+                                      className="btn-dynamic-outline"
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.35rem',
+                                        padding: '0.35rem 0.75rem',
+                                        borderRadius: '0.5rem',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 800,
+                                        background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                                        border: '1.5px solid var(--primary)',
+                                        color: 'var(--primary)',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
+                                        transition: 'all 0.2s ease-in-out',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                      title="Kembali menggunakan kata sandi lama / saat ini"
+                                    >
+                                      <ArrowLeft size={11} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                                      <span>Batal & Gunakan Sandi Lama</span>
+                                    </button>
+                                  </div>
+                                  <p style={{ margin: '0 0 0.65rem 0', fontSize: '0.69rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                                    Kode OTP dikirim ke: <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>{profileForm.email || (adminUser as any)?.email}</strong>
+                                  </p>
+
+                                  {profileOtpSuccess && (
+                                    <div style={{
+                                      fontSize: '0.7rem',
+                                      color: '#10b981',
+                                      marginBottom: '0.55rem',
+                                      padding: '0.45rem 0.65rem',
+                                      borderRadius: '0.45rem',
+                                      background: 'rgba(16, 185, 129, 0.12)',
+                                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                                      fontWeight: 600,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem'
+                                    }}>
+                                      <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
+                                      <span>{profileOtpSuccess}</span>
+                                    </div>
+                                  )}
+                                  {profileOtpError && (
+                                    <div style={{
+                                      fontSize: '0.7rem',
+                                      color: '#ef4444',
+                                      marginBottom: '0.55rem',
+                                      padding: '0.45rem 0.65rem',
+                                      borderRadius: '0.45rem',
+                                      background: 'rgba(239, 68, 68, 0.12)',
+                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      fontWeight: 600,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem'
+                                    }}>
+                                      <AlertCircle size={13} style={{ flexShrink: 0 }} />
+                                      <span>{profileOtpError}</span>
+                                    </div>
+                                  )}
+
+                                  {!profileOtpSent ? (
+                                    <div style={{
+                                      padding: '0.65rem 0.75rem',
+                                      borderRadius: '0.55rem',
+                                      background: 'rgba(59, 130, 246, 0.06)',
+                                      border: '1px solid rgba(59, 130, 246, 0.2)',
+                                      marginBottom: '0.5rem'
+                                    }}>
+                                      <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                                        Tekan tombol di bawah untuk menerima 6-digit kode OTP ke kontak email Anda:
+                                      </p>
+                                      <button
+                                        type="button"
+                                        onClick={handleRequestProfileOtp}
+                                        disabled={profileOtpLoading}
+                                        className="btn-primary"
+                                        style={{
+                                          width: '100%',
+                                          padding: '0.52rem',
+                                          fontSize: '0.74rem',
+                                          fontWeight: 800,
+                                          borderRadius: '0.5rem',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: '0.4rem',
+                                          cursor: profileOtpLoading ? 'not-allowed' : 'pointer'
+                                        }}
+                                      >
+                                        <Mail size={14} />
+                                        <span>{profileOtpLoading ? 'Mengirim Kode OTP...' : 'Kirim Kode Verifikasi OTP'}</span>
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div style={{
+                                      padding: '0.65rem 0.75rem',
+                                      borderRadius: '0.55rem',
+                                      background: 'var(--card-bg, rgba(255, 255, 255, 0.04))',
+                                      border: '1.5px solid var(--primary)',
+                                      marginBottom: '0.5rem'
+                                    }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                                        <label style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                          Kode OTP
+                                        </label>
+                                        <button
+                                          type="button"
+                                          onClick={handleRequestProfileOtp}
+                                          disabled={profileOtpLoading || profileOtpCooldown > 0}
+                                          style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 0,
+                                            fontSize: '0.68rem',
+                                            fontWeight: 700,
+                                            color: profileOtpCooldown > 0 ? 'var(--text-muted)' : 'var(--primary)',
+                                            cursor: profileOtpCooldown > 0 ? 'default' : 'pointer',
+                                            textDecoration: profileOtpCooldown > 0 ? 'none' : 'underline'
+                                          }}
+                                        >
+                                          {profileOtpLoading ? 'Mengirim...' : profileOtpCooldown > 0 ? `Kirim ulang (${profileOtpCooldown}s)` : 'Kirim Ulang OTP'}
+                                        </button>
+                                      </div>
+                                      <input
+                                        type="text"
+                                        maxLength={6}
+                                        placeholder="Contoh: 123456"
+                                        value={profileOtpCode}
+                                        onChange={(e) => setProfileOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                        className="form-input"
+                                        style={{
+                                          fontSize: '1.15rem',
+                                          fontWeight: 800,
+                                          textAlign: 'center',
+                                          letterSpacing: '6px',
+                                          padding: '0.5rem',
+                                          fontFamily: 'monospace',
+                                          border: '1.5px solid var(--primary)',
+                                          background: 'var(--bg-deep)',
+                                          color: 'var(--primary)'
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              ) : Boolean((adminUser as any)?.has_custom_password) ? (
                                 <div>
-                                  <label className="form-label" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Kata Sandi Saat Ini</label>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                                    <label className="form-label" style={{ fontSize: '0.72rem', fontWeight: 700, margin: 0 }}>Kata Sandi Saat Ini</label>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setProfilePasswordMode('otp');
+                                        setProfileOtpError(null);
+                                        setProfileOtpSuccess(null);
+                                      }}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '0.25rem 0.65rem',
+                                        borderRadius: '0.45rem',
+                                        background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                                        border: '1px solid var(--primary)',
+                                        color: 'var(--primary)',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                      title="Verifikasi via kode OTP email jika lupa kata sandi lama"
+                                    >
+                                      Lupa Kata Sandi?
+                                    </button>
+                                  </div>
                                   <div style={{ position: 'relative' }}>
                                     <input
                                       type={showBackupCurrentPasswordText ? 'text' : 'password'}
@@ -25243,7 +25523,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     </button>
                                   </div>
                                 </div>
-                              )}
+                              ) : null}
                               <div>
                                 <label className="form-label" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Kata Sandi Baru</label>
                                 <div style={{ position: 'relative' }}>
@@ -32676,46 +32956,94 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                   <div>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.3rem' }}>Kata Sandi Baru</label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="Minimal 6 karakter"
-                      value={forgotNewPassword}
-                      onChange={(e) => setForgotNewPassword(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '0.65rem',
-                        borderRadius: '0.75rem',
-                        border: '1.5px solid #cbd5e1',
-                        fontSize: '0.85rem',
-                        outline: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                    />
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showForgotNewPasswordText ? 'text' : 'password'}
+                        required
+                        placeholder="Minimal 8 karakter"
+                        value={forgotNewPassword}
+                        onChange={(e) => setForgotNewPassword(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.65rem',
+                          paddingRight: '2.4rem',
+                          borderRadius: '0.75rem',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotNewPasswordText(!showForgotNewPasswordText)}
+                        style={{
+                          position: 'absolute',
+                          right: '0.5rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          padding: '0.25rem',
+                          cursor: 'pointer',
+                          color: '#64748b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title={showForgotNewPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                      >
+                        {showForgotNewPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.3rem' }}>Konfirmasi Kata Sandi</label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="Ulangi kata sandi baru"
-                      value={forgotConfirmPassword}
-                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '0.65rem',
-                        borderRadius: '0.75rem',
-                        border: '1.5px solid #cbd5e1',
-                        fontSize: '0.85rem',
-                        outline: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                    />
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showForgotConfirmPasswordText ? 'text' : 'password'}
+                        required
+                        placeholder="Ulangi kata sandi baru"
+                        value={forgotConfirmPassword}
+                        onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.65rem',
+                          paddingRight: '2.4rem',
+                          borderRadius: '0.75rem',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotConfirmPasswordText(!showForgotConfirmPasswordText)}
+                        style={{
+                          position: 'absolute',
+                          right: '0.5rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          padding: '0.25rem',
+                          cursor: 'pointer',
+                          color: '#64748b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title={showForgotConfirmPasswordText ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
+                      >
+                        {showForgotConfirmPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <button
                   type="submit"
-                  disabled={forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 6}
+                  disabled={forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 8}
                   style={{
                     width: '100%',
                     padding: '0.85rem',
@@ -32726,7 +33054,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     fontSize: '0.88rem',
                     border: 'none',
                     cursor: forgotLoading ? 'not-allowed' : 'pointer',
-                    opacity: (forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 6) ? 0.6 : 1,
+                    opacity: (forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 8) ? 0.6 : 1,
                     marginBottom: '0.75rem'
                   }}
                 >

@@ -6034,6 +6034,8 @@ Terima kasih.`;
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
   const [forgotCooldown, setForgotCooldown] = useState<number>(0);
+  const [showForgotNewPasswordText, setShowForgotNewPasswordText] = useState<boolean>(false);
+  const [showForgotConfirmPasswordText, setShowForgotConfirmPasswordText] = useState<boolean>(false);
 
   // Profile Backup Password State (Desktop)
   const [showBackupPasswordSection, setShowBackupPasswordSection] = useState<boolean>(false);
@@ -6044,6 +6046,15 @@ Terima kasih.`;
   const [backupPasswordLoading, setBackupPasswordLoading] = useState<boolean>(false);
   const [backupPasswordSuccess, setBackupPasswordSuccess] = useState<string | null>(null);
   const [backupPasswordError, setBackupPasswordError] = useState<string | null>(null);
+
+  // Profile In-Place OTP Recovery State (Desktop)
+  const [profilePasswordMode, setProfilePasswordMode] = useState<'standard' | 'otp'>('standard');
+  const [profileOtpSent, setProfileOtpSent] = useState<boolean>(false);
+  const [profileOtpCode, setProfileOtpCode] = useState<string>('');
+  const [profileOtpLoading, setProfileOtpLoading] = useState<boolean>(false);
+  const [profileOtpCooldown, setProfileOtpCooldown] = useState<number>(0);
+  const [profileOtpError, setProfileOtpError] = useState<string | null>(null);
+  const [profileOtpSuccess, setProfileOtpSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (regOTPCooldown <= 0) return;
@@ -6060,6 +6071,14 @@ Terima kasih.`;
     }, 1000);
     return () => clearInterval(timer);
   }, [forgotCooldown]);
+
+  useEffect(() => {
+    if (profileOtpCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setProfileOtpCooldown(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [profileOtpCooldown]);
 
   useModalBackHandler({
     isOpen: showRegOTPModal,
@@ -11311,8 +11330,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setForgotError('Masukkan 6-digit kode OTP angka.');
       return;
     }
-    if (forgotNewPassword.length < 6) {
-      setForgotError('Kata sandi baru minimal 6 karakter.');
+    if (forgotNewPassword.length < 8) {
+      setForgotError('Kata sandi baru minimal 8 karakter.');
       return;
     }
     if (forgotNewPassword !== forgotConfirmPassword) {
@@ -11334,8 +11353,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        if (data.token) {
+          localStorage.setItem('catavor_token', data.token);
+          setToken(data.token);
+        }
         setForgotSuccess('Kata sandi berhasil diperbarui! Silakan masuk dengan kata sandi baru Anda.');
-        showToast('Kata sandi berhasil diatur ulang! Silakan login.');
+        showToast('Kata sandi berhasil diatur ulang! Silakan login.', 'success');
         setTimeout(() => {
           setShowForgotPasswordModal(false);
           setForgotPasswordStep(1);
@@ -11902,6 +11925,100 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setBackupPasswordLoading(false)
     }
   }
+
+  const handleSendProfileBackupOTP = async () => {
+    const emailToUse = ((profileForm.email || (adminUser as any)?.email) || '').trim().toLowerCase();
+    if (!emailToUse) {
+      setProfileOtpError('Alamat email akun tidak ditemukan.');
+      return;
+    }
+    setProfileOtpLoading(true);
+    setProfileOtpError(null);
+    setProfileOtpSuccess(null);
+    try {
+      const res = await fetch(`${API_BASE}/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailToUse })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProfileOtpSent(true);
+        setProfileOtpCooldown(60);
+        setProfileOtpSuccess(`Kode OTP berhasil dikirimkan ke ${emailToUse}. Silakan periksa inbox/spam email Anda.`);
+      } else {
+        setProfileOtpError(data.message || 'Gagal mengirim kode OTP pemulihan.');
+      }
+    } catch {
+      setProfileOtpError('Gagal menghubungi server. Silakan periksa koneksi internet Anda.');
+    } finally {
+      setProfileOtpLoading(false);
+    }
+  };
+
+  const handleResetProfileBackupPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const emailToUse = ((profileForm.email || (adminUser as any)?.email) || '').trim().toLowerCase();
+    const otp = profileOtpCode.trim();
+    const pwd = backupPasswordForm.password;
+    const confirmPwd = backupPasswordForm.confirm_password;
+
+    if (otp.length !== 6) {
+      setProfileOtpError('Kode OTP harus berjumlah 6 digit angka.');
+      return;
+    }
+    if (pwd.length < 8) {
+      setProfileOtpError('Kata sandi baru minimal 8 karakter.');
+      return;
+    }
+    if (pwd !== confirmPwd) {
+      setProfileOtpError('Konfirmasi kata sandi baru tidak cocok.');
+      return;
+    }
+
+    setProfileOtpLoading(true);
+    setProfileOtpError(null);
+    try {
+      const res = await fetch(`${API_BASE}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailToUse,
+          otp: otp,
+          new_password: pwd,
+          confirm_password: confirmPwd
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.token) {
+          localStorage.setItem('catavor_token', data.token);
+          setToken(data.token);
+        }
+        if (adminUser) {
+          const updatedUser = { ...adminUser, has_custom_password: true };
+          setAdminUser(updatedUser as any);
+          localStorage.setItem('catavor_user', JSON.stringify(updatedUser));
+        }
+        setBackupPasswordForm({ current_password: '', password: '', confirm_password: '' });
+        setShowBackupCurrentPasswordText(false);
+        setShowBackupPasswordText(false);
+        setShowBackupConfirmPasswordText(false);
+        setProfileOtpCode('');
+        setProfileOtpSent(false);
+        setProfilePasswordMode('standard');
+        setProfileOtpError(null);
+        setProfileOtpSuccess(null);
+        showToast('Kata sandi akun Anda berhasil diperbarui via verifikasi OTP!', 'success');
+      } else {
+        setProfileOtpError(data.message || 'Gagal memperbarui kata sandi dengan OTP.');
+      }
+    } catch {
+      setProfileOtpError('Gagal menghubungi server. Silakan coba kembali.');
+    } finally {
+      setProfileOtpLoading(false);
+    }
+  };
   const getYoutubeEmbedUrl = (url: string | null) => {
     if (!url) return '';
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -22730,143 +22847,446 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               </div>
                             </div>
 
-                            {Boolean((adminUser as any)?.has_custom_password) && (
-                              <div style={{ marginBottom: '0.85rem', maxWidth: '460px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                                  <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, margin: 0 }}>Kata Sandi Saat Ini</label>
+                            {profilePasswordMode === 'otp' ? (
+                              <div style={{
+                                marginTop: '0.85rem',
+                                padding: '1.25rem',
+                                borderRadius: '0.75rem',
+                                background: 'var(--bg-deep)',
+                                border: '1.5px solid var(--border-light)',
+                                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                    <div style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      borderRadius: '8px',
+                                      background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+                                      color: 'var(--primary)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0
+                                    }}>
+                                      <Key size={16} />
+                                    </div>
+                                    <div>
+                                      <h5 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                        Pemulihan Kata Sandi via OTP Email
+                                      </h5>
+                                      <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                                        Kode OTP akan dikirimkan ke email terdaftar: <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>{profileForm.email || (adminUser as any)?.email}</strong>
+                                      </p>
+                                    </div>
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setForgotEmail(profileForm.email || (adminUser as any)?.email || '')
-                                      setShowForgotPasswordModal(true)
+                                      setProfilePasswordMode('standard');
+                                      setProfileOtpError(null);
+                                      setProfileOtpSuccess(null);
                                     }}
+                                    className="btn-dynamic-outline"
                                     style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      padding: 0,
-                                      fontSize: '0.72rem',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '0.45rem',
+                                      padding: '0.42rem 0.85rem',
+                                      borderRadius: '0.55rem',
+                                      fontSize: '0.76rem',
+                                      fontWeight: 800,
+                                      background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                                      border: '1.5px solid var(--primary)',
                                       color: 'var(--primary)',
-                                      fontWeight: 600,
                                       cursor: 'pointer',
-                                      textDecoration: 'underline'
+                                      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
+                                      transition: 'all 0.2s ease-in-out',
+                                      whiteSpace: 'nowrap'
                                     }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'var(--primary)';
+                                      e.currentTarget.style.color = '#ffffff';
+                                      e.currentTarget.style.borderColor = 'var(--primary)';
+                                      e.currentTarget.style.boxShadow = '0 4px 12px var(--primary-glow, rgba(16, 185, 129, 0.3))';
+                                      e.currentTarget.style.transform = 'translateY(-1px)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'var(--primary-glow, rgba(16, 185, 129, 0.12))';
+                                      e.currentTarget.style.color = 'var(--primary)';
+                                      e.currentTarget.style.borderColor = 'var(--primary)';
+                                      e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.05)';
+                                      e.currentTarget.style.transform = 'translateY(0)';
+                                    }}
+                                    title="Kembali menggunakan kata sandi lama / saat ini"
                                   >
-                                    Lupa kata sandi saat ini?
+                                    <ArrowLeft size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                                    <span>Batal & Gunakan Sandi Lama</span>
                                   </button>
                                 </div>
-                                <div style={{ position: 'relative' }}>
-                                  <input
-                                    type={showBackupCurrentPasswordText ? 'text' : 'password'}
-                                    className="form-input"
-                                    placeholder="Masukkan kata sandi akun saat ini"
-                                    value={backupPasswordForm.current_password}
-                                    onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, current_password: e.target.value })}
-                                    style={{ paddingRight: '2.5rem' }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowBackupCurrentPasswordText(!showBackupCurrentPasswordText)}
-                                    style={{
-                                      position: 'absolute',
-                                      right: '0.65rem',
-                                      top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      background: 'none',
-                                      border: 'none',
-                                      padding: '0.25rem',
-                                      cursor: 'pointer',
-                                      color: 'var(--text-secondary)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}
-                                    title={showBackupCurrentPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
-                                  >
-                                    {showBackupCurrentPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem', marginBottom: '0.85rem' }}>
-                              <div>
-                                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Kata Sandi Baru</label>
-                                <div style={{ position: 'relative' }}>
-                                  <input
-                                    type={showBackupPasswordText ? 'text' : 'password'}
-                                    className="form-input"
-                                    placeholder="Minimal 8 karakter"
-                                    value={backupPasswordForm.password}
-                                    onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
-                                    style={{ paddingRight: '2.5rem' }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowBackupPasswordText(!showBackupPasswordText)}
-                                    style={{
-                                      position: 'absolute',
-                                      right: '0.65rem',
-                                      top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      background: 'none',
-                                      border: 'none',
-                                      padding: '0.25rem',
-                                      cursor: 'pointer',
-                                      color: 'var(--text-secondary)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}
-                                    title={showBackupPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
-                                  >
-                                    {showBackupPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
-                                  </button>
-                                </div>
+                                {profileOtpSuccess && (
+                                  <div style={{
+                                    marginBottom: '0.85rem',
+                                    fontSize: '0.75rem',
+                                    padding: '0.65rem 0.85rem',
+                                    borderRadius: '0.5rem',
+                                    background: 'rgba(16, 185, 129, 0.12)',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    color: '#10b981',
+                                    fontWeight: 600,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.45rem'
+                                  }}>
+                                    <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+                                    <span>{profileOtpSuccess}</span>
+                                  </div>
+                                )}
+                                {profileOtpError && (
+                                  <div style={{
+                                    marginBottom: '0.85rem',
+                                    fontSize: '0.75rem',
+                                    padding: '0.65rem 0.85rem',
+                                    borderRadius: '0.5rem',
+                                    background: 'rgba(239, 68, 68, 0.12)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    color: '#ef4444',
+                                    fontWeight: 600,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.45rem'
+                                  }}>
+                                    <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                                    <span>{profileOtpError}</span>
+                                  </div>
+                                )}
+
+                                {!profileOtpSent ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.75rem' }}>
+                                    <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                                      Klik tombol di bawah untuk menerima 6-digit kode OTP ke alamat email terdaftar Anda guna mereset kata sandi akun secara aman.
+                                    </p>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                      <button
+                                        type="button"
+                                        onClick={handleSendProfileBackupOTP}
+                                        disabled={profileOtpLoading}
+                                        className="btn-primary"
+                                        style={{
+                                          padding: '0.6rem 1.35rem',
+                                          fontSize: '0.8rem',
+                                          fontWeight: 800,
+                                          borderRadius: '0.55rem',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '0.45rem',
+                                          cursor: profileOtpLoading ? 'not-allowed' : 'pointer'
+                                        }}
+                                      >
+                                        <Mail size={15} />
+                                        {profileOtpLoading ? 'Mengirim Kode OTP...' : 'Kirim Kode OTP ke Email Saya'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div style={{ marginBottom: '0.85rem', maxWidth: '240px' }}>
+                                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        Kode OTP 6-Digit
+                                      </label>
+                                      <input
+                                        type="text"
+                                        maxLength={6}
+                                        placeholder="------"
+                                        value={profileOtpCode}
+                                        onChange={(e) => setProfileOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                        className="form-input"
+                                        style={{
+                                          width: '100%',
+                                          padding: '0.6rem',
+                                          borderRadius: '0.5rem',
+                                          fontSize: '1.35rem',
+                                          fontWeight: 800,
+                                          letterSpacing: '8px',
+                                          textAlign: 'center',
+                                          fontFamily: 'monospace',
+                                          backgroundColor: 'var(--bg-deep)',
+                                          border: '2px solid var(--primary)',
+                                          color: 'var(--primary)'
+                                        }}
+                                      />
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                                      <div>
+                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                          Kata Sandi Baru
+                                        </label>
+                                        <div style={{ position: 'relative' }}>
+                                          <input
+                                            type={showBackupPasswordText ? 'text' : 'password'}
+                                            className="form-input"
+                                            placeholder="Minimal 8 karakter"
+                                            value={backupPasswordForm.password}
+                                            onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
+                                            style={{ paddingRight: '2.5rem' }}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => setShowBackupPasswordText(!showBackupPasswordText)}
+                                            style={{
+                                              position: 'absolute',
+                                              right: '0.65rem',
+                                              top: '50%',
+                                              transform: 'translateY(-50%)',
+                                              background: 'none',
+                                              border: 'none',
+                                              padding: '0.25rem',
+                                              cursor: 'pointer',
+                                              color: 'var(--text-secondary)',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center'
+                                            }}
+                                            title={showBackupPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                                          >
+                                            {showBackupPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                          Konfirmasi Kata Sandi Baru
+                                        </label>
+                                        <div style={{ position: 'relative' }}>
+                                          <input
+                                            type={showBackupConfirmPasswordText ? 'text' : 'password'}
+                                            className="form-input"
+                                            placeholder="Ulangi kata sandi baru"
+                                            value={backupPasswordForm.confirm_password}
+                                            onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, confirm_password: e.target.value })}
+                                            style={{ paddingRight: '2.5rem' }}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => setShowBackupConfirmPasswordText(!showBackupConfirmPasswordText)}
+                                            style={{
+                                              position: 'absolute',
+                                              right: '0.65rem',
+                                              top: '50%',
+                                              transform: 'translateY(-50%)',
+                                              background: 'none',
+                                              border: 'none',
+                                              padding: '0.25rem',
+                                              cursor: 'pointer',
+                                              color: 'var(--text-secondary)',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center'
+                                              }}
+                                            title={showBackupConfirmPasswordText ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
+                                          >
+                                            {showBackupConfirmPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+                                      <button
+                                        type="button"
+                                        onClick={handleResetProfileBackupPassword}
+                                        disabled={profileOtpLoading || profileOtpCode.length !== 6}
+                                        className="btn-primary"
+                                        style={{
+                                          padding: '0.6rem 1.4rem',
+                                          fontSize: '0.8rem',
+                                          borderRadius: '0.55rem',
+                                          fontWeight: 800,
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '0.45rem',
+                                          cursor: (profileOtpLoading || profileOtpCode.length !== 6) ? 'not-allowed' : 'pointer',
+                                          opacity: (profileOtpLoading || profileOtpCode.length !== 6) ? 0.6 : 1
+                                        }}
+                                      >
+                                        <CheckCircle2 size={15} />
+                                        {profileOtpLoading ? 'Memverifikasi...' : 'Verifikasi OTP & Simpan Kata Sandi'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={handleSendProfileBackupOTP}
+                                        disabled={profileOtpCooldown > 0 || profileOtpLoading}
+                                        className="btn-secondary"
+                                        style={{
+                                          padding: '0.55rem 0.95rem',
+                                          fontSize: '0.78rem',
+                                          fontWeight: 700,
+                                          borderRadius: '0.55rem',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '0.4rem',
+                                          cursor: profileOtpCooldown > 0 ? 'default' : 'pointer',
+                                          color: profileOtpCooldown > 0 ? 'var(--text-muted)' : 'var(--text-primary)'
+                                        }}
+                                      >
+                                        <RefreshCw size={13} />
+                                        {profileOtpCooldown > 0 ? `Kirim ulang OTP (${profileOtpCooldown}s)` : 'Kirim Ulang OTP'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              <div>
-                                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Konfirmasi Kata Sandi Baru</label>
-                                <div style={{ position: 'relative' }}>
-                                  <input
-                                    type={showBackupConfirmPasswordText ? 'text' : 'password'}
-                                    className="form-input"
-                                    placeholder="Ulangi kata sandi baru"
-                                    value={backupPasswordForm.confirm_password}
-                                    onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, confirm_password: e.target.value })}
-                                    style={{ paddingRight: '2.5rem' }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowBackupConfirmPasswordText(!showBackupConfirmPasswordText)}
-                                    style={{
-                                      position: 'absolute',
-                                      right: '0.65rem',
-                                      top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      background: 'none',
-                                      border: 'none',
-                                      padding: '0.25rem',
-                                      cursor: 'pointer',
-                                      color: 'var(--text-secondary)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}
-                                    title={showBackupConfirmPasswordText ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
-                                  >
-                                    {showBackupConfirmPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
-                                  </button>
+                            ) : (
+                              <>
+                                {Boolean((adminUser as any)?.has_custom_password) && (
+                                  <div style={{ marginBottom: '0.85rem', maxWidth: '460px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                      <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, margin: 0 }}>Kata Sandi Saat Ini</label>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setProfilePasswordMode('otp');
+                                          setProfileOtpError(null);
+                                          setProfileOtpSuccess(null);
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          padding: '0.28rem 0.75rem',
+                                          borderRadius: '0.5rem',
+                                          background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                                          border: '1px solid var(--primary)',
+                                          color: 'var(--primary)',
+                                          fontSize: '0.74rem',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          boxShadow: '0 1px 4px rgba(0, 0, 0, 0.06)',
+                                          transition: 'all 0.2s ease'
+                                        }}
+                                        title="Gunakan verifikasi OTP jika lupa kata sandi lama"
+                                      >
+                                        Lupa Kata Sandi?
+                                      </button>
+                                    </div>
+                                    <div style={{ position: 'relative' }}>
+                                      <input
+                                        type={showBackupCurrentPasswordText ? 'text' : 'password'}
+                                        className="form-input"
+                                        placeholder="Masukkan kata sandi akun saat ini"
+                                        value={backupPasswordForm.current_password}
+                                        onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, current_password: e.target.value })}
+                                        style={{ paddingRight: '2.5rem' }}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowBackupCurrentPasswordText(!showBackupCurrentPasswordText)}
+                                        style={{
+                                          position: 'absolute',
+                                          right: '0.65rem',
+                                          top: '50%',
+                                          transform: 'translateY(-50%)',
+                                          background: 'none',
+                                          border: 'none',
+                                          padding: '0.25rem',
+                                          cursor: 'pointer',
+                                          color: 'var(--text-secondary)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center'
+                                        }}
+                                        title={showBackupCurrentPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                                      >
+                                        {showBackupCurrentPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                                  <div>
+                                    <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Kata Sandi Baru</label>
+                                    <div style={{ position: 'relative' }}>
+                                      <input
+                                        type={showBackupPasswordText ? 'text' : 'password'}
+                                        className="form-input"
+                                        placeholder="Minimal 8 karakter"
+                                        value={backupPasswordForm.password}
+                                        onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
+                                        style={{ paddingRight: '2.5rem' }}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowBackupPasswordText(!showBackupPasswordText)}
+                                        style={{
+                                          position: 'absolute',
+                                          right: '0.65rem',
+                                          top: '50%',
+                                          transform: 'translateY(-50%)',
+                                          background: 'none',
+                                          border: 'none',
+                                          padding: '0.25rem',
+                                          cursor: 'pointer',
+                                          color: 'var(--text-secondary)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center'
+                                        }}
+                                        title={showBackupPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                                      >
+                                        {showBackupPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Konfirmasi Kata Sandi Baru</label>
+                                    <div style={{ position: 'relative' }}>
+                                      <input
+                                        type={showBackupConfirmPasswordText ? 'text' : 'password'}
+                                        className="form-input"
+                                        placeholder="Ulangi kata sandi baru"
+                                        value={backupPasswordForm.confirm_password}
+                                        onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, confirm_password: e.target.value })}
+                                        style={{ paddingRight: '2.5rem' }}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowBackupConfirmPasswordText(!showBackupConfirmPasswordText)}
+                                        style={{
+                                          position: 'absolute',
+                                          right: '0.65rem',
+                                          top: '50%',
+                                          transform: 'translateY(-50%)',
+                                          background: 'none',
+                                          border: 'none',
+                                          padding: '0.25rem',
+                                          cursor: 'pointer',
+                                          color: 'var(--text-secondary)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center'
+                                        }}
+                                        title={showBackupConfirmPasswordText ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
+                                      >
+                                        {showBackupConfirmPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleSaveBackupPassword}
-                              disabled={backupPasswordLoading}
-                              className="btn-primary"
-                              style={{ padding: '0.55rem 1.35rem', fontSize: '0.8rem', borderRadius: '0.5rem', fontWeight: 800 }}
-                            >
-                              {backupPasswordLoading ? 'Menyimpan...' : (Boolean((adminUser as any)?.has_custom_password) ? 'Perbarui Kata Sandi' : 'Simpan Kata Sandi Cadangan')}
-                            </button>
+                                <button
+                                  type="button"
+                                  onClick={handleSaveBackupPassword}
+                                  disabled={backupPasswordLoading}
+                                  className="btn-primary"
+                                  style={{ padding: '0.55rem 1.35rem', fontSize: '0.8rem', borderRadius: '0.5rem', fontWeight: 800 }}
+                                >
+                                  {backupPasswordLoading ? 'Menyimpan...' : (Boolean((adminUser as any)?.has_custom_password) ? 'Perbarui Kata Sandi' : 'Simpan Kata Sandi Cadangan')}
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -29752,16 +30172,44 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
       {/* Forgot Password Recovery Modal (Desktop) */}
       {showForgotPasswordModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '440px', padding: '2rem', borderRadius: '1.25rem', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(10, 15, 26, 0.98) 100%)', boxShadow: '0 25px 60px rgba(0,0,0,0.8)' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '440px', padding: '2rem', borderRadius: '1.25rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-premium)', position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForgotPasswordModal(false);
+                setForgotError(null);
+                setForgotSuccess(null);
+              }}
+              style={{
+                position: 'absolute',
+                top: '1.15rem',
+                right: '1.15rem',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: '0.35rem',
+                borderRadius: '0.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.15s ease'
+              }}
+              title="Tutup Modal"
+              aria-label="Tutup Modal"
+            >
+              <X size={18} />
+            </button>
+
             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+              <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.85rem auto', border: '1px solid var(--border-light)', boxShadow: '0 4px 14px var(--primary-glow)' }}>
                 <Key size={24} />
               </div>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
                 Pemulihan Kata Sandi Akun
               </h3>
-              <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.45rem', lineHeight: 1.5 }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.45rem', lineHeight: 1.5 }}>
                 {forgotPasswordStep === 1 
                   ? 'Masukkan email akun terdaftar Anda untuk menerima kode OTP pemulihan sandi.'
                   : `Kode verifikasi telah dikirim ke ${forgotEmail}. Silakan buat kata sandi baru.`}
@@ -29782,7 +30230,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             {forgotPasswordStep === 1 ? (
               <form onSubmit={handleSendForgotPasswordOTP}>
                 <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                  <label className="form-label" style={{ color: '#e2e8f0', fontSize: '0.82rem' }}>Alamat Email Terdaftar</label>
+                  <label className="form-label" style={{ color: 'var(--text-primary)', fontSize: '0.82rem', fontWeight: 700 }}>Alamat Email Terdaftar</label>
                   <input
                     type="email"
                     required
@@ -29790,14 +30238,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     placeholder="nama@email.com"
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
-                    style={{ backgroundColor: 'rgba(0,0,0,0.3)', color: '#ffffff' }}
+                    style={{ backgroundColor: 'var(--bg-deep)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={forgotLoading}
                   className="btn-primary btn-full"
-                  style={{ padding: '0.75rem', fontWeight: 800, fontSize: '0.85rem', borderRadius: '0.65rem' }}
+                  style={{ padding: '0.75rem', fontWeight: 800, fontSize: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--primary)', color: '#ffffff', border: 'none', boxShadow: '0 4px 14px var(--primary-glow)', cursor: 'pointer' }}
                 >
                   {forgotLoading ? 'Mengirim...' : 'Kirim Kode Pemulihan'}
                 </button>
@@ -29805,7 +30253,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   type="button"
                   onClick={() => setShowForgotPasswordModal(false)}
                   className="btn-secondary btn-full"
-                  style={{ marginTop: '0.65rem', padding: '0.75rem', fontWeight: 700, fontSize: '0.82rem', borderRadius: '0.65rem' }}
+                  style={{ marginTop: '0.65rem', padding: '0.75rem', fontWeight: 700, fontSize: '0.82rem', borderRadius: '0.65rem', backgroundColor: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', border: '1px solid var(--btn-secondary-border)', cursor: 'pointer' }}
                 >
                   Kembali ke Login
                 </button>
@@ -29813,7 +30261,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             ) : (
               <form onSubmit={handleResetForgotPassword}>
                 <div style={{ marginBottom: '1rem' }}>
-                  <label className="form-label" style={{ color: '#e2e8f0', fontSize: '0.82rem' }}>Kode OTP 6-Digit</label>
+                  <label className="form-label" style={{ color: 'var(--text-primary)', fontSize: '0.82rem', fontWeight: 700 }}>Kode OTP 6-Digit</label>
                   <input
                     type="text"
                     maxLength={6}
@@ -29822,56 +30270,104 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     onChange={(e) => setForgotOTP(e.target.value.replace(/[^0-9]/g, ''))}
                     style={{
                       width: '100%',
-                      padding: '0.65rem',
-                      borderRadius: '0.6rem',
+                      padding: '0.75rem',
+                      borderRadius: '0.65rem',
                       fontSize: '1.4rem',
                       fontWeight: 800,
                       letterSpacing: '8px',
                       textAlign: 'center',
                       fontFamily: 'monospace',
-                      backgroundColor: 'rgba(0,0,0,0.4)',
-                      border: '1px solid rgba(56, 189, 248, 0.4)',
-                      color: '#ffffff'
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1.5px solid var(--primary)',
+                      color: 'var(--primary)',
+                      outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
-                <div className="form-group" style={{ marginBottom: '0.85rem' }}>
-                  <label className="form-label" style={{ color: '#e2e8f0', fontSize: '0.82rem' }}>Kata Sandi Baru</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Minimal 6 karakter"
-                    className="form-input"
-                    value={forgotNewPassword}
-                    onChange={(e) => setForgotNewPassword(e.target.value)}
-                    style={{ backgroundColor: 'rgba(0,0,0,0.3)', color: '#ffffff' }}
-                  />
+                <div style={{ marginBottom: '0.85rem' }}>
+                  <label style={{ display: 'block', color: 'var(--text-primary)', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>Kata Sandi Baru</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showForgotNewPasswordText ? 'text' : 'password'}
+                      required
+                      placeholder="Minimal 8 karakter"
+                      className="form-input"
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      style={{ backgroundColor: 'var(--bg-deep)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', paddingRight: '2.5rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotNewPasswordText(!showForgotNewPasswordText)}
+                      style={{
+                        position: 'absolute',
+                        right: '0.65rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        padding: '0.25rem',
+                        cursor: 'pointer',
+                        color: 'var(--text-secondary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title={showForgotNewPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                    >
+                      {showForgotNewPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
-                <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                  <label className="form-label" style={{ color: '#e2e8f0', fontSize: '0.82rem' }}>Konfirmasi Kata Sandi Baru</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Ulangi kata sandi baru"
-                    className="form-input"
-                    value={forgotConfirmPassword}
-                    onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                    style={{ backgroundColor: 'rgba(0,0,0,0.3)', color: '#ffffff' }}
-                  />
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'block', color: 'var(--text-primary)', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>Konfirmasi Kata Sandi Baru</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showForgotConfirmPasswordText ? 'text' : 'password'}
+                      required
+                      placeholder="Ulangi kata sandi baru"
+                      className="form-input"
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      style={{ backgroundColor: 'var(--bg-deep)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', paddingRight: '2.5rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotConfirmPasswordText(!showForgotConfirmPasswordText)}
+                      style={{
+                        position: 'absolute',
+                        right: '0.65rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        padding: '0.25rem',
+                        cursor: 'pointer',
+                        color: 'var(--text-secondary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title={showForgotConfirmPasswordText ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
+                    >
+                      {showForgotConfirmPasswordText ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
                 <button
                   type="submit"
                   disabled={forgotLoading || forgotOTP.length !== 6}
                   className="btn-primary btn-full"
-                  style={{ padding: '0.75rem', fontWeight: 800, fontSize: '0.85rem', borderRadius: '0.65rem' }}
+                  style={{ padding: '0.75rem', fontWeight: 800, fontSize: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--primary)', color: '#ffffff', border: 'none', boxShadow: '0 4px 14px var(--primary-glow)', cursor: 'pointer' }}
                 >
                   {forgotLoading ? 'Memproses...' : 'Simpan Kata Sandi Baru'}
                 </button>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)' }}>
                   <button
                     type="button"
                     onClick={() => setForgotPasswordStep(1)}
-                    style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '0.75rem', cursor: 'pointer', padding: 0 }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer', padding: 0 }}
                   >
                     Ubah Email
                   </button>
@@ -29882,7 +30378,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: forgotCooldown > 0 ? '#64748b' : '#38bdf8',
+                      color: forgotCooldown > 0 ? 'var(--text-muted)' : 'var(--primary)',
                       fontSize: '0.75rem',
                       fontWeight: 700,
                       cursor: forgotCooldown > 0 ? 'default' : 'pointer',
