@@ -237,9 +237,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     try {
       const formData = new FormData();
       formData.append('image', file);
-      formData.append('folder', 'subscription_proofs');
+      formData.append('category', 'billing');
 
-      const res = await fetch(`${apiBase}/upload`, {
+      const res = await fetch(`${apiBase}/storage/upload?category=billing`, {
         method: 'POST',
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})

@@ -194,35 +194,52 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	uniqueID := uuid.New().String()
 	var objectKey string
 
-	var storeID uint = 0
-	if !isPlatformScope {
-		if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil {
-			storeID = storeVal.ID
-		}
-		if storeID == 0 {
-			slug := strings.TrimSpace(c.Get("X-Store-Slug"))
-			if slug == "" {
-				slug = strings.TrimSpace(c.Query("slug", c.FormValue("slug", "")))
-			}
-			if slug != "" {
-				var s models.Store
-				if err := h.db.Where("LOWER(slug) = ?", strings.ToLower(slug)).First(&s).Error; err == nil {
-					storeID = s.ID
-				}
-			}
-		}
-	}
-
 	var userID uint = 0
+	var isStaffUser bool = false
 	if userVal, ok := c.Locals("user").(*models.User); ok && userVal != nil {
 		userID = userVal.ID
+		isStaffUser = strings.EqualFold(userVal.PlatformRole, "superadmin") ||
+			strings.EqualFold(userVal.PlatformRole, "support") ||
+			strings.EqualFold(userVal.PlatformRole, "admin") ||
+			userVal.Email == "admin@catavor.com"
+	}
+
+	var storeID uint = 0
+	if !isPlatformScope {
+		// Prioritaskan slug spesifik jika dikirim oleh klien (Multi Profil Katalog)
+		requestedSlug := strings.TrimSpace(c.Get("X-Store-Slug"))
+		if requestedSlug == "" {
+			requestedSlug = strings.TrimSpace(c.Query("slug", c.FormValue("slug", "")))
+		}
+		if requestedSlug != "" {
+			var s models.Store
+			// Validasi bahwa toko dengan slug tersebut dimiliki oleh user atau diakses oleh admin
+			query := h.db.Where("LOWER(slug) = ?", strings.ToLower(requestedSlug))
+			if !isStaffUser && userID > 0 {
+				query = query.Where("user_id = ?", userID)
+			}
+			if err := query.First(&s).Error; err == nil {
+				storeID = s.ID
+			}
+		}
+
+		// Fallback ke store context yang telah diverifikasi oleh middleware
+		if storeID == 0 {
+			if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil {
+				storeID = storeVal.ID
+			}
+		}
 	}
 
 	// Capture buffer length BEFORE passing it to storage.Upload (which consumes the buffer)
 	uploadSize := int64(buf.Len())
 
-	// Validate Storage Quota for Store Media (excluding pure support tickets and platform-level assets)
-	if storeID > 0 && category != "support" && !isPlatformScope {
+	// Validate Storage Quota for Store Media:
+	// - Exclude support tickets (support messages)
+	// - Exclude billing/payment proofs (allows merchants to upload upgrade payment proof even when media quota is full)
+	// - Exclude platform-level assets
+	isQuotaCounted := storeID > 0 && category != "support" && category != "billing" && !isPlatformScope
+	if isQuotaCounted {
 		if allowed, msg := services.CanUploadStorage(h.db, storeID, uploadSize); !allowed {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
@@ -231,23 +248,36 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		}
 	}
 
-	// Best Practice Folder Structure:
+	// Best Practice Folder Structure (S3-Ready Key Hierarchy):
 	// - Platform Partners: platform/partners/rekber/YYYY/MM/uuid.ext
 	// - Platform Branding: platform/branding/YYYY/MM/uuid.ext
-	// - Support Tickets: stores/:id/support/... or support/users/:id/...
-	// - Store Media: stores/:id/:category/YYYY/MM/uuid.ext
-	// - Articles: articles/YYYY/MM/uuid.ext
+	// - Support Tickets (Staff): support/staff/YYYY/MM/uuid.ext
+	// - Support Tickets (Merchant/Store): stores/:id/support/YYYY/MM/uuid.ext
+	// - Support Tickets (User without store): support/users/:id/YYYY/MM/uuid.ext
+	// - Billing & Invoices: stores/:id/billing/YYYY/MM/uuid.ext or billing/users/:id/...
+	// - Store Media (Products/Branding): stores/:id/:category/YYYY/MM/uuid.ext
+	// - Articles & News: articles/YYYY/MM/uuid.ext
 	if category == "platform_partners" {
 		objectKey = fmt.Sprintf("platform/partners/rekber/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
 	} else if category == "platform_branding" {
 		objectKey = fmt.Sprintf("platform/branding/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
 	} else if category == "support" {
-		if storeID > 0 {
+		if isStaffUser && storeID == 0 {
+			objectKey = fmt.Sprintf("support/staff/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
+		} else if storeID > 0 {
 			objectKey = fmt.Sprintf("stores/%d/support/%d/%02d/%s%s", storeID, now.Year(), now.Month(), uniqueID, ext)
 		} else if userID > 0 {
 			objectKey = fmt.Sprintf("support/users/%d/%d/%02d/%s%s", userID, now.Year(), now.Month(), uniqueID, ext)
 		} else {
 			objectKey = fmt.Sprintf("support/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
+		}
+	} else if category == "billing" {
+		if storeID > 0 {
+			objectKey = fmt.Sprintf("stores/%d/billing/%d/%02d/%s%s", storeID, now.Year(), now.Month(), uniqueID, ext)
+		} else if userID > 0 {
+			objectKey = fmt.Sprintf("billing/users/%d/%d/%02d/%s%s", userID, now.Year(), now.Month(), uniqueID, ext)
+		} else {
+			objectKey = fmt.Sprintf("billing/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
 		}
 	} else if category == "articles" {
 		objectKey = fmt.Sprintf("articles/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
@@ -267,8 +297,8 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		})
 	}
 
-	// Atomically increment store storage_used_bytes with real upload size (only for tenant stores)
-	if storeID > 0 && uploadSize > 0 && !isPlatformScope {
+	// Atomically increment store storage_used_bytes with real upload size (only for counted tenant media)
+	if isQuotaCounted && uploadSize > 0 {
 		h.db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", gorm.Expr("storage_used_bytes + ?", uploadSize))
 		database.InvalidateStoreQuotaCache(context.Background(), storeID)
 	}
