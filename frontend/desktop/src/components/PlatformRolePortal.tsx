@@ -10808,10 +10808,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       <span style={{ fontSize: '0.66rem', fontWeight: 700 }}>Total Bot Terdaftar</span>
                     </div>
                     <div style={{ fontSize: '1.25rem', fontWeight: 900, color: theme.textPrimary }}>
-                      {automationStatus?.total_workers || 9} Bot
+                      {automationStatus?.total_workers || 11} Bot
                     </div>
                     <div style={{ fontSize: '0.6rem', color: '#10b981', marginTop: '0.1rem' }}>
-                      🟢 {automationStatus?.healthy_workers || 9} Sehat / Normal
+                      🟢 {automationStatus?.healthy_workers || 11} Sehat / Normal
                     </div>
                   </div>
 
@@ -10933,7 +10933,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <span>Aksi Cepat &amp; Pintasan Operasional</span>
                 </h4>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
                   <button
                     type="button"
                     onClick={() => handleTriggerBot('store_expiry', 'Kedaluwarsa Toko')}
@@ -11005,6 +11005,29 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                   <button
                     type="button"
+                    onClick={() => handleTriggerBot('ticket_retention_worker', 'Pemusnahan Data PDP')}
+                    disabled={isTriggeringBot !== null}
+                    style={{
+                      padding: '0.6rem 0.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(236, 72, 153, 0.12)' : 'rgba(236, 72, 153, 0.08)',
+                      border: `1px solid ${isDark ? 'rgba(236, 72, 153, 0.25)' : 'rgba(236, 72, 153, 0.2)'}`,
+                      color: '#ec4899',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <ShieldAlert size={13} />
+                    <span>Pemusnahan Tiket PDP</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setAutomationSubView('sandbox')}
                     style={{
                       padding: '0.6rem 0.75rem',
@@ -11037,7 +11060,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <Bot size={15} color="#38bdf8" />
-                  <span>Katalog 9 Bot Platform (Interactive Control Matrix)</span>
+                  <span>Katalog 11 Bot Platform (Interactive Control Matrix)</span>
                 </h4>
                 <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
                   Klik "Jalankan Sekarang" untuk pemicu paksa
@@ -11045,6 +11068,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </div>
 
               {[
+                {
+                  id: 'ticket_retention_worker',
+                  name: 'Bot Retensi & Pemusnahan Data PDP Tiket',
+                  category: 'Compliance',
+                  categoryColor: '#ec4899',
+                  freq: 'Setiap 24 Jam',
+                  desc: 'Memusnahkan tiket closed (billing/akun 30 hari, teknis 60 hari) beserta seluruh berkas gambar & dokumen PDF dari storage sesuai UU PDP No. 27/2022.',
+                  icon: <ShieldAlert size={18} color="#ec4899" />,
+                  color: '#ec4899'
+                },
+                {
+                  id: 'item_retention_worker',
+                  name: 'Bot Retensi & Pembersihan Item Moderasi',
+                  category: 'Compliance',
+                  categoryColor: '#f43f5e',
+                  freq: 'Setiap 24 Jam',
+                  desc: 'Memproses pengingat moderasi H-7, pengarsipan otomatis (H-30), dan pemusnahan berkas katalog terisolasi secara permanen (H-90).',
+                  icon: <ShieldCheck size={18} color="#f43f5e" />,
+                  color: '#f43f5e'
+                },
                 {
                   id: 'store_expiry',
                   name: 'Bot Kedaluwarsa & Paket Toko',
