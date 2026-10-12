@@ -237,7 +237,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       setIsExportingCsv(true);
       const token = localStorage.getItem('catavor_token');
       const res = await fetch(`/api/admin/analytics/export?period=${p}&type=${t}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
+        }
       });
       if (!res.ok) throw new Error('Gagal mengekspor data');
       const blob = await res.blob();
@@ -302,7 +305,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           sort: productSort
         });
         const res = await fetch(`/api/admin/analytics/products?${params.toString()}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
+          },
           signal: controller.signal
         });
         if (!res.ok) throw new Error('Failed to fetch analytics products');
@@ -838,10 +844,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             </div>
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                Analitika & Konversi Multi-Katalog
+                Analitika & Performa Katalog
               </h2>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                Performa katalog <strong style={{ color: 'var(--text-primary)' }}>{storeTitle || 'Catavor'}</strong> • Terpadu Seluruh Model Bisnis
+                Statistik & trafik katalog <strong style={{ color: 'var(--text-primary)' }}>{storeTitle || 'Catavor'}</strong> • Khusus Profil Aktif Ini
               </span>
             </div>
           </div>
