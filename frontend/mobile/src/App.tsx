@@ -5706,22 +5706,9 @@ Terima kasih.`;
           </button>
         </div>
 
-        {/* Security & Compliance Badges */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#64748b', fontSize: '0.68rem', fontWeight: 600 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <ShieldCheck size={13} style={{ color: '#16a34a' }} />
-            Privasi &amp; Data Terlindungi
-          </span>
-          <span style={{ color: '#cbd5e1' }}>|</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <Lock size={12} style={{ color: '#2563eb' }} />
-            256-Bit Enkripsi SSL
-          </span>
-        </div>
-
         {/* Copyright notice */}
-        <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '0.2rem', fontWeight: 500 }}>
-          © 2026 <strong>PT Catavor Global Teknologi</strong>. Hak Cipta Dilindungi.
+        <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '0.4rem', fontWeight: 500 }}>
+          © 2026 Catavor. Hak Cipta Dilindungi.
         </div>
 
       </div>
@@ -5747,7 +5734,7 @@ Terima kasih.`;
               DOKUMEN RESMI
             </span>
             <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-              PT Catavor Media Digital
+              Catavor
             </span>
           </div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.02em', margin: '0 0 0.35rem 0' }}>
