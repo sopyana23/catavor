@@ -7,11 +7,19 @@
 
 # Environment configurations (Secrets)
 **/.env
-**/.env.production
-**/.env.local
-**/.env.development.local
-**/.env.test.local
-**/.env.production.local
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# Private Keys, Certificates & Credentials
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+*.id_rsa
+*id_ed25519
 
 # Databases & Dynamic Local uploads
 **/database/*.sqlite
