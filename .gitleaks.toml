@@ -1,0 +1,17 @@
+title = "Catavor Gitleaks Security Policy"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for safe templates and public OAuth client IDs"
+paths = [
+  '''.*\.env\.example$''',
+  '''package-lock\.json''',
+  '''go\.sum''',
+  '''legacy/laravel/composer\.lock'''
+]
+regexes = [
+  '''***REMOVED***_2026_enterprise_saas''',
+  '''847403664953-ef7k9h5n99mtlnbdpr4a6300dt83efk5\.apps\.googleusercontent\.com'''
+]
