@@ -247,9 +247,10 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
     setActionError(null);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('image', file);
+      formData.append('category', 'billing');
 
-      const res = await fetch(`${apiBase}/storage/upload`, {
+      const res = await fetch(`${apiBase}/storage/upload?category=billing`, {
         method: 'POST',
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -257,8 +258,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
         body: formData
       });
       const data = await res.json();
-      if (res.ok && data.success && data.data?.url) {
-        setPaymentProofUrl(data.data.url);
+      if (res.ok && data.success && (data.url || data.data?.url)) {
+        setPaymentProofUrl(data.url || data.data?.url);
       } else {
         setPaymentProofUrl(proofPreview || '');
       }
