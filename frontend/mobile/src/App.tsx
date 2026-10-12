@@ -5315,7 +5315,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [simulatedOrderToast, setSimulatedOrderToast] = useState<string | null>(null);
   const [featuredStores, setFeaturedStores] = useState<any[]>([]);
   // Policy & Privacy System States
-  const [policies, setPolicies] = useState<{ [key: string]: { type: string, version: string, title: string, content: string, published_at?: string } }>({
+  const [policies, setPolicies] = useState<{ [key: string]: { type: string, version: string, title: string, content: string, published_at?: string, effective_date?: string, updated_at?: string } }>({
     terms: {
       type: 'terms',
       version: 'v1.0.0',
@@ -5335,6 +5335,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       content: '### 1. Larangan Konten & Barang Ilegal\nPengguna dilarang keras menampilkan, menawarkan, atau menjual narkotika, senjata api/tajam ilegal, satwa liar dilindungi, atau produk bajakan.\n\n### 2. Penangguhan & Pemblokiran Akun\nPelanggaran terhadap ketentuan penggunaan ini akan mengakibatkan penangguhan atau pemblokiran permanen.'
     }
   });
+
+  const formatPolicyEffectiveDate = (dateStr?: string) => {
+    if (!dateStr) return '1 Januari 2025';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '1 Januari 2025';
+      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    } catch {
+      return '1 Januari 2025';
+    }
+  };
 
   const fetchPolicies = async () => {
     try {
@@ -5650,16 +5661,10 @@ Terima kasih.`;
               fontWeight: 600, 
               padding: '0.25rem 0.4rem',
               borderRadius: '0.35rem',
-              fontSize: '0.74rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem'
+              fontSize: '0.74rem'
             }}
           >
             <span>Syarat &amp; Ketentuan</span>
-            <span style={{ fontSize: '0.62rem', color: '#1d4ed8', background: '#eff6ff', padding: '0.05rem 0.35rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
-              {policies.terms?.version || 'v1.0.0'}
-            </span>
           </button>
 
           <span style={{ color: '#cbd5e1', fontSize: '0.6rem' }}>•</span>
@@ -5675,16 +5680,10 @@ Terima kasih.`;
               fontWeight: 600, 
               padding: '0.25rem 0.4rem',
               borderRadius: '0.35rem',
-              fontSize: '0.74rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem'
+              fontSize: '0.74rem'
             }}
           >
             <span>Kebijakan Privasi</span>
-            <span style={{ fontSize: '0.62rem', color: '#1d4ed8', background: '#eff6ff', padding: '0.05rem 0.35rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
-              {policies.privacy?.version || 'v1.0.0'}
-            </span>
           </button>
 
           <span style={{ color: '#cbd5e1', fontSize: '0.6rem' }}>•</span>
@@ -5700,16 +5699,10 @@ Terima kasih.`;
               fontWeight: 600, 
               padding: '0.25rem 0.4rem',
               borderRadius: '0.35rem',
-              fontSize: '0.74rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem'
+              fontSize: '0.74rem'
             }}
           >
             <span>Ketentuan Penggunaan</span>
-            <span style={{ fontSize: '0.62rem', color: '#1d4ed8', background: '#eff6ff', padding: '0.05rem 0.35rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
-              {policies.acceptable_use?.version || 'v1.0.0'}
-            </span>
           </button>
         </div>
 
@@ -5743,8 +5736,28 @@ Terima kasih.`;
       content: 'Memuat kebijakan...'
     };
 
+    const effectiveDateStr = formatPolicyEffectiveDate(policy.effective_date || policy.updated_at);
+
     return (
       <div style={{ maxWidth: '850px', margin: '0 auto', padding: '2rem 1.25rem 4rem 1.25rem', animation: 'fadeIn 0.3s ease-in-out' }}>
+        {/* Document Header Panel */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid #bfdbfe' }}>
+              DOKUMEN RESMI
+            </span>
+            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+              PT Catavor Media Digital
+            </span>
+          </div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.02em', margin: '0 0 0.35rem 0' }}>
+            {policy.title}
+          </h1>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+            Terakhir diperbarui: <strong>{effectiveDateStr}</strong>
+          </p>
+        </div>
+
         {/* Main Formatted Content Card */}
         <div className="portal-card" style={{ padding: '1.75rem 1.35rem' }}>
           {renderFormattedPolicyContent(policy.content)}
@@ -25573,11 +25586,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   {/* Document Card Panel */}
                   <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                        {policies[mobilePolicyTab]?.title || 'Dokumen Resmi Platform'}
-                      </span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--primary)', background: 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid var(--primary)' }}>
-                        {policies[mobilePolicyTab]?.version || 'v1.0.0'}
+                      <div>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
+                          {policies[mobilePolicyTab]?.title || 'Dokumen Resmi Platform'}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                          Terakhir diperbarui: {formatPolicyEffectiveDate(policies[mobilePolicyTab]?.effective_date || (policies[mobilePolicyTab] as any)?.updated_at)}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--primary)', background: 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid var(--primary)', flexShrink: 0 }}>
+                        Resmi
                       </span>
                     </div>
 
