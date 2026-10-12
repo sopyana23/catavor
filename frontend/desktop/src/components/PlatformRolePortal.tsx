@@ -10686,7 +10686,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           }}>
             {[
               { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
-              { id: 'bots', label: '9 Bot Platform', icon: Bot, badge: '9' },
+              { id: 'bots', label: 'Katalog 11 Bot', icon: Bot, badge: '11' },
               { id: 'logs', label: 'Riwayat & Audit', icon: Activity, badge: String(automationLogsTotal || automationLogs.length) },
               { id: 'sandbox', label: 'Sandbox Uji Coba', icon: Zap }
             ].map(tab => {
@@ -10769,7 +10769,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       boxShadow: '0 0 10px #10b981'
                     }} />
                     <span style={{ fontSize: '0.84rem', fontWeight: 800, color: theme.textPrimary }}>
-                      Status Mesin: 9 Worker Aktif &amp; Terjadwal (24/7 Daemon)
+                      Status Mesin: 11 Worker Aktif &amp; Terjadwal (24/7 Daemon)
                     </span>
                   </div>
 
@@ -11046,6 +11046,108 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   >
                     <Zap size={13} />
                     <span>Buka Sandbox Uji Coba</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Prominent Compliance & PDP Spotlight Card (Visual Nama: Bot Retensi & Pemusnahan Data PDP Tiket) */}
+              <div style={{
+                padding: '1.15rem 1.25rem',
+                borderRadius: '1.15rem',
+                background: isDark
+                  ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(15, 23, 42, 0.95))'
+                  : 'linear-gradient(135deg, rgba(253, 242, 248, 0.95), rgba(255, 255, 255, 0.95))',
+                border: `1.5px solid ${isDark ? 'rgba(236, 72, 153, 0.35)' : 'rgba(236, 72, 153, 0.3)'}`,
+                boxShadow: theme.cardShadow,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(236, 72, 153, 0.15)',
+                      border: '1px solid rgba(236, 72, 153, 0.3)',
+                      color: '#ec4899',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <ShieldAlert size={22} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
+                        <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', border: '1px solid rgba(236, 72, 153, 0.3)' }}>
+                          KEPATUHAN UU PDP NO. 27/2022 &amp; GDPR
+                        </span>
+                        <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                          🟢 AKTIF TERJADWAL (24 JAM)
+                        </span>
+                      </div>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: theme.textPrimary }}>
+                        Nama: Bot Retensi &amp; Pemusnahan Data PDP Tiket
+                      </h3>
+                      <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                        Identifier System: <code style={{ color: '#ec4899', fontWeight: 700 }}>ticket_retention_worker</code> • Hard Delete Total
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerBot('ticket_retention_worker', 'Pemusnahan Data PDP')}
+                    disabled={isTriggeringBot !== null}
+                    style={{
+                      padding: '0.65rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: '#ec4899',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      boxShadow: '0 4px 12px rgba(236, 72, 153, 0.35)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <RefreshCw size={14} className={isTriggeringBot === 'ticket_retention_worker' ? 'spin' : ''} />
+                    <span>{isTriggeringBot === 'ticket_retention_worker' ? 'Memusnahkan Data...' : 'Jalankan Pemusnahan PDP Sekarang'}</span>
+                  </button>
+                </div>
+
+                <p style={{ margin: 0, fontSize: '0.76rem', color: theme.textSecondary, lineHeight: 1.55 }}>
+                  Memusnahkan tiket closed yang melampaui masa retensi legal (tiket sensitif billing/akun setelah 30 hari, dan tiket operasional standar setelah 60 hari). Seluruh relasi data database beserta <strong>berkas fisik (foto screenshot JPG/PNG &amp; dokumen PDF lampiran) dihapus permanen dari storage server/S3</strong> tanpa menyisakan jejak, demi perlindungan privasi merchant dan penghematan kapasitas disk server.
+                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.4rem', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: theme.textSecondary }}>
+                    <span>Kebijakan Retensi: <strong>30 Hari (Billing/Akun)</strong> | <strong>60 Hari (Teknis/Katalog)</strong></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAutomationSubView('bots')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}
+                  >
+                    <span>Buka Seluruh 11 Bot di Katalog Bot</span>
+                    <ChevronRight size={13} />
                   </button>
                 </div>
               </div>
