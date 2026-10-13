@@ -161,7 +161,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     // 3. **bold** or __bold__
     // 4. *italic* or _italic_
     // 5. `code`
-    const regex = /(\[button:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]|\[cta:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]|\[([^\]]+)\]\(([^)]+)\)|\*\*(.*?)\*\*|\*(.*?)\*|__(.*?)__|_(.*?)_|`(.*?)`)/g;
+    const regex = /(\[button:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]|\[cta:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+?)\*\*|\*([^*]+?)\*|__([^_]+?)__|_(.*?)_|`([^`]+?)`)/g;
     let lastIndex = 0;
     let match;
 
@@ -325,6 +325,30 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
 
       if (trimmed === '') {
         elements.push(<div key={`br-${lineIdx}`} style={{ height: '0.4rem' }} />);
+      } else if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+        elements.push(<hr key={`hr-${lineIdx}`} style={{ border: 'none', borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))', margin: '0.85rem 0' }} />);
+      } else if (trimmed.startsWith('> ') || trimmed.startsWith('>')) {
+        const quoteText = trimmed.replace(/^>\s*/, '');
+        elements.push(
+          <blockquote key={`bq-${lineIdx}`} style={{
+            margin: '0.5rem 0',
+            padding: '0.6rem 0.9rem',
+            borderRadius: '0.55rem',
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderLeft: '3px solid var(--primary, #38bdf8)',
+            color: 'var(--text-secondary, #94a3b8)',
+            fontStyle: 'italic',
+            fontSize: '0.88rem'
+          }}>
+            {renderInlineMarkdown(quoteText)}
+          </blockquote>
+        );
+      } else if (trimmed.startsWith('#### ')) {
+        elements.push(
+          <h5 key={`h4-${lineIdx}`} style={{ fontSize: '0.88rem', fontWeight: 800, margin: '0.45rem 0 0.15rem 0', color: 'inherit' }}>
+            {renderInlineMarkdown(trimmed.replace('#### ', ''))}
+          </h5>
+        );
       } else if (trimmed.startsWith('### ')) {
         elements.push(
           <h4 key={`h3-${lineIdx}`} style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0.5rem 0 0.2rem 0', color: 'inherit' }}>

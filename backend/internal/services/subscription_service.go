@@ -307,6 +307,10 @@ func CanEditOrReactivateProduct(db *gorm.DB, storeID uint, productID uint, willB
 	}
 
 	// 1. Compliance Takedown Guard:
+	// If product is banned, it is permanently terminated and cannot be edited or activated
+	if product.ModerationStatus == "banned" {
+		return false, "Produk ini telah diblokir permanen oleh Tim Kepatuhan platform dan tidak dapat diakses atau diedit kembali."
+	}
 	// If product is locked by platform admin, merchant CANNOT edit or activate it
 	if product.ModerationStatus == "locked" {
 		return false, "Produk ini dinonaktifkan & dikunci oleh Tim Kepatuhan platform karena pelanggaran kebijakan komoditas. Pengeditan dinonaktifkan."

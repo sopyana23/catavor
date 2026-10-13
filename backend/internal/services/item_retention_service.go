@@ -83,7 +83,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				remainingDays = 1
 			}
 
-			storeTitle := "Toko Catavor"
+			storeTitle := "Katalog Catavor"
 			storeSlug := ""
 			recipientEmail := ""
 			if p.Store != nil {
@@ -103,10 +103,10 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				TargetType:    "single_store",
 				TargetID:      p.StoreID,
 				TargetName:    storeTitle,
-				Title:         fmt.Sprintf("⚠️ Peringatan: Produk '%s' (#%d) Dihapus dalam %d Hari", p.Name, p.ID, remainingDays),
+				Title:         fmt.Sprintf("⚠️ Peringatan: Item '%s' (#%d) Dihapus dalam %d Hari", p.Name, p.ID, remainingDays),
 				Category:      "KEAMANAN",
-				Message:       fmt.Sprintf("Produk '%s' yang dinonaktifkan oleh Tim Kepatuhan akan dihapus otomatis dari katalog Anda dalam waktu %d hari jika tidak ada tindakan klarifikasi.", p.Name, remainingDays),
-				DetailContent: fmt.Sprintf("### Peringatan Masa Retensi Kepatuhan\n\nProduk **%s** telah dinonaktifkan sejak **%s**. Sesuai standar operasional kepatuhan, item yang tidak mendapatkan klarifikasi akan otomatis dipindahkan dari inventaris dalam waktu **%d hari** ke depan.\n\nJika terdapat kekeliruan atau Anda telah memiliki izin legalitas resmi, segera ajukan klarifikasi melalui formulir Bantuan CS.", p.Name, p.ModeratedAt.Format("02 Jan 2006"), remainingDays),
+				Message:       fmt.Sprintf("Item '%s' yang dinonaktifkan oleh Tim Kepatuhan akan dihapus otomatis dari katalog Anda dalam waktu %d hari jika tidak ada tindakan klarifikasi.", p.Name, remainingDays),
+				DetailContent: fmt.Sprintf("### Peringatan Masa Retensi Kepatuhan\n\nItem **%s** telah dinonaktifkan sejak **%s**. Sesuai standar operasional kepatuhan, item yang tidak mendapatkan klarifikasi akan otomatis dipindahkan dari inventaris dalam waktu **%d hari** ke depan.\n\nJika terdapat kekeliruan atau Anda telah memiliki izin legalitas resmi, segera ajukan klarifikasi melalui formulir Bantuan CS.", p.Name, p.ModeratedAt.Format("02 Jan 2006"), remainingDays),
 				Type:          "warning",
 				ActionEnabled: true,
 				ActionType:    "navigate",
@@ -204,7 +204,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				"deleted_at": now,
 			}).Error
 
-			storeTitle := "Toko Catavor"
+			storeTitle := "Katalog Catavor"
 			storeSlug := ""
 			recipientEmail := ""
 			if p.Store != nil {
@@ -224,15 +224,15 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				TargetType:    "single_store",
 				TargetID:      p.StoreID,
 				TargetName:    storeTitle,
-				Title:         fmt.Sprintf("🗑️ Produk '%s' Dipindahkan dari Katalog", p.Name),
+				Title:         fmt.Sprintf("🗑️ Item '%s' Dipindahkan dari Katalog", p.Name),
 				Category:      "KEAMANAN",
-				Message:       fmt.Sprintf("Produk '%s' telah otomatis dipindahkan dari inventaris katalog digital Anda karena telah melewati masa retensi 30 hari.", p.Name),
-				DetailContent: fmt.Sprintf("### Pembersihan Otomatis Masa Retensi\n\nProduk **%s** telah otomatis dipindahkan dari inventaris aktif Anda karena telah melewati batas retensi 30 hari tanpa permohonan klarifikasi.\n\nKuota produk aktif katalog Anda kini telah dioptimalkan kembali.", p.Name),
+				Message:       fmt.Sprintf("Item '%s' telah otomatis dipindahkan dari inventaris katalog digital Anda karena telah melewati masa retensi 30 hari.", p.Name),
+				DetailContent: fmt.Sprintf("### Pembersihan Otomatis Masa Retensi\n\nItem **%s** telah otomatis dipindahkan dari inventaris aktif Anda karena telah melewati batas retensi 30 hari tanpa permohonan klarifikasi.\n\nKuota item aktif katalog Anda kini telah dioptimalkan kembali.", p.Name),
 				Type:          "info",
 				ActionEnabled: true,
 				ActionType:    "navigate",
 				LinkSubTab:    "items",
-				ActionLabel:   "Lihat Inventaris Toko →",
+				ActionLabel:   "Lihat Inventaris Katalog →",
 				ActionURL:     fmt.Sprintf("/%s/admin/items", storeSlug),
 				CreatedAt:     now,
 				UpdatedAt:     now,

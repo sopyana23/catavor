@@ -522,6 +522,9 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	if actionTaken == "catalog_banned" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending") {
 		newStatus = "banned"
 	}
+	if actionTaken == "item_banned" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending") {
+		newStatus = "banned"
+	}
 	if actionTaken == "catalog_suspended" && (newStatus == "" || newStatus == "investigating" || newStatus == "pending") {
 		newStatus = "action_taken"
 	}
@@ -532,7 +535,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	// Automatic Failsafe: Promote action_taken if status is banned/resolved/action_taken but action_taken was omitted or none
 	if newStatus == "banned" && (actionTaken == "" || actionTaken == "none") {
 		if report.TargetType == "item" && report.FaunaID != nil && *report.FaunaID > 0 {
-			actionTaken = "item_hidden"
+			actionTaken = "item_banned"
 		} else {
 			actionTaken = "catalog_banned"
 		}
@@ -652,6 +655,29 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		// C. Execute Technical Enforcement
 		if applyEnforcement {
 			switch actionTaken {
+			case "item_banned":
+				// Immediate soft delete for banned item: releases merchant quota & removes from catalog
+				// Forensic media & metadata preserved 90 days in vault for law enforcement compliance (UU ITE & PP 71/2019)
+				if report.FaunaID != nil && *report.FaunaID > 0 {
+					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+						"is_active":             false,
+						"moderation_status":     "banned",
+						"moderation_reason":     adminNotes,
+						"moderated_at":          &now,
+						"deleted_at":            &now,
+						"is_shipping_available": false,
+					}).Error; err != nil {
+						return err
+					}
+					_ = tx.Table("faunas").Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+						"is_active":             false,
+						"moderation_status":     "banned",
+						"moderation_reason":     adminNotes,
+						"moderated_at":          &now,
+						"deleted_at":            &now,
+						"is_shipping_available": false,
+					}).Error
+				}
 			case "item_needs_fix":
 				if report.FaunaID != nil && *report.FaunaID > 0 {
 					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
@@ -783,7 +809,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				itemTypeLabel = mapProductTypeLabel(rawItemType)
 			}
 
-			notifTitle, notifMsg, notifType, notifActionLabel := buildModerationNotificationContent(actionTaken, targetEntityName, report.ReportNumber)
+			notifTitle, notifMsg, notifType, notifActionLabel := buildModerationNotificationContent(actionTaken, targetEntityName, report.ReportNumber, report.TargetType)
 			if notifTitle != "" {
 				detailArticle := buildModerationDetailArticle(actionTaken, report.StoreTitle, targetEntityName, report.TargetType, itemTypeLabel, report.ReportNumber, report.ReasonLabel, adminNotes, now)
 				actionURL := fmt.Sprintf("/%s/admin/help?action=appeal&report=%s&target_type=%s&target_name=%s&item_type=%s&reason=%s&notes=%s",
@@ -798,10 +824,39 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				targetSubTab := ""
 				actionType := "detail"
 				notifCategory := "KEAMANAN"
-				if actionTaken == "item_needs_fix" {
+				actionEnabled := true
+				if actionTaken == "item_banned" {
+					notifCategory = "KEAMANAN"
+					actionURL = fmt.Sprintf("/%s/admin/notifications?action=item_banned&target_type=item&target_name=%s&report=%s", report.StoreSlug, url.QueryEscape(targetEntityName), report.ReportNumber)
+					targetSubTab = ""
+					actionType = "detail"
+					actionEnabled = false
+				} else if actionTaken == "catalog_banned" {
+					notifCategory = "KEAMANAN"
+					actionURL = fmt.Sprintf("/%s/admin/notifications?target_type=store&target_name=%s&report=%s", report.StoreSlug, url.QueryEscape(report.StoreTitle), report.ReportNumber)
+					targetSubTab = ""
+					actionType = "detail"
+					actionEnabled = false
+				} else if actionTaken == "warning_issued" {
+					notifCategory = "PERINGATAN"
+					if report.FaunaID != nil && *report.FaunaID > 0 {
+						actionURL = fmt.Sprintf("/%s/admin/notifications?action=warning_issued&target_type=%s&target_name=%s&report=%s&item_id=%d", report.StoreSlug, url.QueryEscape(report.TargetType), url.QueryEscape(targetEntityName), report.ReportNumber, *report.FaunaID)
+					} else {
+						actionURL = fmt.Sprintf("/%s/admin/notifications?action=warning_issued&target_type=%s&target_name=%s&report=%s", report.StoreSlug, url.QueryEscape(report.TargetType), url.QueryEscape(targetEntityName), report.ReportNumber)
+					}
+					targetSubTab = ""
+					actionType = "detail"
+					actionEnabled = false
+				} else if actionTaken == "item_needs_fix" {
 					notifCategory = "PERBAIKAN"
-					actionURL = fmt.Sprintf("/%s/admin/items", report.StoreSlug)
+					if report.FaunaID != nil && *report.FaunaID > 0 {
+						actionURL = fmt.Sprintf("/%s/admin/items?edit=%d&report=%s", report.StoreSlug, *report.FaunaID, report.ReportNumber)
+					} else {
+						actionURL = fmt.Sprintf("/%s/admin/items?report=%s", report.StoreSlug, report.ReportNumber)
+					}
 					targetSubTab = "items"
+					actionType = "detail"
+					actionEnabled = true
 				} else if actionTaken == "catalog_reactivated" || actionTaken == "item_restored" {
 					notifCategory = "PEMULIHAN"
 					actionURL = fmt.Sprintf("/%s/admin", report.StoreSlug)
@@ -818,7 +873,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					Message:       notifMsg,
 					DetailContent: detailArticle,
 					Type:          notifType,
-					ActionEnabled: true,
+					ActionEnabled: actionEnabled,
 					ActionType:    actionType,
 					LinkSubTab:    targetSubTab,
 					ActionLabel:   notifActionLabel,
@@ -959,38 +1014,50 @@ func mapProductTypeLabel(pType string) string {
 }
 
 // buildModerationNotificationContent returns in-app notification title, message, type, and actionLabel
-func buildModerationNotificationContent(actionTaken, targetName, reportNumber string) (title, message, notifType, actionLabel string) {
+func buildModerationNotificationContent(actionTaken, targetName, reportNumber, targetType string) (title, message, notifType, actionLabel string) {
+	isItem := targetType == "item"
 	switch actionTaken {
+	case "item_banned":
+		return "Pemblokiran atau Penghapusan Item Katalog",
+			fmt.Sprintf("Item katalog \"%s\" telah diblokir secara permanen dan dihapus (#%s) sehubungan dengan pelanggaran fatal pedoman platform. Beban kuota item katalog Anda telah dikembalikan (0 byte). Keputusan bersifat final tanpa opsi pengajuan banding.", targetName, reportNumber),
+			"danger",
+			"Lihat Salinan Keputusan →"
 	case "warning_issued":
-		return "Peringatan Kepatuhan Konten Katalog",
-			fmt.Sprintf("Peringatan resmi untuk \"%s\" (#%s). Buka rincian untuk panduan perbaikan & hak banding.", targetName, reportNumber),
+		if isItem {
+			return "Peringatan Kepatuhan Konten Item Katalog",
+				fmt.Sprintf("Peringatan resmi untuk item katalog \"%s\" (#%s). Status operasional katalog dan item tetap aktif. Anda diminta memeriksa kesesuaian atribut konten dan memastikan kepatuhan terhadap pedoman platform.", targetName, reportNumber),
+				"warning",
+				""
+		}
+		return "Peringatan Kepatuhan Profil Katalog",
+			fmt.Sprintf("Peringatan resmi untuk profil katalog \"%s\" (#%s). Status operasional katalog tetap aktif. Buka rincian untuk panduan kepatuhan operasional.", targetName, reportNumber),
 			"warning",
-			"Ajukan Banding Kepatuhan →"
+			""
 	case "item_needs_fix":
-		return "Perlu Perbaikan Informasi Produk",
-			fmt.Sprintf("Produk \"%s\" memerlukan penyesuaian informasi (#%s). Buka rincian untuk panduan perbaikan.", targetName, reportNumber),
+		return "Perlu Perbaikan Informasi Item Katalog",
+			fmt.Sprintf("Item katalog \"%s\" memerlukan penyesuaian informasi (#%s). Buka menu inventaris untuk mengedit data dan mengajukan peninjauan ulang.", targetName, reportNumber),
 			"warning",
-			"Perbaiki Produk Sekarang →"
+			"Perbaiki Item Sekarang →"
 	case "item_locked", "item_hidden":
-		return "Penonaktifan & Penguncian Produk",
-			fmt.Sprintf("Produk \"%s\" dinonaktifkan & dikunci oleh Tim Kepatuhan (#%s). Buka rincian untuk hak banding.", targetName, reportNumber),
+		return "Penonaktifan & Penguncian Item Katalog (Pelanggaran Keras)",
+			fmt.Sprintf("Item katalog \"%s\" dinonaktifkan & dikunci sementara oleh Tim Kepatuhan (#%s) karena dugaan pelanggaran kebijakan keras. Anda masih berhak mengajukan banding resmi kepatuhan.", targetName, reportNumber),
 			"danger",
 			"Ajukan Banding Kepatuhan →"
 	case "item_restored":
 		return "Item Katalog Berhasil Dipulihkan",
-			fmt.Sprintf("Item \"%s\" telah diaktifkan kembali ke etalase publik (#%s). Akses normal.", targetName, reportNumber),
+			fmt.Sprintf("Item katalog \"%s\" telah diaktifkan kembali ke etalase publik (#%s). Akses normal.", targetName, reportNumber),
 			"success",
 			"Lihat Rincian Pemulihan →"
 	case "catalog_suspended":
 		return "Penangguhan Operasional Profil Katalog",
-			fmt.Sprintf("Operasional profil katalog \"%s\" ditangguhkan sementara (#%s). Buka rincian untuk informasi banding.", targetName, reportNumber),
+			fmt.Sprintf("Operasional profil katalog \"%s\" ditangguhkan sementara (#%s). Anda masih diberi kesempatan mengajukan banding kepatuhan resmi.", targetName, reportNumber),
 			"warning",
 			"Ajukan Banding Kepatuhan →"
 	case "catalog_banned":
-		return "Penonaktifan Permanen Akun & Katalog",
-			fmt.Sprintf("Profil katalog \"%s\" telah ditangguhkan secara permanen (#%s). Buka rincian untuk informasi banding kepatuhan.", targetName, reportNumber),
+		return "Penonaktifan Permanen Akun & Seluruh Item Katalog",
+			fmt.Sprintf("Akses akun pemilik dan seluruh item katalog pada profil \"%s\" telah dinonaktifkan secara permanen (#%s). Sanksi penonaktifan ini bersifat final tanpa pengajuan banding.", targetName, reportNumber),
 			"danger",
-			"Ajukan Banding Kepatuhan →"
+			"Lihat Rincian Keputusan →"
 	case "catalog_reactivated":
 		return "Pemulihan Operasional Profil Katalog Berhasil",
 			fmt.Sprintf("Penangguhan untuk profil katalog \"%s\" telah resmi dicabut. Etalase publik dan seluruh fitur operasional Anda kini telah aktif kembali secara normal.", targetName),
@@ -1008,27 +1075,35 @@ func buildModerationDetailArticle(actionTaken, storeTitle, targetName, targetTyp
 	actionHeadline := ""
 	actionExplanation := ""
 	switch actionTaken {
+	case "item_banned":
+		actionHeadline = "Pemblokiran atau Penghapusan Item Katalog (Keputusan Final)"
+		actionExplanation = fmt.Sprintf("Item katalog **%s** telah diblokir secara permanen dan dihapus seketika dari inventaris katalog Anda oleh Tim Kepatuhan Catavor sehubungan dengan pelanggaran fatal pedoman platform / regulasi komoditas terlarang. Sanksi ini berlaku khusus pada item terkait, sedangkan profil katalog Anda tetap beroperasi secara normal untuk item lainnya. Beban kuota item dan kapasitas penyimpanan katalog Anda telah langsung dipulihkan kembali (0 byte terhitung). Sesuai Kebijakan Platform & UU ITE, keputusan ini bersifat final dan tidak dapat diajukan banding.", targetName)
 	case "warning_issued":
-		actionHeadline = "Peringatan Resmi Kepatuhan Konten Katalog"
-		actionExplanation = fmt.Sprintf("Tim Kepatuhan menemukan ketidaksesuaian konten pada entitas **%s** dengan Standar Kebijakan Komunitas Catavor. Anda diminta meninjau dan melakukan koreksi mandiri terhadap foto, deskripsi, izin, atau klaim produk terkait. Sanksi penonaktifan dapat dijatuhkan apabila pelanggaran berulang.", targetName)
+		if targetType == "item" {
+			actionHeadline = "Peringatan Resmi Kepatuhan Konten Item Katalog"
+			actionExplanation = fmt.Sprintf("Tim Kepatuhan menemukan ketidaksesuaian konten pada item katalog **%s** dengan Standar Kebijakan Komunitas Catavor. Anda diminta meninjau dan melakukan koreksi mandiri terhadap foto, deskripsi, izin, atau atribut item terkait. Sanksi penonaktifan dapat dijatuhkan apabila pelanggaran berulang.", targetName)
+		} else {
+			actionHeadline = "Peringatan Resmi Kepatuhan Profil Katalog"
+			actionExplanation = fmt.Sprintf("Tim Kepatuhan menemukan ketidaksesuaian konten pada profil katalog **%s** dengan Standar Kebijakan Komunitas Catavor. Anda diminta meninjau operasional dan kepatuhan profil katalog Anda.", storeTitle)
+		}
 	case "item_needs_fix":
-		actionHeadline = "Pemberitahuan Resmi Penyesuaian & Koreksi Produk"
-		actionExplanation = fmt.Sprintf("Item katalog **%s** telah disembunyikan sementara dari etalase publik karena informasi produk belum memenuhi standar komunitas. Anda memiliki kesempatan untuk mengoreksi data produk (foto, deskripsi, harga, spesifikasi) dan mengajukan peninjauan kembali melalui tombol **Simpan & Ajukan Tinjauan Ulang**.", targetName)
+		actionHeadline = "Pemberitahuan Resmi Penyesuaian & Koreksi Item Katalog"
+		actionExplanation = fmt.Sprintf("Item katalog **%s** telah disembunyikan sementara dari etalase publik karena informasi item belum memenuhi standar komunitas. Anda memiliki kesempatan untuk mengoreksi data item katalog (foto, deskripsi, harga, spesifikasi) dan mengajukan peninjauan kembali melalui tombol **Simpan & Ajukan Tinjauan Ulang** pada form inventaris.", targetName)
 	case "item_locked", "item_hidden":
-		actionHeadline = "Penonaktifan & Penguncian Produk (Pelanggaran Komoditas/Kebijakan)"
-		actionExplanation = fmt.Sprintf("Item katalog **%s** telah dinonaktifkan dan dikunci oleh Tim Kepatuhan Catavor sehubungan dengan dugaan pelanggaran komoditas atau standar integritas komunitas. Fitur pengeditan dinonaktifkan untuk mencegah peredaran komoditas terlarang.", targetName)
+		actionHeadline = "Penonaktifan & Penguncian Item Katalog (Pelanggaran Keras)"
+		actionExplanation = fmt.Sprintf("Item katalog **%s** telah dinonaktifkan dan dikunci sementara oleh Tim Kepatuhan Catavor sehubungan dengan dugaan pelanggaran kebijakan keras / standar integritas komunitas. Fitur pengeditan mandiri dikunci sementara demi kepatuhan, namun Anda memiliki hak penuh untuk mengajukan permohonan banding kepatuhan resmi dengan menyertakan bukti kelayakan atau dokumen legalitas.", targetName)
 	case "item_restored":
 		actionHeadline = "Pemulihan Visibilitas Item Katalog"
 		actionExplanation = fmt.Sprintf("Peninjauan atas item katalog **%s** telah selesai dievaluasi. Item telah diaktifkan kembali secara penuh ke etalase publik dan kini dapat diakses normal oleh pelanggan.", targetName)
 	case "catalog_suspended":
-		actionHeadline = "Penangguhan Operasional Profil Katalog"
-		actionExplanation = fmt.Sprintf("Operasional profil katalog **%s** telah ditangguhkan sementara terkait indikasi pelanggaran kebijakan komunitas. Seluruh akses publik dan tautan transaksi dijeda sementara.", storeTitle)
+		actionHeadline = "Penangguhan Operasional Profil Katalog (Suspend Sementara)"
+		actionExplanation = fmt.Sprintf("Operasional profil katalog **%s** telah ditangguhkan sementara sehubungan dengan evaluasi kepatuhan komunitas. Anda masih diberi kesempatan penuh untuk mengajukan permohonan banding kepatuhan resmi sebelum batas waktu 30 hari kerja.", storeTitle)
 	case "catalog_banned":
-		actionHeadline = "Penonaktifan Permanen Profil Katalog & Akun (Banned)"
-		actionExplanation = fmt.Sprintf("Akses publik ke profil katalog **%s** dan akun pemilik telah ditangguhkan secara permanen oleh Tim Kepatuhan & Moderasi Catavor karena pelanggaran berat terhadap pedoman platform atau masa sanggahan banding telah kedaluwarsa.", storeTitle)
+		actionHeadline = "Penonaktifan Permanen Akun & Seluruh Item Katalog (Banned)"
+		actionExplanation = fmt.Sprintf("Akses akun pemilik, profil katalog **%s**, dan seluruh item katalog terkait telah dinonaktifkan secara permanen oleh Tim Kepatuhan & Moderasi Catavor karena pelanggaran berat terhadap standar integritas platform. Seluruh item katalog terdampak dan dinonaktifkan. Keputusan sanksi ini bersifat final dan tidak lagi dibuka pengajuan sanggahan banding.", storeTitle)
 	case "catalog_reactivated":
 		actionHeadline = "Keputusan Resmi Pemulihan Operasional Profil Katalog"
-		actionExplanation = fmt.Sprintf("Berdasarkan verifikasi komprehensif dan klarifikasi kepatuhan, penangguhan atas profil katalog **%s** telah **resmi dicabut**. Seluruh etalase publik, fitur manajemen produk, dan kanal pemesanan WhatsApp kini telah kembali aktif normal sepenuhnya.", storeTitle)
+		actionExplanation = fmt.Sprintf("Berdasarkan verifikasi komprehensif dan klarifikasi kepatuhan, penangguhan atas profil katalog **%s** telah **resmi dicabut**. Seluruh etalase publik, fitur pengelolaan item, dan kanal komunikasi kini telah kembali aktif normal sepenuhnya.", storeTitle)
 	}
 
 	notesBlock := ""
@@ -1059,9 +1134,33 @@ Pemberitahuan Resmi Pencabutan Sanksi & Pemulihan Akses Platform Catavor.
 
 ---
 ### Status Layanan & Fitur Pasca-Pemulihan:
-1. **Etalase Publik Aktif**: Pengunjung umum kini dapat kembali mengakses tautan katalog digital dan melakukan pemesanan langsung melalui WhatsApp.
-2. **Katalog Produk Terbuka Penuh**: Anda dapat mengelola produk, memperbarui stok, serta mengubah informasi katalog tanpa hambatan.
+1. **Etalase Publik Aktif**: Pengunjung umum kini dapat kembali mengakses tautan katalog digital dan melakukan interaksi langsung.
+2. **Katalog & Etalase Terbuka Penuh**: Anda dapat mengelola item, memperbarui ketersediaan, serta memperbarui informasi katalog tanpa hambatan.
 3. **Integritas Akun Terjaga**: Status kepatuhan akun Anda telah kembali normal dan berkas peninjauan telah ditutup secara tertib.`,
+			actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
+	}
+
+	if actionTaken == "warning_issued" {
+		return fmt.Sprintf(`### %s
+Pemberitahuan Resmi Peringatan Kepatuhan Platform Catavor.
+
+---
+### Rincian Peringatan Resmi:
+• Nomor Berkas: **#%s**
+• Tanggal Penerbitan: **%s**
+• Nama Profil Terdaftar: **%s**
+• Entitas Terkait: **%s**%s
+• Kategori Evaluasi: **%s**%s
+
+---
+### Penjelasan Peringatan Resmi:
+%s
+
+---
+### Tindak Lanjut & Panduan Kepatuhan:
+1. **Pemeriksaan Mandiri**: Tinjau kembali informasi, foto, deskripsi, dan atribut item atau profil katalog Anda agar selaras dengan Pedoman Komunitas Catavor.
+2. **Status Operasional Tetap Aktif**: Profil katalog dan item Anda tetap dapat diakses publik. Peringatan ini bersifat pembinaan dan pemberitahuan resmi untuk mencegah pelanggaran berulang.
+3. **Patuhi Pedoman Platform**: Pastikan seluruh aktivitas dan konten pada profil katalog mematuhi standar integritas dan ketentuan layanan platform.`,
 			actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
 	}
 
@@ -1083,11 +1182,59 @@ Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor.
 
 ---
 ### Hak Koreksi & Langkah Perbaikan (Action Required):
-Platform Catavor memberikan kesempatan bagi mitra untuk memperbaiki data produk agar selaras dengan Pedoman Komunitas:
-1. **Lakukan Koreksi Mandiri**: Buka menu inventaris produk Anda, perbaiki atribut yang bermasalah (foto, deskripsi, legalitas izin edar, atau spesifikasi).
-2. **Ajukan Tinjauan Ulang**: Tekan tombol **Simpan & Ajukan Tinjauan Ulang** pada form edit produk. Tim Kepatuhan akan segera meninjau kembali perbaikan Anda dalam 1x24 jam kerja.
-3. **Opsi Hapus Item**: Jika Anda tidak berniat menjual produk ini lagi, Anda dipersilakan menghapus produk secara mandiri untuk menjaga reputasi toko Anda.`,
+Platform Catavor memberikan kesempatan bagi mitra untuk memperbaiki data item agar selaras dengan Pedoman Komunitas:
+1. **Lakukan Koreksi Mandiri**: Buka menu inventaris item Anda, perbaiki atribut yang bermasalah (foto, deskripsi, kelengkapan data, atau spesifikasi).
+2. **Ajukan Tinjauan Ulang**: Tekan tombol **Simpan & Ajukan Tinjauan Ulang** pada form edit item. Tim Kepatuhan akan segera meninjau kembali perbaikan Anda dalam 1x24 jam kerja.
+3. **Opsi Hapus Item**: Jika Anda tidak berniat menampilkan item ini lagi, Anda dipersilakan menghapus item secara mandiri untuk menjaga reputasi profil katalog Anda.`,
 			actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
+	}
+
+	if actionTaken == "item_banned" {
+		return fmt.Sprintf(`### %s
+Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor (Keputusan Final).
+
+---
+### Rincian Keputusan Pemblokiran:
+• Nomor Berkas Kepatuhan: **#%s**
+• Tanggal Penegakan: **%s**
+• Nama Profil Terdaftar: **%s**
+• Entitas Item Terkait: **%s**%s
+• Kategori Pelanggaran: **%s**%s
+
+---
+### Penjelasan Keputusan Resmi:
+%s
+
+---
+### Konsekuensi Penegakan Kepatuhan:
+1. **Penghapusan Inventaris Item**: Item telah diblokir secara permanen dan dihapus dari inventaris profil katalog Anda dan tidak dapat diakses publik. Profil katalog Anda tetap beroperasi normal untuk item lainnya.
+2. **Pemulihan Kuota & Storage**: Beban kuota item dan kapasitas storage pada akun katalog Anda telah langsung dibebaskan kembali (0 byte terhitung).
+3. **Keputusan Bersifat Final**: Sesuai Kebijakan Platform & UU ITE, sanksi pemblokiran atas item komoditas yang dilarang bersifat tetap dan tidak tersedia opsi sanggahan banding.
+4. **Retensi Bukti Hukum (90 Hari)**: Data arsip digital disimpan secara pasif di brankas bukti hukum platform selama 90 hari untuk pemenuhan kepatuhan UU ITE & PP 71/2019 sebelum pemusnahan permanen.`,
+			actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
+	}
+	if actionTaken == "catalog_banned" {
+		return fmt.Sprintf(`### %s
+Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor (Keputusan Final).
+
+---
+### Rincian Keputusan Penonaktifan Akun:
+• Nomor Berkas Kepatuhan: **#%s**
+• Tanggal Penegakan: **%s**
+• Nama Profil Terdaftar: **%s**
+• Entitas Terdampak: **Akun Pemilik & Seluruh Item Katalog**
+• Kategori Pelanggaran: **%s**%s
+
+---
+### Penjelasan Keputusan Resmi:
+%s
+
+---
+### Konsekuensi Penegakan Kepatuhan:
+1. **Penonaktifan Akses Permanen**: Profil katalog, akun pemilik, dan seluruh item katalog terkait telah dinonaktifkan secara permanen dari akses publik.
+2. **Keputusan Bersifat Final**: Sesuai Kebijakan Platform & Standar Integritas Komunitas Catavor, sanksi pemblokiran tingkat akun ini bersifat final dan tidak lagi dibuka pengajuan sanggahan banding.
+3. **Retensi Bukti Hukum (90 Hari)**: Data arsip digital dan audit trail disimpan secara pasif di brankas bukti hukum platform selama 90 hari untuk pemenuhan kepatuhan UU ITE & PP 71/2019 sebelum pemusnahan permanen.`,
+			actionHeadline, reportNumber, dateStr, storeTitle, reasonLabel, notesBlock, actionExplanation)
 	}
 
 	return fmt.Sprintf(`### %s
@@ -1107,7 +1254,7 @@ Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor.
 
 ---
 ### Hak Banding & Klarifikasi Mitra (Right to Appeal):
-Platform Catavor berkomitmen penuh menjaga ekosistem niaga yang adil, aman, dan transparan. Jika Anda meyakini keputusan ini terjadi karena kekeliruan, atau jika Anda telah melakukan perbaikan serta memiliki dokumen / bukti keabsahan pendukung, Anda berhak mengajukan permohonan banding resmi ke Tim Kepatuhan.
+Platform Catavor berkomitmen penuh menjaga ekosistem katalog bisnis yang adil, aman, dan transparan. Jika Anda meyakini keputusan ini terjadi karena kekeliruan, atau jika Anda telah melakukan perbaikan serta memiliki dokumen / bukti keabsahan pendukung, Anda berhak mengajukan permohonan banding resmi ke Tim Kepatuhan.
 
 Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formulir pengaduan resmi dengan draf tiket yang telah disiapkan secara otomatis.`,
 		actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
@@ -1126,6 +1273,9 @@ func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNote
 	case "catalog_banned", "account_banned":
 		subject, bodyHTML = services.BuildBannedEmail(storeTitle, reasonLabel, adminNotes, reportNumber, toEmail)
 		category = "compliance_banned"
+	case "item_banned":
+		subject, bodyHTML = services.BuildItemBannedEmail(storeTitle, targetName, itemTypeLabel, reasonLabel, adminNotes, reportNumber, storeSlug)
+		category = "compliance_item_banned"
 	case "catalog_suspended":
 		subject, bodyHTML = services.BuildSuspendedEmail(storeTitle, reasonLabel, adminNotes, reportNumber, storeSlug)
 		category = "compliance_suspended"
@@ -1388,15 +1538,15 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 		TargetType:    "single_store",
 		TargetID:      product.StoreID,
 		TargetName:    storeTitle,
-		Title:         "Perbaikan Produk Memerlukan Revisi Lanjutan",
+		Title:         "Perbaikan Item Memerlukan Revisi Lanjutan",
 		Category:      "PERBAIKAN",
-		Message:       fmt.Sprintf("Perbaikan untuk produk \"%s\" belum disetujui: %s", product.Name, notes),
+		Message:       fmt.Sprintf("Perbaikan untuk item \"%s\" belum disetujui: %s", product.Name, notes),
 		Type:          "warning",
 		ActionEnabled: true,
 		ActionType:    "detail",
 		LinkSubTab:    "items",
-		ActionLabel:   "Perbaiki Produk Sekarang →",
-		ActionURL:     fmt.Sprintf("/%s/admin/items", storeSlug),
+		ActionLabel:   "Perbaiki Item Sekarang →",
+		ActionURL:     fmt.Sprintf("/%s/admin/items?edit=%d", storeSlug, product.ID),
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}

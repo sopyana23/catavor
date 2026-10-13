@@ -8175,14 +8175,19 @@ Terima kasih.`;
     const detailContent = notif.detail_content || notif.detailContent || '';
 
     const isModeration = notif.category === 'KEAMANAN' || 
+      notif.category === 'PERBAIKAN' ||
+      notif.category === 'PERINGATAN' ||
+      notif.category === 'PEMULIHAN' ||
+      notif.category === 'KEPATUHAN' ||
       Boolean(actionUrl && actionUrl.includes('report=')) ||
       titleLower.includes('penonaktifan') ||
       titleLower.includes('penangguhan') ||
       titleLower.includes('peringatan') ||
+      titleLower.includes('perbaikan') ||
       titleLower.includes('pemulihan');
 
     let reportNumber = '';
-    let targetType: 'item' | 'store' = 'item';
+    let parsedTargetType = '';
     let targetName = '';
     let reason = 'Standar Kebijakan & Kepatuhan Komunitas';
     let notes = '';
@@ -8192,7 +8197,7 @@ Terima kasih.`;
         const dummy = 'https://catavor.local';
         const url = new URL(actionUrl.startsWith('http') ? actionUrl : `${dummy}${actionUrl.startsWith('/') ? '' : '/'}${actionUrl}`);
         if (url.searchParams.get('report')) reportNumber = url.searchParams.get('report')!;
-        if (url.searchParams.get('target_type')) targetType = url.searchParams.get('target_type') === 'store' ? 'store' : 'item';
+        if (url.searchParams.get('target_type')) parsedTargetType = url.searchParams.get('target_type')!;
         if (url.searchParams.get('target_name')) targetName = url.searchParams.get('target_name')!;
         if (url.searchParams.get('reason')) reason = url.searchParams.get('reason')!;
         if (url.searchParams.get('notes')) notes = url.searchParams.get('notes')!;
@@ -8220,63 +8225,139 @@ Terima kasih.`;
     }
 
     const notifCategory = (notif.category || '').toUpperCase();
-    const isRestoredCase = notifCategory === 'PEMULIHAN' || 
+    const isBannedCase =
+      notifCategory === 'BAHAYA' ||
+      notifCategory === 'DANGER' ||
+      titleLower.includes('banned') ||
+      titleLower.includes('blokir') ||
+      titleLower.includes('pemblokiran') ||
+      titleLower.includes('penghapusan') ||
+      titleLower.includes('permanen') ||
+      titleLower.includes('dihapus') ||
+      msgLower.includes('diblokir secara permanen') ||
+      msgLower.includes('dihapus secara permanen') ||
+      msgLower.includes('dinonaktifkan secara permanen') ||
+      msgLower.includes('telah diblokir') ||
+      msgLower.includes('telah dihapus') ||
+      (Boolean(actionUrl) && (actionUrl.includes('action=item_banned') || actionUrl.includes('action=catalog_banned') || actionUrl.includes('action=account_banned')));
+
+    const isRestoredCase = !isBannedCase && (
+      notifCategory === 'PEMULIHAN' || 
       notifCategory.includes('PULIH') || 
       titleLower.includes('pemulihan') || 
+      titleLower.includes('dipulihkan') || 
       titleLower.includes('pulih') || 
+      titleLower.includes('aktif kembali') || 
       titleLower.includes('restored') || 
-      msgLower.includes('dipulihkan') || 
+      msgLower.includes('berhasil dipulihkan') || 
       msgLower.includes('resmi dicabut') ||
       msgLower.includes('telah dicabut') ||
-      msgLower.includes('aktif kembali');
+      msgLower.includes('telah diaktifkan kembali')
+    );
 
-    const isStoreLevel = targetType === 'store' || 
-      notif.target_type === 'single_store' || 
-      titleLower.includes('profil') || 
-      titleLower.includes('toko') || 
-      titleLower.includes('katalog') ||
-      msgLower.includes('profil katalog') ||
-      msgLower.includes('toko anda');
+    const hasStoreClues =
+      parsedTargetType === 'store' ||
+      parsedTargetType === 'catalog' ||
+      actionUrl.includes('target_type=catalog') ||
+      actionUrl.includes('target_type=store') ||
+      titleLower.includes('profil katalog') ||
+      titleLower.includes('operasional profil') ||
+      titleLower.includes('akun &') ||
+      titleLower.includes('akun dan') ||
+      titleLower.includes('akun pemilik') ||
+      detailContent.toLowerCase().includes('status penonaktifan akun') ||
+      detailContent.toLowerCase().includes('status pembekuan operasional');
+
+    const hasItemClues =
+      parsedTargetType === 'item' ||
+      actionUrl.includes('target_type=item') ||
+      titleLower.includes('item') ||
+      titleLower.includes('produk') ||
+      msgLower.includes('item katalog') ||
+      msgLower.includes('produk "') ||
+      msgLower.includes('item "') ||
+      detailContent.toLowerCase().includes('entitas item') ||
+      detailContent.toLowerCase().includes('item katalog **') ||
+      detailContent.toLowerCase().includes('item terkait');
+
+    const isExplicitStore = (hasStoreClues && !hasItemClues) || (hasStoreClues && (titleLower.includes('akun &') || titleLower.includes('akun dan') || titleLower.includes('profil katalog')));
+    let targetType: 'item' | 'store' = isExplicitStore ? 'store' : 'item';
+
+    const isNeedsFixCase = titleLower.includes('perlu perbaikan') || msgLower.includes('perlu penyesuaian') || titleLower.includes('koreksi');
+    const isLockedCase = titleLower.includes('penguncian') || titleLower.includes('terkunci') || titleLower.includes('kebijakan keras');
+    const isSuspendedCase = titleLower.includes('penangguhan') || msgLower.includes('penangguhan') || titleLower.includes('suspend') || titleLower.includes('dibekukan');
+    const isWarningCase = titleLower.includes('peringatan') || msgLower.includes('peringatan');
 
     let actionTaken = 'item_hidden';
-    let statusBadge = 'ITEM DINONAKTIFKAN (TAKEDOWN)';
+    let statusBadge = 'ITEM DINONAKTIFKAN';
     let statusHeadline = 'Penonaktifan Sementara Item Katalog';
     let statusColor = '#f43f5e';
     let isAppealEligible = true;
 
-    if (isRestoredCase) {
-      if (isStoreLevel) {
+    if (isBannedCase) {
+      if (isExplicitStore) {
+        actionTaken = 'account_banned';
+        targetType = 'store';
+        statusBadge = 'AKUN & SELURUH ITEM KATALOG DITANGGUHKAN PERMANEN';
+        statusHeadline = 'Penonaktifan Permanen Akun & Seluruh Item Katalog';
+        statusColor = '#dc2626';
+        isAppealEligible = false;
+      } else {
+        actionTaken = 'item_banned';
+        targetType = 'item';
+        statusBadge = 'ITEM DIBLOKIR & DIHAPUS PERMANEN';
+        statusHeadline = 'Pemblokiran & Penghapusan Permanen Item Katalog';
+        statusColor = '#dc2626';
+        isAppealEligible = false;
+      }
+    } else if (isRestoredCase) {
+      if (isExplicitStore) {
         actionTaken = 'catalog_restored';
         targetType = 'store';
-        statusBadge = 'TOKO AKTIF & PULIH';
+        statusBadge = 'KATALOG AKTIF & PULIH';
         statusHeadline = 'Pemulihan Operasional Profil Katalog Berhasil';
       } else {
         actionTaken = 'item_restored';
+        targetType = 'item';
         statusBadge = 'ITEM AKTIF KEMBALI';
         statusHeadline = 'Pemulihan Visibilitas Item Katalog';
       }
       statusColor = '#10b981';
       isAppealEligible = false;
-    } else if (titleLower.includes('permanen') || msgLower.includes('permanen') || titleLower.includes('banned') || msgLower.includes('banned')) {
-      actionTaken = 'account_banned';
-      statusBadge = 'DITANGGUHKAN PERMANEN (BANNED)';
-      statusHeadline = 'Penangguhan Akun & Profil Katalog Secara Permanen';
-      statusColor = '#991b1b';
-      targetType = 'store';
-      isAppealEligible = false;
-    } else if (titleLower.includes('penangguhan') || msgLower.includes('penangguhan') || titleLower.includes('suspend')) {
-      actionTaken = 'catalog_suspended';
-      statusBadge = 'TOKO DIBEKUKAN SEMENTARA';
-      statusHeadline = 'Pembekuan Sementara Profil Katalog Toko';
-      statusColor = '#ef4444';
-      targetType = 'store';
-      isAppealEligible = true;
-    } else if (titleLower.includes('peringatan') || msgLower.includes('peringatan')) {
-      actionTaken = 'warning_issued';
-      statusBadge = 'PERINGATAN RESMI';
-      statusHeadline = 'Peringatan Resmi Kepatuhan Konten';
+    } else if (isNeedsFixCase) {
+      actionTaken = 'item_needs_fix';
+      targetType = 'item';
+      statusBadge = 'PERLU PERBAIKAN ITEM';
+      statusHeadline = 'Penyesuaian & Perbaikan Informasi Item';
       statusColor = '#f59e0b';
+      isAppealEligible = false;
+    } else if (isLockedCase) {
+      actionTaken = 'item_locked';
+      targetType = 'item';
+      statusBadge = 'ITEM TERKUNCI (PELANGGARAN KERAS)';
+      statusHeadline = 'Penonaktifan & Penguncian Item Katalog';
+      statusColor = '#ef4444';
       isAppealEligible = true;
+    } else if (isSuspendedCase) {
+      actionTaken = 'catalog_suspended';
+      targetType = 'store';
+      statusBadge = 'KATALOG DIBEKUKAN SEMENTARA';
+      statusHeadline = 'Penangguhan Operasional Profil Katalog';
+      statusColor = '#ef4444';
+      isAppealEligible = true;
+    } else if (isWarningCase) {
+      actionTaken = 'warning_issued';
+      if (!isExplicitStore) {
+        targetType = 'item';
+        statusBadge = 'PERINGATAN ITEM KATALOG';
+        statusHeadline = 'Peringatan Resmi Kepatuhan Konten Item';
+      } else {
+        targetType = 'store';
+        statusBadge = 'PERINGATAN PROFIL KATALOG';
+        statusHeadline = 'Peringatan Resmi Kepatuhan Profil Katalog';
+      }
+      statusColor = '#f59e0b';
+      isAppealEligible = false;
     }
 
     let issuedDateStr = 'Baru saja';
@@ -8311,7 +8392,7 @@ Terima kasih.`;
       isModeration,
       isAppealEligible,
       isRestored: isRestoredCase,
-      isStoreRestored: isRestoredCase && isStoreLevel,
+      isStoreRestored: isRestoredCase && isExplicitStore,
       daysRemainingForAppeal,
       reportNumber,
       targetType,
@@ -8326,8 +8407,72 @@ Terima kasih.`;
     };
   };
 
+  // Handler: Buka formulir edit item secara langsung dari notifikasi perbaikan item
+  const handleOpenFixItem = async (notif: any) => {
+    let targetItemId: number | null = null;
+    const actionUrl = notif?.action_url || notif?.actionUrl || '';
+    if (actionUrl) {
+      try {
+        const dummy = 'https://catavor.local';
+        const url = new URL(actionUrl.startsWith('http') ? actionUrl : `${dummy}${actionUrl.startsWith('/') ? '' : '/'}${actionUrl}`);
+        const editParam = url.searchParams.get('edit') || url.searchParams.get('id') || url.searchParams.get('item_id');
+        if (editParam) {
+          const parsed = parseInt(editParam, 10);
+          if (!isNaN(parsed) && parsed > 0) targetItemId = parsed;
+        }
+      } catch {}
+    }
+
+    if (!targetItemId) {
+      const modCase = parseModerationCase(notif);
+      if (modCase.targetName) {
+        const matched = faunas.find(f => (f.name || '').toLowerCase() === modCase.targetName.toLowerCase());
+        if (matched) targetItemId = matched.id;
+      }
+    }
+
+    setSelectedNotification(null);
+    try {
+      sessionStorage.removeItem('catavor_active_notification_id');
+      sessionStorage.removeItem('catavor_active_notification_data');
+    } catch {}
+
+    const slug = storeSlug || getStoreSlug();
+
+    if (targetItemId) {
+      const found = faunas.find(f => f.id === targetItemId);
+      if (found) {
+        openEditSheet(found);
+        if (slug) window.history.pushState({}, '', `/${slug}/admin/items/edit/${targetItemId}`);
+        return;
+      }
+
+      try {
+        const json = await apiClient.get<any>(`/products/${targetItemId}`);
+        const itemData = json?.data || json;
+        if (itemData && itemData.id) {
+          openEditSheet(itemData);
+          if (slug) window.history.pushState({}, '', `/${slug}/admin/items/edit/${targetItemId}`);
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to fetch item for editing in mobile', err);
+      }
+    }
+
+    setActiveTab('admin');
+    setAdminSubTab('items');
+    if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+    showToast('Silakan pilih item yang perlu diperbaiki dari inventaris.', 'info');
+  };
+
   // Best Practice: Membuka tiket banding resmi secara otomatis atau langsung ke chat jika sudah aktif
   const handleOpenAppealTicket = async (notifItem: any) => {
+    const modCase = parseModerationCase(notifItem);
+    if (!modCase.isAppealEligible) {
+      showToast('Sanksi pemblokiran/penghapusan permanen bersifat final dan tidak menerima pengajuan banding.', 'error');
+      return;
+    }
     const slug = storeSlug || getStoreSlug() || '';
     const currentStoreSlug = slug.toLowerCase();
     const currentStoreObj = userStores?.find(s => s.slug?.toLowerCase() === currentStoreSlug);
@@ -8391,16 +8536,15 @@ Terima kasih.`;
       return;
     }
 
-    const modCase = parseModerationCase(notifItem);
     const reportCode = modCase.reportNumber || 'RPT-MODERASI';
-    const entityLabel = modCase.targetName || (modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog');
+    const entityLabel = modCase.targetName || (modCase.targetType === 'store' ? 'Profil Katalog' : 'Item Katalog');
 
     const appealSubject = `[Banding Kepatuhan] Sanggahan Tindakan atas ${entityLabel} (#${reportCode})`;
     const appealMessage = `Yth. Tim Kepatuhan & Keamanan Catavor (Trust & Safety),
 
 Saya bermaksud mengajukan permohonan banding resmi dan klarifikasi atas tindakan moderasi yang dijatuhkan pada entitas kami:
 • Nomor Kasus / Tiket: #${reportCode}
-• Entitas Terdampak: ${entityLabel} (${modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog Produk'})
+• Entitas Terdampak: ${entityLabel} (${modCase.targetType === 'store' ? 'Profil Katalog' : 'Item Katalog'})
 • Kategori Dugaan Pelanggaran: ${modCase.reason}
 • Catatan Peninjau Kepatuhan: "${modCase.notes || 'Penonaktifan sementara sesuai standar kebijakan'}"
 
@@ -8412,7 +8556,7 @@ Tindakan Korektif yang Telah Dilakukan:
 [Jelaskan perubahan judul, deskripsi, kepemilikan izin, atau bukti legalitas yang telah Anda lengkapi]
 
 Dokumen & Bukti Pendukung:
-- Saya bersedia melampirkan foto fisik produk asli, bukti izin edar resmi / sertifikasi, atau dokumen keabsahan lainnya pada ruang tiket ini.
+- Saya bersedia melampirkan foto fisik item/unit asli, bukti izin edar resmi / sertifikasi, atau dokumen keabsahan lainnya pada ruang tiket ini.
 
 Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat segera dipulihkan. Terima kasih atas pengertian dan kerjasamanya.`;
 
@@ -26013,11 +26157,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  color: modCase.isRestored ? '#10b981' : modCase.statusColor,
+                                  color: modCase.isRestored ? '#10b981' : '#ef4444',
                                   flexShrink: 0
                                 }}>
                                   {modCase.isRestored ? (
                                     <CheckCircle2 size={24} style={{ strokeWidth: 2.3 }} />
+                                  ) : modCase.actionTaken === 'item_banned' ? (
+                                    <Trash2 size={22} style={{ strokeWidth: 2.2 }} />
                                   ) : (
                                     <ShieldAlert size={22} style={{ strokeWidth: 2.2 }} />
                                   )}
@@ -26039,18 +26185,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.4)' : `1px solid ${modCase.statusColor}45`
                                     }}>
                                       <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: modCase.isRestored ? '#10b981' : modCase.statusColor, boxShadow: `0 0 8px ${modCase.isRestored ? '#10b981' : modCase.statusColor}` }} />
-                                      {modCase.isRestored ? (modCase.targetType === 'store' ? 'TOKO RESMI DIPULIHKAN' : 'ITEM RESMI DIPULIHKAN') : modCase.statusBadge}
+                                      {modCase.isRestored ? (modCase.targetType === 'store' ? 'KATALOG RESMI DIPULIHKAN' : 'ITEM RESMI DIPULIHKAN') : modCase.statusBadge}
                                     </span>
                                     <span style={{
                                       fontSize: '0.66rem',
                                       fontWeight: 700,
                                       padding: '0.2rem 0.5rem',
                                       borderRadius: '999px',
-                                      backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.06)',
-                                      color: modCase.isRestored ? '#10b981' : 'var(--text-secondary)',
-                                      border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid var(--border-light)'
+                                      backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.12)' : modCase.actionTaken === 'item_banned' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                                      color: modCase.isRestored ? '#10b981' : modCase.actionTaken === 'item_banned' ? '#ef4444' : 'var(--text-secondary)',
+                                      border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.35)' : modCase.actionTaken === 'item_banned' ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid var(--border-light)'
                                     }}>
-                                      {modCase.isRestored ? 'PEMULIHAN & AKTIVASI' : 'KEAMANAN & KEPATUHAN'}
+                                      {modCase.isRestored ? 'PEMULIHAN & AKTIVASI' : modCase.actionTaken === 'item_banned' ? 'SANKSI FATAL (FINAL)' : modCase.actionTaken === 'warning_issued' ? 'PERINGATAN RESMI' : modCase.actionTaken === 'item_needs_fix' ? 'PERBAIKAN ITEM' : 'KEAMANAN & KEPATUHAN'}
                                     </span>
                                   </div>
                                   <h2 style={{
@@ -26070,6 +26216,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   }}>
                                     {modCase.isRestored 
                                       ? 'Dokumen Resmi Keputusan Pemulihan Layanan Tim Trust & Safety Platform Catavor'
+                                      : modCase.actionTaken === 'item_banned'
+                                      ? 'Pemberitahuan Resmi Sanksi Fatal & Penghapusan Permanen Item Katalog'
+                                      : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned')
+                                      ? 'Pemberitahuan Resmi Penonaktifan Permanen Akun & Seluruh Item'
                                       : 'Dokumen Resmi Keputusan Tim Trust & Safety Platform Catavor'}
                                   </p>
                                 </div>
@@ -26133,14 +26283,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   border: '1px solid var(--border-light)'
                                 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '0.35rem' }}>
-                                    <Package size={13} style={{ color: 'var(--primary)' }} />
+                                    <Package size={13} style={{ color: modCase.actionTaken === 'item_banned' ? '#ef4444' : 'var(--primary)' }} />
                                     <span>Entitas Terdampak</span>
                                   </div>
                                   <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-word', lineHeight: 1.35 }}>
                                     {modCase.targetName || 'Item Terkait'}
                                   </div>
                                   <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                    Tipe: {modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog Produk'}
+                                    Tipe: {modCase.targetType === 'store' ? 'Profil Katalog' : 'Item Katalog'}
+                                    {modCase.actionTaken === 'item_banned' && (
+                                      <strong style={{ color: '#ef4444', marginLeft: '0.3rem' }}>• Dihapus</strong>
+                                    )}
                                   </div>
                                 </div>
 
@@ -26153,16 +26306,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '0.35rem' }}>
                                     {modCase.isRestored ? (
                                       <CheckCircle2 size={13} style={{ color: '#10b981' }} />
+                                    ) : modCase.actionTaken === 'item_banned' ? (
+                                      <AlertTriangle size={13} style={{ color: '#ef4444' }} />
                                     ) : (
                                       <AlertTriangle size={13} style={{ color: '#f59e0b' }} />
                                     )}
                                     <span>{modCase.isRestored ? 'Kategori Evaluasi' : 'Kategori Pelanggaran'}</span>
                                   </div>
-                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : '#f59e0b', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : modCase.actionTaken === 'item_banned' ? '#ef4444' : '#f59e0b', wordBreak: 'break-word', lineHeight: 1.35 }}>
                                     {modCase.isRestored ? 'Pemulihan Akses Penuh' : modCase.reason}
                                   </div>
                                   <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                    {modCase.isRestored ? 'Status Kepatuhan Terverifikasi' : 'Standar Kebijakan Platform'}
+                                    {modCase.isRestored ? 'Status Kepatuhan Terverifikasi' : modCase.actionTaken === 'item_banned' ? 'Pelanggaran Fatal Kebijakan Komunitas' : 'Standar Kebijakan Platform'}
                                   </div>
                                 </div>
 
@@ -26173,14 +26328,32 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   border: '1px solid var(--border-light)'
                                 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '0.35rem' }}>
-                                    <Lock size={13} style={{ color: modCase.isRestored ? '#10b981' : modCase.statusColor }} />
+                                    <Lock size={13} style={{ color: modCase.isRestored ? '#10b981' : modCase.actionTaken === 'item_banned' ? '#ef4444' : modCase.statusColor }} />
                                     <span>Status Visibilitas</span>
                                   </div>
-                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : modCase.statusColor, wordBreak: 'break-word', lineHeight: 1.35 }}>
-                                    {modCase.isRestored ? 'Aktif & Pulih Penuh' : modCase.actionTaken === 'catalog_suspended' ? 'Operasional Ditangguhkan' : modCase.actionTaken === 'warning_issued' ? 'Peringatan Aktif' : 'Disembunyikan (Takedown)'}
+                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : modCase.actionTaken === 'item_banned' ? '#ef4444' : modCase.statusColor, wordBreak: 'break-word', lineHeight: 1.35 }}>
+                                    {modCase.isRestored 
+                                      ? 'Aktif & Pulih Penuh' 
+                                      : modCase.actionTaken === 'item_banned'
+                                      ? 'Dihapus Permanen'
+                                      : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned')
+                                      ? 'Dinonaktifkan Permanen'
+                                      : modCase.actionTaken === 'catalog_suspended' 
+                                      ? 'Operasional Ditangguhkan' 
+                                      : modCase.actionTaken === 'warning_issued' 
+                                      ? 'Aktif (Dalam Pengawasan)' 
+                                      : 'Disembunyikan (Takedown)'}
                                   </div>
                                   <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                    {modCase.isRestored ? 'Akses etalase publik dan pesanan aktif' : 'Akses etalase publik dinonaktifkan'}
+                                    {modCase.isRestored 
+                                      ? 'Akses etalase publik dan pesanan aktif' 
+                                      : modCase.actionTaken === 'item_banned'
+                                      ? 'Dihapus dari inventaris & kuota dipulihkan'
+                                      : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned')
+                                      ? 'Akses akun & seluruh item ditutup'
+                                      : modCase.actionTaken === 'warning_issued'
+                                      ? 'Etalase & transaksi tetap berjalan normal'
+                                      : 'Akses etalase publik dinonaktifkan'}
                                   </div>
                                 </div>
 
@@ -26191,18 +26364,32 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   border: '1px solid var(--border-light)'
                                 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '0.35rem' }}>
-                                    <Scale size={13} style={{ color: modCase.isRestored ? '#10b981' : 'var(--primary)' }} />
-                                    <span>{modCase.isRestored ? 'Status Berkas' : 'Hak Banding Mitra'}</span>
+                                    <Scale size={13} style={{ color: modCase.isRestored ? '#10b981' : modCase.actionTaken === 'item_banned' ? '#ef4444' : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned') ? '#991b1b' : 'var(--primary)' }} />
+                                    <span>{modCase.isRestored ? 'Status Berkas' : 'Hak Banding & Sanksi'}</span>
                                   </div>
-                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : modCase.isAppealEligible ? '#10b981' : '#ef4444', wordBreak: 'break-word', lineHeight: 1.35 }}>
-                                    {modCase.isRestored ? 'Selesai & Tertutup' : modCase.actionTaken === 'account_banned' 
-                                      ? 'Permanen (Ditutup)' 
+                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : modCase.actionTaken === 'item_banned' ? '#ef4444' : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned') ? '#991b1b' : modCase.isAppealEligible ? '#10b981' : '#ef4444', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                                    {modCase.isRestored 
+                                      ? 'Selesai & Tertutup' 
+                                      : modCase.actionTaken === 'item_banned'
+                                      ? 'Keputusan Final (Dihapus)'
+                                      : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned')
+                                      ? 'Permanen (Ditutup)'
+                                      : modCase.actionTaken === 'item_needs_fix'
+                                      ? 'Perbaikan Mandiri'
                                       : modCase.isAppealEligible 
-                                      ? `Tersedia (${modCase.daysRemainingForAppeal} Hari)` 
+                                      ? `Tersedia (${modCase.daysRemainingForAppeal || 30} Hari)` 
                                       : 'Tidak Tersedia'}
                                   </div>
                                   <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                    {modCase.isRestored ? 'Sanksi telah dicabut secara resmi' : modCase.isAppealEligible ? 'SLA Evaluasi: < 24 Jam Kerja' : 'Keputusan penegakan bersifat final'}
+                                    {modCase.isRestored 
+                                      ? 'Sanksi telah dicabut secara resmi' 
+                                      : modCase.actionTaken === 'item_banned'
+                                      ? 'Kuota item & kuota storage katalog langsung dipulihkan (0 byte)'
+                                      : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned')
+                                      ? 'Akun & seluruh item dinonaktifkan permanen'
+                                      : modCase.actionTaken === 'item_needs_fix'
+                                      ? 'Koreksi foto/deskripsi di menu inventaris'
+                                      : modCase.isAppealEligible ? 'SLA Evaluasi: < 24 Jam Kerja' : 'Keputusan penegakan bersifat final'}
                                   </div>
                                 </div>
                               </div>
@@ -26211,17 +26398,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               <div style={{
                                 padding: '1.05rem',
                                 borderRadius: '0.85rem',
-                                backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.05)' : 'rgba(244, 63, 94, 0.05)',
-                                borderLeft: modCase.isRestored ? '4px solid #10b981' : '4px solid #f43f5e',
-                                borderTop: `1px solid ${modCase.isRestored ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.2)'}`,
-                                borderRight: `1px solid ${modCase.isRestored ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.2)'}`,
-                                borderBottom: `1px solid ${modCase.isRestored ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.2)'}`,
+                                backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.05)' : (modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix') ? 'rgba(245, 158, 11, 0.05)' : 'rgba(244, 63, 94, 0.05)',
+                                borderLeft: modCase.isRestored ? '4px solid #10b981' : (modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix') ? '4px solid #f59e0b' : '4px solid #f43f5e',
+                                borderTop: `1px solid ${modCase.isRestored ? 'rgba(16, 185, 129, 0.25)' : (modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix') ? 'rgba(245, 158, 11, 0.25)' : 'rgba(244, 63, 94, 0.2)'}`,
+                                borderRight: `1px solid ${modCase.isRestored ? 'rgba(16, 185, 129, 0.25)' : (modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix') ? 'rgba(245, 158, 11, 0.25)' : 'rgba(244, 63, 94, 0.2)'}`,
+                                borderBottom: `1px solid ${modCase.isRestored ? 'rgba(16, 185, 129, 0.25)' : (modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix') ? 'rgba(245, 158, 11, 0.25)' : 'rgba(244, 63, 94, 0.2)'}`,
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '0.6rem'
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : '#f43f5e' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : (modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix') ? '#f59e0b' : '#f43f5e' }}>
                                     <BadgeCheck size={16} />
                                     <span>{modCase.isRestored ? 'Catatan Resmi Keputusan Pemulihan (Trust & Safety Note)' : 'Catatan Resmi Penguji (Trust & Safety Examiner Finding)'}</span>
                                   </div>
@@ -26238,11 +26425,33 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   borderRadius: '0.5rem',
                                   backgroundColor: 'rgba(0,0,0,0.2)'
                                 }}>
-                                  "{modCase.notes || (modCase.isRestored ? 'Penangguhan telah resmi dicabut setelah verifikasi kepatuhan. Operasional profil katalog kini telah kembali normal sepenuhnya.' : 'Penonaktifan sementara atas dasar kepatuhan kebijakan katalog dan perlindungan ekosistem belanja.')}"
+                                  "{(modCase.notes || '').replace(/\*\*(.*?)\*\*/g, '$1') || (
+                                    modCase.isRestored 
+                                      ? 'Penangguhan telah resmi dicabut setelah verifikasi kepatuhan. Operasional profil katalog kini telah kembali normal sepenuhnya.' 
+                                      : modCase.actionTaken === 'item_banned'
+                                      ? 'Item katalog diblokir secara permanen dan dihapus dari inventaris katalog karena pelanggaran fatal pedoman platform / komoditas terlarang.'
+                                      : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned')
+                                      ? 'Akses akun pemilik dan seluruh profil katalog dinonaktifkan secara permanen karena pelanggaran berat terhadap standar integritas komunitas.'
+                                      : modCase.actionTaken === 'item_needs_fix'
+                                      ? 'Item katalog disembunyikan sementara dari etalase publik untuk perbaikan mandiri data item oleh merchant.'
+                                      : modCase.actionTaken === 'item_locked'
+                                      ? 'Item katalog dinonaktifkan dan dikunci sementara sehubungan dengan dugaan komoditas keras. Merchant berhak mengajukan banding resmi kepatuhan.'
+                                      : modCase.actionTaken === 'catalog_suspended'
+                                      ? 'Operasional profil katalog ditangguhkan sementara sehubungan dengan proses evaluasi kepatuhan.'
+                                      : modCase.actionTaken === 'warning_issued'
+                                      ? 'Peringatan kepatuhan konten diterbitkan. Status katalog dan item tetap aktif.'
+                                      : 'Penonaktifan sementara atas dasar kepatuhan kebijakan katalog dan perlindungan ekosistem belanja.'
+                                  )}"
                                 </div>
                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>
                                   {modCase.isRestored 
                                     ? 'Catatan ini diterbitkan oleh Tim Kepatuhan Catavor sebagai konfirmasi resmi status aktif profil katalog.'
+                                    : modCase.actionTaken === 'item_banned'
+                                    ? 'Sesuai Standar Komunitas Catavor & Regulasi Komoditas Terlarang UU ITE, pemblokiran dan penghapusan item ini bersifat final. Profil katalog tetap beroperasi normal untuk item lainnya.'
+                                    : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned')
+                                    ? 'Sesuai Standar Integritas Komunitas Catavor, sanksi pemblokiran tingkat akun ini berdampak pada seluruh item katalog dan bersifat final.'
+                                    : modCase.actionTaken === 'item_needs_fix'
+                                    ? 'Item disembunyikan sementara dari etalase publik agar Anda dapat mengoreksi data item di menu inventaris.'
                                     : 'Catatan ini diterbitkan berdasarkan hasil evaluasi terhadap laporan kepatuhan yang masuk ke sistem.'}
                                 </p>
                               </div>
@@ -26266,6 +26475,78 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     Profil katalog Anda telah sepenuhnya dipulihkan. Pengunjung umum kini dapat kembali mengakses tautan profil publik dan melakukan pemesanan via WhatsApp seperti biasa. Pastikan untuk selalu mematuhi pedoman komunitas Catavor.
                                   </p>
                                 </div>
+                              ) : modCase.actionTaken === 'item_banned' ? (
+                                <div style={{
+                                  padding: '1rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.45rem'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 800, color: '#ef4444' }}>
+                                    <ShieldAlert size={16} />
+                                    <span>Status Pemblokiran Item Katalog (Keputusan Final)</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                                    Item katalog ini telah diblokir secara permanen dan dihapus dari inventaris katalog Anda. Sanksi ini berlaku khusus pada item terkait, sedangkan profil katalog Anda tetap beroperasi normal untuk item lainnya. Kuota inventaris dan beban kuota storage katalog telah langsung dipulihkan kembali (0 byte). Sesuai Kebijakan Platform & UU ITE, sanksi pemblokiran atas komoditas yang dilarang bersifat tetap dan tidak tersedia opsi sanggahan banding.
+                                  </p>
+                                </div>
+                              ) : modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned' ? (
+                                <div style={{
+                                  padding: '1rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'rgba(153, 27, 27, 0.08)',
+                                  border: '1px solid rgba(153, 27, 27, 0.3)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.45rem'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 800, color: '#dc2626' }}>
+                                    <ShieldAlert size={16} />
+                                    <span>Status Penonaktifan Akun & Seluruh Item (Keputusan Final)</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                                    Profil katalog, akun pengelola, dan seluruh item katalog terkait telah dinonaktifkan secara permanen dari ekosistem platform Catavor karena pelanggaran berat terhadap pedoman komunitas. Keputusan sanksi ini bersifat final dan tidak lagi dibuka pengajuan banding.
+                                  </p>
+                                </div>
+                              ) : modCase.actionTaken === 'item_needs_fix' ? (
+                                <div style={{
+                                  padding: '1rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'rgba(245, 158, 11, 0.06)',
+                                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.45rem'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b' }}>
+                                    <AlertTriangle size={16} />
+                                    <span>Panduan Perbaikan Mandiri Item Katalog</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                                    Item disembunyikan sementara dari etalase publik agar Anda dapat mengoreksi foto, deskripsi, harga, atau dokumen legalitas. Buka formulir edit item di menu Inventaris, lalu tekan tombol "Simpan & Ajukan Tinjauan Ulang" untuk dievaluasi oleh Tim Kepatuhan dalam 1x24 jam kerja.
+                                  </p>
+                                </div>
+                              ) : modCase.actionTaken === 'warning_issued' ? (
+                                <div style={{
+                                  padding: '1rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'rgba(245, 158, 11, 0.06)',
+                                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.45rem'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b' }}>
+                                    <AlertTriangle size={16} />
+                                    <span>Pemberitahuan Peringatan Kepatuhan Resmi</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                                    Status operasional profil katalog dan seluruh item Anda tetap aktif normal. Mohon pelajari catatan penguji dan lakukan peninjauan mandiri terhadap atribut konten agar senantiasa selaras dengan pedoman komunitas Catavor.
+                                  </p>
+                                </div>
                               ) : (
                                 <div style={{
                                   padding: '1rem',
@@ -26281,7 +26562,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     <span>Prosedur Pengajuan Banding Kepatuhan (Right to Appeal)</span>
                                   </div>
                                   <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
-                                    Platform Catavor berkomitmen menjaga iklim usaha yang adil dan transparan. Jika Anda memiliki bukti bahwa produk telah sesuai standar regulasi atau telah melakukan koreksi data, silakan ajukan banding resmi. Tim Kepatuhan Senior akan meninjau ulang permohonan Anda secara prioritas.
+                                    Platform Catavor berkomitmen menjaga iklim usaha yang adil dan transparan. Jika Anda memiliki bukti bahwa item telah sesuai standar regulasi atau telah melakukan koreksi data, silakan ajukan banding resmi. Tim Kepatuhan Senior akan meninjau ulang permohonan Anda secara prioritas.
                                   </p>
                                 </div>
                               )}
@@ -26310,7 +26591,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     }}>
                                       <CheckCircle2 size={18} style={{ color: '#10b981', flexShrink: 0 }} />
                                       <span>
-                                        Pemulihan selesai. Berkas pengawasan ditutup dan etalase toko aktif normal.
+                                        Pemulihan selesai. Berkas pengawasan ditutup dan etalase katalog aktif normal.
                                       </span>
                                     </div>
                                     <button
@@ -26346,25 +26627,122 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     </button>
                                   </div>
                                 ) : !modCase.isAppealEligible ? (
-                                  <div style={{
-                                    padding: '0.85rem 1rem',
-                                    borderRadius: '0.75rem',
-                                    backgroundColor: 'rgba(153, 27, 27, 0.12)',
-                                    border: '1px solid rgba(153, 27, 27, 0.35)',
-                                    color: '#f87171',
-                                    fontSize: '0.8rem',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    lineHeight: 1.45
-                                  }}>
-                                    <ShieldAlert size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
-                                    <span>
-                                      {modCase.actionTaken === 'account_banned'
-                                        ? 'Akun dan katalog telah ditangguhkan secara permanen. Pengajuan banding reguler tidak lagi dibuka.'
-                                        : 'Masa tenggang banding 30 hari telah berakhir. Akses pengajuan banding otomatis ditutup.'}
-                                    </span>
-                                  </div>
+                                  modCase.actionTaken === 'item_banned' ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                                      <div style={{
+                                        padding: '0.85rem 1rem',
+                                        borderRadius: '0.75rem',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                                        color: '#ef4444',
+                                        fontSize: '0.8rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        lineHeight: 1.45
+                                      }}>
+                                        <ShieldAlert size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
+                                        <span>
+                                          Item katalog ini telah dihapus dari inventaris katalog. Kuota &amp; kuota storage katalog telah dipulihkan. Keputusan bersifat final tanpa opsi pengajuan banding.
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedNotification(null);
+                                          setAdminSubTab('items');
+                                          const slug = storeSlug || getStoreSlug();
+                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                                        }}
+                                        style={{
+                                          padding: '0.85rem 1.25rem',
+                                          borderRadius: '0.75rem',
+                                          fontSize: '0.88rem',
+                                          fontWeight: 800,
+                                          cursor: 'pointer',
+                                          border: '1px solid var(--border-light)',
+                                          backgroundColor: 'var(--bg-card)',
+                                          color: 'var(--text-primary)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: '0.55rem',
+                                          width: '100%'
+                                        }}
+                                      >
+                                        <Package size={16} />
+                                        <span>Buka Inventaris Item</span>
+                                      </button>
+                                    </div>
+                                  ) : modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned' ? (
+                                    <div style={{
+                                      padding: '0.85rem 1rem',
+                                      borderRadius: '0.75rem',
+                                      backgroundColor: 'rgba(153, 27, 27, 0.12)',
+                                      border: '1px solid rgba(153, 27, 27, 0.35)',
+                                      color: '#f87171',
+                                      fontSize: '0.8rem',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.5rem',
+                                      lineHeight: 1.45
+                                    }}>
+                                      <ShieldAlert size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
+                                      <span>
+                                        Akun dan seluruh item katalog telah ditangguhkan secara permanen. Pengajuan banding tidak lagi dibuka.
+                                      </span>
+                                    </div>
+                                  ) : modCase.actionTaken === 'item_needs_fix' ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedNotification(null);
+                                          setAdminSubTab('items');
+                                          const slug = storeSlug || getStoreSlug();
+                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                                        }}
+                                        style={{
+                                          padding: '0.85rem 1.25rem',
+                                          borderRadius: '0.75rem',
+                                          fontSize: '0.88rem',
+                                          fontWeight: 800,
+                                          cursor: 'pointer',
+                                          border: 'none',
+                                          backgroundColor: '#f59e0b',
+                                          color: '#ffffff',
+                                          boxShadow: '0 4px 16px rgba(245, 158, 11, 0.35)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: '0.55rem',
+                                          width: '100%'
+                                        }}
+                                      >
+                                        <PackageCheck size={16} />
+                                        <span>Perbaiki Item di Inventaris</span>
+                                        <ArrowRight size={15} />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div style={{
+                                      padding: '0.85rem 1rem',
+                                      borderRadius: '0.75rem',
+                                      backgroundColor: 'rgba(153, 27, 27, 0.12)',
+                                      border: '1px solid rgba(153, 27, 27, 0.35)',
+                                      color: '#f87171',
+                                      fontSize: '0.8rem',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.5rem',
+                                      lineHeight: 1.45
+                                    }}>
+                                      <ShieldAlert size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
+                                      <span>
+                                        Masa tenggang banding 30 hari telah berakhir. Akses pengajuan banding otomatis ditutup.
+                                      </span>
+                                    </div>
+                                  )
                                 ) : null}
 
                                 {modCase.isAppealEligible && (() => {
@@ -27349,8 +27727,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 style={{
                                   padding: '1rem 1.15rem',
                                   borderRadius: '0.85rem',
-                                  border: item.read ? '1px solid var(--border-light)' : '1px solid var(--primary)',
-                                  borderLeft: !item.read ? '4px solid var(--primary)' : '1px solid var(--border-light)',
+                                  border: item.read ? '1px solid var(--border-light)' : (norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix') ? '1px solid #f59e0b' : '1px solid var(--primary)',
+                                  borderLeft: !item.read ? ((norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix') ? '4px solid #f59e0b' : '4px solid var(--primary)') : '1px solid var(--border-light)',
                                   background: 'var(--card-bg-gradient)',
                                   boxShadow: !item.read ? '0 4px 18px var(--primary-glow)' : '0 2px 8px rgba(0, 0, 0, 0.04)',
                                   cursor: 'pointer',
@@ -27374,8 +27752,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                           width: '7px',
                                           height: '7px',
                                           borderRadius: '50%',
-                                          backgroundColor: 'var(--primary)',
-                                          boxShadow: '0 0 6px var(--primary)',
+                                          backgroundColor: (norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix') ? '#f59e0b' : 'var(--primary)',
+                                          boxShadow: (norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix') ? '0 0 6px rgba(245, 158, 11, 0.6)' : '0 0 6px var(--primary)',
                                           display: 'inline-block'
                                         }} />
                                       )}
@@ -27421,12 +27799,39 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden'
                                   }}>
-                                    {item.message}
+                                    {(item.message || '').replace(/\*\*(.*?)\*\*/g, '$1')}
                                   </p>
 
                                   {/* Action Hint Micro-Pill (Only when actionable) */}
                                   {norm.displayType && (
-                                    norm.isModerationNotif && norm.modCase.isAppealEligible ? (
+                                    norm.modCase?.actionTaken === 'item_needs_fix' ? (
+                                      <div
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMarkAsRead(item.id);
+                                          handleOpenFixItem(item);
+                                        }}
+                                        style={{
+                                          marginTop: '0.55rem',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          padding: '0.24rem 0.65rem',
+                                          borderRadius: '0.45rem',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                                          color: '#f59e0b',
+                                          border: '1px solid rgba(245, 158, 11, 0.4)',
+                                          cursor: 'pointer',
+                                          width: 'fit-content'
+                                        }}
+                                      >
+                                        <Edit3 size={12} style={{ strokeWidth: 2.5 }} />
+                                        <span>Perbaiki Item Sekarang</span>
+                                        <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
+                                      </div>
+                                    ) : norm.isModerationNotif && norm.modCase.isAppealEligible ? (
                                       <div
                                         onClick={(e) => {
                                           e.stopPropagation();
