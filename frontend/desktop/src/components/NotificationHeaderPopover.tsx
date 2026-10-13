@@ -3,6 +3,8 @@ import {
   Bell,
   CheckCheck,
   CheckCircle2,
+  AlertTriangle,
+  Wrench,
   ShieldAlert,
   LifeBuoy,
   Sparkles,
@@ -102,6 +104,12 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
   const renderIcon = (norm: NormalizedNotification) => {
     if (norm.modCase.isRestored) {
       return <CheckCircle2 size={15} color="#059669" />;
+    }
+    if (norm.modCase.actionTaken === 'warning_issued') {
+      return <AlertTriangle size={15} color="#d97706" />;
+    }
+    if (norm.modCase.actionTaken === 'item_needs_fix') {
+      return <Wrench size={15} color="#d97706" />;
     }
     if (norm.isModerationNotif) {
       return <ShieldAlert size={15} color="#dc2626" />;
@@ -488,7 +496,7 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
                     overflow: 'hidden'
                   }}
                 >
-                  {norm.message}
+                  {(norm.message || '').replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*\*/g, '')}
                 </p>
               </div>
 

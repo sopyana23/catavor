@@ -850,7 +850,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				} else if actionTaken == "item_needs_fix" {
 					notifCategory = "PERBAIKAN"
 					if report.FaunaID != nil && *report.FaunaID > 0 {
-						actionURL = fmt.Sprintf("/%s/admin/items?edit=%d&report=%s", report.StoreSlug, *report.FaunaID, report.ReportNumber)
+						actionURL = fmt.Sprintf("/%s/admin/items?item=%d&edit=%d&report=%s", report.StoreSlug, *report.FaunaID, *report.FaunaID, report.ReportNumber)
 					} else {
 						actionURL = fmt.Sprintf("/%s/admin/items?report=%s", report.StoreSlug, report.ReportNumber)
 					}
@@ -1081,10 +1081,10 @@ func buildModerationDetailArticle(actionTaken, storeTitle, targetName, targetTyp
 	case "warning_issued":
 		if targetType == "item" {
 			actionHeadline = "Peringatan Resmi Kepatuhan Konten Item Katalog"
-			actionExplanation = fmt.Sprintf("Tim Kepatuhan menemukan ketidaksesuaian konten pada item katalog **%s** dengan Standar Kebijakan Komunitas Catavor. Anda diminta meninjau dan melakukan koreksi mandiri terhadap foto, deskripsi, izin, atau atribut item terkait. Sanksi penonaktifan dapat dijatuhkan apabila pelanggaran berulang.", targetName)
+			actionExplanation = fmt.Sprintf("Tim Kepatuhan menemukan ketidaksesuaian konten pada item katalog **%s** dengan Standar Kebijakan Komunitas Catavor. Anda diminta meninjau dan melakukan perbaikan mandiri terhadap foto, deskripsi, izin, atau atribut item terkait. Peringatan ini bersifat teguran resmi tanpa penonaktifan item dan tidak memerlukan pengajuan banding. Pastikan kepatuhan konten senantiasa dijaga untuk mencegah sanksi penonaktifan di masa mendatang.", targetName)
 		} else {
 			actionHeadline = "Peringatan Resmi Kepatuhan Profil Katalog"
-			actionExplanation = fmt.Sprintf("Tim Kepatuhan menemukan ketidaksesuaian konten pada profil katalog **%s** dengan Standar Kebijakan Komunitas Catavor. Anda diminta meninjau operasional dan kepatuhan profil katalog Anda.", storeTitle)
+			actionExplanation = fmt.Sprintf("Tim Kepatuhan menemukan ketidaksesuaian konten pada profil katalog **%s** dengan Standar Kebijakan Komunitas Catavor. Anda diminta meninjau operasional dan kepatuhan profil katalog Anda. Peringatan ini bersifat teguran resmi tanpa sanksi pembekuan profil dan tidak memerlukan pengajuan banding.", storeTitle)
 		}
 	case "item_needs_fix":
 		actionHeadline = "Pemberitahuan Resmi Penyesuaian & Koreksi Item Katalog"
@@ -1157,10 +1157,10 @@ Pemberitahuan Resmi Peringatan Kepatuhan Platform Catavor.
 %s
 
 ---
-### Tindak Lanjut & Panduan Kepatuhan:
-1. **Pemeriksaan Mandiri**: Tinjau kembali informasi, foto, deskripsi, dan atribut item atau profil katalog Anda agar selaras dengan Pedoman Komunitas Catavor.
-2. **Status Operasional Tetap Aktif**: Profil katalog dan item Anda tetap dapat diakses publik. Peringatan ini bersifat pembinaan dan pemberitahuan resmi untuk mencegah pelanggaran berulang.
-3. **Patuhi Pedoman Platform**: Pastikan seluruh aktivitas dan konten pada profil katalog mematuhi standar integritas dan ketentuan layanan platform.`,
+### Status Layanan & Panduan Kepatuhan:
+1. **Status Operasional Tetap Aktif**: Profil katalog dan item Anda tetap dapat diakses publik secara normal. Tidak ada tindakan penonaktifan atau pembekuan (suspend) yang diberlakukan.
+2. **Pemeriksaan Mandiri**: Tinjau kembali informasi, foto, deskripsi, atau atribut item Anda agar senantiasa selaras dengan Pedoman Komunitas Catavor.
+3. **Sifat Peringatan**: Peringatan resmi ini merupakan teguran pembinaan kepatuhan tanpa mekanisme pengajuan banding. Pastikan untuk mematuhi pedoman platform guna mencegah penjatuhan sanksi penonaktifan di masa mendatang.`,
 			actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
 	}
 

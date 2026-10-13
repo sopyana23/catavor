@@ -119,10 +119,18 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
     else reason = 'Pelanggaran Syarat & Ketentuan Layanan';
   }
 
+  if (reason) {
+    reason = reason.replace(/\*\*/g, '').replace(/^\*+|\*+$/g, '').trim();
+  }
+
   if (!notes) {
     const notesMatch = combined.match(/Catatan(?:\s+Peninjau|\s+Admin)?\s*:\s*["']?([^"'\n\r]+)["']?/i);
     if (notesMatch) notes = notesMatch[1].trim();
     else notes = 'Ditemukan ketidaksesuaian kebijakan atau indikasi pelanggaran pada entitas terkait berdasarkan audit penguji.';
+  }
+
+  if (notes) {
+    notes = notes.replace(/\*\*/g, '').trim();
   }
 
   if (!targetName) {
@@ -133,6 +141,10 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
       combined.match(/katalog\s+"([^"]+)"/i) ||
       combined.match(/"([^"]+)"/);
     if (nameMatch) targetName = nameMatch[1].trim();
+  }
+
+  if (targetName) {
+    targetName = targetName.replace(/\*\*/g, '').replace(/^["'*]+|["'*]+$/g, '').trim();
   }
 
   const isBannedCase =
@@ -279,7 +291,7 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
     isModeration: true,
     isRestored,
     isStoreRestored,
-    categoryBadge: category || (isRestored ? 'PEMULIHAN' : 'KEAMANAN'),
+    categoryBadge: category || (isRestored ? 'PEMULIHAN' : isWarningCase ? 'PERINGATAN' : isNeedsFixCase ? 'PERBAIKAN' : 'KEAMANAN'),
     reportNumber,
     targetType,
     targetName,
@@ -423,6 +435,16 @@ export function normalizeNotification(item: any): NormalizedNotification {
     categoryColor = '#10b981';
     categoryBg = 'rgba(16, 185, 129, 0.12)';
     categoryBorder = 'rgba(16, 185, 129, 0.35)';
+  } else if (modCase.actionTaken === 'warning_issued') {
+    category = 'PERINGATAN';
+    categoryColor = '#f59e0b';
+    categoryBg = 'rgba(245, 158, 11, 0.12)';
+    categoryBorder = 'rgba(245, 158, 11, 0.35)';
+  } else if (modCase.actionTaken === 'item_needs_fix') {
+    category = 'PERBAIKAN';
+    categoryColor = '#f59e0b';
+    categoryBg = 'rgba(245, 158, 11, 0.12)';
+    categoryBorder = 'rgba(245, 158, 11, 0.35)';
   } else if (isModerationNotif) {
     category = 'KEAMANAN';
     categoryColor = '#f43f5e';
