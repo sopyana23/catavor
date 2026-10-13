@@ -817,12 +817,12 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	if wasInNeedsFix {
 		InvalidateReportMetricsCache()
 
-		// 1. Broadcast and record notification for platform admins
+		// 1. Broadcast and record notification for platform admins (Superadmin only)
 		go func(pID uint, pName, sTitle string) {
 			adminMsg := fmt.Sprintf("Merchant \"%s\" telah memperbarui data produk \"%s\" dan mengajukan peninjauan ulang.", sTitle, pName)
 			adminNotif := models.Notification{
 				ID:            fmt.Sprintf("notif_resubmit_%d_%d", pID, now.UnixNano()),
-				TargetType:    "all",
+				TargetType:    "superadmin",
 				Title:         "Pengajuan Ulang Perbaikan Produk",
 				Message:       adminMsg,
 				Type:          "info",
@@ -838,19 +838,25 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			services.GetNotificationHub().Broadcast(&adminNotif)
 		}(product.ID, product.Name, store.StoreTitle)
 
-		// 2. Create acknowledgement notification for merchant
+		// 2. Create pure informational acknowledgement notification for merchant (no action buttons)
 		merchantNotif := models.Notification{
-			ID:         fmt.Sprintf("notif_resubmit_ack_%d_%d", product.ID, now.UnixNano()),
-			TargetType: "store",
-			TargetID:   store.ID,
-			Title:      "Pengajuan Perbaikan Produk Diterima",
-			Message:    fmt.Sprintf("Perbaikan data produk \"%s\" telah kami terima dan masuk antrean peninjauan oleh tim kepatuhan.", product.Name),
-			Type:       "info",
-			Category:   "MODERASI",
-			CreatedAt:  now,
-			UpdatedAt:  now,
+			ID:            fmt.Sprintf("notif_resubmit_ack_%d_%d", product.ID, now.UnixNano()),
+			TargetType:    "single_store",
+			TargetID:      store.ID,
+			TargetName:    store.StoreTitle,
+			Title:         "Pengajuan Perbaikan Produk Terkirim",
+			Message:       fmt.Sprintf("Perbaikan data produk \"%s\" telah kami terima dan masuk dalam antrean peninjauan oleh tim kepatuhan.", product.Name),
+			Type:          "info",
+			Category:      "MODERASI",
+			ActionEnabled: false,
+			ActionType:    "none",
+			ActionLabel:   "",
+			ActionURL:     "",
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}
 		_ = database.DB.Create(&merchantNotif).Error
+		services.GetNotificationHub().Broadcast(&merchantNotif)
 	}
 
 	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
@@ -1066,12 +1072,12 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 	}
 	InvalidateReportMetricsCache()
 
-	// Broadcast alert to admins
+	// 1. Broadcast alert to platform admins (Superadmin only)
 	go func(pID uint, pName, sTitle string) {
 		adminMsg := fmt.Sprintf("Merchant \"%s\" telah mengajukan peninjauan ulang untuk produk \"%s\".", sTitle, pName)
 		adminNotif := models.Notification{
 			ID:            fmt.Sprintf("notif_resubmit_%d_%d", pID, now.UnixNano()),
-			TargetType:    "all",
+			TargetType:    "superadmin",
 			Title:         "Pengajuan Ulang Perbaikan Produk",
 			Message:       adminMsg,
 			Type:          "info",
@@ -1087,19 +1093,25 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 		services.GetNotificationHub().Broadcast(&adminNotif)
 	}(product.ID, product.Name, store.StoreTitle)
 
-	// Notification for merchant
+	// 2. Pure informational acknowledgement notification for merchant (no action buttons)
 	merchantNotif := models.Notification{
-		ID:         fmt.Sprintf("notif_resubmit_ack_%d_%d", product.ID, now.UnixNano()),
-		TargetType: "store",
-		TargetID:   store.ID,
-		Title:      "Pengajuan Perbaikan Produk Diterima",
-		Message:    fmt.Sprintf("Perbaikan data produk \"%s\" telah kami terima dan masuk antrean peninjauan oleh tim kepatuhan.", product.Name),
-		Type:       "info",
-		Category:   "MODERASI",
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		ID:            fmt.Sprintf("notif_resubmit_ack_%d_%d", product.ID, now.UnixNano()),
+		TargetType:    "single_store",
+		TargetID:      store.ID,
+		TargetName:    store.StoreTitle,
+		Title:         "Pengajuan Perbaikan Produk Terkirim",
+		Message:       fmt.Sprintf("Perbaikan data produk \"%s\" telah kami terima dan masuk dalam antrean peninjauan oleh tim kepatuhan.", product.Name),
+		Type:          "info",
+		Category:      "MODERASI",
+		ActionEnabled: false,
+		ActionType:    "none",
+		ActionLabel:   "",
+		ActionURL:     "",
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 	_ = database.DB.Create(&merchantNotif).Error
+	services.GetNotificationHub().Broadcast(&merchantNotif)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1201,5 +1213,3 @@ func (h *ProductHandler) GetCulinaryTaxonomy(c *fiber.Ctx) error {
 		"data":    taxonomy,
 	})
 }
-
-

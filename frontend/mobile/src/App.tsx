@@ -8174,6 +8174,33 @@ Terima kasih.`;
     const actionUrl = notif.action_url || notif.actionUrl || '';
     const detailContent = notif.detail_content || notif.detailContent || '';
 
+    // Informational resubmission acknowledgements / reviews are status notices, not punitive sanction cases
+    const isSubmissionAck =
+      titleLower.includes('pengajuan ulang') ||
+      titleLower.includes('pengajuan perbaikan') ||
+      titleLower.includes('perbaikan produk diterima') ||
+      titleLower.includes('perbaikan produk terkirim') ||
+      msgLower.includes('antrean peninjauan') ||
+      msgLower.includes('telah kami terima dan masuk antrean') ||
+      msgLower.includes('masuk dalam antrean peninjauan');
+
+    if (isSubmissionAck) {
+      return {
+        isModeration: false,
+        isAppealEligible: false,
+        reportNumber: '',
+        targetType: 'item' as 'item' | 'store',
+        targetName: '',
+        reason: '',
+        notes: '',
+        statusBadge: '',
+        statusColor: '#f43f5e',
+        statusHeadline: '',
+        actionTaken: '',
+        issuedDateStr: 'Baru saja'
+      };
+    }
+
     const isModeration = notif.category === 'KEAMANAN' || 
       notif.category === 'PERBAIKAN' ||
       notif.category === 'PERINGATAN' ||
@@ -27679,10 +27706,14 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 cleanLabel = '';
                               }
 
+                              const isActionExplicitlyDisabled = item.action_enabled === false || item.actionEnabled === false;
+
                               // Determine accurate action type
                               let rawActionType = item.action_type || item.actionType;
                               if (isModerationNotif) {
                                 rawActionType = 'detail';
+                              } else if (isActionExplicitlyDisabled) {
+                                rawActionType = 'none';
                               } else if (!rawActionType || rawActionType === 'none') {
                                 if (isTicketNotif) rawActionType = 'navigate';
                                 else if (actionUrl) rawActionType = 'external_link';
@@ -27691,9 +27722,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 else rawActionType = 'none';
                               }
 
-                              const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
-                              const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
-                              const isDetail = rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal);
+                              const isDirectNav = !isActionExplicitlyDisabled && ((rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif);
+                              const isExternal = !isActionExplicitlyDisabled && (rawActionType === 'external_link' && Boolean(actionUrl));
+                              const isDetail = !isActionExplicitlyDisabled && (rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal));
                               const isNoneAction = !isDirectNav && !isDetail && !isExternal;
 
                               const tabLabels: Record<string, string> = {
@@ -27710,10 +27741,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 rbac: 'Hak Akses Tim'
                               };
 
-                              let displayLabel = '';
+                              let displayLabel = isNoneAction ? '' : cleanLabel;
                               let displayType: 'navigate' | 'external' | 'detail' | null = null;
 
-                              if (isTicketNotif) {
+                              if (isNoneAction) {
+                                displayType = null;
+                                displayLabel = '';
+                              } else if (isTicketNotif) {
                                 displayType = 'navigate';
                                 displayLabel = cleanLabel || (ticketRef ? `Lihat Tiket #${ticketRef}` : 'Buka Pusat Bantuan CS');
                               } else if (isDirectNav && rawSubTab) {
