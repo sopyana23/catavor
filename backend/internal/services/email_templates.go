@@ -182,7 +182,7 @@ func BuildBannedEmail(storeTitle, reasonLabel, adminNotes, reportNumber, userEma
 
 	mainContent := fmt.Sprintf(`
 	<p style="margin: 0 0 14px 0;">Halo Rekan Pengelola <strong>%s</strong>,</p>
-	<p style="margin: 0 0 16px 0;">Berdasarkan peninjauan menyeluruh dan audit kepatuhan atas laporan nomor <strong>#%s</strong>, Tim Kepatuhan Catavor memutuskan untuk <strong>menonaktifkan secara permanen</strong> profil katalog toko di bawah ini:</p>
+	<p style="margin: 0 0 16px 0;">Berdasarkan peninjauan menyeluruh dan audit kepatuhan atas laporan nomor <strong>#%s</strong>, Tim Kepatuhan Catavor memutuskan untuk <strong>menonaktifkan secara permanen</strong> profil katalog di bawah ini:</p>
 
 	<!-- Case Breakdown Card -->
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
@@ -219,7 +219,7 @@ func BuildBannedEmail(storeTitle, reasonLabel, adminNotes, reportNumber, userEma
 		<tr>
 			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.55; color: #1e40af;">
 				<strong style="display: block; margin-bottom: 4px; color: #1d4ed8; font-size: 13px;">Pemberitahuan Status Akun & Profil Lain Anda:</strong>
-				Sanksi penonaktifan ini <strong>berlaku khusus untuk profil katalog "%s"</strong>. Akun kepemilikan Anda (<em>%s</em>) serta <strong>seluruh profil toko/katalog Anda yang lain tetap aman, aktif, dan dapat dikelola normal</strong> tanpa hambatan di platform Catavor.
+				Sanksi penonaktifan ini <strong>berlaku khusus untuk profil katalog "%s"</strong>. Akun kepemilikan Anda (<em>%s</em>) serta <strong>seluruh profil katalog bisnis Anda yang lain tetap aman, aktif, dan dapat dikelola normal</strong> tanpa hambatan di platform Catavor.
 			</td>
 		</tr>
 	</table>
@@ -240,8 +240,8 @@ func BuildSuspendedEmail(storeTitle, reasonLabel, adminNotes, reportNumber, stor
 	appealURL := fmt.Sprintf("/%s/admin/help", storeSlug)
 
 	mainContent := fmt.Sprintf(`
-	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
-	<p style="margin: 0 0 16px 0;">Kami menginformasikan bahwa profil katalog toko Anda saat ini sedang <strong>dinonaktifkan sementara (Suspended)</strong> oleh Tim Kepatuhan Catavor guna menindaklanjuti laporan nomor <strong>#%s</strong>.</p>
+	<p style="margin: 0 0 14px 0;">Halo Pengelola Katalog <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Kami menginformasikan bahwa profil katalog Anda saat ini sedang <strong>dinonaktifkan sementara (Suspended)</strong> oleh Tim Kepatuhan Catavor guna menindaklanjuti laporan nomor <strong>#%s</strong>.</p>
 
 	<!-- Details Card -->
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 8px; border: 1px solid #fde68a; margin-bottom: 18px;">
@@ -273,7 +273,7 @@ func BuildSuspendedEmail(storeTitle, reasonLabel, adminNotes, reportNumber, stor
 	<p style="margin: 0 0 8px 0; font-weight: 700; color: #0f172a; font-size: 13px;">Batasan yang berlaku selama penangguhan sementara:</p>
 	<ul style="margin: 0 0 16px 0; padding-left: 18px; font-size: 12.5px; color: #475569; line-height: 1.65;">
 		<li style="margin-bottom: 6px;">Etalase publik Anda dinonaktifkan sementara dari akses publik & mesin pencari.</li>
-		<li style="margin-bottom: 6px;">Seluruh data produk dan informasi katalog Anda <strong>tetap tersimpan aman</strong> di sistem.</li>
+		<li style="margin-bottom: 6px;">Seluruh data item dan informasi katalog Anda <strong>tetap tersimpan aman</strong> di sistem.</li>
 		<li style="margin-bottom: 6px;">Anda memiliki <strong>hak penuh untuk mengajukan banding kepatuhan</strong> resmi dengan melampirkan klarifikasi atau bukti perbaikan.</li>
 	</ul>
 	`, html.EscapeString(storeTitle), html.EscapeString(reportNumber), html.EscapeString(reportNumber), html.EscapeString(storeTitle), html.EscapeString(reasonLabel), html.EscapeString(adminNotes))
@@ -291,16 +291,16 @@ func BuildRestoredEmail(storeTitle, reportNumber, storeSlug string) (subject str
 	catalogURL := fmt.Sprintf("/%s/admin", storeSlug)
 
 	mainContent := fmt.Sprintf(`
-	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
-	<p style="margin: 0 0 16px 0;">Kabar baik! Berdasarkan verifikasi peninjauan dan klarifikasi kepatuhan terkait berkas <strong>#%s</strong>, penangguhan atas profil katalog toko Anda telah <strong>resmi dicabut</strong>.</p>
+	<p style="margin: 0 0 14px 0;">Halo Pengelola Katalog <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Kabar baik! Berdasarkan verifikasi peninjauan dan klarifikasi kepatuhan terkait berkas <strong>#%s</strong>, penangguhan atas profil katalog Anda telah <strong>resmi dicabut</strong>.</p>
 
 	<!-- Success Box -->
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #ecfdf5; border-radius: 8px; border: 1px solid #a7f3d0; margin-bottom: 18px;">
 		<tr>
 			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; color: #065f46; line-height: 1.65;">
-				<strong style="display: block; font-size: 13.5px; margin-bottom: 8px; color: #047857;">Status Toko Anda: AKTIF & NORMAL</strong>
+				<strong style="display: block; font-size: 13.5px; margin-bottom: 8px; color: #047857;">Status Katalog Anda: AKTIF & NORMAL</strong>
 				• Etalase katalog Anda telah kembali dapat diakses oleh publik.<br>
-				• Seluruh fitur manajemen produk dan pengaturan toko dapat digunakan kembali sepenuhnya.<br>
+				• Seluruh fitur pengelolaan item dan operasional katalog dapat digunakan kembali sepenuhnya.<br>
 				• Terima kasih atas komitmen Anda dalam menjaga integritas ekosistem komunitas Catavor.
 			</td>
 		</tr>
@@ -320,7 +320,7 @@ func BuildWarningEmail(storeTitle, targetEntityName, reasonLabel, adminNotes, re
 	reviewURL := fmt.Sprintf("/%s/admin/items", storeSlug)
 
 	mainContent := fmt.Sprintf(`
-	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
 	<p style="margin: 0 0 16px 0;">Tim Kepatuhan Catavor telah meninjau laporan masyarakat dan menemukan indikasi ketidaksesuaian konten pada entitas: <strong>%s</strong>.</p>
 
 	<!-- Warning Details -->
@@ -412,9 +412,9 @@ func BuildReporterReceivedEmail(reportNumber, targetType, targetName, storeTitle
 	title := "Laporan Anda Telah Kami Terima"
 	subtitle := fmt.Sprintf("Tiket Peninjauan Tim Integritas Komunitas #%s", reportNumber)
 
-	targetTypeLabel := "Item / Produk"
+	targetTypeLabel := "Item Katalog"
 	if targetType == "catalog" {
-		targetTypeLabel = "Katalog Toko"
+		targetTypeLabel = "Profil Katalog"
 	}
 
 	entityContext := html.EscapeString(targetName)
@@ -477,7 +477,7 @@ func BuildReporterReceivedEmail(reportNumber, targetType, targetName, storeTitle
 
 // BuildReporterOutcomeEmail generates an update email sent to the reporter once moderation action is finalized
 func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle, reasonLabel, actionTaken string) (subject string, bodyHTML string) {
-	isEnforced := actionTaken == "item_hidden" || actionTaken == "item_locked" || actionTaken == "item_needs_fix" || actionTaken == "catalog_suspended" || actionTaken == "catalog_banned" || actionTaken == "warning_issued" || actionTaken == "action_taken" || actionTaken == "banned"
+	isEnforced := actionTaken == "item_banned" || actionTaken == "item_hidden" || actionTaken == "item_locked" || actionTaken == "item_needs_fix" || actionTaken == "catalog_suspended" || actionTaken == "catalog_banned" || actionTaken == "warning_issued" || actionTaken == "action_taken" || actionTaken == "banned" || actionTaken == "item_restored" || actionTaken == "restored"
 
 	targetTypeLabel := "item"
 	if targetType == "catalog" {
@@ -494,17 +494,21 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 		title := "Tindakan Penegakan Telah Diberlakukan"
 		subtitle := fmt.Sprintf("Pemberitahuan Resmi atas Laporan Komunitas #%s", reportNumber)
 
-		actionDesc := "tindakan moderasi dan penonaktifan konten telah diberlakukan"
-		if actionTaken == "item_hidden" || actionTaken == "item_locked" {
-			actionDesc = "item terkait telah dinonaktifkan dan diturunkan dari katalog publik"
+		actionDesc := "tindakan moderasi dan penataan konten telah diberlakukan"
+		if actionTaken == "item_banned" {
+			actionDesc = "item terkait telah diblokir secara permanen dan dihapus dari peredaran katalog"
+		} else if actionTaken == "item_hidden" || actionTaken == "item_locked" {
+			actionDesc = "item terkait telah dinonaktifkan dan dikunci dari katalog publik"
 		} else if actionTaken == "item_needs_fix" {
-			actionDesc = "item terkait telah dinonaktifkan dari katalog publik untuk proses revisi dan perbaikan kepatuhan"
+			actionDesc = "item terkait telah dinonaktifkan sementara dari etalase publik untuk proses perbaikan kepatuhan"
 		} else if actionTaken == "catalog_suspended" {
-			actionDesc = "katalog toko terkait telah dibekukan sementara hingga proses kepatuhan diselesaikan"
-		} else if actionTaken == "catalog_banned" {
-			actionDesc = "akses katalog dan akun terkait telah dihentikan secara permanen dari ekosistem Catavor"
+			actionDesc = "profil katalog terkait telah dinonaktifkan sementara hingga proses kepatuhan diselesaikan"
+		} else if actionTaken == "catalog_banned" || actionTaken == "banned" {
+			actionDesc = "akses profil katalog terkait telah dinonaktifkan secara permanen dari ekosistem Catavor"
 		} else if actionTaken == "warning_issued" {
-			actionDesc = "surat peringatan kepatuhan resmi telah diterbitkan kepada pemilik katalog"
+			actionDesc = "surat peringatan kepatuhan resmi telah diterbitkan kepada pihak pengelola katalog"
+		} else if actionTaken == "item_restored" || actionTaken == "restored" {
+			actionDesc = "entitas terlapor telah ditinjau ulang dan dipulihkan kembali ke status aktif"
 		}
 
 		mainContent := fmt.Sprintf(`
@@ -544,7 +548,7 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 		</table>
 
 		<p style="margin: 0 0 10px 0; font-size: 12.5px; color: #334155; line-height: 1.6;">
-			Kami mengucapkan terima kasih yang sebesar-besarnya atas kepedulian Anda. Partisipasi Anda sangat berharga dalam menjaga ekosistem transaksi dan informasi digital di Catavor tetap aman, jujur, dan tepercaya bagi seluruh masyarakat.
+			Kami mengucapkan terima kasih yang sebesar-besarnya atas kepedulian Anda. Partisipasi Anda sangat berharga dalam menjaga ekosistem informasi dan interaksi di Catavor tetap aman, jujur, dan tepercaya bagi seluruh masyarakat.
 		</p>
 		`, targetTypeLabel, entityName, html.EscapeString(reportNumber), actionDesc, html.EscapeString(reportNumber), html.EscapeString(reasonLabel))
 
@@ -552,7 +556,7 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 		return
 	}
 
-	// Skenario B: Dismissed / No Direct Violation Proven
+	// Skenario B: Selesai Tanpa Sanksi / Tidak Ditemukan Pelanggaran / Otomatis Ditutup
 	subject = fmt.Sprintf("[Catavor Integritas] Pembaruan Laporan #%s: Hasil Peninjauan Selesai", reportNumber)
 	title := "Hasil Peninjauan Laporan Komunitas"
 	subtitle := fmt.Sprintf("Pemberitahuan Resmi atas Laporan Komunitas #%s", reportNumber)
@@ -566,7 +570,7 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 		<tr>
 			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.65; color: #1e293b;">
 				<strong style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; margin-bottom: 6px;">Catatan Peninjauan:</strong>
-				Berdasarkan bukti yang tersedia dan Pedoman Komunitas saat ini, tim kami <strong>belum menemukan pelanggaran yang memerlukan tindakan moderasi langsung</strong> terhadap konten tersebut.
+				Berdasarkan bukti yang tersedia dan hasil audit kepatuhan, laporan Anda telah ditinjau dan diselesaikan tanpa penerapan sanksi administratif langsung terhadap konten atau profil terlapor karena tidak ditemukan bukti pelanggaran yang cukup, atau telah diselaraskan oleh sistem otomatis integritas platform.
 			</td>
 		</tr>
 	</table>
@@ -586,7 +590,7 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 					</tr>
 					<tr>
 						<td style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top;">Status Tiket</td>
-						<td style="padding: 5px 0 5px 10px; color: #64748b; font-size: 12.5px; font-weight: 700; vertical-align: top;">Ditutup - Tersimpan untuk Pemantauan</td>
+						<td style="padding: 5px 0 5px 10px; color: #64748b; font-size: 12.5px; font-weight: 700; vertical-align: top;">Selesai - Tanpa Sanksi Administratif</td>
 					</tr>
 				</table>
 			</td>
@@ -594,7 +598,7 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 	</table>
 
 	<p style="margin: 0 0 10px 0; font-size: 12.5px; color: #334155; line-height: 1.6;">
-		Meskipun tidak ada penindakan langsung yang diambil saat ini, laporan Anda tetap dicatat dalam basis data sistem kepatuhan kami sebagai bahan pemantauan rutin. Terima kasih atas partisipasi aktif Anda dalam menjaga kualitas dan keamanan komunitas Catavor.
+		Meskipun tidak ada penindakan langsung yang diambil saat ini, laporan Anda tetap dicatat dalam basis data sistem kepatuhan kami sebagai bahan pemantauan berkala. Terima kasih atas partisipasi aktif Anda dalam menjaga kualitas dan keamanan komunitas Catavor.
 	</p>
 	`, targetTypeLabel, entityName, html.EscapeString(reportNumber), html.EscapeString(reportNumber), html.EscapeString(reasonLabel))
 
@@ -604,9 +608,9 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 
 // BuildItemNeedsFixEmail creates an official notification when an item requires remediation by the merchant.
 func BuildItemNeedsFixEmail(storeTitle, targetEntityName, itemTypeLabel, reasonLabel, adminNotes, reportNumber, storeSlug string) (subject string, bodyHTML string) {
-	subject = fmt.Sprintf("[Catavor Kepatuhan] Perlu Perbaikan: Produk '%s' Memerlukan Penyesuaian (#%s)", targetEntityName, reportNumber)
-	title := "Produk Memerlukan Penyesuaian Informasi"
-	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penyesuaian Produk Berkas #%s", reportNumber)
+	subject = fmt.Sprintf("[Catavor Kepatuhan] Perlu Perbaikan: Item Katalog '%s' Memerlukan Penyesuaian (#%s)", targetEntityName, reportNumber)
+	title := "Item Katalog Memerlukan Penyesuaian Informasi"
+	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penyesuaian Item Berkas #%s", reportNumber)
 
 	itemsURL := fmt.Sprintf("/%s/admin/items", storeSlug)
 	if storeSlug == "" {
@@ -622,8 +626,8 @@ func BuildItemNeedsFixEmail(storeTitle, targetEntityName, itemTypeLabel, reasonL
 	}
 
 	mainContent := fmt.Sprintf(`
-	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
-	<p style="margin: 0 0 16px 0;">Berdasarkan peninjauan Tim Kepatuhan Catavor terhadap laporan masyarakat, produk Anda berikut ini telah <strong>disembunyikan sementara dari katalog publik</strong> dan memerlukan perbaikan informasi:</p>
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Berdasarkan peninjauan Tim Kepatuhan Catavor terhadap laporan masyarakat, item katalog Anda berikut ini telah <strong>dinonaktifkan sementara dari akses publik</strong> dan memerlukan perbaikan informasi:</p>
 
 	<!-- Details Box -->
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 8px; border: 1px solid #fde68a; margin-bottom: 18px;">
@@ -631,7 +635,7 @@ func BuildItemNeedsFixEmail(storeTitle, targetEntityName, itemTypeLabel, reasonL
 			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.65;">
 				<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0">
 					<tr>
-						<td width="33%%" style="padding: 5px 0; color: #92400e; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fef3c7;">Nama Produk</td>
+						<td width="33%%" style="padding: 5px 0; color: #92400e; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fef3c7;">Nama Item</td>
 						<td width="67%%" style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fef3c7;">%s</td>
 					</tr>
 					%s
@@ -654,22 +658,22 @@ func BuildItemNeedsFixEmail(storeTitle, targetEntityName, itemTypeLabel, reasonL
 			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: #1e293b;">
 				<strong style="color: #b45309; display: block; margin-bottom: 4px;">Langkah Penyelesaian & Opsi Anda:</strong>
 				1. <strong>Edit & Ajukan Ulang</strong>: Buka menu Inventaris, perbaiki foto/deskripsi/spesifikasi sesuai arahan di atas, lalu tekan <em>Simpan & Ajukan Tinjauan Ulang</em>.<br>
-				2. <strong>Hapus Produk</strong>: Jika Anda tidak berniat menjual produk ini lagi, Anda dapat langsung menghapusnya.<br>
-				3. <strong>Batas Waktu</strong>: Anda memiliki waktu <strong>30 hari</strong> untuk melakukan perbaikan sebelum produk dibersihkan otomatis oleh sistem.
+				2. <strong>Hapus Item</strong>: Jika Anda tidak berniat menampilkan item ini lagi, Anda dapat langsung menghapusnya.<br>
+				3. <strong>Batas Waktu</strong>: Anda memiliki waktu <strong>30 hari</strong> untuk melakukan perbaikan sebelum item dibersihkan otomatis oleh sistem.
 			</td>
 		</tr>
 	</table>
 	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), typeRow, html.EscapeString(reasonLabel), html.EscapeString(adminNotes))
 
-	bodyHTML = wrapEmailLayout("PERLU PERBAIKAN", "#d97706", title, subtitle, mainContent, "Perbaiki Produk Sekarang →", itemsURL)
+	bodyHTML = wrapEmailLayout("PERLU PERBAIKAN", "#d97706", title, subtitle, mainContent, "Perbaiki Item Sekarang →", itemsURL)
 	return
 }
 
 // BuildItemLockedEmail creates an official notification when an item is locked due to hard policy / prohibited commodity violation.
 func BuildItemLockedEmail(storeTitle, targetEntityName, itemTypeLabel, reasonLabel, adminNotes, reportNumber, storeSlug string) (subject string, bodyHTML string) {
-	subject = fmt.Sprintf("[Catavor Kepatuhan] Penonaktifan & Penguncian Produk - '%s' (#%s)", targetEntityName, reportNumber)
-	title := "Produk Dinonaktifkan & Terkunci"
-	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penegakan Kebijakan Berkas #%s", reportNumber)
+	subject = fmt.Sprintf("[Catavor Kepatuhan] Penonaktifan & Penguncian Item Katalog - '%s' (#%s)", targetEntityName, reportNumber)
+	title := "Item Katalog Dinonaktifkan & Terkunci"
+	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penguncian Item Berkas #%s", reportNumber)
 
 	helpURL := fmt.Sprintf("/%s/admin/help", storeSlug)
 	if storeSlug == "" {
@@ -685,8 +689,8 @@ func BuildItemLockedEmail(storeTitle, targetEntityName, itemTypeLabel, reasonLab
 	}
 
 	mainContent := fmt.Sprintf(`
-	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
-	<p style="margin: 0 0 16px 0;">Produk Anda berikut ini telah <strong>dinonaktifkan dan dikunci</strong> oleh Tim Kepatuhan Catavor sehubungan dengan indikasi pelanggaran kebijakan komoditas atau standar integritas komunitas:</p>
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Item katalog Anda berikut ini telah <strong>dinonaktifkan dan dikunci</strong> oleh Tim Kepatuhan Catavor sehubungan dengan indikasi pelanggaran kebijakan komoditas atau standar integritas komunitas:</p>
 
 	<!-- Details Box -->
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 8px; border: 1px solid #fecaca; margin-bottom: 18px;">
@@ -694,7 +698,7 @@ func BuildItemLockedEmail(storeTitle, targetEntityName, itemTypeLabel, reasonLab
 			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.65;">
 				<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0">
 					<tr>
-						<td width="33%%" style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Nama Produk</td>
+						<td width="33%%" style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Nama Item</td>
 						<td width="67%%" style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fee2e2;">%s</td>
 					</tr>
 					%s
@@ -715,24 +719,24 @@ func BuildItemLockedEmail(storeTitle, targetEntityName, itemTypeLabel, reasonLab
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444; margin-bottom: 18px;">
 		<tr>
 			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: #1e293b;">
-				<strong style="color: #991b1b; display: block; margin-bottom: 4px;">Status Produk & Opsi Penyelesaian:</strong>
-				1. <strong>Fitur Edit Dinonaktifkan</strong>: Pengeditan produk dikunci untuk mencegah pengalihan identitas produk yang melanggar.<br>
-				2. <strong>Hak Banding Resmi (Right to Appeal)</strong>: Jika Anda memiliki dokumen keabsahan resmi (sertifikat keaslian merek, izin edar BPOM/BKSDA, dsb.) atau terjadi kekeliruan deteksi, Anda berhak mengajukan banding.<br>
-				3. <strong>Hapus Produk</strong>: Anda dapat menghapus produk dari daftar inventaris untuk menjaga reputasi dan skor kepatuhan toko.
+				<strong style="color: #991b1b; display: block; margin-bottom: 4px;">Status Item & Opsi Penyelesaian:</strong>
+				1. <strong>Fitur Edit Dinonaktifkan</strong>: Pengeditan item dikunci untuk mencegah peredaran materi yang melanggar.<br>
+				2. <strong>Hak Banding Resmi (Right to Appeal)</strong>: Jika Anda memiliki dokumen keabsahan resmi (sertifikat keaslian merek, izin edar resmi, dsb.) atau terjadi kekeliruan deteksi, Anda berhak mengajukan klarifikasi banding.<br>
+				3. <strong>Hapus Item</strong>: Anda dapat menghapus item dari daftar inventaris untuk menjaga skor kepatuhan profil katalog.
 			</td>
 		</tr>
 	</table>
 	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), typeRow, html.EscapeString(reasonLabel), html.EscapeString(adminNotes))
 
-	bodyHTML = wrapEmailLayout("PRODUK DIKUNCI", "#dc2626", title, subtitle, mainContent, "Ajukan Banding Kepatuhan →", helpURL)
+	bodyHTML = wrapEmailLayout("ITEM DIKUNCI", "#dc2626", title, subtitle, mainContent, "Ajukan Banding Kepatuhan →", helpURL)
 	return
 }
 
 // BuildItemApprovedEmail creates an official notification when a remediated item is re-approved by moderation.
 func BuildItemApprovedEmail(storeTitle, targetEntityName, reportNumber, storeSlug string) (subject string, bodyHTML string) {
-	subject = fmt.Sprintf("[Catavor Kepatuhan] Perbaikan Disetujui: Produk '%s' Telah Aktif Kembali (#%s)", targetEntityName, reportNumber)
-	title := "Perbaikan Produk Telah Disetujui"
-	subtitle := fmt.Sprintf("Pemberitahuan Pemulihan Produk Berkas #%s", reportNumber)
+	subject = fmt.Sprintf("[Catavor Kepatuhan] Perbaikan Disetujui: Item '%s' Telah Aktif Kembali (#%s)", targetEntityName, reportNumber)
+	title := "Perbaikan Item Telah Disetujui"
+	subtitle := fmt.Sprintf("Pemberitahuan Pemulihan Item Berkas #%s", reportNumber)
 
 	catalogURL := fmt.Sprintf("/%s", storeSlug)
 	if storeSlug == "" {
@@ -740,21 +744,21 @@ func BuildItemApprovedEmail(storeTitle, targetEntityName, reportNumber, storeSlu
 	}
 
 	mainContent := fmt.Sprintf(`
-	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
-	<p style="margin: 0 0 16px 0;">Kabar baik! Tim Kepatuhan Catavor telah meninjau perbaikan yang Anda ajukan pada produk <strong>%s</strong>. Perubahan Anda telah memenuhi standar komunitas dan produk telah <strong>diaktifkan kembali di katalog publik</strong>.</p>
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Kabar baik! Tim Kepatuhan Catavor telah meninjau perbaikan yang Anda ajukan pada item <strong>%s</strong>. Perubahan Anda telah memenuhi standar komunitas dan item telah <strong>diaktifkan kembali di etalase katalog publik</strong>.</p>
 
 	<!-- Success Notice Box -->
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0; margin-bottom: 18px;">
 		<tr>
 			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #166534;">
 				<strong style="color: #14532d; display: block; margin-bottom: 4px;">Status Saat Ini:</strong>
-				Produk Anda kini sudah aktif kembali dan dapat dicari serta dipesan oleh pelanggan melalui tautan katalog digital Anda. Berkas peninjauan #%s telah ditutup.
+				Item Anda kini sudah aktif kembali dan dapat diakses serta dicari oleh publik melalui tautan katalog digital Anda. Berkas peninjauan #%s telah ditutup.
 			</td>
 		</tr>
 	</table>
 	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), html.EscapeString(reportNumber))
 
-	bodyHTML = wrapEmailLayout("PERBAIKAN DISETUJUI", "#16a34a", title, subtitle, mainContent, "Lihat Produk di Katalog →", catalogURL)
+	bodyHTML = wrapEmailLayout("PERBAIKAN DISETUJUI", "#16a34a", title, subtitle, mainContent, "Lihat Item di Katalog →", catalogURL)
 	return
 }
 
@@ -763,11 +767,71 @@ func BuildItemTakedownEmail(storeTitle, targetEntityName, reasonLabel, adminNote
 	return BuildItemLockedEmail(storeTitle, targetEntityName, "", reasonLabel, adminNotes, reportNumber, storeSlug)
 }
 
+// BuildItemBannedEmail creates an official compliance decision notification when an item is permanently banned and removed from catalog.
+func BuildItemBannedEmail(storeTitle, targetEntityName, itemTypeLabel, reasonLabel, adminNotes, reportNumber, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Kepatuhan] Pemblokiran Permanen Item Katalog - '%s' (#%s)", targetEntityName, reportNumber)
+	title := "Item Katalog Diblokir Permanen & Dihapus"
+	subtitle := fmt.Sprintf("Berita Acara Penegakan Kepatuhan Berkas #%s (Keputusan Final)", reportNumber)
+
+	typeRow := ""
+	if itemTypeLabel != "" {
+		typeRow = fmt.Sprintf(`<tr>
+			<td style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Tipe Item</td>
+			<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fee2e2;">%s</td>
+		</tr>`, html.EscapeString(itemTypeLabel))
+	}
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Item katalog Anda berikut ini telah <strong>diblokir secara permanen dan dihapus seketika</strong> dari profil katalog Anda oleh Tim Kepatuhan Catavor sehubungan dengan pelanggaran fatal pedoman platform / regulasi komoditas terlarang:</p>
+
+	<!-- Details Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 8px; border: 1px solid #fecaca; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.65;">
+				<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0">
+					<tr>
+						<td width="33%%" style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Nama Item</td>
+						<td width="67%%" style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fee2e2;">%s</td>
+					</tr>
+					%s
+					<tr>
+						<td style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Kategori Pelanggaran</td>
+						<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fee2e2;">%s</td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top;">Catatan Peninjau</td>
+						<td style="padding: 5px 0 5px 10px; color: #7f1d1d; font-size: 12px; font-style: italic; vertical-align: top;">"%s"</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+
+	<!-- Final Decision & Status Notice -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #b91c1c; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: #1e293b;">
+				<strong style="color: #991b1b; display: block; margin-bottom: 4px;">Konsekuensi Penegakan Kepatuhan:</strong>
+				1. <strong>Penghapusan Item</strong>: Item telah dihapus dari etalase inventaris katalog Anda dan tidak dapat diakses publik. Profil katalog Anda tetap beroperasi normal untuk item lainnya.<br>
+				2. <strong>Pemulihan Kuota & Storage</strong>: Beban kuota item aktif dan kapasitas storage pada akun katalog Anda telah langsung dibebaskan kembali (0 byte terhitung).<br>
+				3. <strong>Keputusan Bersifat Final</strong>: Sesuai Kebijakan Platform dan UU ITE, sanksi pemblokiran atas pelanggaran komoditas terlarang bersifat tetap dan tidak tersedia opsi sanggahan banding.<br>
+				4. <strong>Retensi Bukti Hukum</strong>: Data arsip digital disimpan secara pasif di brankas bukti hukum platform selama 90 hari untuk pemenuhan kepatuhan perundang-undangan (PP 71/2019) sebelum pemusnahan total.
+			</td>
+		</tr>
+	</table>
+	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), typeRow, html.EscapeString(reasonLabel), html.EscapeString(adminNotes))
+
+	bodyHTML = wrapEmailLayout("BANNED PERMANEN", "#b91c1c", title, subtitle, mainContent, "", "")
+	return
+}
+
+
 // BuildItemRetentionReminderEmail creates an H-7 deadline warning before automated soft-deletion.
 func BuildItemRetentionReminderEmail(storeTitle, targetEntityName, reportNumber, storeSlug string, remainingDays int) (subject string, bodyHTML string) {
 	subject = fmt.Sprintf("[Catavor Peringatan] Item '%s' Akan Dihapus Otomatis dalam %d Hari (#%s)", targetEntityName, remainingDays, reportNumber)
-	title := fmt.Sprintf("Peringatan Batas Waktu: Produk Dihapus dalam %d Hari", remainingDays)
-	subtitle := fmt.Sprintf("Masa Retensi Produk Pelanggaran Berkas #%s Segera Berakhir", reportNumber)
+	title := fmt.Sprintf("Peringatan Batas Waktu: Item Dihapus dalam %d Hari", remainingDays)
+	subtitle := fmt.Sprintf("Masa Retensi Item Pelanggaran Berkas #%s Segera Berakhir", reportNumber)
 
 	helpURL := fmt.Sprintf("/%s/admin/help", storeSlug)
 	if storeSlug == "" {
@@ -775,20 +839,20 @@ func BuildItemRetentionReminderEmail(storeTitle, targetEntityName, reportNumber,
 	}
 
 	mainContent := fmt.Sprintf(`
-	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
-	<p style="margin: 0 0 16px 0;">Kami mengingatkan kembali bahwa produk <strong>%s</strong> yang dinonaktifkan oleh Tim Kepatuhan Catavor akan <strong>dihapus secara otomatis oleh sistem dalam waktu %d hari ke depan</strong>.</p>
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Kami mengingatkan kembali bahwa item <strong>%s</strong> yang dinonaktifkan oleh Tim Kepatuhan Catavor akan <strong>dihapus secara otomatis oleh sistem dalam waktu %d hari ke depan</strong>.</p>
 
 	<!-- Reminder Box -->
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 8px; border: 1px solid #fde047; margin-bottom: 18px;">
 		<tr>
 			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #854d0e;">
 				<strong style="color: #713f12; display: block; margin-bottom: 4px;">⚠️ Perhatian:</strong>
-				Jika produk ini masih memerlukan peninjauan kembali atau Anda telah melengkapi berkas legalitas, mohon segera ajukan klarifikasi melalui formulir Tiket Bantuan sebelum batas waktu retensi berakhir.
+				Jika item ini masih memerlukan peninjauan kembali atau Anda telah melengkapi berkas legalitas, mohon segera ajukan klarifikasi melalui formulir Tiket Bantuan sebelum batas waktu retensi berakhir.
 			</td>
 		</tr>
 	</table>
 
-	<p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b;">Apabila Anda memang tidak berniat memperdagangkan produk ini lagi, Anda dapat mengabaikan email ini dan sistem akan membersihkan item dari katalog Anda secara tertib.</p>
+	<p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b;">Apabila Anda memang tidak berniat menampilkan item ini lagi, Anda dapat mengabaikan email ini dan sistem akan membersihkan item dari katalog Anda secara tertib.</p>
 	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), remainingDays)
 
 	bodyHTML = wrapEmailLayout("PENGINGAT BATAS WAKTU", "#d97706", title, subtitle, mainContent, "Buka Pusat Bantuan CS →", helpURL)
@@ -797,9 +861,9 @@ func BuildItemRetentionReminderEmail(storeTitle, targetEntityName, reportNumber,
 
 // BuildItemRetentionSoftDeletedEmail notifies merchant that the item has been auto-purged from inventory.
 func BuildItemRetentionSoftDeletedEmail(storeTitle, targetEntityName, reportNumber, storeSlug string) (subject string, bodyHTML string) {
-	subject = fmt.Sprintf("[Catavor Sistem] Produk '%s' Telah Otomatis Dipindahkan dari Katalog (#%s)", targetEntityName, reportNumber)
-	title := "Produk Otomatis Dipindahkan dari Katalog"
-	subtitle := fmt.Sprintf("Penyelesaian Masa Retensi Produk Kepatuhan Berkas #%s", reportNumber)
+	subject = fmt.Sprintf("[Catavor Sistem] Item '%s' Telah Otomatis Dibersihkan dari Katalog (#%s)", targetEntityName, reportNumber)
+	title := "Item Otomatis Dibersihkan dari Katalog"
+	subtitle := fmt.Sprintf("Penyelesaian Masa Retensi Item Kepatuhan Berkas #%s", reportNumber)
 
 	itemsURL := fmt.Sprintf("/%s/admin/items", storeSlug)
 	if storeSlug == "" {
@@ -807,21 +871,21 @@ func BuildItemRetentionSoftDeletedEmail(storeTitle, targetEntityName, reportNumb
 	}
 
 	mainContent := fmt.Sprintf(`
-	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
-	<p style="margin: 0 0 16px 0;">Produk <strong>%s</strong> telah resmi <strong>dihapus dari inventaris katalog digital Anda</strong> oleh sistem otomatisasi Catavor karena telah melewati masa retensi 30 hari tanpa klarifikasi.</p>
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Item <strong>%s</strong> telah resmi <strong>dibersihkan dari inventaris katalog digital Anda</strong> oleh sistem otomatisasi Catavor karena telah melewati masa retensi 30 hari tanpa klarifikasi.</p>
 
 	<!-- Auto-Deleted Notice Box -->
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #64748b; margin-bottom: 18px;">
 		<tr>
 			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #334155;">
 				<strong style="color: #1e293b; display: block; margin-bottom: 4px;">Informasi Pengelolaan:</strong>
-				Item tersebut kini telah dibersihkan dari daftar inventaris aktif Anda sehingga kuota produk katalog Anda tetap optimal. Berkas nomor <strong>#%s</strong> telah ditutup secara permanen.
+				Item tersebut kini telah dibersihkan dari daftar inventaris aktif Anda sehingga kuota item katalog Anda tetap optimal. Berkas nomor <strong>#%s</strong> telah ditutup secara permanen.
 			</td>
 		</tr>
 	</table>
 	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), html.EscapeString(reportNumber))
 
-	bodyHTML = wrapEmailLayout("PEMBERSIHAN SISTEM", "#475569", title, subtitle, mainContent, "Lihat Inventaris Toko →", itemsURL)
+	bodyHTML = wrapEmailLayout("PEMBERSIHAN SISTEM", "#475569", title, subtitle, mainContent, "Lihat Inventaris Katalog →", itemsURL)
 	return
 }
 
@@ -872,7 +936,7 @@ func BuildPasswordChangedSecurityEmail(userName, userEmail, deviceName, ipAddres
 		</tr>
 	</table>
 
-	<p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b;">Seluruh sesi login lama pada perangkat lain telah otomatis dicabut demi menjaga keamanan data katalog dan transaksi toko Anda.</p>
+	<p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b;">Seluruh sesi login lama pada perangkat lain telah otomatis dicabut demi menjaga keamanan data katalog dan transaksi katalog Anda.</p>
 	`, html.EscapeString(userName), html.EscapeString(userEmail), timeStr, html.EscapeString(deviceName), html.EscapeString(ipAddress))
 
 	bodyHTML = wrapEmailLayout("KEAMANAN KREDENSIAL", "#dc2626", title, subtitle, mainContent, "Amankan Akun Saya →", secureAccountURL)
@@ -918,7 +982,7 @@ func BuildNewDeviceLoginSecurityEmail(userName, userEmail, deviceName, ipAddress
 			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #1e40af;">
 				<strong style="display: block; margin-bottom: 4px; font-size: 13px;">Apakah ini Anda?</strong>
 				Jika aktivitas ini dilakukan oleh Anda, Anda dapat mengabaikan email ini dengan tenang.<br>
-				Jika Anda <strong>tidak merasa melakukan login ini</strong>, segera periksa pengaturan akun Anda dan ganti kata sandi demi keamanan toko Anda.
+				Jika Anda <strong>tidak merasa melakukan login ini</strong>, segera periksa pengaturan akun Anda dan ganti kata sandi demi keamanan katalog Anda.
 			</td>
 		</tr>
 	</table>

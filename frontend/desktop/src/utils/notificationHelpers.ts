@@ -68,6 +68,8 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
     category === 'KEAMANAN' ||
     category === 'PEMULIHAN' ||
     category === 'KEPATUHAN' ||
+    category === 'PERBAIKAN' ||
+    category === 'PERINGATAN' ||
     actionUrl.includes('report=') ||
     titleLower.includes('penonaktifan') ||
     titleLower.includes('penangguhan') ||
@@ -83,7 +85,7 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
   if (!isSecurityOrMod) return fallback;
 
   let reportNumber = '';
-  let targetType = 'item';
+  let parsedTargetType = '';
   let targetName = '';
   let reason = '';
   let notes = '';
@@ -93,7 +95,7 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
       const dummyBase = 'http://localhost';
       const parsedUrl = new URL(actionUrl.startsWith('http') ? actionUrl : `${dummyBase}/${actionUrl.replace(/^\//, '')}`);
       reportNumber = parsedUrl.searchParams.get('report') || '';
-      targetType = parsedUrl.searchParams.get('target_type') || 'item';
+      parsedTargetType = parsedUrl.searchParams.get('target_type') || '';
       targetName = parsedUrl.searchParams.get('target_name') || '';
       reason = parsedUrl.searchParams.get('reason') || '';
       notes = parsedUrl.searchParams.get('notes') || '';
@@ -133,29 +135,144 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
     if (nameMatch) targetName = nameMatch[1].trim();
   }
 
-  const isRestored =
+  const isBannedCase =
+    category === 'BAHAYA' ||
+    category === 'DANGER' ||
+    titleLower.includes('banned') ||
+    titleLower.includes('blokir') ||
+    titleLower.includes('pemblokiran') ||
+    titleLower.includes('penghapusan') ||
+    titleLower.includes('permanen') ||
+    titleLower.includes('dihapus') ||
+    msgLower.includes('diblokir secara permanen') ||
+    msgLower.includes('dihapus secara permanen') ||
+    msgLower.includes('dinonaktifkan secara permanen') ||
+    msgLower.includes('telah diblokir') ||
+    msgLower.includes('telah dihapus') ||
+    (Boolean(actionUrl) && (actionUrl.includes('action=item_banned') || actionUrl.includes('action=catalog_banned') || actionUrl.includes('action=account_banned')));
+
+  const isRestored = !isBannedCase && (
     category === 'PEMULIHAN' ||
+    category.includes('PULIH') ||
     titleLower.includes('dipulihkan') ||
     titleLower.includes('pemulihan') ||
-    msgLower.includes('dipulihkan') ||
+    titleLower.includes('pulih') ||
+    titleLower.includes('aktif kembali') ||
+    titleLower.includes('restored') ||
+    msgLower.includes('berhasil dipulihkan') ||
+    msgLower.includes('resmi dicabut') ||
     msgLower.includes('telah dicabut') ||
-    msgLower.includes('aktif kembali');
+    msgLower.includes('telah diaktifkan kembali')
+  );
 
-  const isStoreRestored = isRestored && (titleLower.includes('toko') || titleLower.includes('katalog') || combined.includes('toko Anda'));
+  const hasStoreClues =
+    parsedTargetType === 'store' ||
+    parsedTargetType === 'catalog' ||
+    actionUrl.includes('target_type=catalog') ||
+    actionUrl.includes('target_type=store') ||
+    titleLower.includes('profil katalog') ||
+    titleLower.includes('operasional profil') ||
+    titleLower.includes('akun &') ||
+    titleLower.includes('akun dan') ||
+    titleLower.includes('akun pemilik') ||
+    detail.toLowerCase().includes('status penonaktifan akun') ||
+    detail.toLowerCase().includes('status pembekuan operasional');
 
-  let actionTaken = 'Penonaktifan Sementara Publikasi Item';
-  if (isRestored) {
-    actionTaken = 'Pemulihan Status Operasional Normal';
-  } else if (titleLower.includes('pembekuan') || titleLower.includes('suspend') || combined.includes('toko Anda dibekukan')) {
-    actionTaken = 'Penangguhan Operasional Katalog Toko';
+  const hasItemClues =
+    parsedTargetType === 'item' ||
+    actionUrl.includes('target_type=item') ||
+    titleLower.includes('item') ||
+    titleLower.includes('produk') ||
+    msgLower.includes('item katalog') ||
+    msgLower.includes('produk "') ||
+    msgLower.includes('item "') ||
+    detail.toLowerCase().includes('entitas item') ||
+    detail.toLowerCase().includes('item katalog **') ||
+    detail.toLowerCase().includes('item terkait');
+
+  const isExplicitStore = (hasStoreClues && !hasItemClues) || (hasStoreClues && (titleLower.includes('akun &') || titleLower.includes('akun dan') || titleLower.includes('profil katalog')));
+  const isExplicitItem = !isExplicitStore;
+  let targetType = isExplicitStore ? 'store' : 'item';
+
+  const isStoreRestored = isRestored && isExplicitStore;
+
+  const isNeedsFixCase = titleLower.includes('perlu perbaikan') || msgLower.includes('perlu penyesuaian') || titleLower.includes('koreksi');
+  const isLockedCase = titleLower.includes('penguncian') || titleLower.includes('terkunci') || titleLower.includes('kebijakan keras');
+  const isSuspendedCase = titleLower.includes('penangguhan') || msgLower.includes('penangguhan') || titleLower.includes('suspend') || titleLower.includes('dibekukan');
+  const isWarningCase = titleLower.includes('peringatan') || msgLower.includes('peringatan');
+
+  let actionTaken = 'item_hidden';
+  let statusBadge = 'ITEM DINONAKTIFKAN';
+  let statusHeadline = 'Penonaktifan Sementara Item Katalog';
+  let statusColor = '#f43f5e';
+  let isAppealEligible = true;
+
+  if (isBannedCase) {
+    if (isExplicitStore) {
+      actionTaken = 'account_banned';
+      targetType = 'store';
+      statusBadge = 'AKUN & SELURUH ITEM KATALOG DITANGGUHKAN PERMANEN';
+      statusHeadline = 'Penonaktifan Permanen Akun & Seluruh Item Katalog';
+      statusColor = '#dc2626';
+      isAppealEligible = false;
+    } else {
+      actionTaken = 'item_banned';
+      targetType = 'item';
+      statusBadge = 'ITEM DIBLOKIR & DIHAPUS PERMANEN';
+      statusHeadline = 'Pemblokiran & Penghapusan Permanen Item Katalog';
+      statusColor = '#dc2626';
+      isAppealEligible = false;
+    }
+  } else if (isRestored) {
+    if (isExplicitStore) {
+      actionTaken = 'catalog_restored';
+      targetType = 'store';
+      statusBadge = 'KATALOG AKTIF & PULIH';
+      statusHeadline = 'Pemulihan Operasional Profil Katalog Berhasil';
+    } else {
+      actionTaken = 'item_restored';
+      targetType = 'item';
+      statusBadge = 'ITEM AKTIF KEMBALI';
+      statusHeadline = 'Pemulihan Visibilitas Item Katalog';
+    }
+    statusColor = '#10b981';
+    isAppealEligible = false;
+  } else if (isNeedsFixCase) {
+    actionTaken = 'item_needs_fix';
+    targetType = 'item';
+    statusBadge = 'PERLU PERBAIKAN ITEM';
+    statusHeadline = 'Penyesuaian & Perbaikan Informasi Item';
+    statusColor = '#f59e0b';
+    isAppealEligible = false;
+  } else if (isLockedCase) {
+    actionTaken = 'item_locked';
+    targetType = 'item';
+    statusBadge = 'ITEM TERKUNCI (PELANGGARAN KERAS)';
+    statusHeadline = 'Penonaktifan & Penguncian Item Katalog';
+    statusColor = '#ef4444';
+    isAppealEligible = true;
+  } else if (isSuspendedCase) {
+    actionTaken = 'catalog_suspended';
+    targetType = 'store';
+    statusBadge = 'KATALOG DIBEKUKAN SEMENTARA';
+    statusHeadline = 'Penangguhan Operasional Profil Katalog';
+    statusColor = '#ef4444';
+    isAppealEligible = true;
+  } else if (isWarningCase) {
+    actionTaken = 'warning_issued';
+    if (isExplicitItem) {
+      targetType = 'item';
+      statusBadge = 'PERINGATAN ITEM KATALOG';
+      statusHeadline = 'Peringatan Resmi Kepatuhan Konten Item';
+    } else {
+      targetType = 'store';
+      statusBadge = 'PERINGATAN PROFIL KATALOG';
+      statusHeadline = 'Peringatan Resmi Kepatuhan Profil Katalog';
+    }
+    statusColor = '#f59e0b';
+    isAppealEligible = false;
   }
 
-  const isAppealEligible = !isRestored;
-  const statusBadge = isRestored ? 'Telah Dipulihkan' : 'Tindakan Disipliner';
-  const statusHeadline = isRestored
-    ? 'Status Operasional Toko & Produk Telah Dipulihkan'
-    : 'Penonaktifan Sementara / Pembatasan Visibilitas';
-  const statusColor = isRestored ? '#10b981' : '#f43f5e';
   const issuedDateStr = notif.timestamp || notif.time || 'Baru saja';
 
   return {

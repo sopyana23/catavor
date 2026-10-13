@@ -5356,11 +5356,37 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   { value: 'dismissed', label: 'Ditolak (Dismiss)', color: '#64748b', desc: 'Laporan tidak valid atau palsu' }
                 ].map(opt => {
                   const isSelected = moderationStatus === opt.value;
+                  const isItem = moderationModalReport?.target_type === 'item';
                   return (
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => setModerationStatus(opt.value)}
+                      onClick={() => {
+                        setModerationStatus(opt.value);
+                        if (opt.value === 'banned') {
+                          if (isItem) {
+                            setModerationAction('item_banned');
+                          } else {
+                            setModerationAction('catalog_banned');
+                          }
+                        } else if (opt.value === 'action_taken') {
+                          if (isItem && (moderationAction === 'none' || moderationAction === 'item_banned' || moderationAction === 'item_restored')) {
+                            setModerationAction('item_locked');
+                          } else if (!isItem && (moderationAction === 'none' || moderationAction === 'catalog_banned' || moderationAction === 'catalog_reactivated')) {
+                            setModerationAction('catalog_suspended');
+                          }
+                        } else if (opt.value === 'resolved') {
+                          if (isItem && (moderationAction === 'item_locked' || moderationAction === 'item_needs_fix' || moderationAction === 'item_banned')) {
+                            setModerationAction('item_restored');
+                          } else if (!isItem && (moderationAction === 'catalog_suspended' || moderationAction === 'catalog_banned')) {
+                            setModerationAction('catalog_reactivated');
+                          }
+                        } else if (opt.value === 'dismissed' || opt.value === 'investigating') {
+                          if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned') {
+                            setModerationAction('none');
+                          }
+                        }
+                      }}
                       style={{
                         padding: '0.85rem',
                         borderRadius: '0.75rem',
@@ -5419,33 +5445,43 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     case 'warning_issued':
                       return {
                         label: 'Terbitkan Peringatan Resmi',
-                        desc: 'Notifikasi peringatan kepatuhan dikirim ke pemilik toko',
+                        desc: 'Notifikasi peringatan kepatuhan dikirim ke pengelola katalog',
                         icon: AlertTriangle,
                         color: '#f59e0b',
                         badge: 'PERINGATAN',
                         badgeColor: '#f59e0b',
-                        info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pemilik toko. Status toko dan produk tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
+                        info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pengelola katalog. Status profil katalog dan item tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
                       };
                     case 'item_needs_fix':
                       return {
                         label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
-                        desc: 'Disembunyikan, merchant diizinkan edit data untuk diajukan ulang',
+                        desc: 'Disembunyikan, pengelola diizinkan edit data untuk diajukan ulang',
                         icon: AlertTriangle,
                         color: '#f59e0b',
                         badge: 'PERLU EDIT',
                         badgeColor: '#f59e0b',
-                        info: 'Item disembunyikan dari etalase publik (IsActive=False, ModerationStatus=needs_fix). Merchant diberikan hak mengoreksi atribut produk (foto, deskripsi, harga, izin) dan dapat mengajukan peninjauan ulang secara tertib.'
+                        info: 'Item disembunyikan dari etalase publik (IsActive=False, ModerationStatus=needs_fix). Pengelola diberikan hak mengoreksi atribut item (foto, deskripsi, harga, spesifikasi) dan dapat mengajukan peninjauan ulang secara tertib.'
                       };
                     case 'item_locked':
                     case 'item_hidden':
                       return {
                         label: 'Nonaktifkan & Kunci: Pelanggaran Keras',
-                        desc: 'Disembunyikan & kunci edit (read-only), hanya banding atau hapus',
+                        desc: 'Disembunyikan & kunci edit (read-only), hanya klarifikasi banding atau hapus',
                         icon: XCircle,
                         color: '#ef4444',
                         badge: 'TERKUNCI',
                         badgeColor: '#ef4444',
-                        info: 'Item dinonaktifkan dan dikunci permanen (ModerationStatus=locked) karena terindikasi komoditas terlarang/berbahaya. Merchant dilarang mengedit produk untuk mencegah peredaran komoditas terlarang. Hanya tersedia hak banding resmi atau hapus item.'
+                        info: 'Item dinonaktifkan dan dikunci permanen (ModerationStatus=locked) karena terindikasi komoditas terlarang/berbahaya. Pengelola dilarang mengedit item untuk mencegah peredaran materi terlarang. Hanya tersedia hak banding resmi atau hapus item.'
+                      };
+                    case 'item_banned':
+                      return {
+                        label: 'Blokir & Hapus Item (Banned Permanen)',
+                        desc: 'Hapus permanen dari inventaris katalog & pulihkan kuota pengelola seketika',
+                        icon: ShieldAlert,
+                        color: '#ef4444',
+                        badge: 'BANNED ITEM',
+                        badgeColor: '#ef4444',
+                        info: 'Item diblokir dan dihapus seketika dari inventaris profil katalog. Beban kuota item dan storage katalog langsung dipulihkan (0 byte terhitung). Dokumen & berkas digital diarsipkan 90 hari di vault forensik kepatuhan (PP 71/2019) dan tidak dapat diajukan banding.'
                       };
                     case 'item_restored':
                       return {
@@ -5455,37 +5491,37 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         color: '#10b981',
                         badge: 'AKTIF',
                         badgeColor: '#10b981',
-                        info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta dibeli secara publik seperti biasa.'
+                        info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta ditampilkan secara publik seperti biasa.'
                       };
                     case 'catalog_suspended':
                       return {
-                        label: 'Bekukan / Suspend Toko',
-                        desc: 'Seluruh etalase toko dibekukan dari akses publik',
+                        label: 'Bekukan / Suspend Profil Katalog',
+                        desc: 'Seluruh etalase profil katalog dibekukan dari akses publik',
                         icon: Lock,
                         color: '#dc2626',
                         badge: 'SUSPEND',
                         badgeColor: '#dc2626',
-                        info: 'Seketika mengubah status dormansi toko menjadi Suspended. Seluruh etalase toko dan produknya dinonaktifkan sementara dari akses publik secara real-time.'
+                        info: 'Seketika mengubah status dormansi profil katalog menjadi Suspended. Seluruh etalase katalog dan itemnya dinonaktifkan sementara dari akses publik secara real-time.'
                       };
                     case 'catalog_banned':
                       return {
-                        label: 'Blokir / Banned Permanen Toko',
-                        desc: 'Tutup akses publik katalog dan akun pemilik secara permanen',
+                        label: 'Blokir / Banned Permanen Profil Katalog',
+                        desc: 'Tutup akses publik profil katalog dan akun pemilik secara permanen',
                         icon: ShieldAlert,
                         color: '#b91c1c',
                         badge: 'BANNED',
                         badgeColor: '#b91c1c',
-                        info: 'Seketika mengubah status dormansi toko menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
+                        info: 'Seketika mengubah status dormansi profil katalog menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
                       };
                     case 'catalog_reactivated':
                       return {
-                        label: 'Pulihkan / Aktifkan Toko',
-                        desc: 'Cabut sanksi penangguhan dan buka katalog toko',
+                        label: 'Pulihkan / Aktifkan Profil Katalog',
+                        desc: 'Cabut sanksi penangguhan dan buka etalase profil katalog',
                         icon: Store,
                         color: '#10b981',
                         badge: 'PULIHKAN',
                         badgeColor: '#10b981',
-                        info: 'Seketika memulihkan status dormansi toko menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase katalog toko ke publik.'
+                        info: 'Seketika memulihkan status dormansi profil katalog menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase profil katalog ke publik.'
                       };
                     case 'none':
                     default:
@@ -5496,7 +5532,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         color: theme.textSecondary,
                         badge: 'CATATAN',
                         badgeColor: '#64748b',
-                        info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik toko atau produk.'
+                        info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik profil katalog atau item.'
                       };
                   }
                 };
@@ -5519,52 +5555,58 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           {
                             value: 'none',
                             label: 'Tanpa Sanksi Otomatis',
-                            desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis pada toko maupun produk',
-                            info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik toko atau produk.'
+                            desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis pada profil katalog maupun item',
+                            info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik profil katalog atau item.'
                           },
                           {
                             value: 'warning_issued',
                             label: 'Terbitkan Peringatan Resmi',
-                            desc: 'Kirim surat notifikasi peringatan resmi kepatuhan ke pemilik toko',
-                            info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pemilik toko. Status toko dan produk tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
+                            desc: 'Kirim surat notifikasi peringatan resmi kepatuhan ke pengelola katalog',
+                            info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pengelola katalog. Status profil katalog dan item tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
                           },
                           ...(isItem ? [
                             {
                               value: 'item_needs_fix',
                               label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
-                              desc: 'Sembunyikan dari publik namun merchant diizinkan mengedit foto/deskripsi/spesifikasi untuk diajukan ulang',
-                              info: 'Item disembunyikan dari etalase publik (IsActive=False, ModerationStatus=needs_fix). Merchant diberikan hak mengoreksi atribut produk (foto, deskripsi, harga, izin) dan dapat mengajukan peninjauan ulang secara tertib.'
+                              desc: 'Sembunyikan dari publik namun pengelola diizinkan mengedit foto/deskripsi/spesifikasi untuk diajukan ulang',
+                              info: 'Item disembunyikan dari etalase publik (IsActive=False, ModerationStatus=needs_fix). Pengelola diberikan hak mengoreksi atribut item (foto, deskripsi, harga, spesifikasi) dan dapat mengajukan peninjauan ulang secara tertib.'
                             },
                             {
                               value: 'item_locked',
                               label: 'Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras',
-                              desc: 'Sembunyikan dari publik dan kunci fitur edit (read-only) karena indikasi komoditas terlarang/fatal. Hanya banding atau hapus',
-                              info: 'Item dinonaktifkan dan dikunci permanen (ModerationStatus=locked) karena terindikasi komoditas terlarang/berbahaya. Merchant dilarang mengedit produk untuk mencegah peredaran komoditas terlarang. Hanya tersedia hak banding resmi atau hapus item.'
+                              desc: 'Sembunyikan dari publik dan kunci fitur edit (read-only) karena indikasi pelanggaran kebijakan keras/fatal. Hanya banding atau hapus',
+                              info: 'Item dinonaktifkan dan dikunci permanen (ModerationStatus=locked) karena terindikasi komoditas terlarang/berbahaya. Pengelola dilarang mengedit item untuk mencegah peredaran materi terlarang. Hanya tersedia hak banding resmi atau hapus item.'
+                            },
+                            {
+                              value: 'item_banned',
+                              label: 'Blokir atau Hapus Item (Banned Permanen)',
+                              desc: 'Hapus permanen dari inventaris katalog & pulihkan kuota pengelola seketika. Bukti forensik disimpan 90 hari tanpa hak banding',
+                              info: 'Item diblokir dan dihapus seketika dari inventaris profil katalog. Beban kuota item dan storage katalog langsung dipulihkan (0 byte terhitung). Dokumen & berkas digital diarsipkan 90 hari di vault forensik kepatuhan (PP 71/2019) dan tidak dapat diajukan banding.'
                             },
                             {
                               value: 'item_restored',
                               label: 'Pulihkan / Aktifkan Item',
-                              desc: 'Memulihkan item agar dapat kembali dilihat dan dibeli publik secara normal',
-                              info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta dibeli secara publik seperti biasa.'
+                              desc: 'Memulihkan item agar dapat kembali dilihat dan diakses publik secara normal',
+                              info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta ditampilkan secara publik seperti biasa.'
                             }
                           ] : []),
                           {
                             value: 'catalog_suspended',
-                            label: 'Bekukan / Suspend Toko',
-                            desc: 'Seluruh etalase toko dan produk dibekukan sementara dari akses publik secara real-time',
-                            info: 'Seketika mengubah status dormansi toko menjadi Suspended. Seluruh etalase toko dan produknya dinonaktifkan sementara dari akses publik secara real-time.'
+                            label: 'Bekukan / Suspend Profil Katalog',
+                            desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time',
+                            info: 'Seketika mengubah status dormansi profil katalog menjadi Suspended. Seluruh etalase katalog dan itemnya dinonaktifkan sementara dari akses publik secara real-time.'
                           },
                           {
                             value: 'catalog_banned',
-                            label: 'Blokir / Banned Permanen Toko',
-                            desc: 'Nonaktifkan akses publik katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding',
-                            info: 'Seketika mengubah status dormansi toko menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
+                            label: 'Blokir / Banned Permanen Profil Katalog',
+                            desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding',
+                            info: 'Seketika mengubah status dormansi profil katalog menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
                           },
                           {
                             value: 'catalog_reactivated',
-                            label: 'Pulihkan / Aktifkan Toko',
-                            desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase katalog toko',
-                            info: 'Seketika memulihkan status dormansi toko menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase katalog toko ke publik.'
+                            label: 'Pulihkan / Aktifkan Profil Katalog',
+                            desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog',
+                            info: 'Seketika memulihkan status dormansi profil katalog menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase profil katalog ke publik.'
                           }
                         ];
 
@@ -5574,7 +5616,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           icon: ShieldAlert,
                           selectedValue: moderationAction,
                           options: actionOptions,
-                          onSelect: (val) => setModerationAction(val)
+                          onSelect: (val) => {
+                            setModerationAction(val);
+                            if (val === 'item_banned' || val === 'catalog_banned') {
+                              setModerationStatus('banned');
+                            } else if (val === 'item_locked' || val === 'item_needs_fix' || val === 'catalog_suspended' || val === 'warning_issued') {
+                              if (moderationStatus !== 'banned') {
+                                setModerationStatus('action_taken');
+                              }
+                            } else if (val === 'item_restored' || val === 'catalog_reactivated') {
+                              setModerationStatus('resolved');
+                            }
+                          }
                         });
                       }}
                       style={{
@@ -5735,7 +5788,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 type="button"
                 disabled={isSubmittingModeration}
                 onClick={() => {
-                  if (moderationAction === 'catalog_banned' || moderationAction === 'account_banned' || moderationStatus === 'banned') {
+                  if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned' || moderationAction === 'account_banned' || moderationStatus === 'banned') {
                     setBannedConfirmModalReport(moderationModalReport);
                     setBannedConfirmAcknowledged(false);
                     setShowModerationConfirmModal(true);
@@ -5993,7 +6046,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                 const hasAction = r.action_taken && r.action_taken !== 'none';
                 const isRestored = hasAction && (r.action_taken.includes('restored') || r.action_taken.includes('reactivated'));
-                const actionLabel = r.action_taken === 'item_needs_fix'
+                const actionLabel = r.action_taken === 'item_banned'
+                  ? 'Item Dibanned Permanen'
+                  : r.action_taken === 'item_needs_fix'
                   ? 'Perlu Perbaikan'
                   : (r.action_taken === 'item_locked' || r.action_taken === 'item_hidden')
                   ? 'Item Dikunci'
@@ -6007,7 +6062,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   ? 'Item Dipulihkan'
                   : (r.action_taken || '');
 
-                const isItemBanned = r.status === 'banned' || r.action_taken === 'catalog_banned';
+                const isItemBanned = r.status === 'banned' || r.action_taken === 'catalog_banned' || r.action_taken === 'item_banned';
 
                 return (
                   <div
@@ -15801,14 +15856,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 }}>
                   <ShieldAlert size={22} />
                 </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
-                    Konfirmasi Banned Permanen
-                  </h3>
-                  <p style={{ margin: '0.15rem 0 0', fontSize: '0.75rem', color: '#ef4444', fontWeight: 700 }}>
-                    Tindakan Berdampak Permanen &amp; Tidak Dapat Dibatal Kembali
-                  </p>
-                </div>
+              {(() => {
+                const isItemConfirm = (bannedConfirmModalReport?.target_type === 'item') || (moderationModalReport?.target_type === 'item') || (moderationAction === 'item_banned');
+                return (
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
+                      {isItemConfirm ? 'Konfirmasi Banned Item Permanen' : 'Konfirmasi Banned Katalog Permanen'}
+                    </h3>
+                    <p style={{ margin: '0.15rem 0 0', fontSize: '0.75rem', color: '#ef4444', fontWeight: 700 }}>
+                      {isItemConfirm ? 'Item Dihapus Seketika & Bukti Forensik Disimpan 90 Hari (Tanpa Banding)' : 'Tindakan Berdampak Permanen & Tidak Dapat Dibatalkan Kembali'}
+                    </p>
+                  </div>
+                );
+              })()}
               </div>
               <button
                 type="button"
@@ -15831,97 +15891,135 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
 
             {/* Modal Content Body */}
-            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-              {/* Target Metadata Card */}
-              <div style={{
-                padding: '0.9rem 1.1rem',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(254, 242, 242, 0.65)',
-                border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.22)'}`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.55rem'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.72rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Profil Katalog Terlapor</span>
-                  <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', fontWeight: 800, fontFamily: 'monospace' }}>
-                    #{bannedConfirmModalReport?.report_number || moderationModalReport?.report_number || '-'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem' }}>
+            {(() => {
+              const isItemConfirm = (bannedConfirmModalReport?.target_type === 'item') || (moderationModalReport?.target_type === 'item') || (moderationAction === 'item_banned');
+              const itemName = bannedConfirmModalReport?.item_name || bannedConfirmModalReport?.target_title || moderationModalReport?.item_name || moderationModalReport?.target_title;
+              const storeTitle = bannedConfirmModalReport?.store_title || moderationModalReport?.store_title || 'Toko Katalog';
+              const storeSlug = bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug;
+
+              return (
+                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                  {/* Target Metadata Card */}
                   <div style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    padding: '0.9rem 1.1rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(254, 242, 242, 0.65)',
+                    border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.22)'}`,
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#ef4444',
-                    flexShrink: 0,
-                    marginTop: '2px'
+                    flexDirection: 'column',
+                    gap: '0.55rem'
                   }}>
-                    <Store size={18} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                    <div style={{ fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'break-word', letterSpacing: '-0.01em' }}>
-                      {bannedConfirmModalReport?.store_title || moderationModalReport?.store_title || 'Toko Katalog'}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.72rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {isItemConfirm ? 'Profil Item Terlapor' : 'Profil Katalog Terlapor'}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', fontWeight: 800, fontFamily: 'monospace' }}>
+                        #{bannedConfirmModalReport?.report_number || moderationModalReport?.report_number || '-'}
+                      </span>
                     </div>
-                    {(bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug) && (
-                      <div style={{ fontSize: '0.76rem', color: theme.textSecondary, fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.3 }}>
-                        catavor.com/{bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem' }}>
+                      <div style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ef4444',
+                        flexShrink: 0,
+                        marginTop: '2px'
+                      }}>
+                        {isItemConfirm ? <Package size={18} /> : <Store size={18} />}
                       </div>
-                    )}
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <div style={{ fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'break-word', letterSpacing: '-0.01em' }}>
+                          {isItemConfirm ? (itemName || ('Item ID: ' + (bannedConfirmModalReport?.target_id || moderationModalReport?.target_id || '-'))) : storeTitle}
+                        </div>
+                        {isItemConfirm ? (
+                          <div style={{ fontSize: '0.76rem', color: theme.textSecondary, lineHeight: 1.3 }}>
+                            Dari Toko: <strong>{storeTitle}</strong> {storeSlug && <span style={{ fontFamily: 'monospace' }}>({storeSlug})</span>}
+                          </div>
+                        ) : storeSlug && (
+                          <div style={{ fontSize: '0.76rem', color: theme.textSecondary, fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.3 }}>
+                            catavor.com/{storeSlug}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Warning List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Dampak langsung dari eksekusi sanksi banned ini:
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                    <Trash2 size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
-                    <span><strong>Purge Data Profil &amp; Produk:</strong> Seluruh data produk, etalase, galeri foto, dan media fisik katalog akan dihapus/dibersihkan dari platform.</span>
+                  {/* Warning List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
+                      Dampak langsung dari eksekusi sanksi banned ini:
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                      {isItemConfirm ? (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                            <Trash2 size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                            <span><strong>Soft-Delete &amp; Lenyap dari Inventaris Toko:</strong> Item langsung dinonaktifkan dan dihapus dari etalase publik serta dashboard inventaris merchant (tidak akan tampil di tab Semua, Aktif, maupun Diarsipkan).</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                            <CheckCircle2 size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                            <span><strong>Pemulihan Kuota &amp; Storage Seketika:</strong> Kuota item toko langsung kembali tersedia dan beban kapasitas storage dibebaskan (0 byte terhitung untuk merchant) sehingga toko tidak dirugikan kuotanya.</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                            <Database size={15} style={{ color: '#38bdf8', flexShrink: 0, marginTop: '2px' }} />
+                            <span><strong>Vault Forensik Kepatuhan 90 Hari (UU ITE &amp; PP 71/2019):</strong> Berkas bukti digital dan media fisik item diamankan di brankas forensik selama 90 hari sebelum pemusnahan permanen (hard-purge).</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                            <Lock size={15} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
+                            <span><strong>Keputusan Final Tanpa Banding:</strong> Pemilik toko menerima notifikasi penetapan sanksi fatal tanpa hak pengajuan banding (<em>No Right to Appeal</em>).</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                            <Trash2 size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                            <span><strong>Purge Data Profil &amp; Produk:</strong> Seluruh data produk, etalase, galeri foto, dan media fisik katalog akan dihapus/dibersihkan dari platform.</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                            <Lock size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                            <span><strong>Penguncian Slug Permanen:</strong> Slug <code>{storeSlug}</code> didaftarkan ke tabel <em>blacklisted_slugs</em> dan tidak dapat didaftarkan ulang.</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                            <Globe size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                            <span><strong>Respons 404 Server Publik:</strong> Pengunjung yang membuka alamat URL ini akan menerima tampilan Error 404 Default Platform.</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                    <Lock size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
-                    <span><strong>Penguncian Slug Permanen:</strong> Slug <code>{bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug}</code> didaftarkan ke tabel <em>blacklisted_slugs</em> dan tidak dapat didaftarkan ulang.</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                    <Globe size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
-                    <span><strong>Respons 404 Server Publik:</strong> Pengunjung yang membuka alamat URL ini akan menerima tampilan Error 404 Default Platform.</span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Acknowledgment Checkbox */}
-              <label 
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.65rem',
-                  padding: '0.75rem 0.95rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(254, 242, 242, 0.8)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  cursor: 'pointer',
-                  userSelect: 'none'
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={bannedConfirmAcknowledged}
-                  onChange={(e) => setBannedConfirmAcknowledged(e.target.checked)}
-                  style={{ marginTop: '3px', accentColor: '#ef4444', cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, lineHeight: 1.45 }}>
-                  Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen ini.
-                </span>
-              </label>
+                  {/* Acknowledgment Checkbox */}
+                  <label 
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.65rem',
+                      padding: '0.75rem 0.95rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(254, 242, 242, 0.8)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      cursor: 'pointer',
+                      userSelect: 'none'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={bannedConfirmAcknowledged}
+                      onChange={(e) => setBannedConfirmAcknowledged(e.target.checked)}
+                      style={{ marginTop: '3px', accentColor: '#ef4444', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, lineHeight: 1.45 }}>
+                      {isItemConfirm 
+                        ? 'Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen pada item ini.'
+                        : 'Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen katalog ini.'}
+                    </span>
+                  </label>
 
               {/* Modal Buttons */}
               <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.35rem' }}>
@@ -15979,10 +16077,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   ) : (
                     <ShieldAlert size={15} />
                   )}
-                  <span>Ya, Banned</span>
+                  <span>{isItemConfirm ? 'Ya, Banned & Hapus Item' : 'Ya, Banned Katalog'}</span>
                 </button>
               </div>
             </div>
+              );
+            })()}
           </div>
         </div>
       )}

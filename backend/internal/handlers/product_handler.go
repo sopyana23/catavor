@@ -82,6 +82,9 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 		query = query.Where("products.store_id = ?", storeID)
 	}
 
+	// Defense-in-depth: Never return banned items in merchant or public catalog view
+	query = query.Where("products.moderation_status != 'banned' OR products.moderation_status IS NULL")
+
 	// Status filter: for merchant dashboard allow 'all', 'active', 'archived'. For public always active only.
 	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
 	if isMerchantView && (statusFilter == "all" || statusFilter == "archived") {
