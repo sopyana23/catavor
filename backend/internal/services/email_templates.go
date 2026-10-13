@@ -345,10 +345,10 @@ func BuildWarningEmail(storeTitle, targetEntityName, reasonLabel, adminNotes, re
 		</tr>
 	</table>
 
-	<p style="margin: 0 0 12px 0; font-size: 12.5px; color: #475569;">Mohon lakukan peninjauan dan penyesuaian materi deskripsi, gambar, atau harga item terkait agar selaras dengan Pedoman Komunitas Platform Catavor guna menghindari sanksi penangguhan operasional.</p>
+	<p style="margin: 0 0 12px 0; font-size: 12.5px; color: #475569;">Peringatan ini merupakan teguran resmi pembinaan kepatuhan tanpa penonaktifan item ataupun pembekuan profil katalog. Item dan profil katalog Anda tetap aktif normal. Mohon lakukan peninjauan mandiri terhadap materi gambar, deskripsi, atau spesifikasi item terkait agar senantiasa selaras dengan Pedoman Komunitas Platform Catavor guna mencegah penjatuhan sanksi di masa mendatang.</p>
 	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), html.EscapeString(targetEntityName), html.EscapeString(reasonLabel), html.EscapeString(adminNotes))
 
-	bodyHTML = wrapEmailLayout("PERINGATAN RESMI", "#a16207", title, subtitle, mainContent, "Tinjau & Sesuaikan Item Katalog →", reviewURL)
+	bodyHTML = wrapEmailLayout("PERINGATAN RESMI", "#a16207", title, subtitle, mainContent, "Tinjau Item di Inventaris →", reviewURL)
 	return
 }
 
