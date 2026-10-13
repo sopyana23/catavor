@@ -15911,27 +15911,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 );
               })()}
               </div>
-              <button
-                type="button"
-                onClick={() => !isSubmittingModeration && handleDismissBannedConfirmModal()}
-                aria-label="Tutup modal konfirmasi"
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)'}`,
-                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
-                  color: theme.textSecondary,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: isSubmittingModeration ? 'not-allowed' : 'pointer',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <X size={16} />
-              </button>
             </div>
 
             {/* Modal Content Body */}
