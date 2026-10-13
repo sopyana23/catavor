@@ -366,7 +366,8 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 	}
 
 	var reports []models.Report
-	if err := query.Preload("Fauna").Order("created_at DESC").Offset(offset).Limit(limit).Find(&reports).Error; err != nil {
+	if err := query.Preload("Product").Preload("Store").Order("created_at DESC").Offset(offset).Limit(limit).Find(&reports).Error; err != nil {
+		log.Error().Err(err).Msg("Failed to retrieve reports list")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mengambil data laporan.",
@@ -381,6 +382,9 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 
 	results := make([]ReportAggResult, len(reports))
 	for i, r := range reports {
+		if r.Product != nil && r.Fauna == nil {
+			r.Fauna = r.Product
+		}
 		if r.ItemType == "" && r.Product != nil && r.Product.ProductType != "" {
 			r.ItemType = r.Product.ProductType
 		}
@@ -423,7 +427,7 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 func (h *ReportHandler) Show(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var report models.Report
-	query := database.DB.Preload("Store.User").Preload("Fauna")
+	query := database.DB.Preload("Store.User").Preload("Product")
 	if numID, err := strconv.ParseUint(id, 10, 64); err == nil {
 		query = query.Where("id = ? OR report_number = ?", numID, id)
 	} else {
@@ -435,6 +439,9 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 			"success": false,
 			"message": "Data laporan tidak ditemukan.",
 		})
+	}
+	if report.Product != nil && report.Fauna == nil {
+		report.Fauna = report.Product
 	}
 
 	// 1. Fetch other active reports for the same entity (Multi-Reporter Evidence Timeline)
