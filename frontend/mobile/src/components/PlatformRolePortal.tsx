@@ -15447,95 +15447,70 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               {(() => {
                 const isItemConfirm = (bannedConfirmModalReport?.target_type === 'item') || (moderationModalReport?.target_type === 'item') || (moderationAction === 'item_banned');
                 return (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        width: '42px',
-                        height: '42px',
-                        borderRadius: '0.85rem',
-                        background: isDark 
-                          ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.15) 100%)' 
-                          : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
-                        border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#ef4444',
-                        boxShadow: isDark 
-                          ? '0 4px 14px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)' 
-                          : '0 4px 12px rgba(239, 68, 68, 0.15)',
-                        flexShrink: 0
-                      }}>
-                        <ShieldAlert size={22} style={{ filter: 'drop-shadow(0 2px 4px rgba(239, 68, 68, 0.3))' }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
-                          <h3 style={{
-                            margin: 0,
-                            fontSize: '0.98rem',
-                            fontWeight: 800,
-                            color: theme.textPrimary,
-                            letterSpacing: '-0.02em',
-                            lineHeight: 1.25
-                          }}>
-                            {isItemConfirm ? 'Konfirmasi Banned Item' : 'Konfirmasi Banned Katalog'}
-                          </h3>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '0.12rem 0.5rem',
-                            borderRadius: '999px',
-                            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.12)',
-                            border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.25)'}`,
-                            color: '#ef4444',
-                            fontSize: '0.65rem',
-                            fontWeight: 800,
-                            letterSpacing: '0.02em',
-                            textTransform: 'uppercase',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-                            Permanen
-                          </span>
-                        </div>
-                        <p style={{
-                          margin: 0,
-                          fontSize: '0.72rem',
-                          color: theme.textSecondary,
-                          lineHeight: 1.3,
-                          fontWeight: 500
-                        }}>
-                          {isItemConfirm 
-                            ? 'Penghapusan seketika & brankas forensik 90 hari (tanpa banding)' 
-                            : 'Tindakan sanksi fatal, tidak dapat dibatalkan kembali'}
-                        </p>
-                      </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '0.85rem',
+                      background: isDark 
+                        ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.15) 100%)' 
+                        : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
+                      border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ef4444',
+                      boxShadow: isDark 
+                        ? '0 4px 14px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)' 
+                        : '0 4px 12px rgba(239, 68, 68, 0.15)',
+                      flexShrink: 0
+                    }}>
+                      <ShieldAlert size={22} style={{ filter: 'drop-shadow(0 2px 4px rgba(239, 68, 68, 0.3))' }} />
                     </div>
-
-                    <button
-                      type="button"
-                      disabled={isSubmittingModeration}
-                      onClick={handleDismissBannedConfirmModal}
-                      aria-label="Tutup modal konfirmasi"
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '50%',
-                        border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)'}`,
-                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
+                        <h3 style={{
+                          margin: 0,
+                          fontSize: '0.98rem',
+                          fontWeight: 800,
+                          color: theme.textPrimary,
+                          letterSpacing: '-0.02em',
+                          lineHeight: 1.25
+                        }}>
+                          {isItemConfirm ? 'Konfirmasi Banned Item' : 'Konfirmasi Banned Katalog'}
+                        </h3>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '0.12rem 0.5rem',
+                          borderRadius: '999px',
+                          backgroundColor: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.12)',
+                          border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.25)'}`,
+                          color: '#ef4444',
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          letterSpacing: '0.02em',
+                          textTransform: 'uppercase',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                          Permanen
+                        </span>
+                      </div>
+                      <p style={{
+                        margin: 0,
+                        fontSize: '0.72rem',
                         color: theme.textSecondary,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: isSubmittingModeration ? 'not-allowed' : 'pointer',
-                        flexShrink: 0,
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <X size={16} />
-                    </button>
-                  </>
+                        lineHeight: 1.3,
+                        fontWeight: 500
+                      }}>
+                        {isItemConfirm 
+                          ? 'Penghapusan seketika & brankas forensik 90 hari (tanpa banding)' 
+                          : 'Tindakan sanksi fatal, tidak dapat dibatalkan kembali'}
+                      </p>
+                    </div>
+                  </div>
                 );
               })()}
             </div>
