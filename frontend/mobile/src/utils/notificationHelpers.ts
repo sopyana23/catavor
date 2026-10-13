@@ -85,6 +85,18 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
 
   if (!isSecurityOrMod) return fallback;
 
+  // Informational resubmission acknowledgements / reviews are status notices, not punitive sanction cases
+  const isSubmissionAck =
+    titleLower.includes('pengajuan ulang') ||
+    titleLower.includes('pengajuan perbaikan') ||
+    titleLower.includes('perbaikan produk diterima') ||
+    titleLower.includes('perbaikan produk terkirim') ||
+    msgLower.includes('antrean peninjauan') ||
+    msgLower.includes('telah kami terima dan masuk antrean') ||
+    msgLower.includes('masuk dalam antrean peninjauan');
+
+  if (isSubmissionAck) return fallback;
+
   let reportNumber = '';
   let parsedTargetType = '';
   let targetName = '';

@@ -590,24 +590,24 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 	}
 
 	type BroadcastReq struct {
-		TargetType            string          `json:"target_type"`             // 'all', 'plan', 'specific', 'single_store', 'single_user'
-		TargetPlanCode        string          `json:"target_plan_code"`        // e.g. 'free', 'pro', 'enterprise'
-		TargetID              uint            `json:"target_id"`               // store_id or user_id (legacy)
-		TargetName            string          `json:"target_name"`             // store title / user name / email
-		Recipients            []RecipientItem `json:"recipients"`              // multiple targeted stores / users
+		TargetType            string          `json:"target_type"`      // 'all', 'plan', 'specific', 'single_store', 'single_user'
+		TargetPlanCode        string          `json:"target_plan_code"` // e.g. 'free', 'pro', 'enterprise'
+		TargetID              uint            `json:"target_id"`        // store_id or user_id (legacy)
+		TargetName            string          `json:"target_name"`      // store title / user name / email
+		Recipients            []RecipientItem `json:"recipients"`       // multiple targeted stores / users
 		Title                 string          `json:"title"`
 		Category              string          `json:"category"`
 		Message               string          `json:"message"`
 		DetailContent         string          `json:"detail_content"`
-		Type                  string          `json:"type"`                    // 'warning', 'success', 'order', 'system', 'info'
-		ActionEnabled         bool            `json:"action_enabled"`          // explicit toggle for notification action
-		ActionType            string          `json:"action_type"`             // 'detail', 'navigate', 'none', 'external_link'
+		Type                  string          `json:"type"`           // 'warning', 'success', 'order', 'system', 'info'
+		ActionEnabled         bool            `json:"action_enabled"` // explicit toggle for notification action
+		ActionType            string          `json:"action_type"`    // 'detail', 'navigate', 'none', 'external_link'
 		LinkSubTab            string          `json:"link_sub_tab"`
 		LinkMobileSettingsTab string          `json:"link_mobile_settings_tab"`
 		ActionLabel           string          `json:"action_label"`
 		ActionURL             string          `json:"action_url"`
-		ExpiresInHours        int             `json:"expires_in_hours"`        // 0 = unlimited
-		RetentionHours        int             `json:"retention_hours"`         // default 720
+		ExpiresInHours        int             `json:"expires_in_hours"` // 0 = unlimited
+		RetentionHours        int             `json:"retention_hours"`  // default 720
 	}
 
 	var req BroadcastReq
@@ -1141,21 +1141,21 @@ func (h *NotificationHandler) ensureStoreInitialNotifications(storeID, userID ui
 	// Seed default onboarding guides specifically for this store
 	initialGuides := []models.Notification{
 		{
-			ID:             fmt.Sprintf("notif_about_%d", storeID),
-			TargetType:     "single_store",
-			TargetID:       storeID,
-			Title:          "Panduan Kelengkapan Halaman Tentang Kami",
-			Category:       "PANDUAN",
-			Message:        "Lengkapi Alamat Bisnis, Jam Operasional, dan Profil Komitmen Layanan Anda agar profil katalog terlihat profesional dan terpercaya di mata pembeli.",
-			DetailContent:  "Halaman Tentang Kami adalah wajah utama brand profil bisnis Anda di mata pembeli. Untuk membangun kepercayaan maksimal pelanggan baru, pastikan Anda melengkapi:\n\n1. Alamat Bisnis & Titik Maps:\nMempermudah calon pelanggan menemukan lokasi fisik toko, workshop, atau titik penjemputan pesanan.\n\n2. Jam Operasional Toko:\nJadwal buka dan jam operasional harian dalam melayani pesanan atau chat pelanggan.\n\n3. Profil Komitmen Layanan & Garansi:\nPenjelasan jaminan kualitas produk, keaslian barang, serta standar pelayanan terbaik toko Anda.\n\nKlik tombol di bawah untuk langsung menuju formulir pengaturan Tentang Kami.",
-			Type:           "warning",
-			ActionType:     "detail",
-			LinkSubTab:     "settings",
+			ID:                    fmt.Sprintf("notif_about_%d", storeID),
+			TargetType:            "single_store",
+			TargetID:              storeID,
+			Title:                 "Panduan Kelengkapan Halaman Tentang Kami",
+			Category:              "PANDUAN",
+			Message:               "Lengkapi Alamat Bisnis, Jam Operasional, dan Profil Komitmen Layanan Anda agar profil katalog terlihat profesional dan terpercaya di mata pembeli.",
+			DetailContent:         "Halaman Tentang Kami adalah wajah utama brand profil bisnis Anda di mata pembeli. Untuk membangun kepercayaan maksimal pelanggan baru, pastikan Anda melengkapi:\n\n1. Alamat Bisnis & Titik Maps:\nMempermudah calon pelanggan menemukan lokasi fisik toko, workshop, atau titik penjemputan pesanan.\n\n2. Jam Operasional Toko:\nJadwal buka dan jam operasional harian dalam melayani pesanan atau chat pelanggan.\n\n3. Profil Komitmen Layanan & Garansi:\nPenjelasan jaminan kualitas produk, keaslian barang, serta standar pelayanan terbaik toko Anda.\n\nKlik tombol di bawah untuk langsung menuju formulir pengaturan Tentang Kami.",
+			Type:                  "warning",
+			ActionType:            "detail",
+			LinkSubTab:            "settings",
 			LinkMobileSettingsTab: "about",
-			ActionLabel:    "Buka Pengaturan Tentang Kami →",
-			RetentionHours: 168, // 7 days in history after read
-			CreatedAt:      time.Now().UTC(),
-			UpdatedAt:      time.Now().UTC(),
+			ActionLabel:           "Buka Pengaturan Tentang Kami →",
+			RetentionHours:        168, // 7 days in history after read
+			CreatedAt:             time.Now().UTC(),
+			UpdatedAt:             time.Now().UTC(),
 		},
 		{
 			ID:             fmt.Sprintf("notif_share_%d", storeID),
