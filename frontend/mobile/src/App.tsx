@@ -27911,16 +27911,14 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     {item.title}
                                   </h4>
 
-                                  {/* Message Body (Line clamped 2) */}
+                                  {/* Message Body (Teks informasi utuh tanpa terpotong) */}
                                   <p style={{
-                                    fontSize: '0.78rem',
+                                    fontSize: '0.8rem',
                                     color: 'var(--text-secondary)',
                                     margin: 0,
-                                    lineHeight: 1.45,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden'
+                                    lineHeight: 1.5,
+                                    wordBreak: 'break-word',
+                                    whiteSpace: 'pre-wrap'
                                   }}>
                                     {(item.message || '').replace(/\*\*(.*?)\*\*/g, '$1')}
                                   </p>
