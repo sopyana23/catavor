@@ -8206,9 +8206,19 @@ Terima kasih.`;
       notif.category === 'PERINGATAN' ||
       notif.category === 'PEMULIHAN' ||
       notif.category === 'KEPATUHAN' ||
+      notif.category === 'BAHAYA' ||
+      notif.category === 'DANGER' ||
+      notif.type === 'danger' ||
       Boolean(actionUrl && actionUrl.includes('report=')) ||
+      Boolean(actionUrl && (actionUrl.includes('action=item_banned') || actionUrl.includes('action=catalog_banned') || actionUrl.includes('action=account_banned'))) ||
       titleLower.includes('penonaktifan') ||
       titleLower.includes('penangguhan') ||
+      titleLower.includes('pemblokiran') ||
+      titleLower.includes('penghapusan') ||
+      titleLower.includes('pembekuan') ||
+      titleLower.includes('dihapus') ||
+      titleLower.includes('banned') ||
+      titleLower.includes('blokir') ||
       titleLower.includes('peringatan') ||
       titleLower.includes('perbaikan') ||
       titleLower.includes('pemulihan');
@@ -26199,6 +26209,59 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               flexDirection: 'column',
                               gap: '1.15rem'
                             }}>
+                              {/* Top Back Navigation Bar */}
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '0.6rem',
+                                paddingBottom: '0.85rem',
+                                borderBottom: '1px solid var(--border-light)'
+                              }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedNotification(null);
+                                    const slug = storeSlug || getStoreSlug();
+                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    padding: '0.4rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    background: 'var(--bg-card)',
+                                    border: '1px solid var(--border-light)',
+                                    color: 'var(--text-primary)',
+                                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <ChevronLeft size={15} />
+                                  <span>Daftar Notifikasi</span>
+                                </button>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <span style={{
+                                    fontSize: '0.66rem',
+                                    fontWeight: 800,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.04em',
+                                    padding: '0.18rem 0.55rem',
+                                    borderRadius: '0.4rem',
+                                    color: modCase.statusColor,
+                                    backgroundColor: `${modCase.statusColor}18`,
+                                    border: `1px solid ${modCase.statusColor}40`
+                                  }}>
+                                    {modCase.statusBadge}
+                                  </span>
+                                </div>
+                              </div>
+
                               {/* Incident or Recovery Header Banner */}
                               <div style={{
                                 display: 'flex',
@@ -27724,7 +27787,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                               const isDirectNav = !isActionExplicitlyDisabled && ((rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif);
                               const isExternal = !isActionExplicitlyDisabled && (rawActionType === 'external_link' && Boolean(actionUrl));
-                              const isDetail = !isActionExplicitlyDisabled && (rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal));
+                              const isDetail = isModerationNotif || (!isActionExplicitlyDisabled && (rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal)));
                               const isNoneAction = !isDirectNav && !isDetail && !isExternal;
 
                               const tabLabels: Record<string, string> = {
@@ -27769,7 +27832,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               } else if (isDetail) {
                                 displayType = 'detail';
                                 displayLabel = isModerationNotif 
-                                  ? (modCase.isAppealEligible ? 'Ajukan Banding Kepatuhan' : 'Lihat Rincian Keputusan')
+                                  ? (modCase.actionTaken === 'item_banned' || modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned'
+                                      ? 'Lihat Salinan Keputusan'
+                                      : modCase.isAppealEligible ? 'Ajukan Banding Kepatuhan' : (modCase.actionTaken === 'item_needs_fix' ? 'Perbaiki Item Sekarang' : 'Lihat Salinan Keputusan'))
                                   : (cleanLabel || 'Lihat Rincian Selengkapnya');
                               }
 
@@ -27792,6 +27857,14 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 displayType
                               };
                             })();
+
+                            const isBannedNotif = norm.modCase?.actionTaken === 'item_banned' || 
+                              norm.modCase?.actionTaken === 'account_banned' || 
+                              norm.modCase?.actionTaken === 'catalog_banned' || 
+                              (item.type as any) === 'danger' || 
+                              (item.category || '').toUpperCase() === 'BAHAYA' ||
+                              (item.category || '').toUpperCase() === 'DANGER';
+                            const isWarningNotif = norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix' || item.type === 'warning';
 
                             return (
                               <div
@@ -27850,10 +27923,22 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 style={{
                                   padding: '1rem 1.15rem',
                                   borderRadius: '0.85rem',
-                                  border: item.read ? '1px solid var(--border-light)' : (norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix') ? '1px solid #f59e0b' : '1px solid var(--primary)',
-                                  borderLeft: !item.read ? ((norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix') ? '4px solid #f59e0b' : '4px solid var(--primary)') : '1px solid var(--border-light)',
-                                  background: 'var(--card-bg-gradient)',
-                                  boxShadow: !item.read ? '0 4px 18px var(--primary-glow)' : '0 2px 8px rgba(0, 0, 0, 0.04)',
+                                  border: isBannedNotif 
+                                    ? (item.read ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.65)')
+                                    : item.read 
+                                      ? '1px solid var(--border-light)' 
+                                      : isWarningNotif ? '1px solid #f59e0b' : '1px solid var(--primary)',
+                                  borderLeft: isBannedNotif
+                                    ? (!item.read ? '4px solid #ef4444' : '3px solid rgba(239, 68, 68, 0.45)')
+                                    : !item.read 
+                                      ? (isWarningNotif ? '4px solid #f59e0b' : '4px solid var(--primary)') 
+                                      : '1px solid var(--border-light)',
+                                  background: isBannedNotif 
+                                    ? 'radial-gradient(ellipse at top left, rgba(239, 68, 68, 0.08) 0%, var(--card-bg-gradient) 70%)'
+                                    : 'var(--card-bg-gradient)',
+                                  boxShadow: !item.read 
+                                    ? (isBannedNotif ? '0 4px 18px rgba(239, 68, 68, 0.25)' : isWarningNotif ? '0 4px 18px rgba(245, 158, 11, 0.2)' : '0 4px 18px var(--primary-glow)') 
+                                    : '0 2px 8px rgba(0, 0, 0, 0.04)',
                                   cursor: 'pointer',
                                   display: 'flex',
                                   alignItems: 'center',
@@ -27875,8 +27960,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                           width: '7px',
                                           height: '7px',
                                           borderRadius: '50%',
-                                          backgroundColor: (norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix') ? '#f59e0b' : 'var(--primary)',
-                                          boxShadow: (norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix') ? '0 0 6px rgba(245, 158, 11, 0.6)' : '0 0 6px var(--primary)',
+                                          backgroundColor: isBannedNotif ? '#ef4444' : isWarningNotif ? '#f59e0b' : 'var(--primary)',
+                                          boxShadow: isBannedNotif ? '0 0 6px rgba(239, 68, 68, 0.7)' : isWarningNotif ? '0 0 6px rgba(245, 158, 11, 0.6)' : '0 0 6px var(--primary)',
                                           display: 'inline-block'
                                         }} />
                                       )}
@@ -27887,11 +27972,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         textTransform: 'uppercase',
                                         padding: '0.12rem 0.5rem',
                                         borderRadius: '0.35rem',
-                                        color: item.type === 'warning' ? '#d97706' : item.type === 'success' ? '#059669' : item.type === 'order' ? '#2563eb' : 'var(--primary)',
-                                        backgroundColor: item.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : item.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : item.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
-                                        border: '1px solid currentColor'
+                                        color: isBannedNotif ? '#ef4444' : item.type === 'warning' ? '#d97706' : item.type === 'success' ? '#059669' : item.type === 'order' ? '#2563eb' : 'var(--primary)',
+                                        backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.12)' : item.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : item.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : item.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
+                                        border: isBannedNotif ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid currentColor'
                                       }}>
-                                        {item.category || (item.type === 'warning' ? 'PANDUAN' : item.type === 'success' ? 'PROMOSI' : item.type === 'order' ? 'INVENTARIS' : 'SISTEM')}
+                                        {isBannedNotif 
+                                          ? (item.category ? `${item.category} • SANKSI` : 'KEAMANAN • SANKSI FATAL')
+                                          : (item.category || (item.type === 'warning' ? 'PANDUAN' : item.type === 'success' ? 'PROMOSI' : item.type === 'order' ? 'INVENTARIS' : 'SISTEM'))}
                                       </span>
                                     </div>
 
@@ -27979,6 +28066,25 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         <span>Ajukan Banding Kepatuhan</span>
                                         <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
                                       </div>
+                                    ) : isBannedNotif ? (
+                                      <div style={{
+                                        marginTop: '0.55rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem',
+                                        padding: '0.24rem 0.65rem',
+                                        borderRadius: '0.45rem',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                        color: '#ef4444',
+                                        border: '1px solid rgba(239, 68, 68, 0.35)',
+                                        width: 'fit-content'
+                                      }}>
+                                        <FileText size={12} style={{ strokeWidth: 2.3 }} />
+                                        <span>Lihat Salinan Keputusan</span>
+                                        <ChevronRight size={12} style={{ strokeWidth: 2.3 }} />
+                                      </div>
                                     ) : (
                                       <div style={{
                                         marginTop: '0.55rem',
@@ -28021,9 +28127,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     width: '32px',
                                     height: '32px',
                                     borderRadius: '0.55rem',
-                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                    border: '1px solid var(--border-light)',
-                                    color: norm.displayType === 'external' ? '#3b82f6' : norm.displayType === 'navigate' ? 'var(--primary)' : '#f59e0b',
+                                    backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                                    border: isBannedNotif ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-light)',
+                                    color: isBannedNotif ? '#ef4444' : norm.displayType === 'external' ? '#3b82f6' : norm.displayType === 'navigate' ? 'var(--primary)' : '#f59e0b',
                                     marginLeft: '0.35rem'
                                   }}>
                                     {norm.displayType === 'external' && <ExternalLink size={16} />}
