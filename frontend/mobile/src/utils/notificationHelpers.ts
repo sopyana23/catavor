@@ -71,12 +71,21 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
     category === 'KEPATUHAN' ||
     category === 'PERBAIKAN' ||
     category === 'PERINGATAN' ||
+    category === 'BAHAYA' ||
+    category === 'DANGER' ||
+    String((notif as any).type || '') === 'danger' ||
     actionUrl.includes('report=') ||
+    actionUrl.includes('action=item_banned') ||
+    actionUrl.includes('action=catalog_banned') ||
+    actionUrl.includes('action=account_banned') ||
     titleLower.includes('penonaktifan') ||
     titleLower.includes('penangguhan') ||
+    titleLower.includes('pemblokiran') ||
+    titleLower.includes('penghapusan') ||
     titleLower.includes('pembekuan') ||
     titleLower.includes('dihapus') ||
     titleLower.includes('banned') ||
+    titleLower.includes('blokir') ||
     titleLower.includes('peringatan') ||
     titleLower.includes('pemulihan') ||
     msgLower.includes('dipulihkan') ||
@@ -396,7 +405,7 @@ export function normalizeNotification(item: any): NormalizedNotification {
 
   const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
   const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
-  const isDetail = rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal);
+  const isDetail = isModerationNotif || rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal);
 
   const tabLabels: Record<string, string> = {
     settings: 'Pengaturan Katalog',
@@ -434,7 +443,13 @@ export function normalizeNotification(item: any): NormalizedNotification {
     }
   } else if (isDetail) {
     displayType = 'detail';
-    if (!displayLabel) displayLabel = isModerationNotif ? 'Buka Kasus Kepatuhan' : 'Lihat Rincian';
+    if (!displayLabel) {
+      displayLabel = isModerationNotif
+        ? (modCase.actionTaken === 'item_banned' || modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned'
+            ? 'Lihat Salinan Keputusan'
+            : modCase.isAppealEligible ? 'Ajukan Banding Kepatuhan' : 'Buka Kasus Kepatuhan')
+        : 'Lihat Rincian';
+    }
   }
 
   // Category Color Theming
@@ -443,7 +458,12 @@ export function normalizeNotification(item: any): NormalizedNotification {
   let categoryBg = 'var(--primary-glow)';
   let categoryBorder = 'rgba(16, 185, 129, 0.3)';
 
-  if (modCase.isRestored) {
+  if (modCase.actionTaken === 'item_banned' || modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned' || item.type === 'danger' || category === 'BAHAYA' || category === 'DANGER') {
+    category = item.category ? `${item.category} • SANKSI` : 'KEAMANAN • SANKSI FATAL';
+    categoryColor = '#ef4444';
+    categoryBg = 'rgba(239, 68, 68, 0.12)';
+    categoryBorder = 'rgba(239, 68, 68, 0.35)';
+  } else if (modCase.isRestored) {
     category = 'PEMULIHAN AKUN';
     categoryColor = '#10b981';
     categoryBg = 'rgba(16, 185, 129, 0.12)';
