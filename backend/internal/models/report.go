@@ -32,4 +32,5 @@ type Report struct {
 	// Relations
 	Store   *Store   `gorm:"foreignKey:StoreID" json:"store,omitempty"`
 	Product *Product `gorm:"foreignKey:FaunaID" json:"product,omitempty"`
+	Fauna   *Product `gorm:"foreignKey:FaunaID" json:"fauna,omitempty"`
 }
