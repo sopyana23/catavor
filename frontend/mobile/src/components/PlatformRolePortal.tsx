@@ -104,6 +104,7 @@ export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
   rekber_template_fauna: "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n\n*Satwa/Hewan:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
 };
 import { apiClient } from '../utils/apiClient';
+import { useModalBackHandler } from '../utils/navigation';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
 
@@ -1032,6 +1033,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [isBannedConfirmDragging, setIsBannedConfirmDragging] = useState(false);
   const bannedConfirmDragStartY = useRef(0);
 
+  const handleDismissBannedConfirmModal = () => {
+    setShowModerationConfirmModal(false);
+    setBannedConfirmModalReport(null);
+    setBannedConfirmAcknowledged(false);
+    setBannedConfirmDragY(0);
+    setIsBannedConfirmDragging(false);
+  };
+
+  useModalBackHandler({
+    isOpen: showModerationConfirmModal,
+    onClose: handleDismissBannedConfirmModal,
+    modalId: 'banned-confirm-modal',
+  });
+
   const handleBannedConfirmDragStart = (clientY: number) => {
     bannedConfirmDragStartY.current = clientY;
     setIsBannedConfirmDragging(true);
@@ -1051,9 +1066,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     if (!isBannedConfirmDragging) return;
     setIsBannedConfirmDragging(false);
     if (bannedConfirmDragY > 75 && !isSubmittingModeration) {
-      setShowModerationConfirmModal(false);
+      handleDismissBannedConfirmModal();
+    } else {
+      setBannedConfirmDragY(0);
     }
-    setBannedConfirmDragY(0);
   };
 
   useEffect(() => {
@@ -2745,6 +2761,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           localStorage.removeItem('catavor_settings');
         } catch {}
         fetchReportsList(reportsPagination.page);
+        handleDismissBannedConfirmModal();
         handleCloseModerationPage();
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -2805,6 +2822,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   const handleCloseModerationPage = () => {
+    handleDismissBannedConfirmModal();
     setModerationModalReport(null);
     setReportActiveEvidence([]);
     setReportPriorHistory([]);
@@ -15359,8 +15377,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           }}
           onClick={(e) => {
             if (e.target === e.currentTarget && !isSubmittingModeration) {
-              setShowModerationConfirmModal(false);
-              setBannedConfirmDragY(0);
+              handleDismissBannedConfirmModal();
             }
           }}
         >
@@ -15390,36 +15407,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 width: '100%',
                 display: 'flex',
                 justifyContent: 'center',
-                padding: '0.45rem 0 0.55rem',
-                flexShrink: 0,
-                cursor: isBannedConfirmDragging ? 'grabbing' : 'grab',
-                touchAction: 'none',
-                userSelect: 'none'
-              }}
-              onTouchStart={(e) => handleBannedConfirmDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleBannedConfirmDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleBannedConfirmDragEnd}
-              onMouseDown={(e) => handleBannedConfirmDragStart(e.clientY)}
-              onMouseMove={(e) => handleBannedConfirmDragMove(e.clientY)}
-              onMouseUp={handleBannedConfirmDragEnd}
-            >
-              <div style={{
-                width: '44px',
-                height: '5px',
-                borderRadius: '999px',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.18)'
-              }} />
-            </div>
-
-            {/* Modal Header Bar (Clean draggable header WITHOUT X close icon, matching platform standard) */}
-            <div 
-              style={{
-                padding: '0.2rem 1.25rem 0.85rem',
-                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(225, 29, 72, 0.04) 100%)',
-                borderBottom: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.15)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
+                padding: '0.55rem 0 0.35rem',
                 flexShrink: 0,
                 cursor: isBannedConfirmDragging ? 'grabbing' : 'grab',
                 touchAction: 'none',
@@ -15434,30 +15422,120 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             >
               <div style={{
                 width: '38px',
-                height: '38px',
-                borderRadius: '0.75rem',
-                backgroundColor: 'rgba(239, 68, 68, 0.18)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
+                height: '4px',
+                borderRadius: '999px',
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.16)'
+              }} />
+            </div>
+
+            {/* Modal Header Bar (Professional & Elegant Enterprise Grade) */}
+            <div 
+              style={{
+                padding: '0.65rem 1.25rem 0.9rem',
+                background: isDark 
+                  ? 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)' 
+                  : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+                borderBottom: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(226, 232, 240, 0.9)'}`,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ef4444',
-                boxShadow: '0 0 16px rgba(239, 68, 68, 0.25)',
-                flexShrink: 0
-              }}>
-                <ShieldAlert size={20} />
-              </div>
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                flexShrink: 0,
+                position: 'relative'
+              }}
+            >
               {(() => {
                 const isItemConfirm = (bannedConfirmModalReport?.target_type === 'item') || (moderationModalReport?.target_type === 'item') || (moderationAction === 'item_banned');
                 return (
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
-                      {isItemConfirm ? 'Konfirmasi Banned Item Permanen' : 'Konfirmasi Banned Katalog Permanen'}
-                    </h3>
-                    <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: '#ef4444', fontWeight: 700 }}>
-                      {isItemConfirm ? 'Item Dihapus Seketika & Bukti Forensik Disimpan 90 Hari (Tanpa Banding)' : 'Tindakan Berdampak Permanen & Tidak Dapat Dibatalkan'}
-                    </p>
-                  </div>
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '0.85rem',
+                        background: isDark 
+                          ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.15) 100%)' 
+                          : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
+                        border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ef4444',
+                        boxShadow: isDark 
+                          ? '0 4px 14px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)' 
+                          : '0 4px 12px rgba(239, 68, 68, 0.15)',
+                        flexShrink: 0
+                      }}>
+                        <ShieldAlert size={22} style={{ filter: 'drop-shadow(0 2px 4px rgba(239, 68, 68, 0.3))' }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
+                          <h3 style={{
+                            margin: 0,
+                            fontSize: '0.98rem',
+                            fontWeight: 800,
+                            color: theme.textPrimary,
+                            letterSpacing: '-0.02em',
+                            lineHeight: 1.25
+                          }}>
+                            {isItemConfirm ? 'Konfirmasi Banned Item' : 'Konfirmasi Banned Katalog'}
+                          </h3>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '0.12rem 0.5rem',
+                            borderRadius: '999px',
+                            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.12)',
+                            border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.25)'}`,
+                            color: '#ef4444',
+                            fontSize: '0.65rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.02em',
+                            textTransform: 'uppercase',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                            Permanen
+                          </span>
+                        </div>
+                        <p style={{
+                          margin: 0,
+                          fontSize: '0.72rem',
+                          color: theme.textSecondary,
+                          lineHeight: 1.3,
+                          fontWeight: 500
+                        }}>
+                          {isItemConfirm 
+                            ? 'Penghapusan seketika & brankas forensik 90 hari (tanpa banding)' 
+                            : 'Tindakan sanksi fatal, tidak dapat dibatalkan kembali'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isSubmittingModeration}
+                      onClick={handleDismissBannedConfirmModal}
+                      aria-label="Tutup modal konfirmasi"
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)'}`,
+                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                        color: theme.textSecondary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: isSubmittingModeration ? 'not-allowed' : 'pointer',
+                        flexShrink: 0,
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </>
                 );
               })()}
             </div>
@@ -15642,20 +15720,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <button
                 type="button"
                 disabled={isSubmittingModeration}
-                onClick={() => {
-                  setShowModerationConfirmModal(false);
-                  setBannedConfirmDragY(0);
-                }}
+                onClick={handleDismissBannedConfirmModal}
                 style={{
                   flex: 1,
                   padding: '0.78rem 1rem',
                   borderRadius: '0.75rem',
                   border: `1px solid ${theme.border}`,
-                  backgroundColor: 'transparent',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : '#f1f5f9',
                   color: theme.textSecondary,
                   fontSize: '0.82rem',
                   fontWeight: 700,
-                  cursor: isSubmittingModeration ? 'not-allowed' : 'pointer'
+                  cursor: isSubmittingModeration ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 Batal
@@ -15664,16 +15740,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 type="button"
                 disabled={!bannedConfirmAcknowledged || isSubmittingModeration}
                 onClick={() => {
-                  handleUpdateReportStatus(
-                    moderationModalReport.id,
-                    moderationStatus,
-                    moderationAction,
-                    moderationNotes,
-                    true
-                  );
+                  if (!bannedConfirmAcknowledged || isSubmittingModeration) return;
+                  const reportId = moderationModalReport?.id;
+                  handleDismissBannedConfirmModal();
+                  if (reportId) {
+                    handleUpdateReportStatus(
+                      reportId,
+                      moderationStatus,
+                      moderationAction,
+                      moderationNotes,
+                      true
+                    );
+                  }
                 }}
                 style={{
-                  flex: 1.2,
+                  flex: 1.25,
                   padding: '0.78rem 1rem',
                   borderRadius: '0.75rem',
                   border: 'none',
@@ -15685,9 +15766,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '0.4rem',
+                  gap: '0.45rem',
                   whiteSpace: 'nowrap',
-                  boxShadow: bannedConfirmAcknowledged ? '0 4px 16px rgba(239, 68, 68, 0.4)' : 'none',
+                  boxShadow: bannedConfirmAcknowledged ? '0 4px 16px rgba(239, 68, 68, 0.35)' : 'none',
                   transition: 'all 0.18s ease'
                 }}
               >
