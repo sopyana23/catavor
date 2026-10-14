@@ -84,3 +84,45 @@ func RevokeSessionByTokenID(db *gorm.DB, tokenID string) error {
 
 	return nil
 }
+
+// RevokeAllSessionsForUser revokes and blacklists all active sessions for a user,
+// ensuring immediate kick-out upon user or catalog ban.
+func RevokeAllSessionsForUser(db *gorm.DB, userID uint) error {
+	if userID == 0 {
+		return nil
+	}
+
+	now := time.Now()
+
+	// 1. Fetch active session token IDs
+	var sessions []models.UserSession
+	if err := db.Where("user_id = ? AND is_revoked = false", userID).Find(&sessions).Error; err != nil {
+		log.Warn().Err(err).Uint("user_id", userID).Msg("Failed to query active sessions for revocation")
+	} else {
+		for _, s := range sessions {
+			ttl := 72 * time.Hour
+			if s.ExpiresAt.After(now) {
+				ttl = time.Until(s.ExpiresAt)
+			}
+			if s.TokenID != "" {
+				database.BlacklistToken(s.TokenID, ttl)
+			}
+		}
+	}
+
+	// 2. Mark all sessions as revoked in database
+	_ = db.Model(&models.UserSession{}).
+		Where("user_id = ? AND is_revoked = false", userID).
+		Updates(map[string]interface{}{
+			"is_revoked": true,
+			"revoked_at": &now,
+			"updated_at": now,
+		}).Error
+
+	// 3. Increment TokenVersion on User record to immediately invalidate any lingering JWTs
+	_ = db.Model(&models.User{}).Where("id = ?", userID).UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error
+
+	log.Info().Uint("user_id", userID).Msg("Successfully revoked all active sessions and bumped token_version.")
+	return nil
+}
+

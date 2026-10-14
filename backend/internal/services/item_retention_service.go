@@ -474,7 +474,11 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				continue
 			}
 
-			// Clean physical media folders from disk
+			// Clean physical media folders from disk & cloud storage
+			storePrefix := fmt.Sprintf("stores/%d/", s.ID)
+			if strg != nil {
+				_ = strg.DeletePrefix(ctx, storePrefix)
+			}
 			if cfg != nil {
 				if cfg.StorageLocalRoot != "" {
 					_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", s.ID)))

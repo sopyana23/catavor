@@ -20,6 +20,7 @@ import (
 type StorageService interface {
 	Upload(ctx context.Context, key string, r io.Reader, size int64, contentType string) (string, error)
 	Delete(ctx context.Context, key string) error
+	DeletePrefix(ctx context.Context, prefix string) error
 	GetURL(key string) string
 	GetDriverName() string
 }
@@ -65,6 +66,15 @@ func (s *LocalStorageService) Delete(ctx context.Context, key string) error {
 	targetPath := filepath.Join(s.localRoot, filepath.FromSlash(cleanKey))
 	if err := os.Remove(targetPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete local file: %w", err)
+	}
+	return nil
+}
+
+func (s *LocalStorageService) DeletePrefix(ctx context.Context, prefix string) error {
+	cleanPrefix := strings.TrimLeft(filepath.ToSlash(prefix), "/")
+	targetDir := filepath.Join(s.localRoot, filepath.FromSlash(cleanPrefix))
+	if err := os.RemoveAll(targetDir); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete local prefix directory: %w", err)
 	}
 	return nil
 }
@@ -165,6 +175,39 @@ func (s *S3StorageService) Delete(ctx context.Context, key string) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete S3 object: %w", err)
 	}
+	return nil
+}
+
+func (s *S3StorageService) DeletePrefix(ctx context.Context, prefix string) error {
+	cleanPrefix := strings.TrimLeft(filepath.ToSlash(prefix), "/")
+	if cleanPrefix == "" {
+		return fmt.Errorf("refusing to delete empty prefix from S3 bucket")
+	}
+
+	opts := minio.ListObjectsOptions{
+		Prefix:    cleanPrefix,
+		Recursive: true,
+	}
+
+	objectsCh := make(chan minio.ObjectInfo)
+	go func() {
+		defer close(objectsCh)
+		for obj := range s.client.ListObjects(ctx, s.bucket, opts) {
+			if obj.Err != nil {
+				log.Warn().Err(obj.Err).Str("prefix", cleanPrefix).Msg("Error listing objects for prefix deletion")
+				continue
+			}
+			objectsCh <- obj
+		}
+	}()
+
+	errorCh := s.client.RemoveObjects(ctx, s.bucket, objectsCh, minio.RemoveObjectsOptions{})
+	for err := range errorCh {
+		if err.Err != nil {
+			log.Warn().Err(err.Err).Str("object", err.ObjectName).Msg("Failed to delete S3 object in prefix batch")
+		}
+	}
+
 	return nil
 }
 
