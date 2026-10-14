@@ -30,6 +30,8 @@
 !/public/storage/articles/.gitkeep
 /public/storage/stores/*
 !/public/storage/stores/.gitkeep
+/public/storage/support/*
+!/public/storage/support/.gitkeep
 /backend/storage/uploads/*
 !/backend/storage/uploads/.gitkeep
 /legacy/laravel/storage/app/public/fauna/*

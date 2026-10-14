@@ -6110,6 +6110,16 @@ Terima kasih.`;
     return 'catalog';
   })
   const [aboutSubView, setAboutSubView] = useState<'main' | 'qrcode'>('main')
+  const isSuspendedAccountState = Boolean(settings.is_suspended || settings.dormancy_status === 'suspended')
+  const [mobileSuspendedView, setMobileSuspendedView] = useState<'hub' | 'chat'>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('/admin/appeal') || path.includes('/admin/banding')) {
+        return 'chat';
+      }
+    }
+    return 'hub';
+  })
   const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs' | 'rbac' | 'portal'>(() => {
     if (typeof window !== 'undefined') {
       const savedSub = sessionStorage.getItem('catavor_mobile_admin_subtab');
@@ -6268,6 +6278,7 @@ Terima kasih.`;
   // When navigating to notifications center, ensure view starts with clean 'all' tab consistently (Mobile)
   const prevAdminSubTabForNotifRef = useRef<string>(adminSubTab);
   useEffect(() => {
+    if (isSuspendedAccountState) return;
     if (adminSubTab === 'notifications' && prevAdminSubTabForNotifRef.current !== 'notifications') {
       setNotifFilter('all');
       setNotifCategoryFilter('all');
@@ -6275,7 +6286,7 @@ Terima kasih.`;
       fetchNotificationsFromBackend(1, false, 'all', notifDebouncedSearch);
     }
     prevAdminSubTabForNotifRef.current = adminSubTab;
-  }, [adminSubTab, fetchNotificationsFromBackend, notifDebouncedSearch]);
+  }, [adminSubTab, fetchNotificationsFromBackend, notifDebouncedSearch, isSuspendedAccountState]);
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false)
   const [agreeCheckoutTerms, setAgreeCheckoutTerms] = useState<boolean>(false)
@@ -7166,10 +7177,10 @@ Terima kasih.`;
 
   // Analytics triggers & telemetry
   useEffect(() => {
-    if (activeTab === 'admin' && adminSubTab === 'menu' && token) {
+    if (activeTab === 'admin' && adminSubTab === 'menu' && token && !isSuspendedAccountState) {
       fetchAnalytics(analyticsPeriod);
     }
-  }, [activeTab, adminSubTab, storeSlug, token]);
+  }, [activeTab, adminSubTab, storeSlug, token, isSuspendedAccountState]);
 
   useEffect(() => {
     if ((activeTab === 'catalog' || activeTab === 'about') && storeSlug && !isStoreOwner) {
@@ -8081,10 +8092,6 @@ Terima kasih.`;
         fetch(`${API_BASE}/support/tickets/${ticketId}/mark-read`, {
           method: 'POST',
           headers: getAuthHeaders()
-        }).then(() => {
-          if (mobileFetchTicketsPingRef.current) {
-            mobileFetchTicketsPingRef.current();
-          }
         }).catch(() => {});
 
         // Langsung hilangkan efek belum dibaca pada daftar tiket lokal
@@ -8623,7 +8630,6 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   };
 
   // Trigger fetch ketika tab bantuan aktif ATAU ketika toko berstatus suspended (eager fetch status banding)
-  const isSuspendedAccountState = Boolean(settings.is_suspended || settings.dormancy_status === 'suspended');
 
   // Auto-select appeal ticket for suspended store when in help/appeal tab
   useEffect(() => {
