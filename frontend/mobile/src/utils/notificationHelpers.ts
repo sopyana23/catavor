@@ -538,3 +538,117 @@ export function normalizeNotification(item: any): NormalizedNotification {
     displayType
   };
 }
+
+/**
+ * Generates a concise yet informative notification description for mobile view.
+ * Simplifies lengthy moderation messages (official warning, edit & fix, locked severe violation, permanent ban)
+ * on mobile cards while preserving full detail in the article modal/view.
+ */
+export function getMobileNotificationDescription(item: any, modCaseInfo?: any): string {
+  if (!item) return '';
+
+  const modCase = modCaseInfo || parseModerationCase(item);
+  const action = modCase?.actionTaken || '';
+  const isItem = modCase?.targetType !== 'store';
+  const rawTargetName = (modCase?.targetName || '').trim();
+  let cleanTargetName = rawTargetName && !/^item(\s+katalog)?$/i.test(rawTargetName) ? rawTargetName : '';
+  
+  if (!cleanTargetName) {
+    const rawMsg = item.message || '';
+    const rawTitle = item.title || '';
+    const match = rawMsg.match(/["“]([^"”]+)["”]/) || rawTitle.match(/["“]([^"”]+)["”]/);
+    if (match && match[1] && !/^item(\s+katalog)?$/i.test(match[1])) {
+      cleanTargetName = match[1].trim();
+    }
+  }
+
+  const itemLabel = cleanTargetName ? `"${cleanTargetName}"` : 'item katalog';
+  const categoryUpper = String(item.category || '').toUpperCase();
+  const titleLower = String(item.title || '').toLowerCase();
+  const msgLower = String(item.message || '').toLowerCase();
+
+  // 1. Peringatan Resmi (warning_issued)
+  const isWarning =
+    action === 'warning_issued' ||
+    categoryUpper === 'PERINGATAN' ||
+    titleLower.includes('peringatan kepatuhan') ||
+    titleLower.includes('peringatan resmi') ||
+    msgLower.includes('peringatan resmi');
+  if (isWarning) {
+    if (isItem) {
+      return cleanTargetName
+        ? `Peringatan resmi kepatuhan untuk item ${itemLabel}. Status item tetap aktif. Buka rincian untuk panduan.`
+        : 'Peringatan resmi kepatuhan konten item. Status item tetap aktif. Buka rincian untuk panduan.';
+    }
+    return 'Peringatan resmi kepatuhan profil katalog. Status operasional tetap aktif. Buka rincian untuk panduan.';
+  }
+
+  // 2. Nonaktifkan: Beri Kesempatan Edit & Perbaiki (item_needs_fix)
+  const isNeedsFix =
+    action === 'item_needs_fix' ||
+    categoryUpper === 'PERBAIKAN' ||
+    titleLower.includes('perlu perbaikan') ||
+    titleLower.includes('koreksi item') ||
+    msgLower.includes('memerlukan penyesuaian') ||
+    msgLower.includes('beri kesempatan edit') ||
+    msgLower.includes('mengedit data dan mengajukan peninjauan');
+  if (isNeedsFix) {
+    return cleanTargetName
+      ? `Item ${itemLabel} disembunyikan sementara. Silakan edit dan perbaiki data item untuk peninjauan ulang.`
+      : 'Item disembunyikan sementara. Silakan edit dan perbaiki data item untuk peninjauan ulang.';
+  }
+
+  // 3. Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras (item_locked / item_hidden)
+  const isLocked =
+    action === 'item_locked' ||
+    action === 'item_hidden' ||
+    titleLower.includes('kebijakan keras') ||
+    titleLower.includes('penguncian') ||
+    titleLower.includes('dikunci sementara') ||
+    msgLower.includes('pelanggaran kebijakan keras') ||
+    msgLower.includes('dinonaktifkan & dikunci') ||
+    msgLower.includes('dinonaktifkan dan dikunci');
+  if (isLocked) {
+    return cleanTargetName
+      ? `Item ${itemLabel} dinonaktifkan dan dikunci karena pelanggaran keras. Anda dapat mengajukan banding kepatuhan.`
+      : 'Item dinonaktifkan dan dikunci karena pelanggaran keras. Anda dapat mengajukan banding kepatuhan.';
+  }
+
+  // 4. Blokir atau Hapus Item: Banned Permanen (item_banned)
+  const isItemBanned =
+    action === 'item_banned' ||
+    (action === 'banned' && isItem) ||
+    (titleLower.includes('pemblokiran') && isItem) ||
+    (titleLower.includes('banned') && isItem) ||
+    msgLower.includes('diblokir secara permanen dan dihapus') ||
+    msgLower.includes('diblokir permanen');
+  if (isItemBanned) {
+    return cleanTargetName
+      ? `Item ${itemLabel} telah diblokir permanen dan dihapus dari katalog. Keputusan bersifat final.`
+      : 'Item katalog telah diblokir permanen dan dihapus. Keputusan bersifat final.';
+  }
+
+  // Akun / Profil Katalog Banned Permanen
+  if (action === 'account_banned' || action === 'catalog_banned' || titleLower.includes('penonaktifan permanen akun')) {
+    return 'Akun dan seluruh item katalog dinonaktifkan permanen. Keputusan sanksi ini bersifat final.';
+  }
+
+  // Pembekuan / Suspend Profil Katalog
+  if (action === 'catalog_suspended' || titleLower.includes('penangguhan operasional')) {
+    return 'Operasional katalog ditangguhkan sementara. Anda dapat mengajukan banding kepatuhan resmi.';
+  }
+
+  // Pemulihan Item & Profil Katalog
+  if (action === 'item_restored' || titleLower.includes('berhasil dipulihkan')) {
+    return cleanTargetName
+      ? `Item ${itemLabel} telah diaktifkan kembali ke etalase publik dan dapat diakses normal.`
+      : 'Item katalog telah diaktifkan kembali ke etalase publik dan dapat diakses normal.';
+  }
+  if (action === 'catalog_reactivated' || titleLower.includes('pemulihan operasional')) {
+    return 'Penangguhan profil katalog telah resmi dicabut. Seluruh etalase publik kembali aktif normal.';
+  }
+
+  // Default fallback: return standard message with bold asterisks stripped
+  return (item.message || '').replace(/\*\*(.*?)\*\*/g, '$1');
+}
+
