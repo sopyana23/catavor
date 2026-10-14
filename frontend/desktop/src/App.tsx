@@ -21144,32 +21144,94 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         });
 
                         if (activeAppeal) {
+                          const appealMsgs = activeAppeal?.messages || [];
+                          const lastAppealMsg = appealMsgs.length > 0 ? appealMsgs[appealMsgs.length - 1] : null;
+                          const hasAdminReply = Boolean(
+                            (activeAppeal?.unread_count && activeAppeal.unread_count > 0) ||
+                            activeAppeal?.has_unread ||
+                            (lastAppealMsg && (lastAppealMsg.sender === 'agent' || lastAppealMsg.sender === 'support' || lastAppealMsg.sender === 'system'))
+                          );
                           const appealUnreadCount = (activeAppeal?.unread_count && activeAppeal.unread_count > 0)
                             ? activeAppeal.unread_count
-                            : (activeAppeal?.has_unread ? 1 : unreadTicketsCount);
+                            : (hasAdminReply ? 1 : 0);
 
                           return (
-                            <div style={{ width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                              <div style={{
-                                padding: '0.95rem 1.25rem',
-                                borderRadius: '0.85rem',
-                                backgroundColor: 'var(--bg-card-hover, rgba(125, 125, 125, 0.05))',
-                                border: '1px solid var(--border-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.85rem',
-                                textAlign: 'left'
-                              }}>
-                                <Clock size={22} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--primary)' }}>
-                                    Permohonan Banding Sedang Diproses
+                            <div style={{ width: '100%', maxWidth: '520px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                              {hasAdminReply ? (
+                                <div style={{
+                                  padding: '1.1rem 1.35rem',
+                                  borderRadius: '1rem',
+                                  backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                                  border: '1.5px solid rgba(16, 185, 129, 0.35)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '1rem',
+                                  textAlign: 'left',
+                                  boxShadow: '0 4px 20px rgba(16, 185, 129, 0.12)'
+                                }}>
+                                  <div style={{
+                                    width: '42px',
+                                    height: '42px',
+                                    borderRadius: '50%',
+                                    backgroundColor: '#10b981',
+                                    color: '#ffffff',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    boxShadow: '0 0 12px rgba(16, 185, 129, 0.45)'
+                                  }}>
+                                    <MessageSquare size={20} />
                                   </div>
-                                  <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '0.15rem', lineHeight: 1.45 }}>
-                                    Permohonan banding sedang ditinjau oleh tim kepatuhan. Respon dan kelanjutan dialog akan tampil di obrolan banding.
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
+                                      <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981' }}>
+                                        Ada Pesan Balasan dari Admin Kepatuhan
+                                      </span>
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                        backgroundColor: '#10b981',
+                                        color: '#ffffff',
+                                        fontSize: '0.66rem',
+                                        fontWeight: 800,
+                                        padding: '0.12rem 0.5rem',
+                                        borderRadius: '999px',
+                                        boxShadow: '0 0 8px rgba(16, 185, 129, 0.5)',
+                                        animation: 'pulse 1.8s infinite'
+                                      }}>
+                                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
+                                        Pesan Masuk
+                                      </span>
+                                    </div>
+                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                                      Tim kepatuhan platform telah menanggapi banding Anda. Klik tombol di bawah untuk membuka obrolan dan membaca balasan.
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              ) : (
+                                <div style={{
+                                  padding: '0.95rem 1.25rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'var(--bg-card-hover, rgba(125, 125, 125, 0.05))',
+                                  border: '1px solid var(--border-light)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.85rem',
+                                  textAlign: 'left'
+                                }}>
+                                  <Clock size={22} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--primary)' }}>
+                                      Permohonan Banding Sedang Diproses
+                                    </div>
+                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '0.15rem', lineHeight: 1.45 }}>
+                                      Permohonan banding sedang ditinjau oleh tim kepatuhan. Respon dan kelanjutan dialog akan tampil di obrolan banding.
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                               <button
                                 type="button"
                                 className="btn-primary"
@@ -21187,7 +21249,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   borderRadius: '0.85rem',
                                   fontSize: '0.92rem',
                                   fontWeight: 800,
-                                  backgroundColor: 'var(--primary)',
+                                  backgroundColor: hasAdminReply ? '#10b981' : 'var(--primary)',
                                   color: '#ffffff',
                                   border: 'none',
                                   cursor: 'pointer',
@@ -21195,29 +21257,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   gap: '0.65rem',
-                                  boxShadow: '0 4px 20px var(--primary-glow)',
+                                  boxShadow: hasAdminReply ? '0 4px 20px rgba(16, 185, 129, 0.4)' : '0 4px 20px var(--primary-glow)',
                                   transition: 'all 0.2s ease',
                                   position: 'relative'
                                 }}
                               >
                                 <MessageSquare size={18} />
                                 <span>Buka Obrolan Banding</span>
-                                {appealUnreadCount > 0 && (
+                                {hasAdminReply && (
                                   <span style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '0.35rem',
-                                    backgroundColor: '#ef4444',
-                                    color: '#ffffff',
+                                    backgroundColor: '#ffffff',
+                                    color: '#047857',
                                     fontSize: '0.72rem',
-                                    fontWeight: 800,
+                                    fontWeight: 900,
                                     padding: '0.2rem 0.6rem',
                                     borderRadius: '999px',
-                                    boxShadow: '0 0 12px rgba(239, 68, 68, 0.75)',
+                                    boxShadow: '0 0 10px rgba(0,0,0,0.15)',
                                     animation: 'pulse 1.8s infinite'
                                   }}>
-                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
-                                    {appealUnreadCount} Pesan Baru
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#047857' }} />
+                                    {appealUnreadCount > 1 ? `${appealUnreadCount} Pesan Baru` : 'Ada Pesan Baru'}
                                   </span>
                                 )}
                                 <ArrowRight size={16} />
