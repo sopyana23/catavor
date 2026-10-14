@@ -186,7 +186,7 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	// Count active and archived products
 	var activeCount, archivedCount int64
 	db.Model(&models.Product{}).Where("store_id = ? AND is_active = ?", storeID, true).Count(&activeCount)
-	db.Model(&models.Product{}).Where("store_id = ? AND is_active = ?", storeID, false).Count(&archivedCount)
+	db.Model(&models.Product{}).Where("store_id = ? AND is_active = false AND (moderation_status IS NULL OR moderation_status NOT IN ('locked', 'hidden', 'banned', 'needs_fix', 'suspended'))", storeID).Count(&archivedCount)
 
 	// Calculate days remaining
 	daysRemaining := 0
@@ -800,7 +800,7 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 
 	var products []models.Product
 	db.Select("id, image_url, detailed_info").
-		Where("store_id = ? AND deleted_at IS NULL AND (moderation_status IS NULL OR moderation_status NOT IN ('locked', 'hidden', 'banned'))", storeID).
+		Where("store_id = ? AND deleted_at IS NULL AND (moderation_status IS NULL OR moderation_status NOT IN ('locked', 'hidden', 'banned', 'needs_fix', 'suspended'))", storeID).
 		Find(&products)
 	for _, p := range products {
 		registerURL(p.ImageURL)
@@ -885,10 +885,10 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 		}
 	}
 
-	// Protected category B: Moderated violation products (locked / hidden / banned) within 90-day legal evidence retention
+	// Protected category B: Moderated violation products (locked / hidden / banned / needs_fix / suspended) within 90-day legal evidence retention
 	var moderatedProducts []models.Product
 	db.Unscoped().Select("id, image_url, detailed_info").
-		Where("store_id = ? AND moderation_status IN ('locked', 'hidden', 'banned') AND (moderated_at IS NULL OR moderated_at > ?)", storeID, time.Now().UTC().AddDate(0, 0, -90)).
+		Where("store_id = ? AND moderation_status IN ('locked', 'hidden', 'banned', 'needs_fix', 'suspended') AND (moderated_at IS NULL OR moderated_at > ?)", storeID, time.Now().UTC().AddDate(0, 0, -90)).
 		Find(&moderatedProducts)
 	for _, p := range moderatedProducts {
 		registerRetainedURL(p.ImageURL)

@@ -999,7 +999,12 @@ func (t *AutomationTracker) TriggerItemRetentionManual(db *gorm.DB, cfg *config.
 		targetDB = t.db
 	}
 
-	stats, err := ProcessItemRetentionCycle(targetDB, cfg)
+	targetCfg := cfg
+	if targetCfg == nil {
+		targetCfg = config.AppConfig
+	}
+
+	stats, err := ProcessItemRetentionCycle(targetDB, targetCfg)
 	now := time.Now().UTC()
 	status := "success"
 	summary := ""

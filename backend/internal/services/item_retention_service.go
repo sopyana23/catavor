@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
+	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/storage"
 
@@ -55,7 +56,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 	err := db.Model(&models.Product{}).
 		Preload("Store").
 		Preload("Store.User").
-		Where("moderation_status IN ('hidden', 'locked', 'banned') AND moderated_at IS NOT NULL AND moderated_at <= ? AND moderated_at > ? AND deleted_at IS NULL", h7Threshold, h30Threshold).
+		Where("moderation_status IN ('hidden', 'locked', 'banned', 'needs_fix', 'suspended') AND moderated_at IS NOT NULL AND moderated_at <= ? AND moderated_at > ? AND deleted_at IS NULL", h7Threshold, h30Threshold).
 		Find(&h7Candidates).Error
 
 	if err == nil {
@@ -96,6 +97,23 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 
 			reportNum := fmt.Sprintf("ITM-%d", p.ID)
 
+			var notifTitle, notifMsg, notifDetail, actionLabel, linkSubTab, actionURL string
+			if p.ModerationStatus == "needs_fix" {
+				notifTitle = fmt.Sprintf("⚠️ Batas Waktu Edit: Item '%s' (#%d) Dihapus dalam %d Hari", p.Name, p.ID, remainingDays)
+				notifMsg = fmt.Sprintf("Item '%s' yang memerlukan penyesuaian informasi akan otomatis dipindahkan dari katalog Anda dalam waktu %d hari jika tidak diedit dan diajukan ulang.", p.Name, remainingDays)
+				notifDetail = fmt.Sprintf("### Peringatan Masa Tenggang Perbaikan Item\n\nItem **%s** telah dinonaktifkan sementara sejak **%s** untuk memberi kesempatan perbaikan informasi katalog. Sesuai standar operasional kepatuhan, item yang tidak diedit dan diajukan ulang akan otomatis dipindahkan dari inventaris dalam waktu **%d hari** ke depan.\n\nSilakan buka menu inventaris item untuk memperbaiki foto, deskripsi, atau atribut yang belum sesuai.", p.Name, p.ModeratedAt.Format("02 Jan 2006"), remainingDays)
+				actionLabel = "Perbaiki Item Sekarang →"
+				linkSubTab = "items"
+				actionURL = fmt.Sprintf("/%s/admin/items?item=%d&edit=%d", storeSlug, p.ID, p.ID)
+			} else {
+				notifTitle = fmt.Sprintf("⚠️ Peringatan: Item '%s' (#%d) Dihapus dalam %d Hari", p.Name, p.ID, remainingDays)
+				notifMsg = fmt.Sprintf("Item '%s' yang dinonaktifkan oleh Tim Kepatuhan akan dihapus otomatis dari katalog Anda dalam waktu %d hari jika tidak ada tindakan klarifikasi.", p.Name, remainingDays)
+				notifDetail = fmt.Sprintf("### Peringatan Masa Retensi Kepatuhan\n\nItem **%s** telah dinonaktifkan sejak **%s**. Sesuai standar operasional kepatuhan, item yang tidak mendapatkan klarifikasi akan otomatis dipindahkan dari inventaris dalam waktu **%d hari** ke depan.\n\nJika terdapat kekeliruan atau Anda telah memiliki izin legalitas resmi, segera ajukan klarifikasi melalui formulir Bantuan CS.", p.Name, p.ModeratedAt.Format("02 Jan 2006"), remainingDays)
+				actionLabel = "Buka Pusat Bantuan CS →"
+				linkSubTab = "help"
+				actionURL = fmt.Sprintf("/%s/admin/help", storeSlug)
+			}
+
 			// 1. In-App Notification
 			notifID := fmt.Sprintf("notif_ret_h7_%d_%d", p.ID, now.Unix())
 			notif := models.Notification{
@@ -103,16 +121,16 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				TargetType:    "single_store",
 				TargetID:      p.StoreID,
 				TargetName:    storeTitle,
-				Title:         fmt.Sprintf("⚠️ Peringatan: Item '%s' (#%d) Dihapus dalam %d Hari", p.Name, p.ID, remainingDays),
+				Title:         notifTitle,
 				Category:      "KEAMANAN",
-				Message:       fmt.Sprintf("Item '%s' yang dinonaktifkan oleh Tim Kepatuhan akan dihapus otomatis dari katalog Anda dalam waktu %d hari jika tidak ada tindakan klarifikasi.", p.Name, remainingDays),
-				DetailContent: fmt.Sprintf("### Peringatan Masa Retensi Kepatuhan\n\nItem **%s** telah dinonaktifkan sejak **%s**. Sesuai standar operasional kepatuhan, item yang tidak mendapatkan klarifikasi akan otomatis dipindahkan dari inventaris dalam waktu **%d hari** ke depan.\n\nJika terdapat kekeliruan atau Anda telah memiliki izin legalitas resmi, segera ajukan klarifikasi melalui formulir Bantuan CS.", p.Name, p.ModeratedAt.Format("02 Jan 2006"), remainingDays),
+				Message:       notifMsg,
+				DetailContent: notifDetail,
 				Type:          "warning",
 				ActionEnabled: true,
 				ActionType:    "navigate",
-				LinkSubTab:    "help",
-				ActionLabel:   "Buka Pusat Bantuan CS →",
-				ActionURL:     fmt.Sprintf("/%s/admin/help", storeSlug),
+				LinkSubTab:    linkSubTab,
+				ActionLabel:   actionLabel,
+				ActionURL:     actionURL,
 				CreatedAt:     now,
 				UpdatedAt:     now,
 			}
@@ -136,7 +154,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 		Preload("Store").
 		Preload("Store.User").
 		Preload("Images").
-		Where("moderation_status IN ('hidden', 'locked', 'banned') AND moderated_at IS NOT NULL AND moderated_at <= ? AND deleted_at IS NULL", h30Threshold).
+		Where("moderation_status IN ('hidden', 'locked', 'banned', 'needs_fix', 'suspended') AND moderated_at IS NOT NULL AND moderated_at <= ? AND deleted_at IS NULL", h30Threshold).
 		Find(&h30Candidates).Error
 
 	if err == nil {
@@ -179,14 +197,18 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 			})
 
 			// B. Prune heavy media files from storage to save server disk space
-			if strg != nil {
-				if p.ImageURL != "" {
+			if p.ImageURL != "" {
+				_, _ = HardDeleteLocalStorageFile(p.ImageURL)
+				if strg != nil {
 					if k := extractStorageKeyFromURL(p.ImageURL); k != "" {
 						_ = strg.Delete(ctx, k)
 					}
 				}
-				for _, pImg := range p.Images {
-					if pImg.ImageURL != "" {
+			}
+			for _, pImg := range p.Images {
+				if pImg.ImageURL != "" {
+					_, _ = HardDeleteLocalStorageFile(pImg.ImageURL)
+					if strg != nil {
 						if k := extractStorageKeyFromURL(pImg.ImageURL); k != "" {
 							_ = strg.Delete(ctx, k)
 						}
@@ -203,6 +225,10 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				"is_active":  false,
 				"deleted_at": now,
 			}).Error
+
+			// Recalculate store storage used and invalidate quota cache
+			SyncStoreStorageUsed(db, p.StoreID)
+			database.InvalidateStoreQuotaCache(ctx, p.StoreID)
 
 			storeTitle := "Katalog Catavor"
 			storeSlug := ""
@@ -256,7 +282,8 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 
 	var h90Candidates []models.Product
 	err = db.Unscoped().Model(&models.Product{}).
-		Where("moderation_status IN ('hidden', 'locked', 'banned') AND moderated_at IS NOT NULL AND moderated_at <= ? AND deleted_at IS NOT NULL", h90Threshold).
+		Preload("Images").
+		Where("moderation_status IN ('hidden', 'locked', 'banned', 'needs_fix', 'suspended') AND moderated_at IS NOT NULL AND moderated_at <= ? AND deleted_at IS NOT NULL", h90Threshold).
 		Find(&h90Candidates).Error
 
 	if err == nil {
@@ -265,6 +292,26 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 			if hasActiveTicket(db, p.StoreID, p.ID) {
 				stats.SkippedActive++
 				continue
+			}
+
+			// Clean remaining images from local disk and cloud storage
+			if p.ImageURL != "" {
+				_, _ = HardDeleteLocalStorageFile(p.ImageURL)
+				if strg != nil {
+					if k := extractStorageKeyFromURL(p.ImageURL); k != "" {
+						_ = strg.Delete(ctx, k)
+					}
+				}
+			}
+			for _, pImg := range p.Images {
+				if pImg.ImageURL != "" {
+					_, _ = HardDeleteLocalStorageFile(pImg.ImageURL)
+					if strg != nil {
+						if k := extractStorageKeyFromURL(pImg.ImageURL); k != "" {
+							_ = strg.Delete(ctx, k)
+						}
+					}
+				}
 			}
 
 			// Clean remaining relations
@@ -295,6 +342,10 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				EntityTitle: p.Name,
 				Description: fmt.Sprintf("Hard-delete permanen total item pelanggaran '%s' (#%d) setelah masa retensi hukum 90 hari terpenuhi.", p.Name, p.ID),
 			})
+
+			// Recalculate store storage used and invalidate quota cache
+			SyncStoreStorageUsed(db, p.StoreID)
+			database.InvalidateStoreQuotaCache(ctx, p.StoreID)
 
 			stats.HardDeleted++
 		}
