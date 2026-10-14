@@ -154,7 +154,7 @@ import { ConnectedDevicesView } from './components/ConnectedDevicesView'
 import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
-import { normalizeNotification } from './utils/notificationHelpers'
+import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
 import { 
   getSavedUserSlug, 
   saveUserActiveSlug, 
@@ -27841,7 +27841,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     {item.title}
                                   </h4>
 
-                                  {/* Message Body (Teks informasi utuh tanpa terpotong) */}
+                                  {/* Message Body (Deskripsi ringkas & informatif di halaman notifikasi mobile) */}
                                   <p style={{
                                     fontSize: '0.8rem',
                                     color: 'var(--text-secondary)',
@@ -27850,7 +27850,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     wordBreak: 'break-word',
                                     whiteSpace: 'pre-wrap'
                                   }}>
-                                    {(item.message || '').replace(/\*\*(.*?)\*\*/g, '$1')}
+                                    {getMobileNotificationDescription(item, norm.modCase)}
                                   </p>
 
                                   {/* Action Hint Micro-Pill (Only when actionable) */}
