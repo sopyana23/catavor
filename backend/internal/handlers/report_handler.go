@@ -1396,6 +1396,8 @@ func purgeBannedStore(tx *gorm.DB, storeID uint, storeSlug, storeTitle, reportNu
 			Count(&remainingActiveCount).Error
 		if remainingActiveCount == 0 {
 			_ = tx.Model(&models.User{}).Where("id = ?", store.UserID).Update("is_blacklisted", true).Error
+			// Enterprise Best Practice: Immediately revoke all active sessions & JWT tokens for banned user
+			_ = services.RevokeAllSessionsForUser(tx, store.UserID)
 		}
 	}
 
