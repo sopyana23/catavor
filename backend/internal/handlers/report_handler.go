@@ -882,8 +882,19 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					CreatedAt:     now,
 					UpdatedAt:     now,
 				}
-				if err := tx.Create(&notif).Error; err == nil {
-					notificationCreated = &notif
+				// Deduplication check: Do NOT create duplicate notifications for the same store and report/action within 10 minutes
+				var dupNotifCount int64
+				_ = tx.Model(&models.Notification{}).
+					Where("target_type = 'single_store' AND target_id = ? AND (action_url LIKE ? OR (category = ? AND title = ?)) AND created_at >= ?",
+						report.StoreID, "%"+report.ReportNumber+"%", notifCategory, notifTitle, now.Add(-10*time.Minute)).
+					Count(&dupNotifCount).Error
+
+				if dupNotifCount == 0 {
+					if err := tx.Create(&notif).Error; err == nil {
+						notificationCreated = &notif
+					}
+				} else {
+					log.Info().Str("report_number", report.ReportNumber).Uint("store_id", report.StoreID).Msg("Skipping duplicate moderation in-app notification creation")
 				}
 			}
 		}

@@ -12,6 +12,7 @@ import {
   LifeBuoy,
   Shield,
   ShieldCheck,
+  ShieldAlert,
   Layers,
   ChevronDown,
   Store,
@@ -92,6 +93,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const storeDropdownRef = React.useRef<HTMLDivElement>(null);
   const notifTriggerRef = React.useRef<HTMLButtonElement>(null);
+  const isSuspended = settings?.dormancy_status === 'suspended' || settings?.is_suspended;
 
   // Close dropdown on click outside
   React.useEffect(() => {
@@ -272,8 +274,9 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
       }}
     >
       {/* 1. LEFT SIDEBAR NAVIGATION */}
-      <aside 
-        style={{
+      {!isSuspended && (
+        <aside 
+          style={{
           width: isSidebarCollapsed ? '78px' : '268px',
           flexShrink: 0,
           backgroundColor: 'var(--bg-card)',
@@ -904,6 +907,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           )}
         </div>
       </aside>
+      )}
 
       {/* 2. MAIN WORKSPACE AREA */}
       <div 
@@ -932,38 +936,117 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
             backdropFilter: 'blur(12px)'
           }}
         >
-          {/* Left: Breadcrumbs / Title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button
-              type="button"
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-                padding: '0.35rem',
-                borderRadius: '0.4rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title={isSidebarCollapsed ? 'Buka Sidebar' : 'Ciutkan Sidebar'}
-            >
-              <Menu size={18} />
-            </button>
+          {isSuspended ? (
+            /* DEDICATED SUSPENDED ISOLATION HEADER (NO BELL, NO IRRELEVANT TABS) */
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '0.55rem',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444'
+                }}>
+                  <ShieldAlert size={19} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Status Operasional: Dibekukan Sementara
+                  </span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {settings?.store_title || storeSlug || 'Katalog Merchant'}
+                  </span>
+                </div>
+              </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Panel Admin</span>
-              <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-              <strong style={{ color: 'var(--text-primary)', fontWeight: 800 }}>
-                {getActiveTabTitle()}
-              </strong>
-            </div>
-          </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                {userStores && userStores.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={openStoreChooserModal}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: '0.55rem',
+                      backgroundColor: 'var(--bg-card-hover)',
+                      border: '1px solid var(--border-light)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Kelola katalog toko Anda yang lain"
+                  >
+                    <Store size={14} />
+                    <span>Pilih Toko Lain ({userStores.length})</span>
+                  </button>
+                )}
 
-          {/* Right: Quick Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#ef4444',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Keluar dari akun merchant"
+                >
+                  <LogOut size={14} />
+                  <span>Keluar</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Left: Breadcrumbs / Title */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    padding: '0.35rem',
+                    borderRadius: '0.4rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title={isSidebarCollapsed ? 'Buka Sidebar' : 'Ciutkan Sidebar'}
+                >
+                  <Menu size={18} />
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Panel Admin</span>
+                  <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                  <strong style={{ color: 'var(--text-primary)', fontWeight: 800 }}>
+                    {getActiveTabTitle()}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Right: Quick Actions */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             {/* Quick Quota Pill */}
             <div 
               onClick={() => {
@@ -1199,6 +1282,8 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
               </div>
             )}
           </div>
+            </>
+          )}
         </header>
 
         {/* Content Canvas */}

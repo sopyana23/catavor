@@ -48,6 +48,23 @@ func EnqueueEmail(recipientEmail, recipientName, fromName, subject, bodyHTML, ca
 	}
 
 	now := time.Now().UTC()
+
+	// Deduplication protection: Prevent sending duplicate emails for the same incident/reference within 10 minutes
+	if referenceID != "" && category != "" && recipientEmail != "" {
+		var duplicateCount int64
+		_ = globalEmailQueue.db.Model(&models.EmailJob{}).
+			Where("recipient_email = ? AND category = ? AND reference_id = ? AND created_at >= ?", recipientEmail, category, referenceID, now.Add(-10*time.Minute)).
+			Count(&duplicateCount).Error
+		if duplicateCount > 0 {
+			log.Info().
+				Str("to", recipientEmail).
+				Str("category", category).
+				Str("ref", referenceID).
+				Msg("Skipping duplicate email enqueue (incident already dispatched within deduplication window)")
+			return nil, nil
+		}
+	}
+
 	jobID := fmt.Sprintf("job_mail_%d_%s", now.UnixNano(), uuid.New().String()[:8])
 
 	job := models.EmailJob{
