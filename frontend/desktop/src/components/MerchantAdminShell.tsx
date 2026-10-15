@@ -134,8 +134,40 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
     });
   }, [userStores, storeSearchQuery, storeSlug]);
 
-  // Grouped Navigation Items
-  const navSections = [
+  // Grouped Navigation Items (Clean Pure Isolation Mode when Suspended)
+  const navSections = isSuspended ? [
+    {
+      group: 'Kepatuhan & Pemulihan',
+      items: [
+        {
+          id: 'items',
+          label: 'Pusat Banding & Klarifikasi',
+          icon: <Scale size={18} />,
+          badge: 'Ditangguhkan',
+          badgeColor: 'rgba(239, 68, 68, 0.2)',
+          badgeTextColor: '#ef4444'
+        }
+      ]
+    },
+    {
+      group: 'Layanan & Bantuan',
+      items: [
+        {
+          id: 'notifications',
+          label: 'Pusat Notifikasi',
+          icon: <BellRing size={18} />,
+          badge: unreadCount > 0 ? unreadCount : null,
+          badgeColor: '#ef4444',
+          badgeTextColor: '#ffffff'
+        },
+        {
+          id: 'policies',
+          label: 'Legal & Kebijakan',
+          icon: <ShieldAlert size={18} />
+        }
+      ]
+    }
+  ] : [
     {
       group: 'Katalog & Inventaris',
       items: [
@@ -215,8 +247,8 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
     }
   ];
 
-  // Optional Staff items
-  if (isSuperAdminUser || isPlatformAdminUser) {
+  // Optional Staff items (only shown if user has platform privileges)
+  if (!isSuspended && (isSuperAdminUser || isPlatformAdminUser)) {
     const staffItems: any[] = [];
     if (isSuperAdminUser) {
       staffItems.push({
@@ -242,6 +274,11 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
 
   // Active Tab Title Lookup
   const getActiveTabTitle = () => {
+    if (isSuspended) {
+      if (adminTab === 'notifications') return 'Pusat Notifikasi Sistem';
+      if (adminTab === 'policies') return 'Legal, Ketentuan & Kebijakan Platform';
+      return 'Pusat Banding Kepatuhan & Pemulihan Akun';
+    }
     switch (adminTab) {
       case 'items': return 'Daftar Item & Inventaris';
       case 'categories': return 'Manajemen Kategori & Etalase Katalog';

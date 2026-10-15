@@ -939,6 +939,29 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		services.SyncStoreStorageUsed(database.DB, report.StoreID)
 		database.InvalidateStoreQuotaCache(context.Background(), report.StoreID)
 		InvalidateStoreProductsCache(report.StoreID)
+		if report.StoreSlug != "" {
+			InvalidateStoreProfileCache(report.StoreSlug)
+		}
+	}
+
+	// Broadcast real-time store lifecycle events to merchant stream
+	if actionTaken == "catalog_reactivated" && report.StoreID > 0 {
+		go services.GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
+			"store_id":        report.StoreID,
+			"slug":            report.StoreSlug,
+			"is_suspended":    false,
+			"dormancy_status": "active",
+			"message":         "Akun toko Anda telah dipulihkan oleh Tim Kepatuhan platform.",
+		}, report.StoreID)
+	} else if actionTaken == "catalog_suspended" && report.StoreID > 0 {
+		go services.GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
+			"store_id":          report.StoreID,
+			"slug":              report.StoreSlug,
+			"is_suspended":      true,
+			"dormancy_status":   "suspended",
+			"suspension_reason": "moderation_violation",
+			"message":           "Akun toko Anda telah ditangguhkan sementara oleh Tim Kepatuhan platform.",
+		}, report.StoreID)
 	}
 
 	// A. Broadcast In-App Notification via WebSocket Hub

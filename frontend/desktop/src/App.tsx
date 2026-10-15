@@ -64,6 +64,7 @@ import {
   Wrench,
   Star,
   AlertTriangle,
+  Ban,
   Save,
   ArrowRight,
   Share2,
@@ -5530,6 +5531,138 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                 desktopFetchTicketsPingRef.current();
               }
             }, 350);
+          } else if (payload && (
+            payload.event === 'store_status_updated' ||
+            (payload.notification && (
+              payload.notification.category === 'PEMULIHAN' ||
+              payload.notification.category === 'PENANGGUHAN' ||
+              payload.notification.category === 'SUSPEND' ||
+              payload.notification.title?.includes('Pemulihan') ||
+              payload.notification.title?.includes('Aktif Kembali') ||
+              payload.notification.title?.includes('Ditangguhkan') ||
+              payload.notification.title?.includes('Penangguhan') ||
+              payload.notification.title?.includes('Dibekukan')
+            ))
+          )) {
+            const eventSlug = (payload.store?.slug || payload.slug || payload.notification?.target_slug || '').toLowerCase();
+            if (!eventSlug || !currentSlug || eventSlug === currentSlug) {
+              const isSuspendedEvent = payload.store 
+                ? (payload.store.is_suspended === true || payload.store.dormancy_status === 'suspended')
+                : (payload.notification && (
+                    payload.notification.category === 'PENANGGUHAN' ||
+                    payload.notification.category === 'SUSPEND' ||
+                    payload.notification.title?.includes('Ditangguhkan') ||
+                    payload.notification.title?.includes('Penangguhan') ||
+                    payload.notification.title?.includes('Dibekukan')
+                  ));
+              const isRestored = !isSuspendedEvent;
+
+              if (isRestored) {
+                showToast('Akun toko Anda telah dipulihkan oleh Tim Kepatuhan platform.', 'success');
+                try {
+                  const targetSlug = currentSlug || eventSlug;
+                  if (targetSlug) {
+                    sessionStorage.removeItem(`catavor_store_suspended_${targetSlug}`);
+                  }
+                  sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+                  sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+                  sessionStorage.removeItem('catavor_active_appeal_ticket');
+                  sessionStorage.removeItem('catavor_active_desktop_notification_id');
+                  sessionStorage.removeItem('catavor_active_desktop_notification_data');
+                } catch {}
+                if (typeof window !== 'undefined') {
+                  const p = window.location.pathname.toLowerCase();
+                  if (p.endsWith('/appeal') || p.endsWith('/banding')) {
+                    const cleanSlug = currentSlug || eventSlug;
+                    window.history.replaceState({}, '', cleanSlug ? `/${cleanSlug}/admin` : '/admin');
+                  }
+                }
+                setDesktopSuspendedView('hub');
+                const targetSlug = currentSlug || eventSlug;
+                if (targetSlug) {
+                  loadData(targetSlug);
+                }
+                fetchMyStores();
+              } else {
+                // REAL-TIME STORE SUSPENSION HANDLER (INSTANT ISOLATION & CLEANUP)
+                const reason = payload.store?.suspension_reason || 'moderation_violation';
+                const suspendedMessage = payload.store?.message || payload.notification?.message || 'Akun toko Anda telah ditangguhkan sementara oleh Tim Kepatuhan platform.';
+                showToast(suspendedMessage, 'error');
+
+                // 1. Mutate settings state immediately
+                setSettings(prev => ({
+                  ...prev,
+                  is_suspended: true,
+                  dormancy_status: 'suspended',
+                  suspension_reason: reason,
+                  dormancy_suspended_at: payload.store?.dormancy_suspended_at || new Date().toISOString()
+                }));
+
+                // 2. Persist to storage & update userStores
+                try {
+                  const targetSlug = currentSlug || eventSlug;
+                  if (targetSlug) {
+                    sessionStorage.setItem(`catavor_store_suspended_${targetSlug}`, '1');
+                    const cached = localStorage.getItem(`catavor_store_${targetSlug}`);
+                    if (cached) {
+                      const p = JSON.parse(cached);
+                      p.is_suspended = true;
+                      p.dormancy_status = 'suspended';
+                      p.suspension_reason = reason;
+                      localStorage.setItem(`catavor_store_${targetSlug}`, JSON.stringify(p));
+                    }
+                  }
+                  const settingsRaw = localStorage.getItem('catavor_settings');
+                  if (settingsRaw) {
+                    const p = JSON.parse(settingsRaw);
+                    p.is_suspended = true;
+                    p.dormancy_status = 'suspended';
+                    p.suspension_reason = reason;
+                    localStorage.setItem('catavor_settings', JSON.stringify(p));
+                  }
+                } catch {}
+
+                setUserStores(prev => prev.map(s => {
+                  if (s.slug?.toLowerCase() === (currentSlug || eventSlug)) {
+                    return { ...s, is_suspended: true, dormancy_status: 'suspended', suspension_reason: reason };
+                  }
+                  return s;
+                }));
+
+                // 3. Instant Overlays Cleanup - close all open modals/drawers
+                setShowCrudModal(false);
+                setEditId(null);
+                setSelectedFauna(null);
+                setShowQRModal(false);
+                setArchiveConfirmModal(null);
+                setShowStoreSwitcherModal(false);
+                setShowCreateStoreModal(false);
+                setShowRekberExplainerModal(false);
+                setReportModalData(null);
+                setActivePolicyModal(null);
+                setShowQuickPolicyModal(null);
+                setRenameMasterModalData(null);
+                setShowStoreDropdown(false);
+
+                // 4. Force view and tab into isolated suspension hub
+                setAdminTab('items');
+                setDesktopSuspendedView('hub');
+
+                // 5. Update browser URL to standard admin path
+                const slug = currentSlug || eventSlug;
+                if (slug && typeof window !== 'undefined') {
+                  window.history.replaceState({}, '', `/${slug}/admin`);
+                }
+
+                // 6. Refresh tickets to pull latest appeal tickets/messages
+                if (desktopFetchSupportTicketsRef.current) {
+                  desktopFetchSupportTicketsRef.current(true);
+                }
+                if (desktopFetchTicketsPingRef.current) {
+                  desktopFetchTicketsPingRef.current();
+                }
+              }
+            }
           } else if (payload && payload.notification) {
             const newNotif = payload.notification;
             const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
@@ -20680,7 +20813,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
               isSuperAdminUser={isSuperAdmin(adminUser)}
             >
               {/* Dormancy Inactivity Warning Banner (Free Tier Desktop - Dynamic Luxury Theme) */}
-              {settings.plan === 'free' && (settings.dormancy_status === 'warning_1' || settings.dormancy_status === 'warning_2') && (
+              {!isSuspendedAccount && settings.plan === 'free' && (settings.dormancy_status === 'warning_1' || settings.dormancy_status === 'warning_2') && (
                 <div 
                   className="glass-panel animate-fade-in"
                   style={{

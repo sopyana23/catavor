@@ -5357,6 +5357,30 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             if (mobileFetchTicketsPingRef.current) {
               mobileFetchTicketsPingRef.current();
             }
+          } else if (payload && (payload.event === 'store_status_updated' || (payload.notification && (payload.notification.category === 'PEMULIHAN' || payload.notification.title?.includes('Pemulihan') || payload.notification.title?.includes('Aktif Kembali'))))) {
+            const eventSlug = (payload.store?.slug || payload.slug || payload.notification?.target_slug || '').toLowerCase();
+            if (!eventSlug || !currentSlug || eventSlug === currentSlug) {
+              const isRestored = payload.store ? (payload.store.is_suspended === false || payload.store.dormancy_status === 'active') : true;
+              if (isRestored) {
+                showToast('Akun toko Anda telah dipulihkan oleh Tim Kepatuhan platform.', 'info');
+                try {
+                  sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+                  sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+                  sessionStorage.removeItem('catavor_active_appeal_ticket');
+                  sessionStorage.removeItem('catavor_active_desktop_notification_id');
+                  sessionStorage.removeItem('catavor_active_desktop_notification_data');
+                } catch {}
+                if (typeof window !== 'undefined') {
+                  const p = window.location.pathname.toLowerCase();
+                  if (p.endsWith('/appeal') || p.endsWith('/banding')) {
+                    const cleanSlug = currentSlug || eventSlug;
+                    window.location.href = cleanSlug ? `/${cleanSlug}/admin` : '/admin';
+                  } else {
+                    window.location.reload();
+                  }
+                }
+              }
+            }
           } else if (payload && payload.notification) {
             const newNotif = payload.notification;
             const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));

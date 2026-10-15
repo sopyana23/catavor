@@ -202,6 +202,45 @@ func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData inte
 		Msg("Realtime ticket broadcast delivered")
 }
 
+// BroadcastStoreEvent sends a real-time store lifecycle event (such as store_status_updated)
+// to either connected clients for that store, or platform administrators.
+func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interface{}, targetStoreID uint) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if len(h.clients) == 0 {
+		return
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"event":     eventType,
+		"store":     storeData,
+		"timestamp": time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to serialize store SSE broadcast")
+		return
+	}
+
+	sentCount := 0
+	for client := range h.clients {
+		if targetStoreID == 0 || client.StoreID == targetStoreID || client.StoreID == 0 || client.PlatformRole == "superadmin" {
+			select {
+			case client.Send <- payload:
+				sentCount++
+			default:
+				log.Warn().Str("client_id", client.ID).Msg("SSE client buffer full, skipping store event")
+			}
+		}
+	}
+
+	log.Info().
+		Str("event", eventType).
+		Uint("target_store", targetStoreID).
+		Int("sent_count", sentCount).
+		Msg("Realtime store broadcast delivered")
+}
+
 // isClientTargetMatch checks if a connected client satisfies the notification target constraints.
 func (h *NotificationHub) isClientTargetMatch(client *SSEClient, notif *models.Notification) bool {
 	switch notif.TargetType {

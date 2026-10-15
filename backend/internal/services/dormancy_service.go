@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/storage"
 
@@ -125,6 +126,20 @@ func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
 	delete(activityCache, store.ID)
 	activityCacheMutex.Unlock()
 
+	// Invalidate Redis profile cache to prevent stale suspended status
+	if database.IsRedisAvailable() && database.RedisClient != nil && store.Slug != "" {
+		_ = database.RedisClient.Del(context.Background(), fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
+	}
+
+	// Broadcast real-time store lifecycle event to connected clients
+	go GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
+		"store_id":        store.ID,
+		"slug":            store.Slug,
+		"is_suspended":    false,
+		"dormancy_status": "active",
+		"message":         "Masa aktif katalog toko Anda berhasil diperpanjang.",
+	}, store.ID)
+
 	log.Info().Uint("store_id", store.ID).Str("slug", store.Slug).Msg("Store successfully reactivated via 1-click magic token")
 	return &store, nil
 }
@@ -174,6 +189,20 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 	activityCacheMutex.Lock()
 	delete(activityCache, store.ID)
 	activityCacheMutex.Unlock()
+
+	// Invalidate Redis profile cache to prevent stale suspended status
+	if database.IsRedisAvailable() && database.RedisClient != nil && store.Slug != "" {
+		_ = database.RedisClient.Del(context.Background(), fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
+	}
+
+	// Broadcast real-time store lifecycle event to connected clients
+	go GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
+		"store_id":        store.ID,
+		"slug":            store.Slug,
+		"is_suspended":    false,
+		"dormancy_status": "active",
+		"message":         "Masa aktif katalog toko Anda berhasil diperpanjang.",
+	}, store.ID)
 
 	return &store, nil
 }
@@ -319,6 +348,16 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 				)
 			}
 			log.Warn().Uint("store_id", store.ID).Str("slug", store.Slug).Msg("Store soft suspended due to 45-day inactivity")
+
+			// Broadcast real-time store lifecycle event to connected clients
+			go GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
+				"store_id":          store.ID,
+				"slug":              store.Slug,
+				"is_suspended":      true,
+				"dormancy_status":   "suspended",
+				"suspension_reason": "dormancy",
+				"message":           fmt.Sprintf("Katalog '%s' telah dinonaktifkan sementara karena inaktivitas.", store.StoreTitle),
+			}, store.ID)
 		}
 	}
 
