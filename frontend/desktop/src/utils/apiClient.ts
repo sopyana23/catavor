@@ -174,6 +174,21 @@ export async function request<T = any>(
     if (res.status === 403) {
       let data: any = {};
       try { data = await res.json(); } catch {}
+      if (data?.code === 'STORE_SUSPENDED') {
+        try {
+          const currentSlug = slug || getActiveStoreSlug();
+          if (currentSlug) {
+            sessionStorage.setItem(`catavor_store_suspended_${currentSlug.toLowerCase()}`, '1');
+            const cached = localStorage.getItem(`catavor_store_${currentSlug.toLowerCase()}`);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              parsed.is_suspended = true;
+              parsed.dormancy_status = 'suspended';
+              localStorage.setItem(`catavor_store_${currentSlug.toLowerCase()}`, JSON.stringify(parsed));
+            }
+          }
+        } catch {}
+      }
       throw new ApiError(data?.message || 'Akses ditolak.', 403, data?.code || 'FORBIDDEN', data);
     }
 

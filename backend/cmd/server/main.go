@@ -298,9 +298,9 @@ func main() {
 	guardedMutations := api.Group("", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.OperationalStoreRequired())
 	{
 		// Storage & Cloud Object Endpoints (S3 / MinIO / Local)
-		guarded.Post("/storage/upload", storageHandler.Upload)
+		guardedMutations.Post("/storage/upload", storageHandler.Upload)
 		guardedMutations.Delete("/storage/file", storageHandler.DeleteFile)
-		guarded.Post("/upload-image", storageHandler.Upload) // Backward compatibility alias
+		guardedMutations.Post("/upload-image", storageHandler.Upload) // Backward compatibility alias
 
 		// CRUD Modern Product & Category
 		guardedMutations.Post("/products", productHandler.Store)
@@ -352,8 +352,8 @@ func main() {
 		// Multi-Tier Subscription, Quota & Custom Domain Management
 		guarded.Get("/subscription/my-quota", subscriptionHandler.GetStoreQuota)
 		guardedMutations.Post("/subscription/upgrade", subscriptionHandler.UpgradePlan)
-		guarded.Post("/subscription/schedule-downgrade", subscriptionHandler.ScheduleDowngrade)
-		guarded.Post("/subscription/cancel-downgrade", subscriptionHandler.CancelDowngrade)
+		guardedMutations.Post("/subscription/schedule-downgrade", subscriptionHandler.ScheduleDowngrade)
+		guardedMutations.Post("/subscription/cancel-downgrade", subscriptionHandler.CancelDowngrade)
 		guardedMutations.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
 		guardedMutations.Post("/subscription/order", subscriptionHandler.CreateOrder)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
@@ -398,8 +398,8 @@ func main() {
 		guarded.Get("/users/search", notificationHandler.SearchUsers)
 
 		// Store Activity Extension & Superadmin Dormancy Metrics
-		guarded.Post("/stores/extend-activity", handlers.HandleExtendStoreActivity)
-		guarded.Post("/store/extend-activity", handlers.HandleExtendStoreActivity)
+		guardedMutations.Post("/stores/extend-activity", handlers.HandleExtendStoreActivity)
+		guardedMutations.Post("/store/extend-activity", handlers.HandleExtendStoreActivity)
 
 		// System Bot & Automation Engine Monitoring & Sandbox
 		guarded.Get("/admin/automation/status", notificationHandler.GetAutomationStatus)

@@ -88,15 +88,20 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 // GlobalAPIRateLimiter provides Layer-7 DoS protection across public API routes
 func GlobalAPIRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{
-		Max:        180, // 180 requests per minute per IP
+		Max:        300, // 300 requests per minute per IP for normal SPA usage
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
 			return c.IP() + "_global_api"
 		},
 		Next: func(c *fiber.Ctx) bool {
+			ip := c.IP()
+			// Exclude localhost / loopback in development to avoid 429 lockouts during multi-tab testing
+			if ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost" {
+				return true
+			}
 			path := c.Path()
-			// Exclude real-time SSE stream from rate limiting to prevent dropping persistent connections
-			if strings.Contains(path, "/notifications/stream") {
+			// Exclude real-time SSE stream & lightweight background ping from rate limiting
+			if strings.Contains(path, "/notifications/stream") || strings.Contains(path, "/support/tickets-ping") {
 				return true
 			}
 			return false

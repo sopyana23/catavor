@@ -28,7 +28,9 @@ import {
   Search,
   FolderTree,
   Package,
-  X
+  X,
+  MessageSquare,
+  ArrowRight
 } from 'lucide-react';
 
 export interface MerchantAdminShellProps {
@@ -937,58 +939,68 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           }}
         >
           {isSuspended ? (
-            /* DEDICATED SUSPENDED ISOLATION HEADER (NO BELL, NO IRRELEVANT TABS) */
+            /* DEDICATED SUSPENDED ISOLATION HEADER (CLEAN, HARMONIOUS, ZERO-NOISE) */
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                 <div style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '0.55rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(225, 29, 72, 0.08)',
+                  border: '1px solid rgba(225, 29, 72, 0.2)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#ef4444'
+                  color: '#e11d48'
                 }}>
                   <ShieldAlert size={19} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Status Operasional: Dibekukan Sementara
+                  <span style={{ fontSize: '0.66rem', fontWeight: 800, color: '#e11d48', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Status: Dibekukan Sementara
                   </span>
-                  <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                     {settings?.store_title || storeSlug || 'Katalog Merchant'}
                   </span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                {userStores && userStores.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={openStoreChooserModal}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      padding: '0.45rem 0.85rem',
-                      borderRadius: '0.55rem',
-                      backgroundColor: 'var(--bg-card-hover)',
-                      border: '1px solid var(--border-light)',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="Kelola katalog toko Anda yang lain"
-                  >
-                    <Store size={14} />
-                    <span>Pilih Toko Lain ({userStores.length})</span>
-                  </button>
-                )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                {/* 2. Tombol Ganti Profil / Pilih Toko Lain (Prominent & Eye-Catching) */}
+                <button
+                  type="button"
+                  onClick={openStoreChooserModal}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.45rem 0.95rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                    border: '1.5px solid rgba(59, 130, 246, 0.35)',
+                    color: '#3b82f6',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.08)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.08)';
+                    e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.35)';
+                  }}
+                  title="Ganti Profil Katalog Toko"
+                >
+                  <Store size={15} />
+                  <span>Ganti Profil {userStores && userStores.length > 1 ? `(${userStores.length} Katalog)` : ''}</span>
+                  <ChevronDown size={13} style={{ opacity: 0.8 }} />
+                </button>
 
+                {/* 3. Tombol Keluar */}
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -996,17 +1008,25 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.45rem',
-                    padding: '0.45rem 0.9rem',
+                    padding: '0.45rem 0.85rem',
                     borderRadius: '0.55rem',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    color: '#ef4444',
+                    backgroundColor: 'transparent',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-secondary)',
                     fontSize: '0.78rem',
-                    fontWeight: 700,
+                    fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
                   }}
-                  title="Keluar dari akun merchant"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#ef4444';
+                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                    e.currentTarget.style.borderColor = 'var(--border-light)';
+                  }}
+                  title="Keluar dari Akun"
                 >
                   <LogOut size={14} />
                   <span>Keluar</span>

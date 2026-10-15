@@ -34,8 +34,10 @@ func (h *ActivityLogHandler) GetStoreActivityLogs(c *fiber.Ctx) error {
 	// Identify active store for the user
 	storeVal := c.Locals("store")
 	var storeID uint
+	var activeStore *models.Store
 	if storeVal != nil {
-		storeID = storeVal.(*models.Store).ID
+		activeStore = storeVal.(*models.Store)
+		storeID = activeStore.ID
 	} else {
 		var store models.Store
 		if err := h.db.Where("user_id = ?", user.ID).Order("id asc").First(&store).Error; err != nil {
@@ -44,7 +46,20 @@ func (h *ActivityLogHandler) GetStoreActivityLogs(c *fiber.Ctx) error {
 				"message": "Toko tidak ditemukan.",
 			})
 		}
+		activeStore = &store
 		storeID = store.ID
+	}
+
+	isStaff := user != nil && (strings.EqualFold(user.PlatformRole, "superadmin") ||
+		strings.EqualFold(user.PlatformRole, "support") ||
+		strings.EqualFold(user.PlatformRole, "compliance") ||
+		user.Email == "admin@catavor.com")
+	if !isStaff && activeStore != nil && (activeStore.DormancyStatus == "suspended" || activeStore.IsSuspended || activeStore.DormancyStatus == "banned" || activeStore.IsBlacklisted) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STORE_SUSPENDED",
+			"message": "Log aktivitas dinonaktifkan sementara karena operasional profil katalog sedang dibekukan.",
+		})
 	}
 
 	page, _ := strconv.Atoi(c.Query("page", "1"))
