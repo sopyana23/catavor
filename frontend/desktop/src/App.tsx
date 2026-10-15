@@ -21577,30 +21577,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           </div>
                         )}
 
-                        {/* Indikator Pesan Baru: Ditampilkan tepat di atas tombol banding jika ada pesan baru yang belum dibaca */}
-                        {suspendedAppealInfo.unreadCount > 0 && (
-                          <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            padding: '0.45rem 1rem',
-                            borderRadius: '999px',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            color: '#ef4444',
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            boxShadow: '0 2px 10px rgba(239, 68, 68, 0.12)'
-                          }}>
-                            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ef4444', display: 'inline-block' }} />
-                            <span>
-                              {suspendedAppealInfo.unreadCount > 1 
-                                ? `${suspendedAppealInfo.unreadCount} Pesan Baru Belum Dibaca dari Tim Kepatuhan` 
-                                : '1 Pesan Baru Belum Dibaca dari Tim Kepatuhan'}
-                            </span>
-                          </div>
-                        )}
-
                         {/* Action CTA Button: Label dinamis tanpa teks Pesan Baru */}
                         <button
                           type="button"
