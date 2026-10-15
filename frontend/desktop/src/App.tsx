@@ -12222,6 +12222,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Handle Logout
   const handleLogout = async () => {
+    const isStaff = isPlatformAdmin(adminUser) || isSuperAdmin(adminUser);
+    const targetLoginUrl = isStaff ? '/admin' : '/login';
     try {
       await fetch(`${API_BASE}/logout`, {
         method: 'POST',
@@ -12235,7 +12237,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       handleUnauthorized('Sesi telah ditutup.', false)
       setPortalTab('login')
       if (typeof window !== 'undefined') {
-        window.history.pushState({ tab: 'login' }, '', '/login')
+        window.location.href = targetLoginUrl;
       }
     }
   }

@@ -999,38 +999,6 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                   <span>Ganti Profil {userStores && userStores.length > 1 ? `(${userStores.length} Katalog)` : ''}</span>
                   <ChevronDown size={13} style={{ opacity: 0.8 }} />
                 </button>
-
-                {/* 3. Tombol Keluar */}
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    padding: '0.45rem 0.85rem',
-                    borderRadius: '0.55rem',
-                    backgroundColor: 'transparent',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = '#ef4444';
-                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = 'var(--text-secondary)';
-                    e.currentTarget.style.borderColor = 'var(--border-light)';
-                  }}
-                  title="Keluar dari Akun"
-                >
-                  <LogOut size={14} />
-                  <span>Keluar</span>
-                </button>
               </div>
             </>
           ) : (

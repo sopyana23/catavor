@@ -12643,6 +12643,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Handle Logout
   const handleLogout = async () => {
+    const isStaff = isPlatformAdmin(adminUser) || isSuperAdmin(adminUser);
+    const targetLoginUrl = isStaff ? '/admin' : '/login';
     try {
       await fetch(`${API_BASE}/logout`, {
         method: 'POST',
@@ -12656,7 +12658,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       handleUnauthorized('Sesi telah ditutup.', false)
       setPortalTab('login')
       if (typeof window !== 'undefined') {
-        window.history.pushState({ tab: 'login' }, '', '/login')
+        window.location.href = targetLoginUrl;
       }
     }
   }
@@ -21691,27 +21693,27 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <>
                           <button
                             type="button"
-                            onClick={handleLogout}
-                            title="Keluar dari Akun"
+                            onClick={openStoreChooserModal}
+                            title="Ganti Profil Katalog Toko"
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              gap: '0.3rem',
+                              gap: '0.35rem',
                               height: '32px',
                               padding: '0 0.65rem',
-                              background: 'var(--bg-card-hover, rgba(125, 125, 125, 0.06))',
-                              border: '1px solid var(--border-light)',
+                              background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                              border: '1px solid var(--primary, #10b981)',
                               borderRadius: '0.55rem',
-                              color: 'var(--text-secondary)',
+                              color: 'var(--primary, #10b981)',
                               fontSize: '0.74rem',
                               fontWeight: 700,
                               cursor: 'pointer',
                               flexShrink: 0
                             }}
                           >
-                            <LogOut size={13} style={{ strokeWidth: 2, flexShrink: 0 }} />
-                            <span>Keluar</span>
+                            <Store size={13} style={{ strokeWidth: 2, flexShrink: 0 }} />
+                            <span>Ganti Profil</span>
                           </button>
                         </>
                       ) : (
