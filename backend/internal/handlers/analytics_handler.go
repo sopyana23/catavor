@@ -451,6 +451,19 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		})
 	}
 
+	user, _ := c.Locals("user").(*models.User)
+	isStaff := user != nil && (strings.EqualFold(user.PlatformRole, "superadmin") ||
+		strings.EqualFold(user.PlatformRole, "support") ||
+		strings.EqualFold(user.PlatformRole, "compliance") ||
+		user.Email == "admin@catavor.com")
+	if !isStaff && (store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STORE_SUSPENDED",
+			"message": "Analitik dinonaktifkan sementara karena operasional profil katalog sedang dibekukan.",
+		})
+	}
+
 	period := strings.ToLower(strings.TrimSpace(c.Query("period", "7d")))
 	days := 7
 	if period == "30d" {
@@ -888,6 +901,19 @@ func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Akses toko tidak valid.",
+		})
+	}
+
+	user, _ := c.Locals("user").(*models.User)
+	isStaff := user != nil && (strings.EqualFold(user.PlatformRole, "superadmin") ||
+		strings.EqualFold(user.PlatformRole, "support") ||
+		strings.EqualFold(user.PlatformRole, "compliance") ||
+		user.Email == "admin@catavor.com")
+	if !isStaff && (store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STORE_SUSPENDED",
+			"message": "Analitik produk dinonaktifkan sementara karena operasional profil katalog sedang dibekukan.",
 		})
 	}
 

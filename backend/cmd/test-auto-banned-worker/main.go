@@ -38,6 +38,13 @@ func (m *MockStorageService) GetURL(key string) string {
 	return "http://mock/" + key
 }
 
+func (m *MockStorageService) DeletePrefix(ctx context.Context, prefix string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.DeletedKeys = append(m.DeletedKeys, prefix)
+	return nil
+}
+
 func (m *MockStorageService) GetDriverName() string {
 	return "mock_storage"
 }
