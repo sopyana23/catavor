@@ -114,6 +114,10 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
     } catch {}
   }
 
+  if (!notes && (notif.admin_notes || notif.adminNotes || notif.moderation_reason || notif.notes)) {
+    notes = String(notif.admin_notes || notif.adminNotes || notif.moderation_reason || notif.notes).trim();
+  }
+
   if (!reportNumber) {
     const rptMatch = combined.match(/#?(RPT-\d{8}-[A-Za-z0-9]+)/i);
     if (rptMatch) reportNumber = rptMatch[1];
@@ -121,9 +125,10 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
 
   if (!reason) {
     const reasonMatch =
-      combined.match(/Kategori(?:\s+Pelanggaran)?\s*:\s*([^\n\r.]+)/i) ||
+      combined.match(/Kategori(?:\s+Pelanggaran|\s+Dugaan\s+Pelanggaran|\s+Evaluasi)?\s*:\s*([^\n\r.]+)/i) ||
       combined.match(/Dugaan(?:\s+Pelanggaran)?\s*:\s*([^\n\r.]+)/i) ||
-      combined.match(/Alasan\s*:\s*([^\n\r.]+)/i);
+      combined.match(/Alasan\s*:\s*([^\n\r.]+)/i) ||
+      combined.match(/Kategori Dugaan Pelanggaran:\s*\*\*([^\*]+)\*\*/i);
     if (reasonMatch) reason = reasonMatch[1].trim();
     else if (combined.includes('satwa dilindungi')) reason = 'Satwa Dilindungi / Regulasi Keanekaragaman Hayati';
     else if (combined.includes('tidak berizin')) reason = 'Izin Usaha / Dokumen Tidak Lengkap';
@@ -136,13 +141,19 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
   }
 
   if (!notes) {
-    const notesMatch = combined.match(/Catatan(?:\s+Peninjau|\s+Admin)?\s*:\s*["']?([^"'\n\r]+)["']?/i);
-    if (notesMatch) notes = notesMatch[1].trim();
-    else notes = 'Ditemukan ketidaksesuaian kebijakan atau indikasi pelanggaran pada entitas terkait berdasarkan audit penguji.';
+    const notesMatch =
+      combined.match(/Pesan Peninjau[:\*]*\s*["“]([\s\S]*?)["”]/i) ||
+      combined.match(/Catatan(?:\s+Resmi)?(?:\s+Tim)?(?:\s+Kepatuhan|\s+Peninjau|\s+Admin|\s+Penguji)?[:\*]*\s*(?:>\s*(?:💬\s*)?(?:\*\*Pesan Peninjau:\*\*\s*)?)?["“]([\s\S]*?)["”]/i) ||
+      combined.match(/Catatan & Temuan Peninjau[^:]*:\s*>\s*["“]([\s\S]*?)["”]/i) ||
+      combined.match(/Catatan Resmi Kepatuhan:\s*<em>"([^"]+)"<\/em>/i) ||
+      combined.match(/Catatan(?:\s+Peninjau|\s+Admin|\s+Kepatuhan|\s+Resmi)?\s*:\s*["']([^"'\r\n]+)["']/i);
+    if (notesMatch && notesMatch[1] && notesMatch[1].trim()) {
+      notes = notesMatch[1].trim();
+    }
   }
 
   if (notes) {
-    notes = notes.replace(/\*\*/g, '').trim();
+    notes = notes.replace(/\*\*/g, '').replace(/^["'“]+|["'”]+$/g, '').trim();
   }
 
   if (!targetName) {

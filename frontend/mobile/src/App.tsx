@@ -8557,6 +8557,10 @@ Terima kasih.`;
       } catch {}
     }
 
+    if (!notes && (notif.admin_notes || notif.adminNotes || notif.moderation_reason || notif.notes)) {
+      notes = String(notif.admin_notes || notif.adminNotes || notif.moderation_reason || notif.notes).trim();
+    }
+
     const combined = `${notif.title || ''}\n${notif.message || ''}\n${detailContent}`;
 
     if (!reportNumber) {
@@ -8564,23 +8568,37 @@ Terima kasih.`;
       if (rptMatch) reportNumber = rptMatch[1];
     }
     if (!targetName) {
-      const nameMatch = combined.match(/Item\s+["“]([^"”]+)["”]/i) || combined.match(/Entitas Terkait:\s*\*\*([^\*]+)\*\*/i) || combined.match(/entitas\s+\*\*([^\*]+)\*\*/i);
+      const nameMatch = combined.match(/Item\s+["“]([^"”]+)["”]/i) || combined.match(/Entitas Terkait:\s*\*\*([^\*]+)\*\*/i) || combined.match(/entitas\s+\*\*([^\*]+)\*\*/i) || combined.match(/produk\s+"([^"]+)"/i) || combined.match(/"([^"]+)"/);
       if (nameMatch) targetName = nameMatch[1].trim();
       else if (notif.target_name || notif.targetName) targetName = notif.target_name || notif.targetName;
     }
     if (!reason || reason === 'Standar Kebijakan & Kepatuhan Komunitas') {
-      const reasonMatch = combined.match(/Kategori Dugaan Pelanggaran:\s*\*\*([^\*]+)\*\*/i);
+      const reasonMatch = combined.match(/Kategori(?:\s+Pelanggaran|\s+Dugaan\s+Pelanggaran|\s+Evaluasi)?\s*:\s*([^\n\r.]+)/i) ||
+                          combined.match(/Dugaan(?:\s+Pelanggaran)?\s*:\s*([^\n\r.]+)/i) ||
+                          combined.match(/Alasan\s*:\s*([^\n\r.]+)/i) ||
+                          combined.match(/Kategori Dugaan Pelanggaran:\s*\*\*([^\*]+)\*\*/i);
       if (reasonMatch) reason = reasonMatch[1].trim();
-    }
-    if (!notes) {
-      const notesMatch = combined.match(/Catatan & Temuan Peninjau[^:]*:\s*>\s*["“]([^"”]+)["”]/i) || combined.match(/Catatan Resmi Kepatuhan:\s*<em>"([^"]+)"<\/em>/i);
-      if (notesMatch) notes = notesMatch[1].trim();
+      else if (combined.includes('satwa dilindungi')) reason = 'Satwa Dilindungi / Regulasi Keanekaragaman Hayati';
+      else if (combined.includes('tidak berizin')) reason = 'Izin Usaha / Dokumen Tidak Lengkap';
+      else if (combined.includes('spam')) reason = 'Konten Menyesatkan / Spam';
+      else reason = 'Pelanggaran Syarat & Ketentuan Layanan';
     }
     if (reason) {
       reason = reason.replace(/\*\*/g, '').replace(/^\*+|\*+$/g, '').trim();
     }
+    if (!notes) {
+      const notesMatch =
+        combined.match(/Pesan Peninjau[:\*]*\s*["“]([\s\S]*?)["”]/i) ||
+        combined.match(/Catatan(?:\s+Resmi)?(?:\s+Tim)?(?:\s+Kepatuhan|\s+Peninjau|\s+Admin|\s+Penguji)?[:\*]*\s*(?:>\s*(?:💬\s*)?(?:\*\*Pesan Peninjau:\*\*\s*)?)?["“]([\s\S]*?)["”]/i) ||
+        combined.match(/Catatan & Temuan Peninjau[^:]*:\s*>\s*["“]([\s\S]*?)["”]/i) ||
+        combined.match(/Catatan Resmi Kepatuhan:\s*<em>"([^"]+)"<\/em>/i) ||
+        combined.match(/Catatan(?:\s+Peninjau|\s+Admin|\s+Kepatuhan|\s+Resmi)?\s*:\s*["']([^"'\r\n]+)["']/i);
+      if (notesMatch && notesMatch[1] && notesMatch[1].trim()) {
+        notes = notesMatch[1].trim();
+      }
+    }
     if (notes) {
-      notes = notes.replace(/\*\*/g, '').trim();
+      notes = notes.replace(/\*\*/g, '').replace(/^["'“]+|["'”]+$/g, '').trim();
     }
     if (targetName) {
       targetName = targetName.replace(/\*\*/g, '').replace(/^["'*]+|["'*]+$/g, '').trim();
@@ -27166,7 +27184,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
                                   <div style={{ fontSize: '0.78rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : (modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix') ? '#f59e0b' : '#f43f5e' }}>
-                                    <span>{modCase.isRestored ? 'Catatan Resmi Keputusan Pemulihan' : 'Catatan Resmi Penguji (Trust & Safety)'}</span>
+                                    <span>{modCase.isRestored ? 'Pernyataan Resmi Pemulihan & Catatan Kepatuhan' : modCase.actionTaken === 'warning_issued' ? 'Catatan Resmi Peringatan Kepatuhan Konten' : 'Temuan Audit & Catatan Resmi Tim Trust & Safety'}</span>
                                   </div>
                                   <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', padding: '0.15rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(255,255,255,0.06)' }}>
                                     {modCase.isRestored ? 'Pemulihan Terverifikasi' : 'Audit Terverifikasi'}
@@ -27183,7 +27201,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 }}>
                                   "{(modCase.notes || '').replace(/\*\*(.*?)\*\*/g, '$1') || (
                                     modCase.isRestored 
-                                      ? 'Penangguhan telah resmi dicabut setelah verifikasi kepatuhan. Operasional profil katalog kini telah kembali normal sepenuhnya.' 
+                                      ? 'Penangguhan operasional resmi dicabut. Seluruh akses katalog dan manajemen profil katalog Anda telah dipulihkan secara penuh.' 
                                       : modCase.actionTaken === 'item_banned'
                                       ? 'Item katalog diblokir secara permanen dan dihapus dari inventaris katalog karena pelanggaran fatal pedoman platform / komoditas terlarang.'
                                       : (modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned')
@@ -27195,7 +27213,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       : modCase.actionTaken === 'catalog_suspended'
                                       ? 'Operasional profil katalog ditangguhkan sementara sehubungan dengan proses evaluasi kepatuhan.'
                                       : modCase.actionTaken === 'warning_issued'
-                                      ? 'Peringatan kepatuhan konten diterbitkan. Status katalog dan item tetap aktif.'
+                                      ? 'Peringatan kepatuhan konten diterbitkan sebagai teguran resmi. Status operasional item dan etalase profil katalog tetap aktif normal.'
                                       : 'Penonaktifan sementara atas dasar kepatuhan kebijakan katalog dan perlindungan ekosistem belanja.'
                                   )}"
                                 </div>
@@ -28574,6 +28592,39 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   }}>
                                     {getMobileNotificationDescription(item, norm.modCase)}
                                   </p>
+
+                                  {/* Catatan Admin Pengelola Callout Box (Mobile Card) */}
+                                  {norm.modCase?.notes && !norm.modCase.notes.startsWith('Ditemukan ketidaksesuaian kebijakan') && (
+                                    <div style={{
+                                      marginTop: '0.5rem',
+                                      padding: '0.45rem 0.65rem',
+                                      borderRadius: '0.5rem',
+                                      backgroundColor: isBannedNotif 
+                                        ? 'rgba(239, 68, 68, 0.08)' 
+                                        : isWarningNotif 
+                                        ? 'rgba(245, 158, 11, 0.08)' 
+                                        : norm.modCase.isRestored 
+                                        ? 'rgba(16, 185, 129, 0.08)' 
+                                        : 'rgba(255, 255, 255, 0.04)',
+                                      borderLeft: isBannedNotif 
+                                        ? '3px solid #ef4444' 
+                                        : isWarningNotif 
+                                        ? '3px solid #f59e0b' 
+                                        : norm.modCase.isRestored 
+                                        ? '3px solid #10b981' 
+                                        : '3px solid var(--primary)',
+                                      fontSize: '0.76rem',
+                                      color: 'var(--text-primary)',
+                                      lineHeight: 1.45,
+                                      fontStyle: 'italic',
+                                      wordBreak: 'break-word'
+                                    }}>
+                                      <span style={{ fontWeight: 800, fontStyle: 'normal', color: isBannedNotif ? '#ef4444' : isWarningNotif ? '#f59e0b' : norm.modCase.isRestored ? '#10b981' : 'var(--primary)' }}>
+                                        Catatan Admin:{" "}
+                                      </span>
+                                      "{norm.modCase.notes}"
+                                    </div>
+                                  )}
 
                                   {/* Action Hint Micro-Pill (Only when actionable) */}
                                   {norm.displayType && (

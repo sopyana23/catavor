@@ -124,6 +124,10 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
     } catch {}
   }
 
+  if (!notes && (notif.admin_notes || notif.adminNotes || notif.moderation_reason || notif.notes)) {
+    notes = String(notif.admin_notes || notif.adminNotes || notif.moderation_reason || notif.notes).trim();
+  }
+
   if (!reportNumber) {
     const rptMatch = combined.match(/#?(RPT-\d{8}-[A-Za-z0-9]+)/i);
     if (rptMatch) reportNumber = rptMatch[1];
@@ -131,9 +135,10 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
 
   if (!reason) {
     const reasonMatch =
-      combined.match(/Kategori(?:\s+Pelanggaran)?\s*:\s*([^\n\r.]+)/i) ||
+      combined.match(/Kategori(?:\s+Pelanggaran|\s+Dugaan\s+Pelanggaran|\s+Evaluasi)?\s*:\s*([^\n\r.]+)/i) ||
       combined.match(/Dugaan(?:\s+Pelanggaran)?\s*:\s*([^\n\r.]+)/i) ||
-      combined.match(/Alasan\s*:\s*([^\n\r.]+)/i);
+      combined.match(/Alasan\s*:\s*([^\n\r.]+)/i) ||
+      combined.match(/Kategori Dugaan Pelanggaran:\s*\*\*([^\*]+)\*\*/i);
     if (reasonMatch) reason = reasonMatch[1].trim();
     else if (combined.includes('satwa dilindungi')) reason = 'Satwa Dilindungi / Regulasi Keanekaragaman Hayati';
     else if (combined.includes('tidak berizin')) reason = 'Izin Usaha / Dokumen Tidak Lengkap';
@@ -146,13 +151,19 @@ export function parseModerationCase(notif: any): ModerationCaseInfo {
   }
 
   if (!notes) {
-    const notesMatch = combined.match(/Catatan(?:\s+Peninjau|\s+Admin)?\s*:\s*["']?([^"'\n\r]+)["']?/i);
-    if (notesMatch) notes = notesMatch[1].trim();
-    else notes = 'Ditemukan ketidaksesuaian kebijakan atau indikasi pelanggaran pada entitas terkait berdasarkan audit penguji.';
+    const notesMatch =
+      combined.match(/Pesan Peninjau[:\*]*\s*["“]([\s\S]*?)["”]/i) ||
+      combined.match(/Catatan(?:\s+Resmi)?(?:\s+Tim)?(?:\s+Kepatuhan|\s+Peninjau|\s+Admin|\s+Penguji)?[:\*]*\s*(?:>\s*(?:💬\s*)?(?:\*\*Pesan Peninjau:\*\*\s*)?)?["“]([\s\S]*?)["”]/i) ||
+      combined.match(/Catatan & Temuan Peninjau[^:]*:\s*>\s*["“]([\s\S]*?)["”]/i) ||
+      combined.match(/Catatan Resmi Kepatuhan:\s*<em>"([^"]+)"<\/em>/i) ||
+      combined.match(/Catatan(?:\s+Peninjau|\s+Admin|\s+Kepatuhan|\s+Resmi)?\s*:\s*["']([^"'\r\n]+)["']/i);
+    if (notesMatch && notesMatch[1] && notesMatch[1].trim()) {
+      notes = notesMatch[1].trim();
+    }
   }
 
   if (notes) {
-    notes = notes.replace(/\*\*/g, '').trim();
+    notes = notes.replace(/\*\*/g, '').replace(/^["'“]+|["'”]+$/g, '').trim();
   }
 
   if (!targetName) {
@@ -567,6 +578,10 @@ export function getMobileNotificationDescription(item: any, modCaseInfo?: any): 
   const titleLower = String(item.title || '').toLowerCase();
   const msgLower = String(item.message || '').toLowerCase();
 
+  const rawNotes = (modCase?.notes || '').trim();
+  const cleanNotes = rawNotes && !rawNotes.startsWith('Ditemukan ketidaksesuaian kebijakan') ? rawNotes.replace(/^["'“]+|["'”]+$/g, '').trim() : '';
+  const notesSuffix = cleanNotes ? ` Catatan Admin: "${cleanNotes}".` : '';
+
   // 1. Peringatan Resmi (warning_issued)
   const isWarning =
     action === 'warning_issued' ||
@@ -577,10 +592,10 @@ export function getMobileNotificationDescription(item: any, modCaseInfo?: any): 
   if (isWarning) {
     if (isItem) {
       return cleanTargetName
-        ? `Peringatan resmi kepatuhan untuk item ${itemLabel}. Status item tetap aktif. Buka rincian untuk panduan.`
-        : 'Peringatan resmi kepatuhan konten item. Status item tetap aktif. Buka rincian untuk panduan.';
+        ? `Peringatan resmi kepatuhan untuk item ${itemLabel}.${notesSuffix} Status item tetap aktif. Buka rincian untuk panduan.`
+        : `Peringatan resmi kepatuhan konten item.${notesSuffix} Status item tetap aktif. Buka rincian untuk panduan.`;
     }
-    return 'Peringatan resmi kepatuhan profil katalog. Status operasional tetap aktif. Buka rincian untuk panduan.';
+    return `Peringatan resmi kepatuhan profil katalog.${notesSuffix} Status operasional tetap aktif. Buka rincian untuk panduan.`;
   }
 
   // 2. Nonaktifkan: Beri Kesempatan Edit & Perbaiki (item_needs_fix)
@@ -594,8 +609,8 @@ export function getMobileNotificationDescription(item: any, modCaseInfo?: any): 
     msgLower.includes('mengedit data dan mengajukan peninjauan');
   if (isNeedsFix) {
     return cleanTargetName
-      ? `Item ${itemLabel} disembunyikan sementara. Silakan edit dan perbaiki data item untuk peninjauan ulang.`
-      : 'Item disembunyikan sementara. Silakan edit dan perbaiki data item untuk peninjauan ulang.';
+      ? `Item ${itemLabel} disembunyikan sementara.${notesSuffix} Silakan edit dan perbaiki data item untuk peninjauan ulang.`
+      : `Item disembunyikan sementara.${notesSuffix} Silakan edit dan perbaiki data item untuk peninjauan ulang.`;
   }
 
   // 3. Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras (item_locked / item_hidden)
@@ -610,8 +625,8 @@ export function getMobileNotificationDescription(item: any, modCaseInfo?: any): 
     msgLower.includes('dinonaktifkan dan dikunci');
   if (isLocked) {
     return cleanTargetName
-      ? `Item ${itemLabel} dinonaktifkan dan dikunci karena pelanggaran keras. Anda dapat mengajukan banding kepatuhan.`
-      : 'Item dinonaktifkan dan dikunci karena pelanggaran keras. Anda dapat mengajukan banding kepatuhan.';
+      ? `Item ${itemLabel} dinonaktifkan dan dikunci karena pelanggaran keras.${notesSuffix} Anda dapat mengajukan banding kepatuhan.`
+      : `Item dinonaktifkan dan dikunci karena pelanggaran keras.${notesSuffix} Anda dapat mengajukan banding kepatuhan.`;
   }
 
   // 4. Blokir atau Hapus Item: Banned Permanen (item_banned)
@@ -624,28 +639,28 @@ export function getMobileNotificationDescription(item: any, modCaseInfo?: any): 
     msgLower.includes('diblokir permanen');
   if (isItemBanned) {
     return cleanTargetName
-      ? `Item ${itemLabel} telah diblokir permanen dan dihapus dari katalog. Keputusan bersifat final.`
-      : 'Item katalog telah diblokir permanen dan dihapus. Keputusan bersifat final.';
+      ? `Item ${itemLabel} telah diblokir permanen dan dihapus dari katalog.${notesSuffix} Keputusan bersifat final.`
+      : `Item katalog telah diblokir permanen dan dihapus.${notesSuffix} Keputusan bersifat final.`;
   }
 
   // Akun / Profil Katalog Banned Permanen
   if (action === 'account_banned' || action === 'catalog_banned' || titleLower.includes('penonaktifan permanen akun')) {
-    return 'Akun dan seluruh item katalog dinonaktifkan permanen. Keputusan sanksi ini bersifat final.';
+    return `Akun dan seluruh item katalog dinonaktifkan permanen.${notesSuffix} Keputusan sanksi ini bersifat final.`;
   }
 
   // Pembekuan / Suspend Profil Katalog
   if (action === 'catalog_suspended' || titleLower.includes('penangguhan operasional')) {
-    return 'Operasional katalog ditangguhkan sementara. Anda dapat mengajukan banding kepatuhan resmi.';
+    return `Operasional katalog ditangguhkan sementara.${notesSuffix} Anda dapat mengajukan banding kepatuhan resmi.`;
   }
 
   // Pemulihan Item & Profil Katalog
   if (action === 'item_restored' || titleLower.includes('berhasil dipulihkan')) {
     return cleanTargetName
-      ? `Item ${itemLabel} telah diaktifkan kembali ke etalase publik dan dapat diakses normal.`
-      : 'Item katalog telah diaktifkan kembali ke etalase publik dan dapat diakses normal.';
+      ? `Item ${itemLabel} telah diaktifkan kembali ke etalase publik dan dapat diakses normal.${notesSuffix}`
+      : `Item katalog telah diaktifkan kembali ke etalase publik dan dapat diakses normal.${notesSuffix}`;
   }
   if (action === 'catalog_reactivated' || titleLower.includes('pemulihan operasional')) {
-    return 'Penangguhan profil katalog telah resmi dicabut. Seluruh etalase publik kembali aktif normal.';
+    return `Penangguhan profil katalog telah resmi dicabut.${notesSuffix} Seluruh etalase publik kembali aktif normal.`;
   }
 
   // Default fallback: return standard message with bold asterisks stripped
