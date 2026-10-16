@@ -814,7 +814,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				itemTypeLabel = mapProductTypeLabel(rawItemType)
 			}
 
-			notifTitle, notifMsg, notifType, notifActionLabel := buildModerationNotificationContent(actionTaken, targetEntityName, report.ReportNumber, report.TargetType)
+			notifTitle, notifMsg, notifType, notifActionLabel := buildModerationNotificationContent(actionTaken, targetEntityName, report.ReportNumber, report.TargetType, adminNotes)
 			if notifTitle != "" {
 				detailArticle := buildModerationDetailArticle(actionTaken, report.StoreTitle, targetEntityName, report.TargetType, itemTypeLabel, report.ReportNumber, report.ReasonLabel, adminNotes, now)
 				actionURL := fmt.Sprintf("/%s/admin/help?action=appeal&report=%s&target_type=%s&target_name=%s&item_type=%s&reason=%s&notes=%s",
@@ -975,6 +975,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			"slug":            report.StoreSlug,
 			"is_suspended":    false,
 			"dormancy_status": "active",
+			"admin_notes":     adminNotes,
 			"message":         "Akun toko Anda telah dipulihkan oleh Tim Kepatuhan platform.",
 		}, report.StoreID, merchantOwnerUserID)
 	} else if actionTaken == "catalog_suspended" && report.StoreID > 0 {
@@ -984,6 +985,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			"is_suspended":      true,
 			"dormancy_status":   "suspended",
 			"suspension_reason": "moderation_violation",
+			"admin_notes":       adminNotes,
 			"message":           "Akun toko Anda telah ditangguhkan sementara oleh Tim Kepatuhan platform.",
 		}, report.StoreID, merchantOwnerUserID)
 	} else if (actionTaken == "catalog_banned" || actionTaken == "account_banned") && report.StoreID > 0 {
@@ -997,6 +999,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			"is_banned":         true,
 			"dormancy_status":   "banned",
 			"suspension_reason": "moderation_violation",
+			"admin_notes":       adminNotes,
 			"message":           fmt.Sprintf("Profil katalog '%s' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform.", storeName),
 		}, report.StoreID, merchantOwnerUserID)
 	}
@@ -1085,53 +1088,59 @@ func mapProductTypeLabel(pType string) string {
 }
 
 // buildModerationNotificationContent returns in-app notification title, message, type, and actionLabel
-func buildModerationNotificationContent(actionTaken, targetName, reportNumber, targetType string) (title, message, notifType, actionLabel string) {
+func buildModerationNotificationContent(actionTaken, targetName, reportNumber, targetType, adminNotes string) (title, message, notifType, actionLabel string) {
 	isItem := targetType == "item"
+	notesSuffix := ""
+	cleanNotes := strings.TrimSpace(adminNotes)
+	if cleanNotes != "" {
+		notesSuffix = fmt.Sprintf(" Catatan Tim Kepatuhan: \"%s\".", cleanNotes)
+	}
+
 	switch actionTaken {
 	case "item_banned":
 		return "Pemblokiran atau Penghapusan Item Katalog",
-			fmt.Sprintf("Item katalog \"%s\" telah diblokir secara permanen dan dihapus (#%s) sehubungan dengan pelanggaran fatal pedoman platform. Beban kuota item katalog Anda telah dikembalikan (0 byte). Keputusan bersifat final tanpa opsi pengajuan banding.", targetName, reportNumber),
+			fmt.Sprintf("Item katalog \"%s\" telah diblokir secara permanen dan dihapus (#%s) sehubungan dengan pelanggaran fatal pedoman platform.%s Beban kuota item katalog Anda telah dikembalikan (0 byte). Keputusan bersifat final tanpa opsi pengajuan banding.", targetName, reportNumber, notesSuffix),
 			"danger",
 			"Lihat Salinan Keputusan →"
 	case "warning_issued":
 		if isItem {
 			return "Peringatan Kepatuhan Konten Item Katalog",
-				fmt.Sprintf("Peringatan resmi untuk item katalog \"%s\" (#%s). Status operasional katalog dan item tetap aktif. Anda diminta memeriksa kesesuaian atribut konten dan memastikan kepatuhan terhadap pedoman platform.", targetName, reportNumber),
+				fmt.Sprintf("Peringatan resmi untuk item katalog \"%s\" (#%s).%s Status operasional katalog dan item tetap aktif. Anda diminta memeriksa kesesuaian atribut konten dan memastikan kepatuhan terhadap pedoman platform.", targetName, reportNumber, notesSuffix),
 				"warning",
 				""
 		}
 		return "Peringatan Kepatuhan Profil Katalog",
-			fmt.Sprintf("Peringatan resmi untuk profil katalog \"%s\" (#%s). Status operasional katalog tetap aktif. Buka rincian untuk panduan kepatuhan operasional.", targetName, reportNumber),
+			fmt.Sprintf("Peringatan resmi untuk profil katalog \"%s\" (#%s).%s Status operasional katalog tetap aktif. Buka rincian untuk panduan kepatuhan operasional.", targetName, reportNumber, notesSuffix),
 			"warning",
 			""
 	case "item_needs_fix":
 		return "Perlu Perbaikan Informasi Item Katalog",
-			fmt.Sprintf("Item katalog \"%s\" memerlukan penyesuaian informasi (#%s). Buka menu inventaris untuk mengedit data dan mengajukan peninjauan ulang.", targetName, reportNumber),
+			fmt.Sprintf("Item katalog \"%s\" memerlukan penyesuaian informasi (#%s).%s Buka menu inventaris untuk mengedit data dan mengajukan peninjauan ulang.", targetName, reportNumber, notesSuffix),
 			"warning",
 			"Perbaiki Item Sekarang →"
 	case "item_locked", "item_hidden":
 		return "Penonaktifan & Penguncian Item Katalog (Pelanggaran Keras)",
-			fmt.Sprintf("Item katalog \"%s\" dinonaktifkan & dikunci sementara oleh Tim Kepatuhan (#%s) karena dugaan pelanggaran kebijakan keras. Anda masih berhak mengajukan banding resmi kepatuhan.", targetName, reportNumber),
+			fmt.Sprintf("Item katalog \"%s\" dinonaktifkan & dikunci sementara oleh Tim Kepatuhan (#%s) karena dugaan pelanggaran kebijakan keras.%s Anda masih berhak mengajukan banding resmi kepatuhan.", targetName, reportNumber, notesSuffix),
 			"danger",
 			"Ajukan Banding Kepatuhan →"
 	case "item_restored":
 		return "Item Katalog Berhasil Dipulihkan",
-			fmt.Sprintf("Item katalog \"%s\" telah diaktifkan kembali ke etalase publik (#%s). Akses normal.", targetName, reportNumber),
+			fmt.Sprintf("Item katalog \"%s\" telah diaktifkan kembali ke etalase publik (#%s).%s Akses normal.", targetName, reportNumber, notesSuffix),
 			"success",
 			"Lihat Rincian Pemulihan →"
 	case "catalog_suspended":
 		return "Penangguhan Operasional Profil Katalog",
-			fmt.Sprintf("Operasional profil katalog \"%s\" ditangguhkan sementara (#%s). Anda masih diberi kesempatan mengajukan banding kepatuhan resmi.", targetName, reportNumber),
+			fmt.Sprintf("Operasional profil katalog \"%s\" ditangguhkan sementara (#%s).%s Anda masih diberi kesempatan mengajukan banding kepatuhan resmi.", targetName, reportNumber, notesSuffix),
 			"warning",
 			"Ajukan Banding Kepatuhan →"
 	case "catalog_banned":
 		return "Penonaktifan Permanen Akun & Seluruh Item Katalog",
-			fmt.Sprintf("Akses akun pemilik dan seluruh item katalog pada profil \"%s\" telah dinonaktifkan secara permanen (#%s). Sanksi penonaktifan ini bersifat final tanpa pengajuan banding.", targetName, reportNumber),
+			fmt.Sprintf("Akses akun pemilik dan seluruh item katalog pada profil \"%s\" telah dinonaktifkan secara permanen (#%s).%s Sanksi penonaktifan ini bersifat final tanpa pengajuan banding.", targetName, reportNumber, notesSuffix),
 			"danger",
 			"Lihat Rincian Keputusan →"
 	case "catalog_reactivated":
 		return "Pemulihan Operasional Profil Katalog Berhasil",
-			fmt.Sprintf("Penangguhan untuk profil katalog \"%s\" telah resmi dicabut. Etalase publik dan seluruh fitur operasional Anda kini telah aktif kembali secara normal.", targetName),
+			fmt.Sprintf("Penangguhan untuk profil katalog \"%s\" telah resmi dicabut.%s Etalase publik dan seluruh fitur operasional Anda kini telah aktif kembali secara normal.", targetName, notesSuffix),
 			"success",
 			"Lihat Status Pemulihan →"
 	default:
@@ -1178,8 +1187,9 @@ func buildModerationDetailArticle(actionTaken, storeTitle, targetName, targetTyp
 	}
 
 	notesBlock := ""
-	if strings.TrimSpace(adminNotes) != "" {
-		notesBlock = fmt.Sprintf("\n\n### Catatan & Temuan Peninjau (Trust & Safety):\n> \"%s\"", strings.TrimSpace(adminNotes))
+	cleanNotes := strings.TrimSpace(adminNotes)
+	if cleanNotes != "" {
+		notesBlock = fmt.Sprintf("\n---\n### Catatan Resmi Tim Kepatuhan:\n> 💬 **Pesan Peninjau:** \"%s\"", cleanNotes)
 	}
 
 	itemTypeRow := ""

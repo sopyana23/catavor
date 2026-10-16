@@ -310,30 +310,43 @@ export function checkIsStoreSuspended(targetSlug?: string | null): boolean {
       }
     }
     if (slug) {
-      if (sessionStorage.getItem(`catavor_store_suspended_${slug}`) === '1') return true;
       const cachedStore = localStorage.getItem(`catavor_store_${slug}`);
       if (cachedStore) {
-        const parsed = JSON.parse(cachedStore);
-        if (parsed && (Boolean(parsed.is_suspended) || parsed.dormancy_status === 'suspended')) return true;
+        try {
+          const parsed = JSON.parse(cachedStore);
+          if (parsed && (Boolean(parsed.is_suspended) || parsed.dormancy_status === 'suspended')) {
+            return true;
+          } else if (parsed && parsed.dormancy_status === 'active' && !parsed.is_suspended) {
+            sessionStorage.removeItem(`catavor_store_suspended_${slug}`);
+            return false;
+          }
+        } catch {}
       }
+      if (sessionStorage.getItem(`catavor_store_suspended_${slug}`) === '1') return true;
     }
     const settingsRaw = localStorage.getItem('catavor_settings');
     if (settingsRaw) {
-      const parsed = JSON.parse(settingsRaw);
-      if (parsed && (Boolean(parsed.is_suspended) || parsed.dormancy_status === 'suspended')) return true;
+      try {
+        const parsed = JSON.parse(settingsRaw);
+        if (parsed && (Boolean(parsed.is_suspended) || parsed.dormancy_status === 'suspended')) return true;
+      } catch {}
     }
     const storesRaw = localStorage.getItem('catavor_stores');
     if (storesRaw) {
-      const parsed = JSON.parse(storesRaw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        if (slug) {
-          const match = parsed.find((s: any) => s.slug?.toLowerCase() === slug);
-          if (match && (Boolean(match.is_suspended) || match.dormancy_status === 'suspended')) return true;
-        } else {
-          const first = parsed[0];
-          if (first && (Boolean(first.is_suspended) || first.dormancy_status === 'suspended')) return true;
+      try {
+        const parsed = JSON.parse(storesRaw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const match = slug ? parsed.find((s: any) => s.slug?.toLowerCase() === slug) : parsed[0];
+          if (match) {
+            if (Boolean(match.is_suspended) || match.dormancy_status === 'suspended') {
+              return true;
+            } else if (match.dormancy_status === 'active' && !match.is_suspended) {
+              if (slug) sessionStorage.removeItem(`catavor_store_suspended_${slug}`);
+              return false;
+            }
+          }
         }
-      }
+      } catch {}
     }
   } catch {}
   return false;
