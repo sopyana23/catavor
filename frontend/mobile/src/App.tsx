@@ -6551,6 +6551,21 @@ Terima kasih.`;
     return () => window.removeEventListener('popstate', handlePopState);
   }, [notifications]);
 
+  // Auto scroll to top when opening notification detail (Mobile)
+  useEffect(() => {
+    if (selectedNotification) {
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      } catch {
+        window.scrollTo(0, 0);
+      }
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+      const notifDetailEl = document.getElementById('mobile-notification-detail-view');
+      if (notifDetailEl) notifDetailEl.scrollTop = 0;
+    }
+  }, [selectedNotification]);
+
   // When navigating to notifications center, ensure view starts with clean 'all' tab consistently (Mobile)
   const prevAdminSubTabForNotifRef = useRef<string>(adminSubTab);
   useEffect(() => {
@@ -21565,64 +21580,64 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     case 'analytics':
                       return {
                         title: 'Statistik & Analitika',
-                        subtitle: 'Performa Trafik & Konversi Toko'
+                        subtitle: 'Ringkasan Trafik'
                       };
                     case 'items':
                       return {
                         title: 'Kelola Inventaris',
-                        subtitle: `${faunas.length} Item & Varian Aktif`
+                        subtitle: `${faunas.length} Item Katalog`
                       };
                     case 'subscription':
                       return {
                         title: mobileSubPageView === 'checkout' ? 'Checkout Langganan' :
                                mobileSubPageView === 'downgrade_confirm' ? 'Konfirmasi Downgrade' :
-                               mobileSubPageView === 'orders' ? 'Riwayat Tagihan & Faktur' : 'Paket & Langganan',
-                        subtitle: storeQuota?.plan?.name || 'Paket Merchant Catavor'
+                               mobileSubPageView === 'orders' ? 'Riwayat Tagihan' : 'Paket & Langganan',
+                        subtitle: storeQuota?.plan?.name || 'Paket Merchant'
                       };
                     case 'settings':
-                      if (mobileSettingsTab === 'general') return { title: 'Profil & Identitas', subtitle: 'Nama, Logo & Slogan Katalog' };
-                      if (mobileSettingsTab === 'contact') return { title: 'Kontak & Saluran Resmi', subtitle: 'WhatsApp, Web & Sosmed' };
-                      if (mobileSettingsTab === 'about') return { title: 'Halaman Tentang Kami', subtitle: 'Cerita, Komitmen & Informasi' };
-                      if (mobileSettingsTab === 'theme') return { title: 'Tema & Tampilan Visual', subtitle: 'Palet Warna & Gaya Estetik' };
-                      if (mobileSettingsTab === 'domain') return { title: 'Custom Domain', subtitle: 'Hubungkan Domain Brand Anda' };
-                      if (mobileSettingsTab === 'master') return { title: 'Master Data Katalog', subtitle: 'Opsi Kategori, Status & Wilayah' };
+                      if (mobileSettingsTab === 'general') return { title: 'Profil & Identitas', subtitle: '' };
+                      if (mobileSettingsTab === 'contact') return { title: 'Kontak & Saluran', subtitle: '' };
+                      if (mobileSettingsTab === 'about') return { title: 'Tentang Kami', subtitle: '' };
+                      if (mobileSettingsTab === 'theme') return { title: 'Tema & Tampilan', subtitle: '' };
+                      if (mobileSettingsTab === 'domain') return { title: 'Custom Domain', subtitle: '' };
+                      if (mobileSettingsTab === 'master') return { title: 'Master Data', subtitle: 'Kategori & Wilayah' };
                       if (mobileSettingsTab === 'account') {
-                        if (mobileAccountSubTab === 'profile') return { title: 'Profil Pengguna', subtitle: adminUser?.email || 'Akun Pengelola' };
-                        if (mobileAccountSubTab === 'devices') return { title: 'Sesi & Perangkat', subtitle: 'Lacak & Cabut Sesi Login' };
-                        if (mobileAccountSubTab === 'audit_logs') return { title: 'Riwayat Log & Audit', subtitle: `${activityTotal} Rekaman Tercatat` };
-                        if (mobileAccountSubTab === 'danger') return { title: 'Penutupan Akun & Katalog', subtitle: 'Hapus Katalog & Tutup Akun' };
-                        return { title: 'Akun & Keamanan', subtitle: 'Profil, Sesi, Log & Penutupan' };
+                        if (mobileAccountSubTab === 'profile') return { title: 'Profil Pengguna', subtitle: '' };
+                        if (mobileAccountSubTab === 'devices') return { title: 'Sesi & Perangkat', subtitle: '' };
+                        if (mobileAccountSubTab === 'audit_logs') return { title: 'Riwayat Log', subtitle: `${activityTotal} Rekaman` };
+                        if (mobileAccountSubTab === 'danger') return { title: 'Penutupan Akun', subtitle: '' };
+                        return { title: 'Akun & Keamanan', subtitle: '' };
                       }
-                      if (mobileSettingsTab === 'security') return { title: 'Perangkat & Sesi Aktif', subtitle: 'Lacak & Cabut Sesi Login' };
-                      if (mobileSettingsTab === 'danger') return { title: 'Penutupan Akun & Katalog', subtitle: 'Hapus Katalog & Tutup Akun' };
-                      return { title: 'Pengaturan Katalog', subtitle: 'Konfigurasi & Branding Katalog' };
+                      if (mobileSettingsTab === 'security') return { title: 'Perangkat & Sesi', subtitle: '' };
+                      if (mobileSettingsTab === 'danger') return { title: 'Penutupan Akun', subtitle: '' };
+                      return { title: 'Pengaturan Katalog', subtitle: '' };
                     case 'help':
                       if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
-                        if (isCreatingTicket) return { title: 'Banding Kepatuhan', subtitle: 'Formulir Peninjauan Pembekuan' };
-                        if (selectedTicket) return { title: `Banding #${selectedTicket.id}`, subtitle: selectedTicket.subject };
-                        return { title: 'Banding Kepatuhan', subtitle: 'Peninjauan Status Toko' };
+                        if (isCreatingTicket) return { title: 'Banding Kepatuhan', subtitle: '' };
+                        if (selectedTicket) return { title: `Banding #${selectedTicket.id}`, subtitle: '' };
+                        return { title: 'Banding Kepatuhan', subtitle: '' };
                       }
-                      if (isCreatingTicket) return { title: 'Buat Tiket Baru', subtitle: 'Hubungi Tim Support 24/7' };
-                      if (selectedTicket) return { title: `Tiket #${selectedTicket.id}`, subtitle: selectedTicket.subject };
-                      return { title: 'Pusat Bantuan & Support', subtitle: 'Tiket CS & Panduan Fitur' };
+                      if (isCreatingTicket) return { title: 'Buat Tiket Baru', subtitle: '' };
+                      if (selectedTicket) return { title: `Tiket #${selectedTicket.id}`, subtitle: '' };
+                      return { title: 'Pusat Bantuan', subtitle: '' };
                     case 'policies':
-                      return { title: 'Legal & Kebijakan Toko', subtitle: 'Syarat Ketentuan & Privasi' };
+                      return { title: 'Legal & Kebijakan', subtitle: '' };
                     case 'notifications':
                       if (selectedNotification) {
                         return {
                           title: 'Detail Notifikasi',
-                          subtitle: selectedNotification.title
+                          subtitle: ''
                         };
                       }
-                      return { title: 'Notifikasi & Aktivitas', subtitle: unreadCount > 0 ? `${unreadCount} Pesan Belum Dibaca` : 'Semua Aktivitas Toko' };
+                      return { title: 'Notifikasi', subtitle: unreadCount > 0 ? `${unreadCount} Belum Dibaca` : '' };
                     case 'profile':
-                      return { title: 'Profil Akun Pengelola', subtitle: adminUser?.email || 'Akun Merchant' };
+                      return { title: 'Profil Akun', subtitle: '' };
                     case 'audit_logs':
-                      return { title: 'Riwayat Aktivitas & Log', subtitle: `${activityTotal} Rekaman Tercatat` };
+                      return { title: 'Riwayat Log', subtitle: `${activityTotal} Rekaman` };
                     case 'share':
-                      return { title: 'Bagikan Katalog', subtitle: `catavor.com/${storeSlug || getStoreSlug()}` };
+                      return { title: 'Bagikan Katalog', subtitle: '' };
                     default:
-                      return { title: 'Dashboard Admin', subtitle: 'Menu Merchant' };
+                      return { title: 'Dashboard Admin', subtitle: '' };
                   }
                 };
 
@@ -21764,9 +21779,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       }}>
                         {subPageMeta.title}
                       </span>
-                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'left', marginTop: '-1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {subPageMeta.subtitle}
-                      </span>
+                      {subPageMeta.subtitle ? (
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'left', marginTop: '-1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {subPageMeta.subtitle}
+                        </span>
+                      ) : null}
                     </div>
 
                     {adminSubTab === 'items' && faunas.length > 0 && (
@@ -26953,7 +26970,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     /* ==========================================================
                        VIEW 1: FULL-PAGE NOTIFICATION DETAIL (PAGE VIEW)
                        ========================================================== */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2.5rem' }}>
+                    <div id="mobile-notification-detail-view" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2.5rem' }}>
                       {(() => {
                         const modCase = parseModerationCase(selectedNotification);
                         if (modCase.isModeration) {
@@ -28484,6 +28501,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                                   if (isSuspensionNotice) {
                                     setSelectedNotification(item);
+                                    try {
+                                      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                                    } catch {
+                                      window.scrollTo(0, 0);
+                                    }
                                     const slug = getStoreSlug();
                                     if (slug) {
                                       window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
@@ -28512,6 +28534,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   } else if (norm.isDetail) {
                                     // Open Full Page Notification Detail View
                                     setSelectedNotification(item);
+                                    try {
+                                      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                                    } catch {
+                                      window.scrollTo(0, 0);
+                                    }
                                     const slug = getStoreSlug();
                                     if (slug) {
                                       window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);

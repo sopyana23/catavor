@@ -4336,9 +4336,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 textOverflow: 'ellipsis'
               }}>
                 {activeView === 'reports' && moderationModalReport
-                  ? 'Kelola Penegakan & Status'
+                  ? 'Kelola Laporan'
                   : activeView === 'support' && selectedTicket 
-                    ? (selectedTicket.subject || 'Detail Tiket') 
+                    ? (selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`) 
                     : (activeView === 'broadcast' && broadcastSubView === 'create')
                       ? 'Buat Siaran Baru'
                       : (activeView === 'broadcast' && broadcastSubView === 'detail')
@@ -4346,37 +4346,43 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         : (activeView === 'master_data' && masterSubView === 'domains')
                           ? 'Master Domain Aman'
                           : (activeView === 'master_data' && masterSubView === 'templates')
-                            ? 'Template Pesan Cepat CS'
+                            ? 'Template Pesan Cepat'
                             : (activeView === 'master_data' && masterSubView === 'rekber')
                               ? 'Mitra Rekber Syariah'
                               : (currentItem?.title || 'Panel Modul')}
               </h3>
-              <span style={{
-                fontSize: '0.67rem',
-                color: theme.textSecondary,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                fontWeight: 600
-              }}>
-                {activeView === 'reports' && moderationModalReport
-                  ? `${moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`} • ${moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}`
+              {(() => {
+                const subText = activeView === 'reports' && moderationModalReport
+                  ? (moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`)
                   : activeView === 'support' && selectedTicket
-                    ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • 🏪 ${getStoreDisplayName(selectedTicket)}`
+                    ? (getStoreDisplayName(selectedTicket) || 'Bantuan Merchant')
                     : (activeView === 'broadcast' && broadcastSubView === 'create')
-                      ? 'Segmentasi & Pengumuman Platform'
+                      ? ''
                       : (activeView === 'broadcast' && broadcastSubView === 'detail')
-                        ? `${selectedBroadcastDetail?.category || 'PENGUMUMAN'} • ${selectedBroadcastDetail?.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}`
+                        ? (selectedBroadcastDetail?.category || 'PENGUMUMAN')
                         : (activeView === 'master_data' && masterSubView === 'domains')
-                          ? 'Whitelist URL & Proteksi Ekosistem'
+                          ? 'Whitelist URL'
                           : (activeView === 'master_data' && masterSubView === 'templates')
-                            ? `${cannedTemplates.length} Template Respon Cepat Helpdesk`
+                            ? `${cannedTemplates.length} Template CS`
                             : (activeView === 'master_data' && masterSubView === 'rekber')
-                              ? 'Integrasi Escrow Amanah (rekbersyariah.com)'
+                              ? 'rekbersyariah.com'
                               : (activeView === 'master_data' && masterSubView === 'menu')
-                                ? 'Pusat Entitas & Konfigurasi Master'
-                                : subStatusText}
-              </span>
+                                ? ''
+                                : subStatusText;
+
+                return subText ? (
+                  <span style={{
+                    fontSize: '0.67rem',
+                    color: theme.textSecondary,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    fontWeight: 600
+                  }}>
+                    {subText}
+                  </span>
+                ) : null;
+              })()}
             </div>
 
             {/* Right: Contextual Quick Actions + Options Menu Button */}
