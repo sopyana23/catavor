@@ -791,8 +791,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		}
 
 		// D. Generate In-App Notification for Merchant (models.Notification)
-		// For permanently banned catalogs, do NOT generate in-app notification because the store and merchant access have been terminated.
-		if report.StoreID > 0 && actionTaken != "none" && actionTaken != "catalog_banned" {
+		if report.StoreID > 0 && actionTaken != "none" {
 			targetEntityName := report.StoreTitle
 			itemTypeLabel := ""
 			rawItemType := report.ItemType
@@ -832,22 +831,22 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				actionEnabled := true
 				if actionTaken == "item_banned" {
 					notifCategory = "KEAMANAN"
-					actionURL = fmt.Sprintf("/%s/admin/notifications?action=item_banned&target_type=item&target_name=%s&report=%s", report.StoreSlug, url.QueryEscape(targetEntityName), report.ReportNumber)
+					actionURL = fmt.Sprintf("/%s/admin/notifications?action=item_banned&target_type=item&target_name=%s&report=%s&reason=%s&notes=%s", report.StoreSlug, url.QueryEscape(targetEntityName), report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
 					targetSubTab = ""
 					actionType = "detail"
 					actionEnabled = true
 				} else if actionTaken == "catalog_banned" {
 					notifCategory = "KEAMANAN"
-					actionURL = fmt.Sprintf("/%s/admin/notifications?target_type=store&target_name=%s&report=%s", report.StoreSlug, url.QueryEscape(report.StoreTitle), report.ReportNumber)
+					actionURL = fmt.Sprintf("/%s/admin/notifications?action=catalog_banned&target_type=store&target_name=%s&report=%s&reason=%s&notes=%s", report.StoreSlug, url.QueryEscape(report.StoreTitle), report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
 					targetSubTab = ""
 					actionType = "detail"
 					actionEnabled = false
 				} else if actionTaken == "warning_issued" {
 					notifCategory = "PERINGATAN"
 					if report.FaunaID != nil && *report.FaunaID > 0 {
-						actionURL = fmt.Sprintf("/%s/admin/notifications?action=warning_issued&target_type=%s&target_name=%s&report=%s&item_id=%d", report.StoreSlug, url.QueryEscape(report.TargetType), url.QueryEscape(targetEntityName), report.ReportNumber, *report.FaunaID)
+						actionURL = fmt.Sprintf("/%s/admin/notifications?action=warning_issued&target_type=%s&target_name=%s&report=%s&reason=%s&notes=%s&item_id=%d", report.StoreSlug, url.QueryEscape(report.TargetType), url.QueryEscape(targetEntityName), report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes), *report.FaunaID)
 					} else {
-						actionURL = fmt.Sprintf("/%s/admin/notifications?action=warning_issued&target_type=%s&target_name=%s&report=%s", report.StoreSlug, url.QueryEscape(report.TargetType), url.QueryEscape(targetEntityName), report.ReportNumber)
+						actionURL = fmt.Sprintf("/%s/admin/notifications?action=warning_issued&target_type=%s&target_name=%s&report=%s&reason=%s&notes=%s", report.StoreSlug, url.QueryEscape(report.TargetType), url.QueryEscape(targetEntityName), report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
 					}
 					targetSubTab = ""
 					actionType = "detail"
@@ -855,9 +854,9 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				} else if actionTaken == "item_needs_fix" {
 					notifCategory = "PERBAIKAN"
 					if report.FaunaID != nil && *report.FaunaID > 0 {
-						actionURL = fmt.Sprintf("/%s/admin/items?item=%d&edit=%d&report=%s", report.StoreSlug, *report.FaunaID, *report.FaunaID, report.ReportNumber)
+						actionURL = fmt.Sprintf("/%s/admin/items?item=%d&edit=%d&report=%s&reason=%s&notes=%s", report.StoreSlug, *report.FaunaID, *report.FaunaID, report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
 					} else {
-						actionURL = fmt.Sprintf("/%s/admin/items?report=%s", report.StoreSlug, report.ReportNumber)
+						actionURL = fmt.Sprintf("/%s/admin/items?report=%s&reason=%s&notes=%s", report.StoreSlug, report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
 					}
 					targetSubTab = "items"
 					actionType = "detail"
@@ -877,7 +876,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					actionEnabled = true
 				} else if actionTaken == "catalog_reactivated" || actionTaken == "item_restored" {
 					notifCategory = "PEMULIHAN"
-					actionURL = fmt.Sprintf("/%s/admin", report.StoreSlug)
+					actionURL = fmt.Sprintf("/%s/admin?action=restored&report=%s&reason=%s&notes=%s", report.StoreSlug, report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
 					targetSubTab = "items"
 					actionType = "detail"
 					actionEnabled = true
