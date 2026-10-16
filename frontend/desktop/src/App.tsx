@@ -5164,6 +5164,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [notifSystemCountState, setNotifSystemCountState] = useState<number>(0);
   const notifSentinelRef = useRef<HTMLDivElement | null>(null);
   const notifSearchInitialMount = useRef<boolean>(true);
+  const desktopFetchingNotifIdRef = useRef<string | null>(null);
 
   // Debounce search query (300ms) for server-side search
   useEffect(() => {
@@ -6600,19 +6601,32 @@ Terima kasih.`;
     } catch {}
   }, [selectedNotificationDetail]);
 
-  // Helper: Bersihkan detail notifikasi aktif dari state dan storage (Desktop)
-  const handleClearSelectedNotification = useCallback(() => {
+  // Helper: Bersihkan detail notifikasi aktif dari state, storage, dan URL (Desktop)
+  const handleClearSelectedNotification = useCallback((updateUrl: boolean = true) => {
     setSelectedNotificationDetail(null);
+    desktopFetchingNotifIdRef.current = null;
     try {
       sessionStorage.removeItem('catavor_active_desktop_notification_id');
       sessionStorage.removeItem('catavor_active_desktop_notification_data');
     } catch {}
-  }, []);
+    if (updateUrl && typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('id')) {
+        url.searchParams.delete('id');
+        window.history.pushState({}, '', url.pathname + (url.search ? url.search : ''));
+      } else {
+        const slug = storeSlug || getStoreSlug();
+        if (slug && url.pathname.includes('/admin/notifications')) {
+          window.history.pushState({}, '', `/${slug}/admin/notifications`);
+        }
+      }
+    }
+  }, [storeSlug]);
 
   // Helper: Navigasi tab admin dengan pembersihan otomatis state detail notifikasi
   const handleSelectAdminTab = useCallback((tab: any) => {
     if (tab === 'notifications' || adminTab === 'notifications') {
-      handleClearSelectedNotification();
+      handleClearSelectedNotification(true);
     }
     setAdminTab(tab);
   }, [adminTab, handleClearSelectedNotification]);
@@ -6654,16 +6668,19 @@ Terima kasih.`;
     if (isNotifPage) {
       if (!notifId) {
         if (selectedNotificationDetail) {
-          handleClearSelectedNotification();
+          handleClearSelectedNotification(false);
         }
       } else if (!selectedNotificationDetail || String(selectedNotificationDetail.id) !== String(notifId)) {
+        if (desktopFetchingNotifIdRef.current === notifId) return;
         const found = notifications.find(n => String(n.id) === String(notifId));
         if (found) {
+          desktopFetchingNotifIdRef.current = null;
           setSelectedNotificationDetail(found);
         } else {
           // If not in first batch of state, attempt to fetch directly from backend API
           const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
           if (!token) return;
+          desktopFetchingNotifIdRef.current = notifId;
           const slug = storeSlug || getStoreSlug() || '';
           fetch(`/api/notifications/${encodeURIComponent(notifId)}`, {
             headers: {
@@ -6674,15 +6691,18 @@ Terima kasih.`;
           })
             .then(res => res.ok ? res.json() : null)
             .then(resData => {
+              desktopFetchingNotifIdRef.current = null;
               if (resData && (resData.data || resData.notification)) {
                 setSelectedNotificationDetail(resData.data || resData.notification);
               }
             })
-            .catch(() => {});
+            .catch(() => {
+              desktopFetchingNotifIdRef.current = null;
+            });
         }
       }
     }
-  }, [adminTab, notifications, storeSlug, selectedNotificationDetail, handleClearSelectedNotification]);
+  }, [adminTab, notifications, storeSlug]);
 
   // Handle browser Back/Forward navigation for notification details (Desktop)
   useEffect(() => {
@@ -8945,11 +8965,7 @@ Terima kasih.`;
       }
     }
 
-    setSelectedNotificationDetail(null);
-    try {
-      sessionStorage.removeItem('catavor_active_desktop_notification_id');
-      sessionStorage.removeItem('catavor_active_desktop_notification_data');
-    } catch {}
+    handleClearSelectedNotification(false);
 
     setAdminTab('items');
     const slug = storeSlug || getStoreSlug();
@@ -8990,7 +9006,7 @@ Terima kasih.`;
     }
 
     if (isSuspendedAccount) {
-      setSelectedNotificationDetail(null);
+      handleClearSelectedNotification(false);
       handleStartOrOpenAppeal();
       return;
     }
@@ -9006,7 +9022,7 @@ Terima kasih.`;
     if (existingAppeal) {
       setSelectedTicket(existingAppeal);
       fetchTicketDetails(existingAppeal.id);
-      setSelectedNotificationDetail(null);
+      handleClearSelectedNotification(false);
       setAdminTab('help');
       setShowCreateTicketModal(false);
       showToast(`Permohonan banding Anda sedang aktif diproses (Tiket #${existingAppeal.id}).`, 'info');
@@ -9016,7 +9032,7 @@ Terima kasih.`;
       return;
     }
 
-    setSelectedNotificationDetail(null);
+    handleClearSelectedNotification(false);
     setAdminTab('help');
     setShowCreateTicketModal(true);
 
@@ -9060,7 +9076,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const ticketRef = extractTicketFromNotif(notifItem);
     setAdminTab('help');
     setShowCreateTicketModal(false);
-    setSelectedNotificationDetail(null);
+    handleClearSelectedNotification(false);
     const slug = getStoreSlug();
 
     if (ticketRef) {
@@ -25339,15 +25355,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             <button
                               type="button"
                               className="btn-secondary"
-                              onClick={() => {
-                                setSelectedNotificationDetail(null);
-                                try {
-                                  sessionStorage.removeItem('catavor_active_desktop_notification_id');
-                                  sessionStorage.removeItem('catavor_active_desktop_notification_data');
-                                } catch {}
-                                const slug = storeSlug || getStoreSlug();
-                                if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                              }}
+                              onClick={() => handleClearSelectedNotification(true)}
                               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: '0.65rem', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
                             >
                               <ChevronLeft size={16} />
@@ -25871,7 +25879,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               <button
                                 type="button"
                                 className="btn-secondary"
-                                onClick={() => setSelectedNotificationDetail(null)}
+                                onClick={() => handleClearSelectedNotification(true)}
                                 style={{
                                   padding: '0.65rem 1.35rem',
                                   borderRadius: '0.65rem',
@@ -25888,7 +25896,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   type="button"
                                   className="btn-primary"
                                   onClick={() => {
-                                    setSelectedNotificationDetail(null);
+                                    handleClearSelectedNotification(false);
                                     setAdminTab('items');
                                     const slug = storeSlug || getStoreSlug();
                                     if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
@@ -25918,7 +25926,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   type="button"
                                   className="btn-secondary"
                                   onClick={() => {
-                                    setSelectedNotificationDetail(null);
+                                    handleClearSelectedNotification(false);
                                     setAdminTab('items');
                                     const slug = storeSlug || getStoreSlug();
                                     if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
@@ -25945,7 +25953,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     type="button"
                                     className="btn-secondary"
                                     onClick={() => {
-                                      setSelectedNotificationDetail(null);
+                                      handleClearSelectedNotification(false);
                                       setAdminTab('items');
                                       const slug = storeSlug || getStoreSlug();
                                       if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
@@ -26104,15 +26112,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           <button
                             type="button"
                             className="btn-secondary"
-                            onClick={() => {
-                              setSelectedNotificationDetail(null);
-                              try {
-                                sessionStorage.removeItem('catavor_active_desktop_notification_id');
-                                sessionStorage.removeItem('catavor_active_desktop_notification_data');
-                              } catch {}
-                              const slug = storeSlug || getStoreSlug();
-                              if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                            }}
+                            onClick={() => handleClearSelectedNotification(true)}
                             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: '0.65rem', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
                           >
                             <ChevronLeft size={16} />
@@ -26282,11 +26282,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   <button
                                     type="button"
                                     className="btn-secondary"
-                                    onClick={() => {
-                                      setSelectedNotificationDetail(null);
-                                      const slug = getStoreSlug();
-                                      if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                                    }}
+                                    onClick={() => handleClearSelectedNotification(true)}
                                     style={{
                                       padding: '0.65rem 1.25rem',
                                       borderRadius: '0.65rem',
@@ -26305,7 +26301,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       onClick={() => {
                                         setSelectedTicket(activeAppeal);
                                         fetchTicketDetails(activeAppeal.id);
-                                        setSelectedNotificationDetail(null);
+                                        handleClearSelectedNotification(false);
                                         setAdminTab('help');
                                         const slug = storeSlug || getStoreSlug();
                                         if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${activeAppeal.id}`);
@@ -26333,7 +26329,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       type="button"
                                       className="btn-primary"
                                       onClick={() => {
-                                        setSelectedNotificationDetail(null);
+                                        handleClearSelectedNotification(false);
                                         setAdminTab('help');
                                         setNewTicketForm({
                                           subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
@@ -26373,7 +26369,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 <button
                                   type="button"
                                   className="btn-secondary"
-                                  onClick={() => setSelectedNotificationDetail(null)}
+                                  onClick={() => handleClearSelectedNotification(true)}
                                   style={{
                                     padding: '0.65rem 1.25rem',
                                     borderRadius: '0.65rem',
@@ -26394,7 +26390,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                         handleNavigateToTicketFromNotif(selectedNotificationDetail);
                                         return;
                                       }
-                                      setSelectedNotificationDetail(null);
+                                      handleClearSelectedNotification(false);
                                       if (norm.subTab) {
                                         setAdminTab(norm.subTab as any);
                                         if (norm.settingsTab) setSettingsSubTab(norm.settingsTab as any);
