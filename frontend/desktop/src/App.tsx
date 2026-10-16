@@ -20884,8 +20884,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 } else if (norm.isExternal && norm.actionUrl) {
                   handleSafeExternalRedirect(norm.actionUrl);
                 } else {
-                  setSelectedNotificationDetail(n);
-                  setAdminTab('notifications');
+                  showToast('Notifikasi ditandai dibaca');
                 }
               }}
               onOpenCreateItem={() => openCreateModal('physical')}
@@ -26949,10 +26948,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     color: 'var(--text-secondary)',
                                     margin: 0,
                                     lineHeight: 1.45,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden'
+                                    wordBreak: 'break-word',
+                                    ...(norm.isDetail ? {
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden'
+                                    } : {
+                                      display: 'block',
+                                      whiteSpace: 'pre-wrap'
+                                    })
                                   }}>
                                     {(item.message || '').replace(/\*\*(.*?)\*\*/g, '$1')}
                                   </p>

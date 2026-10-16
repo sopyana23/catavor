@@ -399,133 +399,153 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
             </p>
           </div>
         ) : (
-          displayedList.map((norm) => (
-            <div
-              key={norm.id}
-              onClick={() => {
-                onMarkAsRead(norm.id);
-                onClose();
-                onSelectNotification(norm.item);
-              }}
-              style={{
-                padding: '0.75rem 0.85rem',
-                borderRadius: '0.65rem',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.75rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                backgroundColor: !norm.read ? 'var(--primary-glow)' : 'var(--bg-card)',
-                border: !norm.read
-                  ? '1px solid var(--primary)'
-                  : '1px solid var(--border-hover, var(--border-light))',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                marginBottom: '0.45rem'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-                e.currentTarget.style.borderColor = 'var(--primary)';
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.08)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = !norm.read ? 'var(--primary-glow)' : 'var(--bg-card)';
-                e.currentTarget.style.borderColor = !norm.read ? 'var(--primary)' : 'var(--border-hover, var(--border-light))';
-                e.currentTarget.style.transform = 'none';
-                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
-              }}
-            >
-              {/* Category Icon Badge */}
+          displayedList.map((norm) => {
+            const hasDetail = Boolean(norm.detailContent) || norm.isDetail || norm.isModerationNotif || norm.item.id === 'system_suspended_notice';
+            const isClickActionable = hasDetail || norm.isTicketNotif || norm.isDirectNav || norm.isExternal;
+
+            return (
               <div
+                key={norm.id}
+                onClick={() => {
+                  onMarkAsRead(norm.id);
+                  if (isClickActionable) {
+                    onClose();
+                    onSelectNotification(norm.item);
+                  }
+                }}
                 style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '0.55rem',
-                  backgroundColor: norm.categoryBg,
-                  border: `1px solid ${norm.categoryBorder}`,
+                  padding: '0.75rem 0.85rem',
+                  borderRadius: '0.65rem',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  marginTop: '0.1rem'
+                  alignItems: 'flex-start',
+                  gap: '0.75rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  backgroundColor: !norm.read ? 'var(--primary-glow)' : 'var(--bg-card)',
+                  border: !norm.read
+                    ? '1px solid var(--primary)'
+                    : '1px solid var(--border-hover, var(--border-light))',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                  marginBottom: '0.45rem'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                  e.currentTarget.style.borderColor = 'var(--primary)';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = !norm.read ? 'var(--primary-glow)' : 'var(--bg-card)';
+                  e.currentTarget.style.borderColor = !norm.read ? 'var(--primary)' : 'var(--border-hover, var(--border-light))';
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
                 }}
               >
-                {renderIcon(norm)}
-              </div>
-
-              {/* Text Body - Crisp Typography & Separation */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', marginBottom: '0.2rem' }}>
-                  <span
-                    style={{
-                      fontSize: '0.63rem',
-                      fontWeight: 800,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                      padding: '0.12rem 0.45rem',
-                      borderRadius: '0.35rem',
-                      backgroundColor: norm.categoryBg,
-                      color: norm.categoryColor,
-                      border: `1px solid ${norm.categoryBorder}`
-                    }}
-                  >
-                    {norm.category}
-                  </span>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    {formatRelativeTime(norm.item.created_at || norm.item.timestamp || norm.time)}
-                  </span>
-                </div>
-
+                {/* Category Icon Badge */}
                 <div
                   style={{
-                    fontSize: '0.84rem',
-                    fontWeight: !norm.read ? 800 : 700,
-                    color: 'var(--text-primary)',
-                    marginBottom: '0.15rem',
-                    lineHeight: 1.35,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '0.55rem',
+                    backgroundColor: norm.categoryBg,
+                    border: `1px solid ${norm.categoryBorder}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    marginTop: '0.1rem'
                   }}
                 >
-                  {norm.title}
+                  {renderIcon(norm)}
                 </div>
 
-                <p
-                  style={{
-                    fontSize: '0.73rem',
-                    color: 'var(--text-secondary)',
-                    margin: 0,
-                    lineHeight: 1.4,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden'
-                  }}
-                >
-                  {(norm.message || '').replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*\*/g, '')}
-                </p>
-              </div>
+                {/* Text Body - Crisp Typography & Separation */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', marginBottom: '0.2rem' }}>
+                    <span
+                      style={{
+                        fontSize: '0.63rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        padding: '0.12rem 0.45rem',
+                        borderRadius: '0.35rem',
+                        backgroundColor: norm.categoryBg,
+                        color: norm.categoryColor,
+                        border: `1px solid ${norm.categoryBorder}`
+                      }}
+                    >
+                      {norm.category}
+                    </span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      {formatRelativeTime(norm.item.created_at || norm.item.timestamp || norm.time)}
+                    </span>
+                  </div>
 
-              {/* Trailing Unread Indicator */}
-              <div style={{ flexShrink: 0, paddingTop: '0.35rem' }}>
-                {!norm.read ? (
-                  <span
+                  <div
                     style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--primary)',
-                      display: 'block',
-                      boxShadow: '0 0 8px var(--primary)'
+                      fontSize: '0.84rem',
+                      fontWeight: !norm.read ? 800 : 700,
+                      color: 'var(--text-primary)',
+                      marginBottom: '0.2rem',
+                      lineHeight: 1.35,
+                      ...(hasDetail ? {
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      } : {
+                        overflow: 'visible',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word'
+                      })
                     }}
-                  />
-                ) : (
-                  <ChevronRight size={14} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
-                )}
+                  >
+                    {norm.title}
+                  </div>
+
+                  <p
+                    style={{
+                      fontSize: '0.74rem',
+                      color: 'var(--text-secondary)',
+                      margin: 0,
+                      lineHeight: 1.45,
+                      wordBreak: 'break-word',
+                      ...(hasDetail ? {
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                      } : {
+                        display: 'block',
+                        overflow: 'visible',
+                        whiteSpace: 'pre-wrap'
+                      })
+                    }}
+                  >
+                    {(norm.message || '').replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*\*/g, '')}
+                  </p>
+                </div>
+
+                {/* Trailing Unread Indicator */}
+                <div style={{ flexShrink: 0, paddingTop: '0.35rem' }}>
+                  {!norm.read ? (
+                    <span
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--primary)',
+                        display: 'block',
+                        boxShadow: '0 0 8px var(--primary)'
+                      }}
+                    />
+                  ) : isClickActionable ? (
+                    <ChevronRight size={14} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+                  ) : null}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
