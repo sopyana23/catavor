@@ -172,6 +172,7 @@ import { FormattedText, ExternalLinkWarningModal } from './components/RichTextar
 import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { normalizeNotification } from './utils/notificationHelpers'
 import { 
   getSavedUserSlug, 
@@ -5468,13 +5469,23 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     const slug = storeSlug || getStoreSlug() || '';
     if (!token) return;
 
+    let isMounted = true;
+    let reconnectTimer: any = null;
+    let retryCount = 0;
     let eventSource: EventSource | null = null;
-    try {
-      const streamUrl = `/api/notifications/stream?token=${encodeURIComponent(token)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
-      eventSource = new EventSource(streamUrl);
 
-      eventSource.onmessage = (e) => {
-        try {
+    const connectSSE = () => {
+      if (!isMounted) return;
+      try {
+        const streamUrl = `/api/notifications/stream?token=${encodeURIComponent(token)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
+        eventSource = new EventSource(streamUrl);
+
+        eventSource.onopen = () => {
+          retryCount = 0;
+        };
+
+        eventSource.onmessage = (e) => {
+          try {
           const payload = JSON.parse(e.data);
           const currentSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
 
@@ -5702,6 +5713,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               return;
             }
             if (notifIdStr) {
+              if (desktopRecentNotifEventsRef.current.size >= 100) {
+                const firstVal = desktopRecentNotifEventsRef.current.values().next().value;
+                if (firstVal !== undefined) desktopRecentNotifEventsRef.current.delete(firstVal);
+              }
               desktopRecentNotifEventsRef.current.add(notifIdStr);
               setTimeout(() => {
                 desktopRecentNotifEventsRef.current.delete(notifIdStr);
@@ -5740,18 +5755,34 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       };
 
       eventSource.onerror = () => {
-        // SSE will auto-retry
+        if (!isMounted) return;
+        if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+          eventSource.close();
+          eventSource = null;
+          retryCount++;
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          reconnectTimer = setTimeout(() => {
+            if (isMounted) connectSSE();
+          }, delay);
+        }
       };
     } catch (err) {
       console.warn('SSE notification stream error:', err);
     }
+  };
 
-    return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
-    };
-  }, [storeSlug, portalTab]);
+  connectSSE();
+
+  return () => {
+    isMounted = false;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+    }
+    if (eventSource) {
+      eventSource.close();
+    }
+  };
+}, [storeSlug, portalTab]);
 
   // IntersectionObserver for Notifications Infinite Scroll (Desktop)
   useEffect(() => {
@@ -7172,6 +7203,7 @@ Terima kasih.`;
       }, 150);
     }
   }, [isDetailActive, view, storeSlug])
+
   const [showPurchaseOptions, setShowPurchaseOptions] = useState<boolean>(false)
   const [showRekberExplainerModal, setShowRekberExplainerModal] = useState<boolean>(false)
   const [purchaseQty, setPurchaseQty] = useState<number>(1)
@@ -7356,9 +7388,35 @@ Terima kasih.`;
   const displayedTotalItems = serverAdminTotal !== null ? serverAdminTotal : filteredAdminItems.length;
   const displayedTotalPages = serverAdminTotalPages !== null ? serverAdminTotalPages : totalAdminPages;
 
-  // Authentication State
+  // Authentication & History Traversal State
   const [token, setToken] = useState<string | null>(localStorage.getItem('catavor_token'))
   const isPopStateRef = useRef<boolean>(false)
+  const isInitialLoadRef = useRef<boolean>(true)
+  const isUserNavRef = useRef<boolean>(false)
+
+  // Mark navigation initiated explicitly by user interaction
+  const markUserNavigation = useCallback(() => {
+    isPopStateRef.current = false;
+    isInitialLoadRef.current = false;
+    isUserNavRef.current = true;
+  }, [])
+
+  // Canonical User Interaction Tracker: marks user navigation intent on explicit interactive clicks
+  useEffect(() => {
+    const handleUserPointer = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('button, a, .nav-item, .fauna-card, [role="button"], [data-nav]')) {
+        if (!target.closest('[data-back], .back-btn, .btn-back, [aria-label*="kembali" i], [aria-label*="back" i], [aria-label*="batal" i]')) {
+          markUserNavigation();
+        }
+      }
+    };
+    window.addEventListener('pointerdown', handleUserPointer, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleUserPointer, { capture: true });
+    };
+  }, [markUserNavigation]);
 
   useEffect(() => {
     if (adminTab !== 'items') return;
@@ -9971,10 +10029,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
         } else if (parsedStores.length > 1) {
           const selectedSlug = sessionStorage.getItem('catavor_active_slug_selected');
-          const isMatch = slug && parsedStores.some(s => s.slug.toLowerCase() === slug?.toLowerCase());
-          
-          if (!selectedSlug || selectedSlug.toLowerCase() !== slug?.toLowerCase() || !isMatch) {
-            // Block direct unselected access, redirect to /catalogs chooser
+          const activeSlug = localStorage.getItem('catavor_active_slug');
+          const isMatch = Boolean(slug && parsedStores.some(s => s.slug.toLowerCase() === slug!.toLowerCase()));
+          // Terima akses bila slug di URL valid & memang milik user. sessionStorage
+          // ('selected') hanya penanda opsional — KOSONG setelah refresh/tab baru
+          // dan TIDAK boleh memaksa redirect ke chooser (fix: refresh multi-store).
+          const activeIsMatch = Boolean(activeSlug && parsedStores.some(s => s.slug.toLowerCase() === activeSlug!.toLowerCase()));
+
+          if (!isMatch && !activeIsMatch) {
+            // Benar-benar tidak ada slug valid -> block & arahkan ke chooser.
             setStoreSlug(null);
             setIsFirstTimeLogin(true);
             setShowStoreSwitcherModal(true);
@@ -9984,6 +10047,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
             window.history.replaceState({}, '', '/catalogs');
             showToast('Silakan pilih profil katalog yang ingin Anda kelola.', 'info');
             return;
+          }
+
+          // Slug valid: selaraskan penanda sesi agar konsisten (tanpa redirect).
+          const resolvedSlug = isMatch ? slug! : activeSlug!;
+          try {
+            sessionStorage.setItem('catavor_active_slug_selected', resolvedSlug);
+            localStorage.setItem('catavor_active_slug', resolvedSlug);
+          } catch {}
+          if (!isMatch) {
+            window.history.replaceState({}, '', `/${resolvedSlug}/admin`);
+            slug = resolvedSlug;
+          } else if (selectedSlug && selectedSlug.toLowerCase() !== slug!.toLowerCase()) {
+            window.history.replaceState({}, '', `/${slug}/admin`);
           }
         }
       }
@@ -10241,9 +10317,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
 
       isPopStateRef.current = true;
-      setTimeout(() => {
-        isPopStateRef.current = false;
-      }, 150);
       const path = window.location.pathname.toLowerCase();
       const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
       if (isPlatformAdminPath) {
@@ -11300,7 +11373,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
         window.location.pathname.includes('/share')
       );
 
-      if (isPopStateRef.current || isModalTransition) {
+      // Canonical rule: pushState ONLY for explicit user-initiated navigation.
+      // popstate traversal, initial mount, and modal-driven URL sync must NEVER push (they replace),
+      // otherwise the back button is trapped (browser moves back, effect pushes forward again).
+      const isUserInitiated = isUserNavRef.current && !isPopStateRef.current && !isInitialLoadRef.current;
+      if (isPopStateRef.current || isModalTransition || !isUserInitiated) {
         window.history.replaceState(
           { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotificationDetail?.id },
           '',
@@ -11314,6 +11391,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
         );
       }
     }
+
+    // Canonical reset after reconciliation: consume one-shot flags so the next
+    // state-driven render does not mistakenly re-treat this as a user navigation.
+    if (isPopStateRef.current) {
+      isPopStateRef.current = false;
+    }
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+    }
+    isUserNavRef.current = false;
   }, [view, adminTab, isSuspendedAccount, desktopSuspendedView, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, isDetailActive, selectedFauna, selectedTicket, selectedNotificationDetail, storeSlug, error]);
 
 
@@ -11348,7 +11435,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const currentFull = window.location.pathname + window.location.search;
 
     if (currentFull !== targetPath) {
-      if (isPopStateRef.current) {
+      const isUserInitiated = isUserNavRef.current && !isPopStateRef.current && !isInitialLoadRef.current;
+      if (isPopStateRef.current || !isUserInitiated) {
         window.history.replaceState(
           { tab: portalTab, step: registerStep, plan: registerPlan },
           '',
@@ -11362,6 +11450,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
         );
       }
     }
+
+    // Canonical reset for onboarding/portal: consume one-shot flags after reconciliation
+    if (isPopStateRef.current) {
+      isPopStateRef.current = false;
+    }
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+    }
+    isUserNavRef.current = false;
   }, [portalTab, registerStep, registerPlan, registerForm, storeSlug, error]);
 
   // Reset displayLimit on search or filter change
@@ -11392,43 +11489,51 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useEffect(() => {
     let accumulatedUp = 0;
     let accumulatedDown = 0;
+    let rafId: number | null = null;
 
     const handleSmartFilterScroll = () => {
-      if (isDetailActive || view === 'catalog') return;
-      const currentScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (isDetailActive || view === 'catalog') return;
+        const currentScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
 
-      // Always visible when near top of page
-      if (currentScrollY <= 30) {
-        setIsFilterHidden(false);
-        accumulatedUp = 0;
-        accumulatedDown = 0;
-        lastFilterScrollYRef.current = currentScrollY;
-        return;
-      }
-
-      const delta = currentScrollY - lastFilterScrollYRef.current;
-
-      if (delta > 0) {
-        // User is scrolling DOWN
-        accumulatedUp = 0;
-        accumulatedDown += delta;
-        if (accumulatedDown > 10) {
-          setIsFilterHidden(true);
-        }
-      } else if (delta < 0) {
-        // User is scrolling UP (instant reveal on slight scroll up)
-        accumulatedDown = 0;
-        accumulatedUp += Math.abs(delta);
-        if (accumulatedUp > 5) {
+        // Always visible when near top of page
+        if (currentScrollY <= 30) {
           setIsFilterHidden(false);
+          accumulatedUp = 0;
+          accumulatedDown = 0;
+          lastFilterScrollYRef.current = currentScrollY;
+          return;
         }
-      }
 
-      lastFilterScrollYRef.current = currentScrollY;
+        const delta = currentScrollY - lastFilterScrollYRef.current;
+
+        if (delta > 0) {
+          // User is scrolling DOWN
+          accumulatedUp = 0;
+          accumulatedDown += delta;
+          if (accumulatedDown > 10) {
+            setIsFilterHidden(true);
+          }
+        } else if (delta < 0) {
+          // User is scrolling UP (instant reveal on slight scroll up)
+          accumulatedDown = 0;
+          accumulatedUp += Math.abs(delta);
+          if (accumulatedUp > 5) {
+            setIsFilterHidden(false);
+          }
+        }
+
+        lastFilterScrollYRef.current = currentScrollY;
+      });
     };
 
     window.addEventListener('scroll', handleSmartFilterScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleSmartFilterScroll);
+    return () => {
+      window.removeEventListener('scroll', handleSmartFilterScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, [isDetailActive, view]);
 
   // Sync profile form when user state loads
@@ -12514,7 +12619,23 @@ Terima kasih atas perhatian dan kerja samanya.`;
   }
 
   // Navigation helpers
+  // Atomic transient overlay and modal cleanup helper (Task 1.4)
+  const closeAllTransientOverlays = useCallback(() => {
+    setShowLightbox(false)
+    setSelectedFauna(null)
+    setIsDetailActive(false)
+    activeDetailItemIdRef.current = null
+    isDetailActiveRef.current = false
+    setActionMenuData(null)
+    setShowStoreSwitcherModal(false)
+    setShowCreateStoreModal(false)
+    setSelectedTicket(null)
+    setShowPurchaseOptions(false)
+    setSelectedNotificationDetail(null)
+  }, [])
+
   const goToCatalog = () => {
+    closeAllTransientOverlays()
     setView('catalog')
   }
 
@@ -15139,6 +15260,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             </main>
             
             {/* Corporate Footer */}
+            <ErrorBoundary sectionName="Footer (Desktop)">
             <footer style={{ borderTop: '1px solid #e2e8f0', padding: '3rem 2rem', background: '#ffffff' }}>
               <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -15166,6 +15288,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 </div>
               </div>
             </footer>
+            </ErrorBoundary>
           </>
         )}
 
@@ -18883,6 +19006,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
         {/* Unified Desktop Top Stack - Sticky only in Admin, Static in Public Catalog (leaving floating solely to smart quick-search) */}
         {!(view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged) && (
+        <ErrorBoundary sectionName="Bilah Navigasi Atas (Desktop)">
         <div className={view === 'admin' ? `desktop-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}` : 'desktop-public-top-stack'}>
 
         {/* Header (Shows stylish Catavor brand header on 404 error pages, and store header on valid pages) */}
@@ -19065,6 +19189,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           </header>
         )}
       </div>
+      </ErrorBoundary>
       )}
 
       {/* DESKTOP SMART SCROLL QUICK-SEARCH BAR (Reveal on slight scroll-up) */}
@@ -19193,6 +19318,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       )}
 
       {/* Main Container - Full-bleed for Admin Workspace, Standard container for Public Views */}
+      <ErrorBoundary sectionName="Konten Utama (Desktop)">
       <main 
         className={view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged ? "admin-workspace-canvas" : "container"} 
         style={view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged ? { padding: 0, width: '100%', maxWidth: 'none', margin: 0, minHeight: '100vh', display: 'flex', flexDirection: 'column' } : { paddingBottom: '4rem' }}
@@ -29071,6 +29197,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         ) : null
         )}
       </main>
+      </ErrorBoundary>
     </div>
     )}
       {/* ENTERPRISE ARCHIVE / REACTIVATE CONFIRMATION MODAL */}

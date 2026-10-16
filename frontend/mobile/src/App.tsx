@@ -155,6 +155,7 @@ import { ConnectedDevicesView } from './components/ConnectedDevicesView'
 import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
 import { 
   getSavedUserSlug, 
@@ -5314,12 +5315,25 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     const slug = storeSlug || getStoreSlug() || '';
     if (!token) return;
 
+    let isMounted = true;
     let eventSource: EventSource | null = null;
-    try {
-      const streamUrl = `/api/notifications/stream?token=${encodeURIComponent(token)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
-      eventSource = new EventSource(streamUrl);
+    let reconnectTimer: any = null;
+    let retryCount = 0;
 
-      eventSource.onmessage = (e) => {
+    const connectSSE = () => {
+      if (!isMounted) return;
+      const currentToken = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      if (!currentToken) return;
+
+      try {
+        const streamUrl = `/api/notifications/stream?token=${encodeURIComponent(currentToken)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
+        eventSource = new EventSource(streamUrl);
+
+        eventSource.onopen = () => {
+          retryCount = 0;
+        };
+
+        eventSource.onmessage = (e) => {
         try {
           const payload = JSON.parse(e.data);
           const currentSlug = (storeSlug || resolveActiveStoreSlug() || '').toLowerCase();
@@ -5462,6 +5476,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               return;
             }
             if (notifIdStr) {
+              if (mobileRecentNotifEventsRef.current.size >= 100) {
+                const oldest = mobileRecentNotifEventsRef.current.values().next().value;
+                if (oldest) mobileRecentNotifEventsRef.current.delete(oldest);
+              }
               mobileRecentNotifEventsRef.current.add(notifIdStr);
               setTimeout(() => {
                 mobileRecentNotifEventsRef.current.delete(notifIdStr);
@@ -5500,13 +5518,31 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       };
 
       eventSource.onerror = () => {
-        // SSE will auto-retry
+        if (!isMounted) return;
+        if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+          try { eventSource.close(); } catch {}
+          eventSource = null;
+          const liveToken = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+          if (!liveToken) return;
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          retryCount++;
+          reconnectTimer = setTimeout(() => {
+            if (isMounted) connectSSE();
+          }, delay);
+        }
       };
     } catch (err) {
       console.warn('SSE notification stream error:', err);
     }
+  };
+
+    connectSSE();
 
     return () => {
+      isMounted = false;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
       if (eventSource) {
         eventSource.close();
       }
@@ -6276,6 +6312,33 @@ Terima kasih.`;
 
   // Mobile navigation views: 'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'
   const isPopStateRef = useRef<boolean>(false)
+  const isInitialLoadRef = useRef<boolean>(true)
+  const isUserNavRef = useRef<boolean>(false)
+
+  // Mark navigation initiated explicitly by user interaction
+  const markUserNavigation = useCallback(() => {
+    isPopStateRef.current = false;
+    isInitialLoadRef.current = false;
+    isUserNavRef.current = true;
+  }, [])
+
+  // Canonical User Interaction Tracker: marks user navigation intent on explicit interactive taps
+  useEffect(() => {
+    const handleUserPointer = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('button, a, .nav-item, .bottom-nav-item, .fauna-card, [role="button"], [data-nav]')) {
+        if (!target.closest('[data-back], .back-btn, .btn-back, [aria-label*="kembali" i], [aria-label*="back" i], [aria-label*="batal" i]')) {
+          markUserNavigation();
+        }
+      }
+    };
+    window.addEventListener('pointerdown', handleUserPointer, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleUserPointer, { capture: true });
+    };
+  }, [markUserNavigation])
+
   const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'>('tabs')
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>(() => {
     if (typeof window !== 'undefined') {
@@ -9598,6 +9661,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useModalBackHandler({ isOpen: Boolean(actionMenuData), onClose: () => setActionMenuData(null), modalId: 'action-menu' });
   useModalBackHandler({ isOpen: showStoreSwitcherModal, onClose: () => setShowStoreSwitcherModal(false), modalId: 'store-switcher' });
   useModalBackHandler({ isOpen: showCreateStoreModal, onClose: () => setShowCreateStoreModal(false), modalId: 'create-store' });
+  useModalBackHandler({ isOpen: showCategorySheet, onClose: () => setShowCategorySheet(false), modalId: 'category-sheet' });
+  useModalBackHandler({ isOpen: showSortSheet, onClose: () => setShowSortSheet(false), modalId: 'sort-sheet' });
+  useModalBackHandler({ isOpen: showFilterSheet, onClose: () => setShowFilterSheet(false), modalId: 'filter-sheet' });
+  useModalBackHandler({ isOpen: showAdminFilterSheet, onClose: () => setShowAdminFilterSheet(false), modalId: 'admin-filter-sheet' });
+  useModalBackHandler({ isOpen: showProductTypeSelector, onClose: () => setShowProductTypeSelector(false), modalId: 'product-type-selector' });
+  useModalBackHandler({ isOpen: Boolean(reportModalData), onClose: () => setReportModalData(null), modalId: 'report-modal' });
 
   // Mobile Discard Confirmation Sheet State
   const [showDiscardConfirmSheet, setShowDiscardConfirmSheet] = useState<boolean>(false);
@@ -10010,10 +10079,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
         } else if (parsedStores.length > 1) {
           const selectedSlug = sessionStorage.getItem('catavor_active_slug_selected');
-          const isMatch = slug && parsedStores.some(s => s.slug.toLowerCase() === slug?.toLowerCase());
-          
-          if (!selectedSlug || selectedSlug.toLowerCase() !== slug?.toLowerCase() || !isMatch) {
-            // Block direct unselected access, redirect to /catalogs chooser
+          const activeSlug = localStorage.getItem('catavor_active_slug');
+          const isMatch = Boolean(slug && parsedStores.some(s => s.slug.toLowerCase() === slug!.toLowerCase()));
+          // Terima akses bila slug URL valid & milik user. sessionStorage ('selected')
+          // hanya penanda opsional — KOSONG setelah refresh/tab baru dan TIDAK boleh
+          // memaksa redirect (fix: refresh multi-store).
+          const activeIsMatch = Boolean(activeSlug && parsedStores.some(s => s.slug.toLowerCase() === activeSlug!.toLowerCase()));
+
+          if (!isMatch && !activeIsMatch) {
+            // Benar-benar tidak ada slug valid -> block & arahkan ke chooser.
             setStoreSlug(null);
             setIsFirstTimeLogin(true);
             setShowStoreSwitcherModal(true);
@@ -10023,6 +10097,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
             window.history.replaceState({}, '', '/catalogs');
             showToast('Silakan pilih profil katalog yang ingin Anda kelola.', 'info');
             return;
+          }
+
+          // Slug valid: selaraskan penanda sesi agar konsisten (tanpa redirect).
+          const resolvedSlug = isMatch ? slug! : activeSlug!;
+          try {
+            sessionStorage.setItem('catavor_active_slug_selected', resolvedSlug);
+            localStorage.setItem('catavor_active_slug', resolvedSlug);
+          } catch {}
+          if (!isMatch) {
+            window.history.replaceState({}, '', `/${resolvedSlug}/admin`);
+            slug = resolvedSlug;
+          } else if (selectedSlug && selectedSlug.toLowerCase() !== slug!.toLowerCase()) {
+            window.history.replaceState({}, '', `/${slug}/admin`);
           }
         }
       }
@@ -10309,9 +10396,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
 
       isPopStateRef.current = true;
-      setTimeout(() => {
-        isPopStateRef.current = false;
-      }, 150);
 
       const path = window.location.pathname.toLowerCase();
       const parts = path.split('/').filter(Boolean);
@@ -11501,7 +11585,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const fullTarget = `${targetPath}${queryString}`;
 
     if (window.location.pathname + window.location.search !== fullTarget) {
-      if (isPopStateRef.current) {
+      // Canonical rule: pushState ONLY for explicit user-initiated navigation.
+      // popstate traversal / initial mount must never push (else back button is trapped).
+      const isUserInitiated = isUserNavRef.current && !isPopStateRef.current && !isInitialLoadRef.current;
+      if (isPopStateRef.current || !isUserInitiated) {
         window.history.replaceState(
           { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotification?.id, articleId: selectedArticle?.id },
           '',
@@ -11515,6 +11602,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
         );
       }
     }
+
+    // Canonical reset after reconciliation: consume one-shot flags
+    if (isPopStateRef.current) {
+      isPopStateRef.current = false;
+    }
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+    }
+    isUserNavRef.current = false;
   }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error]);
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
@@ -11547,7 +11643,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const currentFull = window.location.pathname + window.location.search;
 
     if (currentFull !== targetPath) {
-      if (isPopStateRef.current) {
+      const isUserInitiated = isUserNavRef.current && !isPopStateRef.current && !isInitialLoadRef.current;
+      if (isPopStateRef.current || !isUserInitiated) {
         window.history.replaceState(
           { tab: portalTab, step: registerStep, plan: registerPlan },
           '',
@@ -11561,6 +11658,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
         );
       }
     }
+
+    // Canonical reset for onboarding/portal: consume one-shot flags
+    if (isPopStateRef.current) {
+      isPopStateRef.current = false;
+    }
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+    }
+    isUserNavRef.current = false;
   }, [portalTab, registerStep, registerPlan, registerForm, storeSlug, error]);
 
 
@@ -11607,43 +11713,51 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useEffect(() => {
     let accumulatedUp = 0;
     let accumulatedDown = 0;
+    let rafId: number | null = null;
 
     const handleSmartFilterScroll = () => {
-      if (isDetailActive) return;
-      const currentScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (isDetailActive) return;
+        const currentScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
 
-      // Always visible when near top of page
-      if (currentScrollY <= 30) {
-        setIsFilterHidden(false);
-        accumulatedUp = 0;
-        accumulatedDown = 0;
-        lastFilterScrollYRef.current = currentScrollY;
-        return;
-      }
-
-      const delta = currentScrollY - lastFilterScrollYRef.current;
-
-      if (delta > 0) {
-        // User is scrolling DOWN
-        accumulatedUp = 0;
-        accumulatedDown += delta;
-        if (accumulatedDown > 10) {
-          setIsFilterHidden(true);
-        }
-      } else if (delta < 0) {
-        // User is scrolling UP (instant reveal on slight scroll up)
-        accumulatedDown = 0;
-        accumulatedUp += Math.abs(delta);
-        if (accumulatedUp > 5) {
+        // Always visible when near top of page
+        if (currentScrollY <= 30) {
           setIsFilterHidden(false);
+          accumulatedUp = 0;
+          accumulatedDown = 0;
+          lastFilterScrollYRef.current = currentScrollY;
+          return;
         }
-      }
 
-      lastFilterScrollYRef.current = currentScrollY;
+        const delta = currentScrollY - lastFilterScrollYRef.current;
+
+        if (delta > 0) {
+          // User is scrolling DOWN
+          accumulatedUp = 0;
+          accumulatedDown += delta;
+          if (accumulatedDown > 10) {
+            setIsFilterHidden(true);
+          }
+        } else if (delta < 0) {
+          // User is scrolling UP (instant reveal on slight scroll up)
+          accumulatedDown = 0;
+          accumulatedUp += Math.abs(delta);
+          if (accumulatedUp > 5) {
+            setIsFilterHidden(false);
+          }
+        }
+
+        lastFilterScrollYRef.current = currentScrollY;
+      });
     };
 
     window.addEventListener('scroll', handleSmartFilterScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleSmartFilterScroll);
+    return () => {
+      window.removeEventListener('scroll', handleSmartFilterScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, [isDetailActive]);
 
   // Sync profile when adminUser loads
@@ -12892,16 +13006,42 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   }
 
+  // Atomic transient overlay and modal cleanup helper (Task 1.4)
+  const closeAllTransientOverlays = useCallback(() => {
+    setShowLightbox(false);
+    setSelectedFauna(null);
+    setIsDetailActive(false);
+    activeDetailItemIdRef.current = null;
+    isDetailActiveRef.current = false;
+    setActionMenuData(null);
+    setShowStoreSwitcherModal(false);
+    setShowCreateStoreModal(false);
+    setIsCreatingTicket(false);
+    setSelectedTicket(null);
+    setShowCategorySheet(false);
+    setShowSortSheet(false);
+    setShowFilterSheet(false);
+    setShowAdminFilterSheet(false);
+    setShowProductTypeSelector(false);
+    setReportModalData(null);
+    setShowPurchaseOptions(false);
+    setShowDiscardConfirmSheet(false);
+    setArchiveConfirmModal(null);
+  }, []);
+
   // Navigation helpers
   const goToCatalog = () => {
+    closeAllTransientOverlays()
     setActiveTab('catalog')
   }
 
   const goToAbout = () => {
+    closeAllTransientOverlays()
     setActiveTab('about')
   }
 
   const goToArticles = () => {
+    closeAllTransientOverlays()
     setActiveTab('articles')
   }
 
@@ -14230,6 +14370,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   // Open Details Sheet with Scroll Position Memory
   const openDetailsSheet = async (id: number) => {
     try {
+      // Explicit user navigation intent: opening an item detail must PUSH a history
+      // entry (so the back button returns to the catalog instead of exiting the app).
+      markUserNavigation();
       activeDetailItemIdRef.current = String(id);
       // 1. Instant optimistic load from existing faunas array if available
       const localItem = faunas.find(f => f.id === id);
@@ -14269,11 +14412,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   // Close Details Sheet with Clean Scroll to Top (Specifically when returning from item detail page)
   const handleCloseDetailSheet = () => {
     const wasDetail = isDetailActiveRef.current || !!activeDetailItemIdRef.current || isDetailActive;
-    activeDetailItemIdRef.current = null
-    isDetailActiveRef.current = false
+    closeAllTransientOverlays();
     setIsFilterHidden(false)
-    setIsDetailActive(false)
-    setSelectedFauna(null)
 
     if (wasDetail) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -17525,9 +17665,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     </div>
   );
 
+
   // Native App Standard: Show bottom nav at top-level merchant pages (menu, items, settings), hide on modal/detail views
   const isBottomNavVisible = Boolean(
-    !error &&
     settings?.dormancy_status !== 'suspended' &&
     !settings?.is_suspended &&
     settings?.dormancy_status !== 'banned' &&
@@ -22072,6 +22212,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
       <div className="animate-fade-in" style={{ paddingBottom: (isBottomNavVisible && !isSuspendedAccountState) ? '80px' : (activeTab === 'admin' && adminSubTab === 'help' && selectedTicket ? '0px' : '24px') }}>
       {/* Tabs Content */}
+      <ErrorBoundary sectionName="Konten Utama (Mobile)">
       <main className="container" style={{ marginTop: '0.65rem' }}>
         {error ? (
           <div 
@@ -30848,6 +30989,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         </>
       )}
       </main>
+      </ErrorBoundary>
     </div>
 
       {/* PREMIUM CONFIRMATION DIALOG FOR FAUNA DELETION */}
@@ -30985,6 +31127,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
       {/* Fixed Bottom Navigation Bar (Hidden on Sub-pages & Deep Views, and hidden when store is suspended) */}
       {isBottomNavVisible && !isSuspendedAccountState && (
+        <ErrorBoundary sectionName="Bilah Navigasi Bawah (Mobile)">
         <nav className="bottom-nav">
           {activeTab === 'admin' && token && isStoreOwner ? (
             /* MERCHANT ADMIN BOTTOM BAR (NATIVE APP STYLE) */
@@ -30992,7 +31135,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               <button 
                 type="button"
                 className={`nav-item ${adminSubTab === 'menu' ? 'active' : ''}`}
-                onClick={() => setAdminSubTab('menu')}
+                onClick={() => {
+                  closeAllTransientOverlays();
+                  setAdminSubTab('menu');
+                }}
               >
                 <div style={{ position: 'relative', display: 'inline-flex' }}>
                   <LayoutDashboard size={20} />
@@ -31016,6 +31162,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 type="button"
                 className={`nav-item ${adminSubTab === 'items' ? 'active' : ''}`}
                 onClick={() => {
+                  closeAllTransientOverlays();
                   setAdminSubTab('items');
                   setEditId(null);
                 }}
@@ -31027,6 +31174,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 type="button"
                 className={`nav-item ${adminSubTab === 'settings' ? 'active' : ''}`}
                 onClick={() => {
+                  closeAllTransientOverlays();
                   setAdminSubTab('settings');
                   setMobileSettingsTab('menu');
                   if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/settings`);
@@ -31039,6 +31187,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 type="button"
                 className="nav-item"
                 onClick={() => {
+                  closeAllTransientOverlays();
                   setActiveTab('catalog');
                   window.history.pushState({}, '', `/${storeSlug}`);
                 }}
@@ -31071,6 +31220,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   type="button"
                   className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
                   onClick={() => {
+                    closeAllTransientOverlays();
                     setActiveTab('admin');
                     setAdminSubTab('menu');
                     window.history.pushState({}, '', `/${storeSlug}/admin`);
@@ -31098,6 +31248,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             </>
           )}
         </nav>
+        </ErrorBoundary>
       )}
         </>
       )}

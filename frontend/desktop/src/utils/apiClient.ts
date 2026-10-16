@@ -269,6 +269,61 @@ export function deduplicatedGet<T = any>(endpoint: string, options?: ApiRequestO
   return promise;
 }
 
+const MEMORY_CACHE_MAX_SIZE = 50;
+const LOCAL_STORAGE_SWR_MAX_COUNT = 25;
+
+function pruneLocalStorageSwrCache(targetCount: number = 15): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const swrKeys: { key: string; timestamp: number }[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('catavor_swr_')) {
+        try {
+          const item = JSON.parse(localStorage.getItem(k) || '{}');
+          swrKeys.push({ key: k, timestamp: item?.timestamp || 0 });
+        } catch {
+          swrKeys.push({ key: k, timestamp: 0 });
+        }
+      }
+    }
+    swrKeys.sort((a, b) => a.timestamp - b.timestamp);
+    const toRemove = swrKeys.length - targetCount;
+    for (let i = 0; i < Math.max(0, toRemove); i++) {
+      localStorage.removeItem(swrKeys[i].key);
+    }
+  } catch {}
+}
+
+export function safeSetLocalStorage(key: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (key.startsWith('catavor_swr_')) {
+      let count = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        if (localStorage.key(i)?.startsWith('catavor_swr_')) count++;
+      }
+      if (count >= LOCAL_STORAGE_SWR_MAX_COUNT) {
+        pruneLocalStorageSwrCache(LOCAL_STORAGE_SWR_MAX_COUNT - 10);
+      }
+    }
+    localStorage.setItem(key, value);
+  } catch (err: any) {
+    if (err?.name === 'QuotaExceededError' || err?.code === 22 || err?.number === -2147024882) {
+      console.warn('[apiClient] LocalStorage quota reached. Purging all catavor_swr_* caches to liberate space.');
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('catavor_swr_')) keysToRemove.push(k);
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        localStorage.setItem(key, value);
+      } catch {}
+    }
+  }
+}
+
 /**
  * SWR (Stale-While-Revalidate) Cache Engine:
  * Returns cached data immediately if available, then triggers background fetch to update cache.
@@ -297,7 +352,13 @@ export async function swrGet<T = any>(
       const stored = localStorage.getItem(`catavor_swr_${cacheKey}`);
       if (stored) {
         cached = JSON.parse(stored);
-        if (cached) memoryCache.set(cacheKey, cached);
+        if (cached) {
+          if (memoryCache.size >= MEMORY_CACHE_MAX_SIZE) {
+            const oldestKey = memoryCache.keys().next().value;
+            if (oldestKey) memoryCache.delete(oldestKey);
+          }
+          memoryCache.set(cacheKey, cached);
+        }
       }
     } catch {}
   }
@@ -315,10 +376,12 @@ export async function swrGet<T = any>(
         timestamp: Date.now()
       };
 
+      if (memoryCache.size >= MEMORY_CACHE_MAX_SIZE) {
+        const oldestKey = memoryCache.keys().next().value;
+        if (oldestKey) memoryCache.delete(oldestKey);
+      }
       memoryCache.set(cacheKey, newEntry);
-      try {
-        localStorage.setItem(`catavor_swr_${cacheKey}`, JSON.stringify(newEntry));
-      } catch {}
+      safeSetLocalStorage(`catavor_swr_${cacheKey}`, JSON.stringify(newEntry));
 
       if (onFresh) {
         onFresh(freshData);
