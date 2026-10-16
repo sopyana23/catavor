@@ -6617,6 +6617,33 @@ Terima kasih.`;
     setAdminTab(tab);
   }, [adminTab, handleClearSelectedNotification]);
 
+  // Auto scroll to top saat membuka detail notifikasi (Desktop)
+  useEffect(() => {
+    if (selectedNotificationDetail) {
+      const scrollDesktopToTop = () => {
+        try {
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        } catch {
+          window.scrollTo(0, 0);
+        }
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+        const mainEl = document.querySelector('main');
+        if (mainEl) mainEl.scrollTop = 0;
+        const notifDetailEl = document.getElementById('desktop-notification-detail-view');
+        if (notifDetailEl) notifDetailEl.scrollTop = 0;
+      };
+
+      scrollDesktopToTop();
+      const rafId = requestAnimationFrame(() => {
+        scrollDesktopToTop();
+        setTimeout(scrollDesktopToTop, 30);
+        setTimeout(scrollDesktopToTop, 100);
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [selectedNotificationDetail?.id]);
+
   // Sync selectedNotificationDetail with URL ?id=... across hard page refreshes & direct URL access (Desktop)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -25306,7 +25333,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     const modCase = parseModerationCase(selectedNotificationDetail);
                     if (modCase.isModeration) {
                       return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div id="desktop-notification-detail-view" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                           {/* Top Back Navigation Bar */}
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
                             <button
@@ -26071,7 +26098,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     }
 
                     return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      <div id="desktop-notification-detail-view" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         {/* Top Back Navigation Bar */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
                           <button

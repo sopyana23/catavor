@@ -6558,17 +6558,31 @@ Terima kasih.`;
   // Auto scroll to top when opening notification detail (Mobile)
   useEffect(() => {
     if (selectedNotification) {
-      try {
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      } catch {
-        window.scrollTo(0, 0);
-      }
-      if (document.documentElement) document.documentElement.scrollTop = 0;
-      if (document.body) document.body.scrollTop = 0;
-      const notifDetailEl = document.getElementById('mobile-notification-detail-view');
-      if (notifDetailEl) notifDetailEl.scrollTop = 0;
+      const scrollMobileToTop = () => {
+        try {
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        } catch {
+          window.scrollTo(0, 0);
+        }
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+        const mainEl = document.querySelector('main');
+        if (mainEl) mainEl.scrollTop = 0;
+        const notifDetailEl = document.getElementById('mobile-notification-detail-view');
+        if (notifDetailEl) notifDetailEl.scrollTop = 0;
+        const appEl = document.getElementById('root');
+        if (appEl) appEl.scrollTop = 0;
+      };
+
+      scrollMobileToTop();
+      const rafId = requestAnimationFrame(() => {
+        scrollMobileToTop();
+        setTimeout(scrollMobileToTop, 30);
+        setTimeout(scrollMobileToTop, 100);
+      });
+      return () => cancelAnimationFrame(rafId);
     }
-  }, [selectedNotification]);
+  }, [selectedNotification?.id]);
 
   // When navigating to notifications center, ensure view starts with clean 'all' tab consistently (Mobile)
   const prevAdminSubTabForNotifRef = useRef<string>(adminSubTab);
