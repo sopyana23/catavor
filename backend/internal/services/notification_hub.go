@@ -230,10 +230,13 @@ func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interf
 	sentCount := 0
 	for client := range h.clients {
 		shouldSend := false
-		if targetStoreID == 0 || client.StoreID == targetStoreID || client.StoreID == 0 || client.PlatformRole == "superadmin" {
+		if targetStoreID == 0 {
 			shouldSend = true
-		}
-		if uID > 0 && client.UserID == uID {
+		} else if client.StoreID == targetStoreID {
+			shouldSend = true
+		} else if client.PlatformRole == "superadmin" {
+			shouldSend = true
+		} else if uID > 0 && client.UserID == uID {
 			shouldSend = true
 		}
 

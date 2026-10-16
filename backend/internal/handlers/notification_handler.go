@@ -72,7 +72,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		userID = user.ID
 	}
 
-	storeID, storePlan, storeCreatedAt, isSuspended, dormancySuspendedAt := h.resolveStoreContext(c, user)
+	storeID, storePlan, storeCreatedAt, _, _ := h.resolveStoreContext(c, user)
 
 	// 1. Seed initial standard guide notifications if store has none
 	if storeID > 0 {
@@ -149,19 +149,20 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 				userID, storeCutoff,
 				fmt.Sprintf(`%%"id":%d%%`, userID), userID, storeCutoff)
 	} else {
-		// User/Platform level notifications (without store context)
+		// User/Platform level notifications (without store context, but including all stores owned by this user so notifications are never lost if catalog is banned or unselected)
 		baseQuery = baseQuery.
-			Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.user_id = ?", userID).
+			Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND (notification_reads.user_id = ? OR notification_reads.store_id IN (SELECT id FROM stores WHERE user_id = ?))", userID, userID).
 			Where(`
 				(notifications.expires_at IS NULL OR notifications.expires_at > ?)
 				AND notifications.created_at >= ?
 				AND (
 					notifications.target_type = 'all'
 					OR (notifications.target_type = 'single_user' AND notifications.target_id = ?)
+					OR (notifications.target_type = 'single_store' AND notifications.target_id IN (SELECT id FROM stores WHERE user_id = ?))
 					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0))
 				)
 				AND (notification_reads.dismissed_at IS NULL)
-			`, now, thirtyDaysAgo, userID,
+			`, now, thirtyDaysAgo, userID, userID,
 				fmt.Sprintf(`%%"id":%d%%`, userID), userID)
 	}
 
@@ -179,85 +180,43 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Process, filter, and calculate unread count
+	// 3. Process, filter, and calculate unread count with deduplication
 	var allVisible []models.Notification
 	var filtered []models.Notification
 	unreadCount := 0
 	securityCount := 0
 	systemCount := 0
-	hasSeenCurrentSuspensionNotif := false
+	seenNotifIDs := make(map[string]bool)
+	seenContentKeys := make(map[string]bool)
 
 	for _, res := range allResults {
+		if seenNotifIDs[res.Notification.ID] {
+			continue // Prevent duplicate notification items from multiple join records
+		}
+		seenNotifIDs[res.Notification.ID] = true
+
 		notif := res.Notification
+
+		// Content-level deduplication:
+		// If duplicate records exist with the exact same Target, Title, ActionURL, Category, and Message,
+		// keep only the latest one (since we query ORDER BY created_at DESC).
+		// Distinct actions (e.g. Warning vs Suspend vs Banned) have different titles/URLs and remain fully preserved.
+		contentKey := fmt.Sprintf("%s|%s|%s|%d|%s", notif.TargetType, notif.Title, notif.ActionURL, notif.TargetID, notif.Category)
+		if seenContentKeys[contentKey] {
+			continue
+		}
+		seenContentKeys[contentKey] = true
 		notif.IsRead = res.ReadID != nil && *res.ReadID > 0
 		notif.ReadAt = res.ReadAtTime
 		notif.DismissedAt = res.DismissedAt
 		notif.Timestamp = formatRelativeTime(notif.CreatedAt)
 
-		isSuspensionNotif := notif.Category == "KEAMANAN" && (strings.Contains(notif.Title, "Dibekukan") || strings.Contains(notif.Title, "Suspensi") || strings.Contains(notif.Message, "dibekukan") || strings.Contains(notif.Message, "penangguhan"))
 		titleLower := strings.ToLower(notif.Title)
 		msgLower := strings.ToLower(notif.Message)
 
-		// Strict Incident Scoping & SaaS Best Practice Rules:
-		if isSuspended {
-			// 1. When store is suspended: ALL notifications created prior to the current suspension incident MUST BE HIDDEN.
-			if dormancySuspendedAt != nil {
-				if notif.CreatedAt.Before(dormancySuspendedAt.Add(-2 * time.Minute)) {
-					continue
-				}
-			}
-
-			// 2. Hide past restoration / recovery notices completely while in suspended state
-			if strings.Contains(titleLower, "pemulihan") ||
-				strings.Contains(titleLower, "dipulihkan") ||
-				strings.Contains(titleLower, "diaktifkan kembali") ||
-				strings.Contains(msgLower, "pemulihan") ||
-				strings.Contains(msgLower, "dipulihkan") ||
-				strings.Contains(msgLower, "diaktifkan kembali") {
-				continue
-			}
-
-			// 3. Only keep notifications relevant to compliance, suspension, moderation, and appeals
-			isRelevantToSuspension := notif.Category == "MODERASI" ||
-				notif.Category == "KEPATUHAN" ||
-				notif.Category == "KEAMANAN" ||
-				notif.Category == "SUSPEND" ||
-				notif.Category == "TIKET" ||
-				notif.Category == "PERBAIKAN" ||
-				notif.Category == "PERINGATAN" ||
-				notif.Category == "PEMULIHAN" ||
-				notif.Category == "BAHAYA" ||
-				notif.Category == "DANGER" ||
-				notif.Type == "ticket" ||
-				notif.Type == "danger" ||
-				notif.Type == "warning" ||
-				notif.LinkSubTab == "help" ||
-				strings.Contains(titleLower, "suspend") ||
-				strings.Contains(titleLower, "dibekukan") ||
-				strings.Contains(titleLower, "pelanggaran") ||
-				strings.Contains(titleLower, "banding") ||
-				strings.Contains(titleLower, "tiket") ||
-				strings.Contains(titleLower, "peringatan") ||
-				strings.Contains(titleLower, "perbaikan") ||
-				strings.Contains(titleLower, "penonaktifan") ||
-				strings.Contains(titleLower, "pemblokiran") ||
-				strings.Contains(msgLower, "suspend") ||
-				strings.Contains(msgLower, "dibekukan") ||
-				strings.Contains(msgLower, "banding")
-
-			if !isRelevantToSuspension {
-				continue
-			}
-
-			// 4. Only allow the single latest suspension notification for the current incident
-			if isSuspensionNotif {
-				if hasSeenCurrentSuspensionNotif {
-					continue
-				}
-				hasSeenCurrentSuspensionNotif = true
-			}
-		}
-		// When store is active: all notifications (including restoration and historical events) are fully visible
+		// Enterprise Audit Standard:
+		// Full compliance history (warnings, needs_fix revisions, earlier suspensions, and bans)
+		// must remain intact and accessible to the merchant so they can trace their complete compliance journey.
 
 		if !notif.IsRead {
 			unreadCount++
@@ -419,17 +378,18 @@ func (h *NotificationHandler) MarkAllAsRead(c *fiber.Ctx) error {
 				fmt.Sprintf(`%%"id":%d%%`, userID), userID, storeCutoff)
 	} else {
 		query = query.
-			Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.user_id = ?", userID).
+			Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND (notification_reads.user_id = ? OR notification_reads.store_id IN (SELECT id FROM stores WHERE user_id = ?))", userID, userID).
 			Where(`
 				(notifications.expires_at IS NULL OR notifications.expires_at > ?)
 				AND notifications.created_at >= ?
 				AND (
 					notifications.target_type = 'all'
 					OR (notifications.target_type = 'single_user' AND notifications.target_id = ?)
+					OR (notifications.target_type = 'single_store' AND notifications.target_id IN (SELECT id FROM stores WHERE user_id = ?))
 					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0))
 				)
 				AND notification_reads.id IS NULL
-			`, now, thirtyDaysAgo, userID,
+			`, now, thirtyDaysAgo, userID, userID,
 				fmt.Sprintf(`%%"id":%d%%`, userID), userID)
 	}
 
@@ -553,8 +513,15 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 
 	client := services.GetNotificationHub().Register(userID, storeID, storePlan, platformRole)
 
+	notifyDone := c.Context().Done()
+
 	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
-		defer services.GetNotificationHub().Unregister(client)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Warn().Interface("recover", r).Msg("Recovered from SSE stream writer panic")
+			}
+			services.GetNotificationHub().Unregister(client)
+		}()
 
 		// Send initial connect greeting
 		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"client_id\":\"%s\"}\n\n", client.ID)
@@ -567,6 +534,8 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 
 		for {
 			select {
+			case <-notifyDone:
+				return
 			case msg, ok := <-client.Send:
 				if !ok {
 					return

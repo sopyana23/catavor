@@ -118,7 +118,7 @@ func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
 	}
 
 	// Clean up any remaining dormancy warning notifications for this store
-	_ = db.Where("target_type = 'single_store' AND target_id = ? AND category = 'PERINGATAN'", store.ID).
+	_ = db.Where("target_type = 'single_store' AND target_id = ? AND id LIKE 'dormancy_%'", store.ID).
 		Delete(&models.Notification{}).Error
 
 	// Invalidate memory cache to allow immediate activity tracking
@@ -174,8 +174,8 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 		return nil, fmt.Errorf("gagal memperpanjang masa aktif toko: %w", err)
 	}
 
-	// Clean up any remaining dormancy warning & suspension notifications for this store
-	_ = db.Where("target_type = 'single_store' AND target_id = ? AND (category = 'PERINGATAN' OR category = 'KEAMANAN' OR title LIKE '%Dibekukan%' OR title LIKE '%Suspensi%')", store.ID).
+	// Clean up any remaining dormancy warning & suspension notifications for this store (strict isolation from moderation notices)
+	_ = db.Where("target_type = 'single_store' AND target_id = ? AND id LIKE 'dormancy_%'", store.ID).
 		Delete(&models.Notification{}).Error
 
 	// Auto-resolve pending appeal tickets from this past dormancy suspension

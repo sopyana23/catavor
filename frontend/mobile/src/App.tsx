@@ -5301,6 +5301,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const mobileCheckAuthResponseRef = useRef<((res: Response, data?: any) => boolean) | null>(null);
   const mobileHandleStoreBannedEvictionRef = useRef<((bannedSlug?: string, customMessage?: string) => void) | null>(null);
   const mobileTicketReplyDebounceRef = useRef<any>(null);
+  const mobileRecentNotifEventsRef = useRef<Set<string>>(new Set());
+  const mobileLastStoreStatusToastTimeRef = useRef<number>(0);
 
   // Hook for initial load and SSE real-time stream subscription (Mobile)
   useEffect(() => {
@@ -5384,6 +5386,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               if (isBannedEvent) {
                 // REAL-TIME STORE BANNED HANDLER (INSTANT EVICTION TO CATALOG CHOOSER)
                 const bannedMsg = payload.store?.message || payload.message;
+                mobileLastStoreStatusToastTimeRef.current = Date.now();
                 if (mobileHandleStoreBannedEvictionRef.current) {
                   mobileHandleStoreBannedEvictionRef.current(eventSlug || currentSlug, bannedMsg);
                 } else {
@@ -5394,6 +5397,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
               const isRestored = payload.store ? (payload.store.is_suspended === false || payload.store.dormancy_status === 'active') : true;
               if (isRestored) {
+                mobileLastStoreStatusToastTimeRef.current = Date.now();
                 showToast('Akun toko Anda telah dipulihkan oleh Tim Kepatuhan platform.', 'info');
                 try {
                   sessionStorage.removeItem('catavor_merchant_active_ticket_id');
@@ -5415,6 +5419,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                 // REAL-TIME STORE SUSPENSION HANDLER (INSTANT ISOLATION)
                 const reason = payload.store?.suspension_reason || 'moderation_violation';
                 const suspendedMessage = payload.store?.message || 'Akun profil katalog Anda ditangguhkan sementara oleh Tim Kepatuhan platform.';
+                mobileLastStoreStatusToastTimeRef.current = Date.now();
                 showToast(suspendedMessage, 'error');
 
                 setSettings(prev => ({
@@ -5450,18 +5455,42 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             }
           } else if (payload && payload.notification) {
             const newNotif = payload.notification;
-            const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
+            const notifIdStr = String(newNotif.id || '');
 
-            if (!isTicketNotif) {
+            // Deduplicate rapid re-broadcasts or multi-connection delivery
+            if (notifIdStr && mobileRecentNotifEventsRef.current.has(notifIdStr)) {
+              return;
+            }
+            if (notifIdStr) {
+              mobileRecentNotifEventsRef.current.add(notifIdStr);
+              setTimeout(() => {
+                mobileRecentNotifEventsRef.current.delete(notifIdStr);
+              }, 15000);
+            }
+
+            const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
+            const isStoreStatusNotif = newNotif.category === 'KEAMANAN' && (
+              newNotif.title?.includes('Ditangguhkan') || newNotif.title?.includes('Dibekukan') || newNotif.title?.includes('Permanen') || newNotif.title?.includes('Pemulihan')
+            );
+            const recentlyShowedStoreStatusToast = Date.now() - mobileLastStoreStatusToastTimeRef.current < 4000;
+
+            if (!isTicketNotif && !(isStoreStatusNotif && recentlyShowedStoreStatusToast)) {
               showToast(`Notifikasi Baru: ${newNotif.title}`);
             }
 
             setNotifications(prev => {
-              const filtered = prev.filter(n => String(n.id) !== String(newNotif.id));
+              const isAlreadyPresent = prev.some(n => String(n.id) === notifIdStr || (
+                Boolean(newNotif.action_url) && n.action_url === newNotif.action_url && n.title === newNotif.title
+              ));
+              const filtered = prev.filter(n => String(n.id) !== notifIdStr && !(
+                Boolean(newNotif.action_url) && n.action_url === newNotif.action_url && n.title === newNotif.title
+              ));
+              if (!isAlreadyPresent) {
+                setNotifUnreadCount(c => c + 1);
+                setNotifTotal(c => c + 1);
+              }
               return [newNotif, ...filtered];
             });
-            setNotifUnreadCount(prev => prev + 1);
-            setNotifTotal(prev => prev + 1);
           }
         } catch {}
       };
@@ -6614,35 +6643,35 @@ Terima kasih.`;
   const isStoreSuspended = Boolean(settings.is_suspended || settings.dormancy_status === 'suspended');
 
   const suspendedFilteredList = useMemo(() => {
-    let list = notifications;
+    // Deduplicate notifications strictly by unique ID
+    const seenIds = new Set<string>();
+    const deduplicated = (notifications || []).filter(n => {
+      const idKey = String(n.id || '');
+      if (!idKey || seenIds.has(idKey)) return false;
+      seenIds.add(idKey);
+      return true;
+    });
+
     if (isStoreSuspended) {
-      const suspendedTime = settings.dormancy_suspended_at ? new Date(settings.dormancy_suspended_at).getTime() : 0;
-      list = list.filter(n => {
+      let list = deduplicated.filter(n => {
+        // In suspended mode, keep all compliance, security, moderation, ticket, and item notices visible
         const cat = (n.category || '').toUpperCase();
         const title = (n.title || '').toLowerCase();
         const msg = (n.message || '').toLowerCase();
         const subTab = (n.link_sub_tab || n.linkSubTab || '').toLowerCase();
 
-        // 1. Strict Incident Scoping: If suspendedTime is known, hide ANY notification from prior to this incident!
-        if (suspendedTime > 0 && n.created_at) {
-          const notifTime = new Date(n.created_at).getTime();
-          if (notifTime < suspendedTime - 2 * 60 * 1000) {
-            return false;
-          }
-        }
-
-        // 2. Hide past restoration / recovery notices completely while in suspended state
-        const isRestoration = title.includes('pemulihan') || title.includes('dipulihkan') || title.includes('diaktifkan kembali') || msg.includes('pemulihan') || msg.includes('dipulihkan');
-        if (isRestoration) return false;
-
-        // 3. Only keep compliance / suspension / ticket / moderation notices
-        const isComplianceNotif = (
+        return (
           cat === 'MODERASI' ||
           cat === 'KEPATUHAN' ||
           cat === 'KEAMANAN' ||
           cat === 'SUSPEND' ||
           cat === 'TIKET' ||
-          n.type === 'ticket' ||
+          cat === 'PERBAIKAN' ||
+          cat === 'PERINGATAN' ||
+          cat === 'PEMULIHAN' ||
+          (n.type as string) === 'ticket' ||
+          (n.type as string) === 'danger' ||
+          n.type === 'warning' ||
           subTab === 'help' ||
           subTab === 'support' ||
           title.includes('suspend') ||
@@ -6651,25 +6680,14 @@ Terima kasih.`;
           title.includes('banding') ||
           title.includes('tiket') ||
           title.includes('moderasi') ||
+          title.includes('peringatan') ||
+          title.includes('perbaikan') ||
+          title.includes('pemblokiran') ||
           msg.includes('suspend') ||
           msg.includes('dibekukan') ||
           msg.includes('pelanggaran') ||
           msg.includes('banding')
         );
-        return isComplianceNotif;
-      });
-
-      // Deduplicate suspension notices: only keep the single latest suspension notice for current incident
-      let seenSuspensionNotice = false;
-      list = list.filter(n => {
-        const title = (n.title || '').toLowerCase();
-        const msg = (n.message || '').toLowerCase();
-        const isSuspensionNotice = title.includes('dibekukan') || title.includes('suspend') || msg.includes('dibekukan') || msg.includes('penangguhan');
-        if (isSuspensionNotice) {
-          if (seenSuspensionNotice) return false;
-          seenSuspensionNotice = true;
-        }
-        return true;
       });
 
       if (list.length === 0) {
@@ -6689,12 +6707,12 @@ Terima kasih.`;
           timestamp: 'Hari ini'
         }];
       }
-    } else {
-      // Store is active / restored: all notifications are fully visible
-      return notifications;
+      return list;
     }
-    return list;
-  }, [notifications, isStoreSuspended, settings.suspension_reason, settings.store_title, settings.dormancy_suspended_at, storeSlug]);
+
+    // Active store: return all deduplicated notifications with full history
+    return deduplicated;
+  }, [notifications, isStoreSuspended, settings.suspension_reason, settings.store_title, storeSlug]);
 
   const isSecurityNotificationItem = useCallback((n: any) => {
     const norm = normalizeNotification(n);

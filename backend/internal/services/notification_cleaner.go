@@ -52,18 +52,24 @@ func runCleanup(db *gorm.DB) {
 		log.Info().Int64("purged_count", resExpired.RowsAffected).Msg("Purged expired notifications from database")
 	}
 
-	// 2. Delete targeted notifications older than 30 days
-	resOldTargeted := db.Exec("DELETE FROM notifications WHERE target_type IN ('single_store', 'single_user') AND created_at < ?", thirtyDaysAgo)
+	// 2. Delete non-compliance targeted notifications older than 30 days (Preserve security, compliance, warning, and moderation sanction records)
+	resOldTargeted := db.Exec(`
+		DELETE FROM notifications 
+		WHERE target_type IN ('single_store', 'single_user') 
+		  AND created_at < ?
+		  AND category NOT IN ('KEAMANAN', 'MODERASI', 'KEPATUHAN', 'SUSPEND', 'PERINGATAN', 'PERBAIKAN', 'PEMULIHAN')
+	`, thirtyDaysAgo)
 	if resOldTargeted.Error != nil {
 		log.Warn().Err(resOldTargeted.Error).Msg("Failed to clean targeted notifications older than 30 days")
 	} else if resOldTargeted.RowsAffected > 0 {
 		log.Info().Int64("purged_count", resOldTargeted.RowsAffected).Msg("Purged 30-day old targeted notifications from database")
 	}
 
-	// 3. Delete single-store notifications that passed retention after being read
+	// 3. Delete non-compliance single-store notifications that passed retention after being read
 	resRetention := db.Exec(`
 		DELETE FROM notifications 
 		WHERE target_type IN ('single_store', 'single_user') 
+		  AND category NOT IN ('KEAMANAN', 'MODERASI', 'KEPATUHAN', 'SUSPEND', 'PERINGATAN', 'PERBAIKAN', 'PEMULIHAN')
 		  AND id IN (
 		    SELECT nr.notification_id 
 		    FROM notification_reads nr 

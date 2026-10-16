@@ -558,6 +558,15 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		applyEnforcement = *req.ApplyEnforcement
 	}
 
+	// Idempotency guard: If this report was already processed with identical status, action_taken, and admin_notes, prevent duplicate execution
+	if report.Status == newStatus && report.ActionTaken == actionTaken && report.AdminNotes == adminNotes && report.ReviewedAt != nil {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Tindakan moderasi telah diproses sebelumnya.",
+			"data":    report,
+		})
+	}
+
 	now := time.Now().UTC()
 	var actorUserID *uint
 	var actorName = "Admin Kepatuhan"
@@ -747,13 +756,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					}).Error; err != nil {
 						return err
 					}
-					// Clean/dismiss older suspension notifications for this store so only this new incident notification is active
-					tx.Exec(`
-						DELETE FROM notifications 
-						WHERE target_type = 'single_store' AND target_id = ? 
-						  AND category = 'KEAMANAN' 
-						  AND (title LIKE '%Dibekukan%' OR title LIKE '%Suspensi%' OR message LIKE '%dibekukan%' OR message LIKE '%penangguhan%')
-					`, report.StoreID)
+					// Historical compliance audit standard: retain all prior notifications intact
 				}
 			case "catalog_banned", "account_banned":
 				if report.StoreID > 0 {
@@ -771,13 +774,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					}).Error; err != nil {
 						return err
 					}
-					// Auto-dismiss/clean previous suspension notifications for this store
-					tx.Exec(`
-						DELETE FROM notifications 
-						WHERE target_type = 'single_store' AND target_id = ? 
-						  AND category = 'KEAMANAN' 
-						  AND (title LIKE '%Dibekukan%' OR title LIKE '%Suspensi%' OR message LIKE '%dibekukan%' OR message LIKE '%penangguhan%')
-					`, report.StoreID)
+					// Historical compliance audit standard: retain all prior notifications intact
 
 					// Mark any active appeal/compliance tickets from the past suspension as resolved
 					tx.Model(&models.SupportTicket{}).
@@ -882,34 +879,84 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					actionEnabled = true
 				}
 
-				notif := models.Notification{
-					ID:            fmt.Sprintf("notif_mod_%d_%d", report.StoreID, now.UnixNano()),
-					TargetType:    "single_store",
-					TargetID:      report.StoreID,
-					TargetName:    report.StoreTitle,
-					Title:         notifTitle,
-					Category:      notifCategory,
-					Message:       notifMsg,
-					DetailContent: detailArticle,
-					Type:          notifType,
-					ActionEnabled: actionEnabled,
-					ActionType:    actionType,
-					LinkSubTab:    targetSubTab,
-					ActionLabel:   notifActionLabel,
-					ActionURL:     actionURL,
-					CreatedBy:     0,
-					CreatedAt:     now,
-					UpdatedAt:     now,
+				// Smart Moderation Notification & Full Audit Integrity standard:
+				// 1. If an existing notification for this exact report and same action already exists: update in-place (do NOT duplicate row)
+				// 2. If status/action changed (e.g., from suspend to banned, or from warning to suspend): create a NEW notification row,
+				//    strictly PRESERVING all previous notifications intact so the merchant retains their complete compliance audit trail.
+				var existingNotif models.Notification
+				hasExisting := false
+				if err := tx.Where("target_type = 'single_store' AND target_id = ? AND (action_url LIKE ? OR message LIKE ?)",
+					report.StoreID, "%"+report.ReportNumber+"%", "%#"+report.ReportNumber+"%").
+					Order("created_at DESC").First(&existingNotif).Error; err == nil && existingNotif.ID != "" {
+					hasExisting = true
 				}
 
-				// Clean older notifications for this exact report so the latest decision is current and unobstructed
-				tx.Exec("DELETE FROM notifications WHERE target_type = 'single_store' AND target_id = ? AND (action_url LIKE ? OR message LIKE ?)",
-					report.StoreID, "%"+report.ReportNumber+"%", "%#"+report.ReportNumber+"%")
-
-				if err := tx.Create(&notif).Error; err == nil {
-					notificationCreated = &notif
+				if hasExisting && existingNotif.Category == notifCategory && existingNotif.Title == notifTitle {
+					// Identical action for this report: update existing record in-place to avoid duplicate rows
+					updates := map[string]interface{}{
+						"message":        notifMsg,
+						"detail_content": detailArticle,
+						"action_url":     actionURL,
+						"action_label":   notifActionLabel,
+						"action_enabled": actionEnabled,
+						"action_type":    actionType,
+						"link_sub_tab":   targetSubTab,
+						"type":           notifType,
+						"updated_at":     now,
+					}
+					if err := tx.Model(&models.Notification{}).Where("id = ?", existingNotif.ID).Updates(updates).Error; err == nil {
+						existingNotif.Message = notifMsg
+						existingNotif.DetailContent = detailArticle
+						existingNotif.ActionURL = actionURL
+						existingNotif.ActionLabel = notifActionLabel
+						existingNotif.ActionEnabled = actionEnabled
+						existingNotif.ActionType = actionType
+						existingNotif.LinkSubTab = targetSubTab
+						existingNotif.Type = notifType
+						existingNotif.UpdatedAt = now
+						notificationCreated = &existingNotif
+						log.Info().Str("report_number", report.ReportNumber).Str("notif_id", existingNotif.ID).Msg("Updated existing in-app notification in-place without duplication")
+					}
 				} else {
-					log.Error().Err(err).Str("report_number", report.ReportNumber).Msg("Failed to create moderation in-app notification")
+					// Check if a linked report for the same target entity already sent an identical notification within the last 24h
+					var dupEntityNotifCount int64
+					searchPattern := "%" + targetEntityName + "%"
+					_ = tx.Model(&models.Notification{}).
+						Where("target_type = 'single_store' AND target_id = ? AND category = ? AND title = ? AND message LIKE ? AND created_at >= ?",
+							report.StoreID, notifCategory, notifTitle, searchPattern, now.Add(-24*time.Hour)).
+						Count(&dupEntityNotifCount).Error
+
+					if dupEntityNotifCount > 0 && !hasExisting {
+						log.Info().Str("report_number", report.ReportNumber).Str("entity", targetEntityName).Msg("Skipping duplicate notification: identical action already notified for entity")
+					} else {
+						// New distinct lifecycle event or escalation (e.g. Warning -> Suspend, or Suspend -> Banned):
+						// Create new record while preserving all prior notifications intact in database for full historical audit trail
+						notifID := fmt.Sprintf("notif_mod_%d_%d", report.StoreID, now.UnixNano())
+						notif := models.Notification{
+							ID:            notifID,
+							TargetType:    "single_store",
+							TargetID:      report.StoreID,
+							TargetName:    report.StoreTitle,
+							Title:         notifTitle,
+							Category:      notifCategory,
+							Message:       notifMsg,
+							Type:          notifType,
+							ActionEnabled: actionEnabled,
+							ActionType:    actionType,
+							LinkSubTab:    targetSubTab,
+							ActionLabel:   notifActionLabel,
+							ActionURL:     actionURL,
+							DetailContent: detailArticle,
+							ExpiresAt:     nil,
+							CreatedAt:     now,
+							UpdatedAt:     now,
+						}
+						if err := tx.Create(&notif).Error; err == nil {
+							notificationCreated = &notif
+						} else {
+							log.Error().Err(err).Str("report_number", report.ReportNumber).Msg("Failed to create moderation in-app notification")
+						}
+					}
 				}
 			}
 		}

@@ -1023,6 +1023,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [moderationAction, setModerationAction] = useState<string>('none');
   const [moderationNotes, setModerationNotes] = useState<string>('');
   const [isSubmittingModeration, setIsSubmittingModeration] = useState<boolean>(false);
+  const isSubmittingModerationRef = useRef<boolean>(false);
   const [showModerationConfirmModal, setShowModerationConfirmModal] = useState<boolean>(false);
   const [bannedConfirmModalReport, setBannedConfirmModalReport] = useState<any | null>(null);
   const [bannedConfirmInput, setBannedConfirmInput] = useState<string>('');
@@ -2739,6 +2740,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     adminNotes: string = '',
     applyEnforcement: boolean = true
   ) => {
+    if (isSubmittingModerationRef.current) return;
+    isSubmittingModerationRef.current = true;
     setIsSubmittingModeration(true);
     try {
       const res = await fetch(`/api/admin/reports/${reportId}`, {
@@ -2773,6 +2776,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       showToast('laporan gagal diperbaharui', 'error');
     } finally {
       setIsSubmittingModeration(false);
+      isSubmittingModerationRef.current = false;
     }
   };
 

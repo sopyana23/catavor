@@ -1,0 +1,80 @@
+{
+  "audit_date": "2026-10-16",
+  "target": "C:\\MyProject\\DFauna",
+  "scope": "backend Go (Fiber+GORM) + frontend React TS",
+  "read_only": true,
+  "findings": [
+    {
+      "id": "H1",
+      "severity": "high",
+      "title": "err.Error() + raw request body leaked to client",
+      "location": "backend/internal/handlers/auth_handler.go:1555",
+      "endpoint": "SendRegistrationOTP",
+      "impact": "Information disclosure; raw request body echoed to HTTP response",
+      "fix": "Generic message to client, detail to server log only"
+    },
+    {
+      "id": "H2",
+      "severity": "high",
+      "title": "Vulnerable dependencies (active CVEs)",
+      "packages": [
+        {"name": "github.com/gofiber/fiber/v2", "version": "v2.52.5", "cve": ["CVE-2025-66630", "CVE-2025-48075"], "fix_version": "latest 2.52.x"},
+        {"name": "github.com/golang-jwt/jwt/v5", "version": "v5.2.1", "cve": ["CVE-2025-30204"], "fix_version": ">=5.2.2"},
+        {"name": "github.com/go-playground/validator/v10", "version": "v10.23.0", "cve": [], "fix_version": "latest"}
+      ],
+      "fix": "go get -u ...; go mod tidy; govulncheck ./..."
+    },
+    {
+      "id": "M1",
+      "severity": "medium",
+      "title": "JWT stored in localStorage",
+      "location": "frontend/desktop/src/utils/apiClient.ts:106 (and App.tsx)",
+      "impact": "Single XSS = full account takeover"
+    },
+    {
+      "id": "M2",
+      "severity": "medium",
+      "title": "Weak CSP (unsafe-inline, unsafe-eval in script-src)",
+      "location": "backend/internal/middleware/security.go:37",
+      "impact": "CSP XSS protection largely nullified; wildcard img-src/connect-src"
+    },
+    {
+      "id": "M3",
+      "severity": "medium",
+      "title": "Security state in-memory (bypass on restart / multi-instance)",
+      "location": "backend/internal/database/redis.go:282-418; middleware/security.go:90,120,137",
+      "impact": "Without Redis: logout blacklist, login lockout, rate limit reset on restart; per-instance counters in multi-replica"
+    },
+    {
+      "id": "M4",
+      "severity": "medium",
+      "title": "err.Error() leaked to client in many handlers",
+      "location": ["analytics_handler.go:1105,1124,1135", "notification_handler.go:1273-1300", "dormancy_handler.go:105"],
+      "impact": "Internal error detail disclosure"
+    },
+    {"id": "L1", "severity": "low", "title": "Potential path traversal / ambiguous LIKE lookup", "location": "support_handler.go:2312"},
+    {"id": "L2", "severity": "low", "title": "Regex-based SanitizeRichText (blacklist, bypassable)", "location": "security/sanitizer.go"},
+    {"id": "L3", "severity": "low", "title": "CORS AllowCredentials true (ensure no wildcard origin in prod)", "location": "middleware/security.go:57"},
+    {"id": "L4", "severity": "low", "title": "Default JWT secret only warns, no fatal in production", "location": "config/config.go:82"},
+    {"id": "L5", "severity": "low", "title": "err.Error() in dormancy_handler.go:49", "location": "dormancy_handler.go:49"},
+    {"id": "L6", "severity": "low", "title": "DB_SSLMODE=disable in .env", "location": ".env"}
+  ],
+  "verified_ok": [
+    "No SQL injection (all GORM parameterized; raw SQL is static DDL/migration only)",
+    "JWT alg pinning + token.Valid + jti blacklist + token-version",
+    "bcrypt cost 12 + 8-72 byte password boundary",
+    "Multi-tenant IDOR checks consistent (StoreOwnerRequired, ownership Where clauses)",
+    "File upload magic-byte + EXIF strip + UUID + 10MB limit",
+    "No dangerouslySetInnerHTML / eval / new Function in frontend",
+    ".env not tracked in git and not in history; gitleaks configured",
+    "Security headers set (nosniff, XFO, Referrer-Policy, COOP, Permissions-Policy, HSTS on secure)"
+  ],
+  "standards": {
+    "OWASP_A03_injection": "pass",
+    "OWASP_A01_access_control": "pass",
+    "OWASP_A06_vulnerable_components": "fail",
+    "OWASP_A05_misconfig": "partial",
+    "OWASP_A07_auth": "pass (requires Redis in prod)",
+    "SOC2_ISO27001_phase2": "not_started"
+  }
+}

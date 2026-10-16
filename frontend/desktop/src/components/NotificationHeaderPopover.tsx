@@ -85,9 +85,16 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
     };
   }, [isOpen, onClose, triggerRef]);
 
-  // Normalize list & apply quick filter
+  // Normalize list & apply quick filter with strict ID deduplication
   const normalizedList = useMemo(() => {
-    const list = (notifications || []).map(normalizeNotification);
+    const seenIds = new Set<string>();
+    const unique = (notifications || []).filter(n => {
+      const idKey = String(n.id || '');
+      if (!idKey || seenIds.has(idKey)) return false;
+      seenIds.add(idKey);
+      return true;
+    });
+    const list = unique.map(normalizeNotification);
     if (filter === 'unread') {
       return list.filter(n => !n.read);
     }

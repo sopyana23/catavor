@@ -507,7 +507,7 @@ export function normalizeNotification(item: any): NormalizedNotification {
     message: item.message || '',
     detailContent,
     time: item.timestamp || item.time || 'Baru saja',
-    read: Boolean(item.read),
+    read: Boolean(item.read ?? item.is_read),
     type: item.type || 'info',
     category,
     categoryColor,
