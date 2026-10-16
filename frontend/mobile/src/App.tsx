@@ -17721,18 +17721,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             {/* Moderation Status Banner (if hidden by platform) */}
             {(selectedFauna as any).moderation_status === 'hidden' && (
               <div style={{
-                margin: '0.75rem 1rem 0.25rem 1rem',
-                padding: '0.85rem 1rem',
-                borderRadius: '0.65rem',
+                margin: '1.15rem 1rem 0.75rem 1rem',
+                padding: '1rem 1.1rem',
+                borderRadius: '0.75rem',
                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
                 border: '1px solid rgba(239, 68, 68, 0.35)',
                 display: 'flex',
-                gap: '0.65rem',
+                gap: '0.75rem',
                 alignItems: 'flex-start'
               }}>
-                <ShieldAlert size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <ShieldAlert size={22} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
                 <div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ef4444', marginBottom: '0.2rem' }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ef4444', marginBottom: '0.25rem' }}>
                     Item Dinonaktifkan oleh Tim Moderasi
                   </div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
@@ -17745,23 +17745,23 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             {/* Archived Status Banner (if archived) */}
             {(selectedFauna as any).is_active === false && (
               <div style={{
-                margin: '0.75rem 1rem 0.25rem 1rem',
-                padding: '0.85rem 1rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                margin: (selectedFauna as any).moderation_status === 'hidden' ? '0 1rem 1.25rem 1rem' : '1.15rem 1rem 1.25rem 1rem',
+                padding: '1rem 1.1rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(245, 158, 11, 0.08)',
                 border: '1px solid rgba(245, 158, 11, 0.35)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: '0.75rem'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                  <Archive size={20} color="#f59e0b" style={{ flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f59e0b', marginBottom: '0.15rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+                  <Archive size={22} color="#f59e0b" style={{ flexShrink: 0 }} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b', marginBottom: '0.2rem', lineHeight: 1.3 }}>
                       Item Ini Berstatus Diarsipkan
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                       Item disembunyikan dari katalog publik toko.
                     </div>
                   </div>
@@ -17772,10 +17772,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     className="btn-primary"
                     onClick={() => openArchiveConfirmModal(selectedFauna, true)}
                     style={{
-                      padding: '0.35rem 0.75rem',
-                      fontSize: '0.74rem',
+                      padding: '0.45rem 0.95rem',
+                      fontSize: '0.76rem',
                       fontWeight: 700,
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      borderRadius: '0.5rem',
+                      flexShrink: 0
                     }}
                   >
                     Aktifkan
