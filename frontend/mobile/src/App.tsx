@@ -5307,7 +5307,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       eventSource.onmessage = (e) => {
         try {
           const payload = JSON.parse(e.data);
-          const currentSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
+          const currentSlug = (storeSlug || resolveActiveStoreSlug() || '').toLowerCase();
 
           if (payload && (payload.event === 'ticket_reply_from_staff' || payload.event === 'ticket_reply_from_user')) {
             const eventSlug = (payload.ticket?.store_slug || payload.ticket?.store?.slug || '').toLowerCase();
@@ -5361,57 +5361,21 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             }
           } else if (payload && (
             payload.event === 'store_status_updated' ||
-            (payload.notification && (
-              payload.notification.category === 'PEMULIHAN' ||
-              payload.notification.category === 'PENANGGUHAN' ||
-              payload.notification.category === 'SUSPEND' ||
-              payload.notification.category === 'BANNED' ||
-              payload.notification.title?.includes('Pemulihan') ||
-              payload.notification.title?.includes('Aktif Kembali') ||
-              payload.notification.title?.includes('Ditangguhkan') ||
-              payload.notification.title?.includes('Penangguhan') ||
-              payload.notification.title?.includes('Dibekukan') ||
-              payload.notification.title?.includes('Dinonaktifkan')
-            ))
+            (payload.store && (payload.store.is_banned || payload.store.is_suspended !== undefined || payload.store.dormancy_status))
           )) {
-            const eventSlug = (payload.store?.slug || payload.slug || payload.notification?.target_slug || '').toLowerCase();
+            const eventSlug = (payload.store?.slug || payload.slug || '').toLowerCase();
             if (!eventSlug || !currentSlug || eventSlug === currentSlug) {
-              const isBannedEvent = payload.store ? (payload.store.is_banned === true || payload.store.dormancy_status === 'banned') : false;
+              const isBannedEvent = payload.store 
+                ? (payload.store.is_banned === true || payload.store.dormancy_status === 'banned') 
+                : (payload.is_banned === true || payload.dormancy_status === 'banned');
               if (isBannedEvent) {
                 // REAL-TIME STORE BANNED HANDLER (INSTANT EVICTION TO CATALOG CHOOSER)
-                const bannedMessage = payload.store?.message || `Profil katalog '${eventSlug || currentSlug}' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform.`;
-                showToast(bannedMessage, 'error');
-
-                setStoreChooserComplianceAlert({
-                  type: 'banned',
-                  message: bannedMessage,
-                  bannedSlug: eventSlug || currentSlug
-                });
-
-                try {
-                  const targetSlug = currentSlug || eventSlug;
-                  if (targetSlug) {
-                    sessionStorage.removeItem(`catavor_store_suspended_${targetSlug}`);
-                    localStorage.removeItem(`catavor_store_${targetSlug}`);
-                  }
-                  sessionStorage.removeItem('catavor_active_slug_selected');
-                  localStorage.removeItem('catavor_active_slug');
-                } catch {}
-
-                document.documentElement.setAttribute('data-theme', 'navy');
-                document.body.setAttribute('data-theme', 'navy');
-                setStoreSlug(null);
-                fetchMyStores();
-
-                // Cleanup mobile overlays
-                setShowDiscardConfirmSheet(false);
-                setArchiveConfirmModal(null);
-                setActionMenuData(null);
-                setShowPurchaseOptions(false);
-                setShowLightbox(false);
-
-                window.history.pushState({ chooser: true }, '', '/catalogs');
-                setShowStoreSwitcherModal(true);
+                const bannedMsg = payload.store?.message || payload.message;
+                if (mobileHandleStoreBannedEvictionRef.current) {
+                  mobileHandleStoreBannedEvictionRef.current(eventSlug || currentSlug, bannedMsg);
+                } else {
+                  handleStoreBannedEviction(eventSlug || currentSlug, bannedMsg);
+                }
                 return;
               }
 
@@ -10619,6 +10583,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setShowPurchaseOptions(false);
     setShowLightbox(false);
 
+    setView('tabs');
+    setActiveTab('admin');
+    setAdminSubTab('menu');
+
     window.history.pushState({ chooser: true }, '', '/catalogs');
     setShowStoreSwitcherModal(true);
   };
@@ -10744,12 +10712,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         const clone = response.clone();
         const data = await clone.json();
         if (data?.code === 'STORE_BANNED_SWITCH_REQUIRED') {
-          setStoreChooserComplianceAlert({
-            type: 'banned',
-            message: data?.message || `Profil katalog '${data?.banned_slug || ''}' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Anda dapat melanjutkan pengelolaan profil katalog Anda yang lain di bawah ini.`,
-            bannedSlug: data?.banned_slug
-          });
-          setShowStoreSwitcherModal(true);
+          handleStoreBannedEviction(data?.banned_slug, data?.message);
           throw new Error('STORE_BANNED_SWITCH_REQUIRED');
         } else if (data?.code === 'ACCOUNT_BANNED' || data?.code === 'USER_BLACKLISTED' || data?.code === 'ALL_STORES_BANNED') {
           handleAccountBanned(data?.message);
@@ -10806,7 +10769,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   // Proactive token verification & expired session check (Throttled 60 detik untuk efisiensi resource)
   useEffect(() => {
     let lastChecked = 0;
-    const THROTTLE_MS = 60000; // Minimal jeda 60 detik antar verifikasi token di background
+    const THROTTLE_MS = 4000; // Minimal jeda 4 detik antar verifikasi token di background agar responsif saat kembali ke tab
 
     const checkTokenValidity = async (force: boolean = false) => {
       const now = Date.now();
@@ -10855,6 +10818,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 });
               });
               localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+
+              // Active store eviction check: If current active store was banned/removed
+              const activeSlug = (storeSlug || resolveActiveStoreSlug() || getStoreSlug() || '').toLowerCase();
+              if (activeSlug && !isReservedStoreSlug(activeSlug)) {
+                const stillExists = data.stores.some((s: any) => s.slug?.toLowerCase() === activeSlug);
+                if (!stillExists) {
+                  handleStoreBannedEviction(activeSlug);
+                  return;
+                }
+              }
             }
             if (data.user) {
               setAdminUser(data.user);
@@ -10880,6 +10853,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
     window.addEventListener('visibilitychange', handleVisibilityOrFocus);
     window.addEventListener('focus', handleVisibilityOrFocus);
 
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
   }, [token]);
 
   // Industry Best Practice: Cross-Tab Session & Store Synchronization

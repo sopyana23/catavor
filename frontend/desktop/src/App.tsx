@@ -5533,20 +5533,13 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             }, 350);
           } else if (payload && (
             payload.event === 'store_status_updated' ||
-            (payload.notification && (
-              payload.notification.category === 'PEMULIHAN' ||
-              payload.notification.category === 'PENANGGUHAN' ||
-              payload.notification.category === 'SUSPEND' ||
-              payload.notification.title?.includes('Pemulihan') ||
-              payload.notification.title?.includes('Aktif Kembali') ||
-              payload.notification.title?.includes('Ditangguhkan') ||
-              payload.notification.title?.includes('Penangguhan') ||
-              payload.notification.title?.includes('Dibekukan')
-            ))
+            (payload.store && (payload.store.is_banned || payload.store.is_suspended !== undefined || payload.store.dormancy_status))
           )) {
-            const eventSlug = (payload.store?.slug || payload.slug || payload.notification?.target_slug || '').toLowerCase();
+            const eventSlug = (payload.store?.slug || payload.slug || '').toLowerCase();
             if (!eventSlug || !currentSlug || eventSlug === currentSlug) {
-              const isBannedEvent = payload.store ? (payload.store.is_banned === true || payload.store.dormancy_status === 'banned') : false;
+              const isBannedEvent = payload.store 
+                ? (payload.store.is_banned === true || payload.store.dormancy_status === 'banned') 
+                : (payload.is_banned === true || payload.dormancy_status === 'banned');
               if (isBannedEvent) {
                 // REAL-TIME STORE BANNED HANDLER (INSTANT EVICTION TO CATALOG CHOOSER)
                 const bannedMessage = payload.store?.message || `Profil katalog '${eventSlug || currentSlug}' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform.`;

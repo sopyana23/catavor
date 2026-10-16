@@ -800,10 +800,15 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				if report.ItemName != "" {
 					targetEntityName = report.ItemName
 				}
-				if rawItemType == "" && report.FaunaID != nil && *report.FaunaID > 0 {
+				if report.FaunaID != nil && *report.FaunaID > 0 {
 					var p models.Product
-					if err := tx.Select("id, product_type").Where("id = ?", *report.FaunaID).First(&p).Error; err == nil {
-						rawItemType = p.ProductType
+					if err := tx.Select("id, name, product_type").Where("id = ?", *report.FaunaID).First(&p).Error; err == nil {
+						if rawItemType == "" {
+							rawItemType = p.ProductType
+						}
+						if report.ItemName == "" && p.Name != "" {
+							targetEntityName = p.Name
+						}
 					}
 				}
 				itemTypeLabel = mapProductTypeLabel(rawItemType)
@@ -830,7 +835,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					actionURL = fmt.Sprintf("/%s/admin/notifications?action=item_banned&target_type=item&target_name=%s&report=%s", report.StoreSlug, url.QueryEscape(targetEntityName), report.ReportNumber)
 					targetSubTab = ""
 					actionType = "detail"
-					actionEnabled = false
+					actionEnabled = true
 				} else if actionTaken == "catalog_banned" {
 					notifCategory = "KEAMANAN"
 					actionURL = fmt.Sprintf("/%s/admin/notifications?target_type=store&target_name=%s&report=%s", report.StoreSlug, url.QueryEscape(report.StoreTitle), report.ReportNumber)
@@ -846,7 +851,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					}
 					targetSubTab = ""
 					actionType = "detail"
-					actionEnabled = false
+					actionEnabled = true
 				} else if actionTaken == "item_needs_fix" {
 					notifCategory = "PERBAIKAN"
 					if report.FaunaID != nil && *report.FaunaID > 0 {
@@ -857,10 +862,25 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					targetSubTab = "items"
 					actionType = "detail"
 					actionEnabled = true
+				} else if actionTaken == "item_locked" || actionTaken == "item_hidden" {
+					notifCategory = "KEAMANAN"
+					actionURL = fmt.Sprintf("/%s/admin/help?action=appeal&report=%s&target_type=item&target_name=%s&item_type=%s&reason=%s&notes=%s",
+						report.StoreSlug,
+						report.ReportNumber,
+						url.QueryEscape(targetEntityName),
+						url.QueryEscape(itemTypeLabel),
+						url.QueryEscape(report.ReasonLabel),
+						url.QueryEscape(adminNotes),
+					)
+					targetSubTab = "help"
+					actionType = "detail"
+					actionEnabled = true
 				} else if actionTaken == "catalog_reactivated" || actionTaken == "item_restored" {
 					notifCategory = "PEMULIHAN"
 					actionURL = fmt.Sprintf("/%s/admin", report.StoreSlug)
 					targetSubTab = "items"
+					actionType = "detail"
+					actionEnabled = true
 				}
 
 				notif := models.Notification{
@@ -882,19 +902,15 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					CreatedAt:     now,
 					UpdatedAt:     now,
 				}
-				// Deduplication check: Do NOT create duplicate notifications for the same store and report/action within 10 minutes
-				var dupNotifCount int64
-				_ = tx.Model(&models.Notification{}).
-					Where("target_type = 'single_store' AND target_id = ? AND (action_url LIKE ? OR (category = ? AND title = ?)) AND created_at >= ?",
-						report.StoreID, "%"+report.ReportNumber+"%", notifCategory, notifTitle, now.Add(-10*time.Minute)).
-					Count(&dupNotifCount).Error
 
-				if dupNotifCount == 0 {
-					if err := tx.Create(&notif).Error; err == nil {
-						notificationCreated = &notif
-					}
+				// Clean older notifications for this exact report so the latest decision is current and unobstructed
+				tx.Exec("DELETE FROM notifications WHERE target_type = 'single_store' AND target_id = ? AND (action_url LIKE ? OR message LIKE ?)",
+					report.StoreID, "%"+report.ReportNumber+"%", "%#"+report.ReportNumber+"%")
+
+				if err := tx.Create(&notif).Error; err == nil {
+					notificationCreated = &notif
 				} else {
-					log.Info().Str("report_number", report.ReportNumber).Uint("store_id", report.StoreID).Msg("Skipping duplicate moderation in-app notification creation")
+					log.Error().Err(err).Str("report_number", report.ReportNumber).Msg("Failed to create moderation in-app notification")
 				}
 			}
 		}

@@ -223,13 +223,24 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 				notif.Category == "KEAMANAN" ||
 				notif.Category == "SUSPEND" ||
 				notif.Category == "TIKET" ||
+				notif.Category == "PERBAIKAN" ||
+				notif.Category == "PERINGATAN" ||
+				notif.Category == "PEMULIHAN" ||
+				notif.Category == "BAHAYA" ||
+				notif.Category == "DANGER" ||
 				notif.Type == "ticket" ||
+				notif.Type == "danger" ||
+				notif.Type == "warning" ||
 				notif.LinkSubTab == "help" ||
 				strings.Contains(titleLower, "suspend") ||
 				strings.Contains(titleLower, "dibekukan") ||
 				strings.Contains(titleLower, "pelanggaran") ||
 				strings.Contains(titleLower, "banding") ||
 				strings.Contains(titleLower, "tiket") ||
+				strings.Contains(titleLower, "peringatan") ||
+				strings.Contains(titleLower, "perbaikan") ||
+				strings.Contains(titleLower, "penonaktifan") ||
+				strings.Contains(titleLower, "pemblokiran") ||
 				strings.Contains(msgLower, "suspend") ||
 				strings.Contains(msgLower, "dibekukan") ||
 				strings.Contains(msgLower, "banding")
@@ -253,7 +264,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		}
 
 		catUpper := strings.ToUpper(notif.Category)
-		isSecurity := catUpper == "KEAMANAN" || catUpper == "MODERASI" || catUpper == "KEPATUHAN" || catUpper == "SUSPEND" || catUpper == "TIKET" || notif.Type == "ticket" || notif.LinkSubTab == "help" || strings.Contains(titleLower, "keamanan") || strings.Contains(titleLower, "moderasi") || strings.Contains(titleLower, "suspend") || strings.Contains(titleLower, "banding") || strings.Contains(titleLower, "cs catavor") || strings.Contains(titleLower, "balasan baru")
+		isSecurity := catUpper == "KEAMANAN" || catUpper == "MODERASI" || catUpper == "KEPATUHAN" || catUpper == "SUSPEND" || catUpper == "TIKET" || catUpper == "PERBAIKAN" || catUpper == "PERINGATAN" || catUpper == "PEMULIHAN" || catUpper == "BAHAYA" || catUpper == "DANGER" || notif.Type == "ticket" || notif.Type == "danger" || notif.Type == "warning" || notif.LinkSubTab == "help" || strings.Contains(titleLower, "keamanan") || strings.Contains(titleLower, "moderasi") || strings.Contains(titleLower, "suspend") || strings.Contains(titleLower, "banding") || strings.Contains(titleLower, "cs catavor") || strings.Contains(titleLower, "balasan baru") || strings.Contains(titleLower, "peringatan") || strings.Contains(titleLower, "perbaikan") || strings.Contains(titleLower, "penonaktifan") || strings.Contains(titleLower, "pemblokiran") || strings.Contains(titleLower, "pelanggaran")
 		if isSecurity {
 			securityCount++
 		} else {
