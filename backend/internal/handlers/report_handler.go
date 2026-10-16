@@ -1004,6 +1004,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		if report.StoreSlug != "" {
 			InvalidateStoreProfileCache(report.StoreSlug)
 		}
+		go services.BroadcastStoreQuotaSync(database.DB, report.StoreID)
 	}
 
 	// Broadcast real-time store lifecycle events to merchant stream
@@ -1628,6 +1629,9 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 		}
 		_ = database.DB.Create(&notif).Error
 		services.GetNotificationHub().Broadcast(&notif)
+		services.SyncStoreStorageUsed(database.DB, product.StoreID)
+		database.InvalidateStoreQuotaCache(context.Background(), product.StoreID)
+		go services.BroadcastStoreQuotaSync(database.DB, product.StoreID)
 
 		return c.JSON(fiber.Map{
 			"success": true,

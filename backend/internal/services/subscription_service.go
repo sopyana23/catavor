@@ -400,7 +400,11 @@ func UpgradeStorePlan(db *gorm.DB, storeID uint, targetPlanCode string, duration
 		Msg("Store subscription successfully updated")
 
 	database.InvalidateStoreQuotaCache(context.Background(), storeID)
-	return GetStoreQuotaInfo(db, storeID)
+	freshQuota, qErr := GetStoreQuotaInfo(db, storeID)
+	if qErr == nil && freshQuota != nil {
+		GetNotificationHub().BroadcastQuotaEvent(storeID, freshQuota)
+	}
+	return freshQuota, qErr
 }
 
 // ScheduleStoreDowngrade sets a scheduled downgrade for the end of the current billing cycle.
@@ -974,3 +978,17 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	return totalBytes
 }
 
+// BroadcastStoreQuotaSync calculates fresh StoreQuotaInfo and broadcasts it to connected clients in real-time.
+func BroadcastStoreQuotaSync(db *gorm.DB, storeID uint) {
+	if storeID == 0 {
+		return
+	}
+	// Invalidate cache first so we get live accurate data
+	database.InvalidateStoreQuotaCache(context.Background(), storeID)
+	quota, err := GetStoreQuotaInfo(db, storeID)
+	if err != nil {
+		log.Error().Err(err).Uint("store_id", storeID).Msg("Failed to get fresh store quota for SSE broadcast")
+		return
+	}
+	GetNotificationHub().BroadcastQuotaEvent(storeID, quota)
+}

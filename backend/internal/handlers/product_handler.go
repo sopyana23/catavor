@@ -444,6 +444,7 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	InvalidateStoreProductsCache(store.ID)
 	services.SyncStoreStorageUsed(database.DB, store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
+	go services.BroadcastStoreQuotaSync(database.DB, store.ID)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -868,6 +869,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 
 	InvalidateStoreProductsCache(store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
+	go services.BroadcastStoreQuotaSync(database.DB, store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -970,6 +972,7 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 	// but instantly excluded from merchant active quota calculation!
 	services.SyncStoreStorageUsed(database.DB, store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
+	go services.BroadcastStoreQuotaSync(database.DB, store.ID)
 
 	InvalidateStoreProductsCache(store.ID)
 

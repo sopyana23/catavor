@@ -5731,6 +5731,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               }
               return [newNotif, ...filtered];
             });
+          } else if (payload && payload.event === 'quota_updated') {
+            if (payload.quota) {
+              setStoreQuota(payload.quota);
+            }
           }
         } catch {}
       };
@@ -10552,6 +10556,25 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (token && isStoreOwner && view === 'admin' && !isSuspendedAccount) {
       fetchMyQuota();
     }
+  }, [token, isStoreOwner, view, isSuspendedAccount]);
+
+  // Window Focus Passive Revalidation (Industry Best Practice)
+  useEffect(() => {
+    let lastFocusSync = Date.now();
+    const handleWindowFocus = () => {
+      const now = Date.now();
+      // Only revalidate if user was away for > 60 seconds
+      if (now - lastFocusSync > 60000) {
+        lastFocusSync = now;
+        if (token && isStoreOwner && view === 'admin' && !isSuspendedAccount) {
+          fetchMyQuota();
+        }
+      }
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+    };
   }, [token, isStoreOwner, view, isSuspendedAccount]);
 
   // Global API Unauthorized session interception

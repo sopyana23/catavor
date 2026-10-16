@@ -296,6 +296,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	if isQuotaCounted && uploadSize > 0 {
 		h.db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", gorm.Expr("storage_used_bytes + ?", uploadSize))
 		database.InvalidateStoreQuotaCache(context.Background(), storeID)
+		go services.BroadcastStoreQuotaSync(h.db, storeID)
 	}
 
 	origFileName := filepath.Base(file.Filename)
@@ -363,6 +364,7 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 	if store != nil && store.ID > 0 {
 		services.SyncStoreStorageUsed(h.db, store.ID)
 		database.InvalidateStoreQuotaCache(context.Background(), store.ID)
+		go services.BroadcastStoreQuotaSync(h.db, store.ID)
 	}
 
 	return c.JSON(fiber.Map{

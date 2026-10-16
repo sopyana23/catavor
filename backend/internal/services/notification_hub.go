@@ -258,6 +258,52 @@ func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interf
 		Msg("Realtime store broadcast delivered")
 }
 
+// BroadcastQuotaEvent sends a real-time store quota & storage synchronization event
+// to connected clients for that store and platform administrators.
+func (h *NotificationHub) BroadcastQuotaEvent(targetStoreID uint, quotaData interface{}) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if len(h.clients) == 0 || targetStoreID == 0 {
+		return
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"event":     "quota_updated",
+		"store_id":  targetStoreID,
+		"quota":     quotaData,
+		"timestamp": time.Now().Format(time.RFC3339),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to serialize quota SSE broadcast")
+		return
+	}
+
+	sentCount := 0
+	for client := range h.clients {
+		shouldSend := false
+		if client.StoreID == targetStoreID {
+			shouldSend = true
+		} else if client.PlatformRole == "superadmin" {
+			shouldSend = true
+		}
+
+		if shouldSend {
+			select {
+			case client.Send <- payload:
+				sentCount++
+			default:
+				log.Warn().Str("client_id", client.ID).Msg("SSE client buffer full, skipping quota event")
+			}
+		}
+	}
+
+	log.Info().
+		Uint("target_store", targetStoreID).
+		Int("sent_count", sentCount).
+		Msg("Realtime quota broadcast delivered")
+}
+
 // isClientTargetMatch checks if a connected client satisfies the notification target constraints.
 func (h *NotificationHub) isClientTargetMatch(client *SSEClient, notif *models.Notification) bool {
 	switch notif.TargetType {

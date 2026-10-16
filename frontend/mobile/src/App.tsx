@@ -5491,6 +5491,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               }
               return [newNotif, ...filtered];
             });
+          } else if (payload && payload.event === 'quota_updated') {
+            if (payload.quota) {
+              setStoreQuota(payload.quota);
+            }
           }
         } catch {}
       };
@@ -10729,6 +10733,28 @@ Terima kasih atas perhatian dan kerja samanya.`;
       fetchMyQuota();
     }
   }, [token, isSuspendedAccountState]);
+
+  // Window Focus & Visibility Passive Revalidation (Mobile)
+  useEffect(() => {
+    let lastFocusSync = Date.now();
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      const now = Date.now();
+      // Only revalidate if user was away for > 60 seconds
+      if (now - lastFocusSync > 60000) {
+        lastFocusSync = now;
+        if (token && !isSuspendedAccountState && !checkIsStoreSuspended(storeSlug)) {
+          fetchMyQuota();
+        }
+      }
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    return () => {
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    };
+  }, [token, isSuspendedAccountState, storeSlug]);
 
   // Global API Unauthorized session interception
   useEffect(() => {
