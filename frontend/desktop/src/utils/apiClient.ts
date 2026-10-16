@@ -75,6 +75,31 @@ export function notifyUnauthorized(message?: string) {
   });
 }
 
+// Global Store Banned Switch Event Dispatcher
+export interface StoreBannedPayload {
+  message?: string;
+  bannedSlug?: string;
+}
+type StoreBannedListener = (payload: StoreBannedPayload) => void;
+const storeBannedListeners = new Set<StoreBannedListener>();
+
+export function onApiStoreBanned(listener: StoreBannedListener): () => void {
+  storeBannedListeners.add(listener);
+  return () => {
+    storeBannedListeners.delete(listener);
+  };
+}
+
+export function notifyStoreBanned(payload: StoreBannedPayload) {
+  storeBannedListeners.forEach(listener => {
+    try {
+      listener(payload);
+    } catch (e) {
+      console.error('Error in store banned listener:', e);
+    }
+  });
+}
+
 // Helper to get active JWT token safely
 export function getStoredToken(): string | null {
   try {
@@ -174,6 +199,12 @@ export async function request<T = any>(
     if (res.status === 403) {
       let data: any = {};
       try { data = await res.json(); } catch {}
+      if (data?.code === 'STORE_BANNED_SWITCH_REQUIRED') {
+        notifyStoreBanned({
+          message: data?.message,
+          bannedSlug: data?.banned_slug || slug || getActiveStoreSlug() || undefined
+        });
+      }
       if (data?.code === 'STORE_SUSPENDED') {
         try {
           const currentSlug = slug || getActiveStoreSlug();

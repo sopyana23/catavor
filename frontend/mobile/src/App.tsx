@@ -153,7 +153,7 @@ import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
 import { ConnectedDevicesView } from './components/ConnectedDevicesView'
 import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
-import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
+import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
 import { 
@@ -5285,6 +5285,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const mobileIsFetchingTicketsRef = useRef<boolean>(false);
   const mobileLastTicketsFetchTimeRef = useRef<number>(0);
   const mobileIsFetchingTicketDetailsRef = useRef<boolean>(false);
+  const mobileCheckAuthResponseRef = useRef<((res: Response, data?: any) => boolean) | null>(null);
+  const mobileHandleStoreBannedEvictionRef = useRef<((bannedSlug?: string, customMessage?: string) => void) | null>(null);
   const mobileTicketReplyDebounceRef = useRef<any>(null);
 
   // Hook for initial load and SSE real-time stream subscription (Mobile)
@@ -5357,9 +5359,62 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             if (mobileFetchTicketsPingRef.current) {
               mobileFetchTicketsPingRef.current();
             }
-          } else if (payload && (payload.event === 'store_status_updated' || (payload.notification && (payload.notification.category === 'PEMULIHAN' || payload.notification.title?.includes('Pemulihan') || payload.notification.title?.includes('Aktif Kembali'))))) {
+          } else if (payload && (
+            payload.event === 'store_status_updated' ||
+            (payload.notification && (
+              payload.notification.category === 'PEMULIHAN' ||
+              payload.notification.category === 'PENANGGUHAN' ||
+              payload.notification.category === 'SUSPEND' ||
+              payload.notification.category === 'BANNED' ||
+              payload.notification.title?.includes('Pemulihan') ||
+              payload.notification.title?.includes('Aktif Kembali') ||
+              payload.notification.title?.includes('Ditangguhkan') ||
+              payload.notification.title?.includes('Penangguhan') ||
+              payload.notification.title?.includes('Dibekukan') ||
+              payload.notification.title?.includes('Dinonaktifkan')
+            ))
+          )) {
             const eventSlug = (payload.store?.slug || payload.slug || payload.notification?.target_slug || '').toLowerCase();
             if (!eventSlug || !currentSlug || eventSlug === currentSlug) {
+              const isBannedEvent = payload.store ? (payload.store.is_banned === true || payload.store.dormancy_status === 'banned') : false;
+              if (isBannedEvent) {
+                // REAL-TIME STORE BANNED HANDLER (INSTANT EVICTION TO CATALOG CHOOSER)
+                const bannedMessage = payload.store?.message || `Profil katalog '${eventSlug || currentSlug}' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform.`;
+                showToast(bannedMessage, 'error');
+
+                setStoreChooserComplianceAlert({
+                  type: 'banned',
+                  message: bannedMessage,
+                  bannedSlug: eventSlug || currentSlug
+                });
+
+                try {
+                  const targetSlug = currentSlug || eventSlug;
+                  if (targetSlug) {
+                    sessionStorage.removeItem(`catavor_store_suspended_${targetSlug}`);
+                    localStorage.removeItem(`catavor_store_${targetSlug}`);
+                  }
+                  sessionStorage.removeItem('catavor_active_slug_selected');
+                  localStorage.removeItem('catavor_active_slug');
+                } catch {}
+
+                document.documentElement.setAttribute('data-theme', 'navy');
+                document.body.setAttribute('data-theme', 'navy');
+                setStoreSlug(null);
+                fetchMyStores();
+
+                // Cleanup mobile overlays
+                setShowDiscardConfirmSheet(false);
+                setArchiveConfirmModal(null);
+                setActionMenuData(null);
+                setShowPurchaseOptions(false);
+                setShowLightbox(false);
+
+                window.history.pushState({ chooser: true }, '', '/catalogs');
+                setShowStoreSwitcherModal(true);
+                return;
+              }
+
               const isRestored = payload.store ? (payload.store.is_suspended === false || payload.store.dormancy_status === 'active') : true;
               if (isRestored) {
                 showToast('Akun toko Anda telah dipulihkan oleh Tim Kepatuhan platform.', 'info');
@@ -7175,7 +7230,11 @@ Terima kasih.`;
           'Accept': 'application/json'
         }
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        checkAuthResponse(res, data);
+        return;
+      }
       if (res.ok && data.success && data.data) {
         mobileAnalyticsCacheRef.current.set(cacheKey, { data: data.data, timestamp: Date.now() });
         setAnalyticsData(data.data);
@@ -7310,6 +7369,24 @@ Terima kasih.`;
             is_suspended: isSusp,
             suspension_reason: activeMatch.suspension_reason || prev.suspension_reason
           }));
+        } else if (currentSlug && !isReservedStoreSlug(currentSlug) && token && normalizedStores.length > 0) {
+          // If the currently viewed catalog is no longer in active stores, it was permanently banned
+          setStoreChooserComplianceAlert({
+            type: 'banned',
+            message: `Profil katalog '${currentSlug}' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Anda dapat melanjutkan pengelolaan profil katalog Anda yang lain di bawah ini.`,
+            bannedSlug: currentSlug
+          });
+          document.documentElement.setAttribute('data-theme', 'navy');
+          document.body.setAttribute('data-theme', 'navy');
+          setStoreSlug(null);
+          try {
+            sessionStorage.removeItem(`catavor_store_suspended_${currentSlug}`);
+            localStorage.removeItem(`catavor_store_${currentSlug}`);
+            sessionStorage.removeItem('catavor_active_slug_selected');
+            localStorage.removeItem('catavor_active_slug');
+          } catch {}
+          window.history.pushState({ chooser: true }, '', '/catalogs');
+          setShowStoreSwitcherModal(true);
         }
       }
     } catch (err) {
@@ -9102,6 +9179,11 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         if (d.success && typeof d.unread_count === 'number') {
           setSupportUnreadCount(d.unread_count);
         }
+      } else if (res.status === 403) {
+        const d = await res.json().catch(() => ({}));
+        if (mobileCheckAuthResponseRef.current) {
+          mobileCheckAuthResponseRef.current(res, d);
+        }
       }
     } catch {}
   }, [token, storeSlug]);
@@ -10504,14 +10586,47 @@ Terima kasih atas perhatian dan kerja samanya.`;
     showToast(msg, 'error');
   };
 
+  // Dedicated Store Banned Eviction Handler (Evicts active banned catalog profile immediately to Catalog Chooser)
+  const handleStoreBannedEviction = (bannedSlug?: string, customMessage?: string) => {
+    const slugToEvict = (bannedSlug || storeSlug || getStoreSlug() || '').toLowerCase();
+    const message = customMessage || `Profil katalog '${slugToEvict}' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Anda dapat beralih ke profil katalog Anda yang lain di bawah ini.`;
+
+    showToast(message, 'error');
+    setStoreChooserComplianceAlert({
+      type: 'banned',
+      message: message,
+      bannedSlug: slugToEvict
+    });
+
+    try {
+      if (slugToEvict) {
+        sessionStorage.removeItem(`catavor_store_suspended_${slugToEvict}`);
+        localStorage.removeItem(`catavor_store_${slugToEvict}`);
+      }
+      sessionStorage.removeItem('catavor_active_slug_selected');
+      localStorage.removeItem('catavor_active_slug');
+    } catch {}
+
+    document.documentElement.setAttribute('data-theme', 'navy');
+    document.body.setAttribute('data-theme', 'navy');
+    setStoreSlug(null);
+    fetchMyStores();
+
+    // Dismiss overlays
+    setShowDiscardConfirmSheet(false);
+    setArchiveConfirmModal(null);
+    setActionMenuData(null);
+    setShowPurchaseOptions(false);
+    setShowLightbox(false);
+
+    window.history.pushState({ chooser: true }, '', '/catalogs');
+    setShowStoreSwitcherModal(true);
+  };
+  mobileHandleStoreBannedEvictionRef.current = handleStoreBannedEviction;
+
   const checkAuthResponse = (res: Response, data?: any) => {
     if (res.status === 403 && data?.code === 'STORE_BANNED_SWITCH_REQUIRED') {
-      setStoreChooserComplianceAlert({
-        type: 'banned',
-        message: data?.message || `Profil katalog '${data?.banned_slug || ''}' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Anda dapat melanjutkan pengelolaan profil katalog Anda yang lain di bawah ini.`,
-        bannedSlug: data?.banned_slug
-      });
-      setShowStoreSwitcherModal(true);
+      handleStoreBannedEviction(data?.banned_slug, data?.message);
       return false;
     }
     if (res.status === 403 && (data?.code === 'ACCOUNT_BANNED' || data?.code === 'USER_BLACKLISTED' || data?.code === 'ALL_STORES_BANNED')) {
@@ -10527,6 +10642,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
     return true;
   };
+  mobileCheckAuthResponseRef.current = checkAuthResponse;
 
   // Get headers helper
   const getAuthHeaders = () => {
@@ -10586,6 +10702,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useEffect(() => {
     const unsub = onApiUnauthorized((msg) => {
       handleUnauthorized(msg);
+    });
+    return unsub;
+  }, []);
+
+  // Global API Store Banned session interception
+  useEffect(() => {
+    const unsub = onApiStoreBanned((payload) => {
+      handleStoreBannedEviction(payload.bannedSlug, payload.message);
     });
     return unsub;
   }, []);

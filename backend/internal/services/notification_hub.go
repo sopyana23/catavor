@@ -203,8 +203,8 @@ func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData inte
 }
 
 // BroadcastStoreEvent sends a real-time store lifecycle event (such as store_status_updated)
-// to either connected clients for that store, or platform administrators.
-func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interface{}, targetStoreID uint) {
+// to connected clients for that store, specific user, or platform administrators.
+func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interface{}, targetStoreID uint, targetUserID ...uint) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -222,9 +222,22 @@ func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interf
 		return
 	}
 
+	var uID uint
+	if len(targetUserID) > 0 {
+		uID = targetUserID[0]
+	}
+
 	sentCount := 0
 	for client := range h.clients {
+		shouldSend := false
 		if targetStoreID == 0 || client.StoreID == targetStoreID || client.StoreID == 0 || client.PlatformRole == "superadmin" {
+			shouldSend = true
+		}
+		if uID > 0 && client.UserID == uID {
+			shouldSend = true
+		}
+
+		if shouldSend {
 			select {
 			case client.Send <- payload:
 				sentCount++
@@ -237,6 +250,7 @@ func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interf
 	log.Info().
 		Str("event", eventType).
 		Uint("target_store", targetStoreID).
+		Uint("target_user", uID).
 		Int("sent_count", sentCount).
 		Msg("Realtime store broadcast delivered")
 }

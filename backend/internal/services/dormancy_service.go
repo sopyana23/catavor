@@ -711,6 +711,15 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 			}
 			_ = db.Create(&activityLog).Error
 
+			go GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
+				"store_id":          store.ID,
+				"slug":              store.Slug,
+				"is_banned":         true,
+				"dormancy_status":   "banned",
+				"suspension_reason": "moderation_violation",
+				"message":           fmt.Sprintf("Profil katalog '%s' telah dinonaktifkan secara permanen.", store.StoreTitle),
+			}, store.ID)
+
 			// Record in AutomationTracker
 			GetAutomationTracker().RecordLog(AutomationLogEntry{
 				BotName:   "moderation_escalator",

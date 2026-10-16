@@ -945,6 +945,14 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	}
 
 	// Broadcast real-time store lifecycle events to merchant stream
+	var merchantOwnerUserID uint
+	if report.StoreID > 0 {
+		var st models.Store
+		if err := database.DB.Select("id, user_id").Where("id = ?", report.StoreID).First(&st).Error; err == nil {
+			merchantOwnerUserID = st.UserID
+		}
+	}
+
 	if actionTaken == "catalog_reactivated" && report.StoreID > 0 {
 		go services.GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
 			"store_id":        report.StoreID,
@@ -952,7 +960,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			"is_suspended":    false,
 			"dormancy_status": "active",
 			"message":         "Akun toko Anda telah dipulihkan oleh Tim Kepatuhan platform.",
-		}, report.StoreID)
+		}, report.StoreID, merchantOwnerUserID)
 	} else if actionTaken == "catalog_suspended" && report.StoreID > 0 {
 		go services.GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
 			"store_id":          report.StoreID,
@@ -961,7 +969,20 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			"dormancy_status":   "suspended",
 			"suspension_reason": "moderation_violation",
 			"message":           "Akun toko Anda telah ditangguhkan sementara oleh Tim Kepatuhan platform.",
-		}, report.StoreID)
+		}, report.StoreID, merchantOwnerUserID)
+	} else if (actionTaken == "catalog_banned" || actionTaken == "account_banned") && report.StoreID > 0 {
+		storeName := report.StoreTitle
+		if storeName == "" {
+			storeName = report.StoreSlug
+		}
+		go services.GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
+			"store_id":          report.StoreID,
+			"slug":              report.StoreSlug,
+			"is_banned":         true,
+			"dormancy_status":   "banned",
+			"suspension_reason": "moderation_violation",
+			"message":           fmt.Sprintf("Profil katalog '%s' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform.", storeName),
+		}, report.StoreID, merchantOwnerUserID)
 	}
 
 	// A. Broadcast In-App Notification via WebSocket Hub
