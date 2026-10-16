@@ -52,6 +52,7 @@ export interface MerchantAdminShellProps {
   handleLogout: () => void;
   goToCatalog: () => void;
   onOpenNotifications: () => void;
+  onClearSelectedNotification?: () => void;
   onOpenCreateItem?: () => void;
   isSuspended?: boolean;
   isPlatformAdminUser?: boolean;
@@ -82,6 +83,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   handleLogout,
   goToCatalog,
   onOpenNotifications,
+  onClearSelectedNotification,
   onOpenCreateItem,
   isSuspended: propIsSuspended,
   isPlatformAdminUser = false,
@@ -787,6 +789,9 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                       key={item.id}
                       type="button"
                       onClick={() => {
+                        if (item.id === 'notifications' || adminTab === 'notifications') {
+                          onClearSelectedNotification?.();
+                        }
                         setAdminTab(item.id);
                         if (storeSlug) {
                           window.history.pushState({}, '', `/${storeSlug}/admin/${item.id}`);
@@ -1224,6 +1229,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                 }}
                 onViewAllNotifications={() => {
                   setShowNotifPopover(false);
+                  onClearSelectedNotification?.();
                   setAdminTab('notifications');
                   const slug = storeSlug;
                   if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);

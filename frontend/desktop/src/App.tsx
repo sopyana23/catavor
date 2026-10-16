@@ -5137,11 +5137,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search);
         const urlId = urlParams.get('id');
-        const path = window.location.pathname.toLowerCase();
-        if (urlId || path.includes('/admin/notifications')) {
+        if (urlId) {
           const savedId = sessionStorage.getItem('catavor_active_desktop_notification_id');
           const savedData = sessionStorage.getItem('catavor_active_desktop_notification_data');
-          if (savedData && (!urlId || savedId === urlId)) {
+          if (savedData && savedId === urlId) {
             return JSON.parse(savedData);
           }
         }
@@ -6601,14 +6600,36 @@ Terima kasih.`;
     } catch {}
   }, [selectedNotificationDetail]);
 
+  // Helper: Bersihkan detail notifikasi aktif dari state dan storage (Desktop)
+  const handleClearSelectedNotification = useCallback(() => {
+    setSelectedNotificationDetail(null);
+    try {
+      sessionStorage.removeItem('catavor_active_desktop_notification_id');
+      sessionStorage.removeItem('catavor_active_desktop_notification_data');
+    } catch {}
+  }, []);
+
+  // Helper: Navigasi tab admin dengan pembersihan otomatis state detail notifikasi
+  const handleSelectAdminTab = useCallback((tab: any) => {
+    if (tab === 'notifications' || adminTab === 'notifications') {
+      handleClearSelectedNotification();
+    }
+    setAdminTab(tab);
+  }, [adminTab, handleClearSelectedNotification]);
+
   // Sync selectedNotificationDetail with URL ?id=... across hard page refreshes & direct URL access (Desktop)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const notifId = urlParams.get('id') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_active_desktop_notification_id') : null);
+    const notifId = urlParams.get('id');
     const path = window.location.pathname.toLowerCase();
+    const isNotifPage = path.includes('/admin/notifications') || adminTab === 'notifications' || urlParams.get('tab') === 'notifications' || (urlParams.get('tab') === 'admin' && urlParams.get('sub') === 'notifications');
 
-    if ((path.includes('/admin/notifications') || adminTab === 'notifications') && notifId) {
-      if (!selectedNotificationDetail || String(selectedNotificationDetail.id) !== String(notifId)) {
+    if (isNotifPage) {
+      if (!notifId) {
+        if (selectedNotificationDetail) {
+          handleClearSelectedNotification();
+        }
+      } else if (!selectedNotificationDetail || String(selectedNotificationDetail.id) !== String(notifId)) {
         const found = notifications.find(n => String(n.id) === String(notifId));
         if (found) {
           setSelectedNotificationDetail(found);
@@ -6634,7 +6655,7 @@ Terima kasih.`;
         }
       }
     }
-  }, [adminTab, notifications, storeSlug]);
+  }, [adminTab, notifications, storeSlug, selectedNotificationDetail, handleClearSelectedNotification]);
 
   // Handle browser Back/Forward navigation for notification details (Desktop)
   useEffect(() => {
@@ -6642,10 +6663,11 @@ Terima kasih.`;
       const path = window.location.pathname.toLowerCase();
       const urlParams = new URLSearchParams(window.location.search);
       const notifId = urlParams.get('id');
+      const isNotifPage = path.includes('/admin/notifications') || urlParams.get('tab') === 'notifications' || (urlParams.get('tab') === 'admin' && urlParams.get('sub') === 'notifications') || adminTab === 'notifications';
 
-      if (path.includes('/admin/notifications')) {
+      if (isNotifPage) {
         if (!notifId) {
-          setSelectedNotificationDetail(null);
+          handleClearSelectedNotification();
         } else if (notifId) {
           const found = notifications.find(n => String(n.id) === String(notifId));
           if (found) {
@@ -6664,7 +6686,7 @@ Terima kasih.`;
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [notifications]);
+  }, [notifications, adminTab, handleClearSelectedNotification]);
 
   const isStoreSuspended = isSuspendedAccount;
 
@@ -20856,7 +20878,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             <MerchantAdminShell
               isSuspended={isSuspendedAccount}
               adminTab={adminTab}
-              setAdminTab={setAdminTab}
+              setAdminTab={handleSelectAdminTab}
               settings={settings}
               storeSlug={storeSlug}
               adminUser={adminUser}
@@ -20873,6 +20895,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
               handleLogout={handleLogout}
               goToCatalog={goToCatalog}
               onOpenNotifications={() => {}}
+              onClearSelectedNotification={handleClearSelectedNotification}
               notifications={notifications}
               onMarkAsRead={handleMarkAsRead}
               onMarkAllAsRead={handleMarkAllAsRead}
