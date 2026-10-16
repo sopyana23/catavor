@@ -53,6 +53,7 @@ export interface MerchantAdminShellProps {
   goToCatalog: () => void;
   onOpenNotifications: () => void;
   onOpenCreateItem?: () => void;
+  isSuspended?: boolean;
   isPlatformAdminUser?: boolean;
   isSuperAdminUser?: boolean;
   notifications?: any[];
@@ -82,6 +83,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   goToCatalog,
   onOpenNotifications,
   onOpenCreateItem,
+  isSuspended: propIsSuspended,
   isPlatformAdminUser = false,
   isSuperAdminUser = false,
   notifications = [],
@@ -95,7 +97,9 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const storeDropdownRef = React.useRef<HTMLDivElement>(null);
   const notifTriggerRef = React.useRef<HTMLButtonElement>(null);
-  const isSuspended = settings?.dormancy_status === 'suspended' || settings?.is_suspended;
+  const isSuspended = typeof propIsSuspended === 'boolean'
+    ? propIsSuspended
+    : Boolean(settings?.dormancy_status === 'suspended' || settings?.is_suspended);
 
   // Close dropdown on click outside
   React.useEffect(() => {
@@ -1137,7 +1141,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
             )}
 
             {/* Public Storefront Link Button */}
-            {!(settings?.dormancy_status === 'suspended' || settings?.is_suspended) && (
+            {!isSuspended && (
               <button
                 type="button"
                 onClick={goToCatalog}
@@ -1229,7 +1233,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
             </div>
 
             {/* Header Action Buttons for items & categories */}
-            {!(settings?.dormancy_status === 'suspended' || settings?.is_suspended) && (
+            {!isSuspended && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {adminTab === 'items' && (
                   <button

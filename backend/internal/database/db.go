@@ -49,6 +49,12 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
+	if !cfg.DBAutoMigrate {
+		DB = db
+		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED)")
+		return db, nil
+	}
+
 	// Ensure critical security and verification tables exist idempotently
 	_ = db.Exec(`CREATE TABLE IF NOT EXISTS email_verification_otps (
 		id BIGSERIAL PRIMARY KEY,
@@ -89,12 +95,6 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_user_sessions_token_id ON user_sessions(token_id);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_user_sessions_last_active ON user_sessions(last_active_at);").Error
-
-	if !cfg.DBAutoMigrate {
-		DB = db
-		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED)")
-		return db, nil
-	}
 
 	// 1. Run Pre-Migration Checks (Safe table renaming faunas -> products)
 	runPreMigrationRenames(db)

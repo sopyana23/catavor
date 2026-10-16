@@ -20752,6 +20752,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           ) : (
             /* ADMIN DASHBOARD (LOGGED IN & PASSWORD CHANGED) - MODERN SAAS SHELL */
             <MerchantAdminShell
+              isSuspended={isSuspendedAccount}
               adminTab={adminTab}
               setAdminTab={setAdminTab}
               settings={settings}

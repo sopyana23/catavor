@@ -5379,6 +5379,41 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                     window.location.reload();
                   }
                 }
+              } else {
+                // REAL-TIME STORE SUSPENSION HANDLER (INSTANT ISOLATION)
+                const reason = payload.store?.suspension_reason || 'moderation_violation';
+                const suspendedMessage = payload.store?.message || 'Akun profil katalog Anda ditangguhkan sementara oleh Tim Kepatuhan platform.';
+                showToast(suspendedMessage, 'error');
+
+                setSettings(prev => ({
+                  ...prev,
+                  is_suspended: true,
+                  dormancy_status: 'suspended',
+                  suspension_reason: reason,
+                  dormancy_suspended_at: payload.store?.dormancy_suspended_at || new Date().toISOString()
+                }));
+
+                try {
+                  const targetSlug = currentSlug || eventSlug;
+                  if (targetSlug) {
+                    sessionStorage.setItem(`catavor_store_suspended_${targetSlug}`, '1');
+                    const cached = localStorage.getItem(`catavor_store_${targetSlug}`);
+                    if (cached) {
+                      const p = JSON.parse(cached);
+                      p.is_suspended = true;
+                      p.dormancy_status = 'suspended';
+                      p.suspension_reason = reason;
+                      localStorage.setItem(`catavor_store_${targetSlug}`, JSON.stringify(p));
+                    }
+                  }
+                } catch {}
+
+                setUserStores(prev => prev.map(s => {
+                  if (s.slug?.toLowerCase() === (currentSlug || eventSlug)) {
+                    return { ...s, is_suspended: true, dormancy_status: 'suspended', suspension_reason: reason };
+                  }
+                  return s;
+                }));
               }
             }
           } else if (payload && payload.notification) {
@@ -23259,7 +23294,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
           ) : (
             /* ADMIN DASHBOARD (MOBILE - LOGGED IN & PASSWORD CHANGED) */
             <div className="animate-fade-in" style={{ marginTop: '1rem' }}>
-              {(settings.dormancy_status === 'suspended' || settings.is_suspended) && adminSubTab !== 'help' ? (
+              {isSuspendedAccountState && adminSubTab !== 'help' ? (
                   /* DEDICATED SUSPENDED STORE RESOLUTION HUB (ISOLATION MODE) */
                   <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
                     {/* Dedicated Resolution Card */}
@@ -34256,8 +34291,4 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   )
 }
 
-export default App
-
-
-
-
+export default App;
