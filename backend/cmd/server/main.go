@@ -223,6 +223,7 @@ func main() {
 
 	// Public Telemetry & Analytics Tracking
 	api.Post("/analytics/track", middleware.PublicSubmissionRateLimiter(), analyticsHandler.TrackEvent)
+	api.Post("/client-logs", middleware.PublicSubmissionRateLimiter(), handlers.LogClientError)
 
 	// Public Market Intelligence & Macro Trends (Aggregated & Zero PII)
 	api.Get("/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)

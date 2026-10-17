@@ -1,5 +1,6 @@
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { reportClientError } from '../utils/crashReporter.ts';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -32,6 +33,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.error(`[Catavor ErrorBoundary] Error caught in section "${this.props.sectionName || 'Root'}":`, error, errorInfo);
+    reportClientError({
+      message: error?.message || String(error),
+      stack: errorInfo?.componentStack || error?.stack,
+      section: this.props.sectionName || 'Root',
+      component: errorInfo?.componentStack?.split('\n')[1]?.trim() || '',
+    });
     if (this.props.onError) {
       try {
         this.props.onError(error, errorInfo);
