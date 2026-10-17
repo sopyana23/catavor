@@ -53,9 +53,12 @@ func LoadConfig() *Config {
 	_ = godotenv.Load("../backend/.env")
 
 	port := getEnv("PORT", "8000")
-	jwtHours, err := strconv.Atoi(getEnv("JWT_EXPIRATION_HOURS", "72"))
+	jwtHours, err := strconv.Atoi(getEnv("JWT_EXPIRATION_HOURS", "12"))
 	if err != nil {
-		jwtHours = 72
+		jwtHours = 12
+	}
+	if jwtHours <= 0 {
+		jwtHours = 12
 	}
 
 	originsRaw := getEnv("ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173,http://localhost:3000")
@@ -80,6 +83,22 @@ func LoadConfig() *Config {
 	dbAutoMigrate := (dbAutoMigrateStr != "false" && dbAutoMigrateStr != "0" && dbAutoMigrateStr != "no") && (skipDBMigrateStr != "true" && skipDBMigrateStr != "1" && skipDBMigrateStr != "yes")
 
 	appEnv := strings.ToLower(strings.TrimSpace(getEnv("APP_ENV", "local")))
+
+	// SECURITY (M1-mitigasi): JWT disimpan di localStorage, sehingga token yang
+	// tercuri (via XSS) berlaku selama sisa masa hidupnya. Batasi agar dampak
+	// pencurian tidak berlangsung berhari-hari. Frontend sudah menangani 401
+	// dengan redirect login yang jelas, jadi sesi lebih pendek tetap wajar.
+	if jwtHours > 24 {
+		if appEnv == "production" || appEnv == "prod" || appEnv == "staging" {
+			log.Fatal().
+				Int("jwt_expiration_hours", jwtHours).
+				Msg("JWT_EXPIRATION_HOURS > 24 jam tidak diizinkan di production/staging: " +
+					"token di localStorage, masa hidup panjang memperbesar dampak bila tercuri. Gunakan <= 24 (disarankan 12).")
+		}
+		log.Warn().
+			Int("jwt_expiration_hours", jwtHours).
+			Msg("JWT_EXPIRATION_HOURS > 24 jam: tidak aman untuk production (hanya wajar untuk local/dev).")
+	}
 	jwtSecret := getEnv("JWT_SECRET", "***REMOVED***")
 
 	// OWASP ASVS / NIST SP 800-63B: Audit validation for JWT secret key in production/staging

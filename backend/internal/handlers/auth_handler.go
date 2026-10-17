@@ -320,6 +320,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 	go services.RecordUserSession(user.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
+	// SECURITY (M1-mitigasi): rekam sidik jari sesi (hash IP+UA) untuk deteksi
+	// penyalahgunaan token di kemudian hari.
+	middleware.RegisterSessionFingerprint(tokenID, c.IP(), c.Get("User-Agent"))
 
 	// Touch store activity upon admin login
 	for _, st := range user.Stores {
@@ -1354,6 +1357,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 				}
 			}
 			database.BlacklistToken(claims.ID, ttl)
+			middleware.RevokeSessionFingerprint(claims.ID)
 		}
 	} else {
 		// Fallback: extract optional claims if Locals not populated
@@ -1367,6 +1371,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 				}
 			}
 			database.BlacklistToken(claims.ID, ttl)
+			middleware.RevokeSessionFingerprint(claims.ID)
 		}
 	}
 
@@ -1975,6 +1980,7 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 	// Blacklist current token if present
 	if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil && claims.ID != "" {
 		database.BlacklistToken(claims.ID, 72*time.Hour)
+		middleware.RevokeSessionFingerprint(claims.ID)
 	}
 
 	return c.JSON(fiber.Map{

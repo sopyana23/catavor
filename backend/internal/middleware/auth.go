@@ -197,6 +197,11 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			})
 		}
 
+		// SECURITY (M1-mitigasi): deteksi token yang dipakai dari IP/UA berbeda
+		// dari saat login. Tidak memblokir (mobile sering ganti jaringan), tetapi
+		// dicatat sebagai WARN agar bisa ditindaklanjuti lewat monitoring.
+		CheckSessionFingerprint(c, claims.ID, user.ID)
+
 		isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
 			strings.EqualFold(user.PlatformRole, "support") ||
 			strings.EqualFold(user.PlatformRole, "compliance") ||
