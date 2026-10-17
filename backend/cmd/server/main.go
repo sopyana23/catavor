@@ -60,6 +60,9 @@ func main() {
 	})
 
 	// 5. Setup Security Middlewares (CORS, Headers, Recovery, Tracing, Logger)
+	// M2: daftarkan dist dir agar hash script inline dihitung dari index.html
+	// yang benar-benar disajikan (bukan hardcode yang cepat basi).
+	middleware.SetCSPDistDirs(cfg.DesktopDistDir, cfg.TabletDistDir, cfg.MobileDistDir)
 	middleware.SetupSecurityMiddlewares(app, cfg)
 
 	// 6. Setup Storage & Handlers

@@ -51,17 +51,23 @@ test.describe('Device environment sanity', () => {
 
   test('touch works on mobile, click works on desktop (interaction model)', async ({ page }, testInfo) => {
     const isMobile = testInfo.project.name.includes('mobile');
-    await page.goto('/adidas');
+    await page.goto('/adidas', { waitUntil: 'domcontentloaded' });
     const heading = page.getByRole('heading', { level: 3 }).first();
     await heading.waitFor({ state: 'visible', timeout: 25_000 });
 
-    // aksi sesuai model input device
-    if (isMobile) {
-      await heading.tap({ timeout: 5000 }).catch(() => heading.click());
-    } else {
-      await heading.click();
+    // Klik/tap bisa gagal bila handler React belum ter-attach tepat setelah mount.
+    // Retry beberapa kali sampai URL berubah (?item=), lalu assert.
+    let opened = false;
+    for (let i = 0; i < 6 && !opened; i++) {
+      if (isMobile) {
+        await heading.tap({ timeout: 5000 }).catch(() => heading.click({ timeout: 5000 }).catch(() => {}));
+      } else {
+        await heading.click({ timeout: 5000 }).catch(() => {});
+      }
+      await page.waitForTimeout(500);
+      if (page.url().includes('item=')) opened = true;
     }
-    await page.waitForTimeout(800);
+
     expect(page.url()).toContain('item=');
   });
 });

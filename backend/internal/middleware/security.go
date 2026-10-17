@@ -34,7 +34,26 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 		c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
 		c.Set("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
-		c.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.adtrafficquality.google https://*.googletagmanager.com https://*.googlesyndication.com https://*.googleadservices.com https://*.doubleclick.net https://*.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: http:; frame-src 'self' https://www.youtube.com https://*.youtube.com https://www.youtube-nocookie.com https://*.youtube-nocookie.com https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google https://*.googleadservices.com; connect-src 'self' https: http: https://*.tiktok.com https://*.instagram.com https://*.google.com https://*.adtrafficquality.google https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.googlesyndication.com https://*.doubleclick.net; object-src 'none'; base-uri 'self';")
+	// SECURITY (M2): script-src TANPA 'unsafe-inline' dan 'unsafe-eval'.
+	// - 'unsafe-eval' dibuang total: source tidak memakai eval()/new Function().
+	// - 'unsafe-inline' diganti hash SHA-256 script inline (dihitung dari
+	//   index.html saat runtime) sehingga hanya script yang kita tulis sendiri
+	//   yang boleh jalan. Ini memutus eksekusi script yang disuntikkan penyerang.
+	//
+	// Catatan: style-src tetap 'unsafe-inline' karena React memakai style
+	// inline (ribuan atribut style) yang tidak bisa di-hash. Risiko jauh lebih
+	// rendah daripada script inline, dan bukan jalur eksekusi kode.
+	scriptHashes := scriptSrcHashes()
+	csp := "default-src 'self'; " +
+		"script-src 'self' " + scriptHashes +
+		"https://cdn.jsdelivr.net https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.adtrafficquality.google https://*.googletagmanager.com https://*.googlesyndication.com https://*.googleadservices.com https://*.doubleclick.net https://*.google-analytics.com; " +
+		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+		"font-src 'self' https://fonts.gstatic.com data:; " +
+		"img-src 'self' data: blob: https: http:; " +
+		"frame-src 'self' https://www.youtube.com https://*.youtube.com https://www.youtube-nocookie.com https://*.youtube-nocookie.com https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google https://*.googleadservices.com; " +
+		"connect-src 'self' https: http: https://*.tiktok.com https://*.instagram.com https://*.google.com https://*.adtrafficquality.google https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.googlesyndication.com https://*.doubleclick.net; " +
+		"object-src 'none'; base-uri 'self';"
+	c.Set("Content-Security-Policy", csp)
 		
 		// Set HSTS only if in production/secure
 		if c.Secure() {
