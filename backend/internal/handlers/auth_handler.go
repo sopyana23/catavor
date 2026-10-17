@@ -1550,9 +1550,17 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 	var req SendRegistrationOTPRequest
 	if err := c.BodyParser(&req); err != nil {
 		if uErr := json.Unmarshal(c.Body(), &req); uErr != nil {
+			// SECURITY: jangan pernah echo err.Error() atau body request ke klien
+			// (body bisa memuat kredensial). Detail hanya ke log server.
+			log.Warn().
+				Err(err).
+				Str("parse_error", uErr.Error()).
+				Str("path", c.Path()).
+				Str("ip", c.IP()).
+				Msg("SendRegistrationOTP: invalid request body")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
-				"message": "Format data tidak valid: " + err.Error() + " (body: " + string(c.Body()) + ")",
+				"message": "Format data tidak valid.",
 			})
 		}
 	}
