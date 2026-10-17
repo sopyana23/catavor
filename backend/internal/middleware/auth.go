@@ -110,12 +110,26 @@ func ExtractOptionalClaims(c *fiber.Ctx, cfg *config.Config) *JWTClaims {
 	return claims
 }
 
-// AuthRequired validates the JWT Bearer token (supports Authorization header and ?token= query param for SSE EventSource)
+// SECURITY (M1): nama cookie sesi. HttpOnly + Secure + SameSite=Strict,
+// sehingga JavaScript tidak bisa membacanya — token tidak lagi rentan dicuri XSS.
+const SessionCookieName = "catavor_session"
+
+// AuthRequired validates the JWT Bearer token.
+// Urutan sumber kredensial:
+//  1. HttpOnly cookie (cara yang benar, kebal XSS)
+//  2. Authorization: Bearer header (fallback kompatibilitas klien lama)
+//  3. ?token= query param (hanya untuk EventSource/SSE yang tak bisa kirim header)
 func AuthRequired(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var tokenString string
+
+		// 1. Cookie HttpOnly — sumber utama.
+		if cookieToken := strings.TrimSpace(c.Cookies(SessionCookieName)); cookieToken != "" {
+			tokenString = cookieToken
+		}
+
 		authHeader := c.Get("Authorization")
-		if authHeader != "" {
+		if tokenString == "" && authHeader != "" {
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
 				tokenString = strings.TrimSpace(parts[1])

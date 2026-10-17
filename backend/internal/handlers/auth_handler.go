@@ -378,6 +378,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		UserAgent:   c.Get("User-Agent"),
 	})
 
+	// SECURITY (M1): JWT juga disimpan di cookie HttpOnly agar tidak bisa dicuri XSS.
+	setSessionCookie(c, h.cfg, token)
+
 	return c.JSON(fiber.Map{
 		"success":                  true,
 		"message":                  "Login berhasil.",
@@ -542,6 +545,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 				}
 				token, tokenID, expiresAt, _ := middleware.GenerateTokenWithID(&existingUser, existingUser.Store, h.cfg)
 				go services.RecordUserSession(existingUser.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
+				setSessionCookie(c, h.cfg, token)
 				return c.JSON(fiber.Map{
 					"success": true,
 					"message": "Akun Anda telah terdaftar sebelumnya. Selamat datang kembali!",
@@ -786,6 +790,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		regMsg = "Pendaftaran berhasil! Akun dan katalog Anda telah aktif. Bukti pembayaran paket Pro Anda sedang dalam antrean verifikasi tim kami."
 	}
 
+	setSessionCookie(c, h.cfg, token)
+
 	return c.JSON(fiber.Map{
 		"success":      true,
 		"message":      regMsg,
@@ -959,6 +965,8 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			IPAddress:   c.IP(),
 			UserAgent:   c.Get("User-Agent"),
 		})
+
+		setSessionCookie(c, h.cfg, token)
 
 		return c.JSON(fiber.Map{
 			"success":                  true,
@@ -1320,6 +1328,8 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 		})
 	}
 
+	setSessionCookie(c, h.cfg, newToken)
+
 	return c.JSON(fiber.Map{
 		"success":             true,
 		"message":             "Sesi login berhasil diperpanjang.",
@@ -1374,6 +1384,9 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 			middleware.RevokeSessionFingerprint(claims.ID)
 		}
 	}
+
+	// SECURITY (M1): hapus cookie sesi HttpOnly saat logout.
+	clearSessionCookie(c, h.cfg)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1803,6 +1816,9 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	})
 
 	newToken, _ := middleware.GenerateToken(&user, user.Store, h.cfg)
+	if newToken != "" {
+		setSessionCookie(c, h.cfg, newToken)
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
