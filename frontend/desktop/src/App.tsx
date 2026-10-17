@@ -5476,10 +5476,34 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     let retryCount = 0;
     let eventSource: EventSource | null = null;
 
-    const connectSSE = () => {
+    const connectSSE = async () => {
       if (!isMounted) return;
       try {
-        const streamUrl = `/api/notifications/stream?token=${encodeURIComponent(token)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
+        // SECURITY (M1/SSE): jangan taruh JWT di URL — tukar sesi cookie
+        // dengan tiket sekali pakai (30 detik). Bila gagal, jangan buka
+        // stream; jadwalkan ulang agar tidak diam-diam kehilangan notifikasi.
+        let ticket = '';
+        try {
+          const tRes = await fetch('/api/notifications/ticket', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          if (tRes.ok) {
+            const tJson = await tRes.json();
+            ticket = String(tJson?.ticket || '');
+          }
+        } catch { /* jaringan putus: jatuh ke penjadwalan ulang di bawah */ }
+
+        if (!isMounted) return;
+        if (!ticket) {
+          retryCount += 1;
+          const delay = Math.min(30000, 2000 * retryCount);
+          reconnectTimer = setTimeout(connectSSE, delay);
+          return;
+        }
+
+        const streamUrl = `/api/notifications/stream?ticket=${encodeURIComponent(ticket)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
         eventSource = new EventSource(streamUrl);
 
         eventSource.onopen = () => {

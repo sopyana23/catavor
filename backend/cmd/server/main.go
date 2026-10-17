@@ -295,6 +295,10 @@ func main() {
 		authOnly.Post("/notifications/clear-read", notificationHandler.ClearReadNotifications)
 		authOnly.Post("/notifications/:id/read", notificationHandler.MarkAsRead)
 		authOnly.Post("/notifications/:id/dismiss", notificationHandler.Dismiss)
+		// SECURITY (M1/SSE): tukar sesi cookie dengan tiket sekali pakai,
+		// supaya JWT tidak perlu muncul di URL stream.
+		authOnly.Post("/notifications/ticket", notificationHandler.IssueStreamTicket)
+		authOnly.Post("/v1/notifications/ticket", notificationHandler.IssueStreamTicket)
 		authOnly.Get("/notifications/stream", notificationHandler.Stream)
 		authOnly.Get("/v1/notifications/stream", notificationHandler.Stream)
 		authOnly.Get("/v1/notifications", notificationHandler.GetNotifications)

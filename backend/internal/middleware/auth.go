@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
+	"catavor-backend/internal/security"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 
@@ -142,7 +143,86 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			}
 		}
 
-		// Fallback to query parameter (required for native browser EventSource / SSE)
+		// SECURITY (M1/SSE): tiket sekali pakai untuk EventSource.
+		// EventSource tak bisa mengirim header, jadi JWT dulu ditaruh di
+		// ?token= — URL mudah bocor ke access log/Referer. Sekarang klien
+		// menukar sesi dengan tiket berumur 30 detik lewat
+		// POST /api/notifications/ticket, lalu memakai ?ticket=.
+		//
+		// PENTING: bila ada ?ticket=, tiket adalah SATU-SATUNYA kredensial yang
+		// dihormati. Cookie sengaja tidak dipakai sebagai cadangan — kalau
+		// dipakai, tiket yang sudah kedaluwarsa/di-replay tetap lolos karena
+		// cookie sesi masih sah, sehingga jaminan "sekali pakai" jadi palsu.
+		if ticket := strings.TrimSpace(c.Query("ticket")); ticket != "" {
+			uid, ok := security.ConsumeSSETicket(ticket)
+			if !ok {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "INVALID_TICKET",
+					"message": "Tiket stream tidak valid atau sudah kedaluwarsa.",
+				})
+			}
+
+			// Tahap 2: bangun konteks user dari DB dengan aturan yang sama
+			// seperti jalur JWT (akun bisa saja diblokir setelah tiket terbit).
+			var user models.User
+			if err := database.DB.Preload("Stores", func(db *gorm.DB) *gorm.DB {
+				return db.Where("dormancy_status != 'banned' AND is_blacklisted = false")
+			}).Preload("Store", func(db *gorm.DB) *gorm.DB {
+				return db.Where("dormancy_status != 'banned' AND is_blacklisted = false")
+			}).First(&user, uid).Error; err != nil {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "USER_NOT_FOUND",
+					"message": "Pengguna tidak ditemukan atau telah dinonaktifkan.",
+				})
+			}
+
+			isTicketAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
+				strings.EqualFold(user.PlatformRole, "support") ||
+				strings.EqualFold(user.PlatformRole, "compliance") ||
+				strings.EqualFold(user.PlatformRole, "admin") ||
+				user.Email == "admin@catavor.com"
+
+			if !isTicketAdmin && user.IsBlacklisted {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"success": false,
+					"code":    "ACCOUNT_BANNED",
+					"message": "Akun Anda telah dinonaktifkan.",
+				})
+			}
+
+			c.Locals("user", &user)
+			c.Locals("user_id", user.ID)
+			c.Locals("claims", &JWTClaims{UserID: user.ID})
+			c.Locals("sse_ticket_auth", true)
+
+			var activeStore *models.Store
+			if requestedSlug := strings.TrimSpace(c.Query("slug")); requestedSlug != "" {
+				for i := range user.Stores {
+					if strings.EqualFold(user.Stores[i].Slug, requestedSlug) {
+						activeStore = &user.Stores[i]
+						break
+					}
+				}
+			}
+			if activeStore == nil && len(user.Stores) > 0 {
+				activeStore = &user.Stores[0]
+			}
+			if activeStore == nil {
+				activeStore = user.Store
+			}
+			if activeStore != nil {
+				c.Locals("store", activeStore)
+				c.Locals("store_id", activeStore.ID)
+				c.Locals("store_slug", activeStore.Slug)
+			}
+
+			return c.Next()
+		}
+
+		// Fallback to query parameter (dipertahankan untuk kompatibilitas klien
+		// lama; klien baru memakai tiket).
 		if tokenString == "" {
 			tokenString = strings.TrimSpace(c.Query("token"))
 		}

@@ -490,6 +490,40 @@ func (h *NotificationHandler) ClearReadNotifications(c *fiber.Ctx) error {
 }
 
 // Stream handles Server-Sent Events (SSE) for real-time notification streaming.
+// IssueStreamTicket — POST /api/notifications/ticket
+//
+// SECURITY (M1/SSE): EventSource tidak bisa mengirim header Authorization,
+// sehingga JWT sebelumnya ditaruh di query string dan mudah bocor lewat
+// access log / Referer. Endpoint ini menukar sesi cookie yang sah dengan
+// tiket sekali pakai berumur 30 detik untuk membuka stream.
+func (h *NotificationHandler) IssueStreamTicket(c *fiber.Ctx) error {
+	uid, ok := security.UserIDFromLocals(c.Locals("user_id"))
+	if !ok || uid == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Sesi tidak valid.",
+		})
+	}
+
+	ticket, exp, err := security.IssueSSETicket(uid)
+	if err != nil {
+		log.Error().Err(err).Uint("user_id", uid).Msg("gagal membuat tiket SSE")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Gagal membuat tiket stream.",
+		})
+	}
+
+	// Tiket tidak boleh tersimpan di cache proxy/CDN.
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	return c.JSON(fiber.Map{
+		"status":     "success",
+		"ticket":     ticket,
+		"expires_in": int(security.SSETicketTTL.Seconds()),
+		"expires_at": exp.UTC().Format(time.RFC3339),
+	})
+}
+
 func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 	user, _ := c.Locals("user").(*models.User)
 	var userID uint

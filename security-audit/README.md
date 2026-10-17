@@ -14,6 +14,7 @@ Read-only audit. Tidak ada perubahan kode dari proses audit.
 | [perbaikan-m2-csp.md](perbaikan-m2-csp.md) | **Eksekusi M2** — CSP: hash script, tanpa unsafe-eval |
 | [perbaikan-low-l1-l6.md](perbaikan-low-l1-l6.md) | **Eksekusi L1–L6** — traversal, sanitizer, CORS, JWT secret, DB SSL |
 | [mitigasi-m1.md](mitigasi-m1.md) | **Mitigasi M1** — token 12 jam + deteksi anomali sesi |
+| [perbaikan-m1-penuh.md](perbaikan-m1-penuh.md) | **M1 penuh** — cookie HttpOnly + CSRF + tiket SSE |
 | [remediation-plan.md](remediation-plan.md) | Urutan fix + patch minimal |
 | [findings.json](findings.json) | Data temuan (machine-readable) |
 

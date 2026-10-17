@@ -5322,13 +5322,36 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     let reconnectTimer: any = null;
     let retryCount = 0;
 
-    const connectSSE = () => {
+    const connectSSE = async () => {
       if (!isMounted) return;
       const currentToken = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       if (!currentToken) return;
 
       try {
-        const streamUrl = `/api/notifications/stream?token=${encodeURIComponent(currentToken)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
+        // SECURITY (M1/SSE): JWT tidak boleh muncul di URL. Tukar sesi cookie
+        // dengan tiket sekali pakai (30 detik, single use).
+        let ticket = '';
+        try {
+          const tRes = await fetch('/api/notifications/ticket', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          if (tRes.ok) {
+            const tJson = await tRes.json();
+            ticket = String(tJson?.ticket || '');
+          }
+        } catch { /* jaringan putus: dijadwalkan ulang di bawah */ }
+
+        if (!isMounted) return;
+        if (!ticket) {
+          retryCount += 1;
+          const delay = Math.min(30000, 2000 * retryCount);
+          reconnectTimer = setTimeout(connectSSE, delay);
+          return;
+        }
+
+        const streamUrl = `/api/notifications/stream?ticket=${encodeURIComponent(ticket)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
         eventSource = new EventSource(streamUrl);
 
         eventSource.onopen = () => {
