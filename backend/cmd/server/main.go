@@ -396,15 +396,23 @@ func main() {
 		guardedMutations.Post("/articles", articleHandler.Store)
 		guardedMutations.Put("/articles/:id", articleHandler.Update)
 		guardedMutations.Delete("/articles/:id", articleHandler.Destroy)
-		guarded.Get("/admin/comments", articleHandler.GetAdminComments)
-		guardedMutations.Post("/admin/comments/:id/approve", articleHandler.ApproveComment)
-		guardedMutations.Delete("/admin/comments/:id", articleHandler.DeleteComment)
+		guarded.Get("/admin/comments",
+			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.GetAdminComments)
+		// SECURITY (N-07): moderasi komentar artikel adalah wewenang platform
+		// (content), bukan merchant. Sebelumnya terdaftar di grup "guarded"
+		// yang justru mensyaratkan StoreOwnerRequired — sehingga merchant bisa
+		// membaca seluruh komentar dan menyetujui/menghapusnya. Terbukti runtime.
+		guardedMutations.Post("/admin/comments/:id/approve",
+			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.ApproveComment)
+		guardedMutations.Delete("/admin/comments/:id",
+			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.DeleteComment)
 
-		// Reports & Compliance Moderation
-		guarded.Get("/reports", reportHandler.Index)
-		guarded.Get("/reports/:id", reportHandler.Show)
-		guarded.Put("/reports/:id", reportHandler.UpdateStatus)
-		guarded.Post("/reports/review-item", reportHandler.ReviewRemediatedItem)
+		// SECURITY (N-07): rute /reports di grup "guarded" tidak memfilter tenant
+		// sama sekali. Terbukti runtime: merchant membaca 26 laporan dari SEMUA
+		// toko (termasuk reporter_email/ip/user-agent dan admin_notes internal)
+		// serta mengubah status laporan toko lain menjadi "dismissed".
+		// Versi ber-otorisasi sudah ada di adminApi dengan compliance:reports:manage;
+		// rute duplikat ini dihapus, bukan diberi gate ganda.
 
 
 		// SECURITY (N-06b): alias "backward compatibility" ini menunjuk handler
