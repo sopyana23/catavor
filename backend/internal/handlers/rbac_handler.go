@@ -9,6 +9,7 @@ import (
 	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog/log"
 )
 
 type RBACHandler struct {
@@ -95,9 +96,10 @@ func (h *RBACHandler) UpdateMatrix(c *fiber.Ctx) error {
 	}
 
 	if err := h.rbacService.UpdateRolePermissions(req.RoleSlug, req.PermissionKeys, actor); err != nil {
+		log.Error().Err(err).Msg("rbac: UpdateRolePermissions gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal memperbarui izin role."),
 		})
 	}
 
@@ -164,9 +166,10 @@ func (h *RBACHandler) AssignStaff(c *fiber.Ctx) error {
 	}
 
 	if err := h.rbacService.AssignStaffRole(target, role, actor); err != nil {
+		log.Error().Err(err).Msg("rbac: AssignStaffRole gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal menetapkan role staf."),
 		})
 	}
 
@@ -220,9 +223,10 @@ func (h *RBACHandler) RevokeStaff(c *fiber.Ctx) error {
 	}
 
 	if err := h.rbacService.RevokeStaffRole(req.UserID, actor); err != nil {
+		log.Error().Err(err).Msg("rbac: RevokeStaffRole gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal mencabut role staf."),
 		})
 	}
 
@@ -257,9 +261,10 @@ func (h *RBACHandler) CreateRole(c *fiber.Ctx) error {
 
 	role, err := h.rbacService.CreateCustomRole(req.Slug, req.Name, req.Description, req.PermissionKeys, actor)
 	if err != nil {
+		log.Error().Err(err).Msg("rbac: CreateCustomRole gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal membuat role kustom."),
 		})
 	}
 

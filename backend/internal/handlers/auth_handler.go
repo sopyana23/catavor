@@ -470,7 +470,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		if err := security.ValidatePassword(req.Password); err != nil {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
-				"message": err.Error(),
+				"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 			})
 		}
 	}
@@ -832,7 +832,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
-			"message": "Verifikasi otentikasi Google gagal: " + err.Error(),
+			"message": "Verifikasi otentikasi Google gagal.",
 		})
 	}
 
@@ -1418,7 +1418,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 				if err != nil {
 					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 						"success": false,
-						"message": err.Error(),
+						"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 					})
 				}
 				_ = services.GetOTPService().ValidateAndConsumeToken(user.Email, token, "password_reset")
@@ -1441,7 +1441,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		if err := security.ValidatePassword(req.Password); err != nil {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
-				"message": err.Error(),
+				"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 			})
 		}
 		if req.ConfirmPassword != "" && req.Password != req.ConfirmPassword {
@@ -1605,7 +1605,7 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 		})
 	}
 
@@ -1632,7 +1632,7 @@ func (h *AuthHandler) VerifyRegistrationOTP(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 		})
 	}
 
@@ -1683,7 +1683,7 @@ func (h *AuthHandler) ForgotPasswordRequest(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 		})
 	}
 
@@ -1726,7 +1726,7 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	if err := security.ValidatePassword(req.NewPassword); err != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 		})
 	}
 
@@ -1734,7 +1734,7 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 		})
 	}
 
@@ -1854,7 +1854,7 @@ func (h *AuthHandler) RequestProfilePasswordOTP(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 		})
 	}
 

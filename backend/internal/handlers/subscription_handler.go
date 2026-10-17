@@ -8,6 +8,7 @@ import (
 	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog/log"
 )
 
 type SubscriptionHandler struct{}
@@ -46,10 +47,10 @@ func (h *SubscriptionHandler) GetStoreQuota(c *fiber.Ctx) error {
 
 	quota, err := services.GetStoreQuotaInfo(database.DB, storeID)
 	if err != nil {
+		log.Error().Err(err).Msg("subscription: gagal mengambil kuota toko")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mengambil data kuota toko.",
-			"error":   err.Error(),
 		})
 	}
 
@@ -101,9 +102,10 @@ func (h *SubscriptionHandler) UpgradePlan(c *fiber.Ctx) error {
 
 	quota, err := services.UpgradeStorePlan(database.DB, storeID, planCode, req.Months)
 	if err != nil {
+		log.Error().Err(err).Msg("subscription: UpgradeStorePlan gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal meningkatkan paket langganan."),
 		})
 	}
 
@@ -142,9 +144,10 @@ func (h *SubscriptionHandler) ScheduleDowngrade(c *fiber.Ctx) error {
 
 	quota, err := services.ScheduleStoreDowngrade(database.DB, storeID, targetCode)
 	if err != nil {
+		log.Error().Err(err).Msg("subscription: ScheduleStoreDowngrade gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal menjadwalkan penurunan paket."),
 		})
 	}
 
@@ -252,9 +255,10 @@ func (h *SubscriptionHandler) CreateOrder(c *fiber.Ctx) error {
 
 	order, quota, err := services.CreateSubscriptionOrder(database.DB, storeID, userID, req)
 	if err != nil {
+		log.Error().Err(err).Msg("subscription: CreateSubscriptionOrder gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal membuat pesanan langganan."),
 		})
 	}
 
@@ -309,9 +313,10 @@ func (h *SubscriptionHandler) CancelDowngrade(c *fiber.Ctx) error {
 
 	quota, err := services.CancelStoreDowngrade(database.DB, storeID)
 	if err != nil {
+		log.Error().Err(err).Msg("subscription: CancelStoreDowngrade gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal membatalkan penurunan paket."),
 		})
 	}
 
@@ -340,9 +345,10 @@ func (h *SubscriptionHandler) ApproveOrder(c *fiber.Ctx) error {
 
 	order, quota, err := services.ApproveSubscriptionOrder(database.DB, uint(orderIDVal), adminID)
 	if err != nil {
+		log.Error().Err(err).Msg("subscription: ApproveSubscriptionOrder gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal menyetujui pesanan langganan."),
 		})
 	}
 

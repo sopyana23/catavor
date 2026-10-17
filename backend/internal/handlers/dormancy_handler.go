@@ -100,9 +100,10 @@ func HandleExtendStoreActivity(c *fiber.Ctx) error {
 
 	updatedStore, err := services.ReactivateStoreByID(database.DB, store.ID)
 	if err != nil {
+		log.Error().Err(err).Msg("dormancy: ReactivateStoreByID gagal")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"status":  "error",
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal mengaktifkan kembali toko."),
 		})
 	}
 

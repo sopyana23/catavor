@@ -14,6 +14,7 @@ import (
 	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -1100,9 +1101,10 @@ func (h *AnalyticsHandler) GetMarketIntelligenceSummary(c *fiber.Ctx) error {
 
 	summary, err := services.GetMacroMarketSummary(database.DB)
 	if err != nil {
+		log.Error().Err(err).Msg("analytics: gagal mengagregasi market intelligence")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal mengagregasi data market intelligence: " + err.Error(),
+			"message": "Gagal mengagregasi data market intelligence.",
 		})
 	}
 
@@ -1119,9 +1121,10 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 	if format == "json" {
 		summary, err := services.GetMacroMarketSummary(database.DB)
 		if err != nil {
+			log.Error().Err(err).Msg("analytics: gagal mengekspor market intelligence")
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
-				"message": "Gagal mengekspor data: " + err.Error(),
+				"message": "Gagal mengekspor data.",
 			})
 		}
 		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=catavor-market-intelligence-%s.json", time.Now().Format("20060102")))
@@ -1130,9 +1133,10 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 
 	csvData, err := services.GenerateMarketIntelligenceCSV(database.DB)
 	if err != nil {
+		log.Error().Err(err).Msg("analytics: gagal membuat berkas CSV")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal membuat berkas CSV: " + err.Error(),
+			"message": "Gagal membuat berkas CSV.",
 		})
 	}
 

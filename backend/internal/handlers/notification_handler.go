@@ -722,8 +722,8 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 	}
 
 	if err := h.DB.Create(&notif).Error; err != nil {
-		log.Error().Err(err).Msg("Failed to save broadcast notification")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("Gagal menyimpan notifikasi siaran: %v", err)})
+		log.Error().Err(err).Msg("notif: gagal menyimpan notifikasi siaran")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menyimpan notifikasi siaran."})
 	}
 
 	// Purge redis broadcast cache on write
@@ -1270,7 +1270,8 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 	switch action {
 	case "store_expiry", "dormancy_cycle", "store_expiration", "dormancy_worker":
 		if err := tracker.TriggerStoreExpiryManual(h.DB, nil); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			log.Error().Err(err).Msg("admin: TriggerStoreExpiryManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot kedaluwarsa toko."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1279,7 +1280,8 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 
 	case "promo_expiry", "promo_expiration", "promo_worker":
 		if err := tracker.TriggerPromoExpiryManual(h.DB); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			log.Error().Err(err).Msg("admin: TriggerPromoExpiryManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot kedaluwarsa promo."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1288,7 +1290,8 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 
 	case "flash_sale", "flashsale", "flash_sale_worker":
 		if err := tracker.TriggerFlashSaleManual(h.DB); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			log.Error().Err(err).Msg("admin: TriggerFlashSaleManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot flash sale."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1297,7 +1300,8 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 
 	case "support_lifecycle", "support", "sla_escalation", "ticket_lifecycle":
 		if err := tracker.TriggerSupportLifecycleManual(h.DB); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			log.Error().Err(err).Msg("admin: TriggerSupportLifecycleManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot helpdesk SLA."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1307,7 +1311,8 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 	case "ticket_retention", "ticket_retention_worker", "ticket_purge", "pdp_purge":
 		stats, err := tracker.TriggerTicketRetentionManual(h.DB)
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			log.Error().Err(err).Msg("admin: TriggerTicketRetentionManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot retensi tiket."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1317,7 +1322,8 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 
 	case "weekly_summary", "summary", "weekly_summary_worker":
 		if err := tracker.TriggerWeeklySummaryManual(h.DB, user); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			log.Error().Err(err).Msg("admin: TriggerWeeklySummaryManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot ringkasan mingguan."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1326,7 +1332,8 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 
 	case "notification_cleaner", "cleaner_worker", "cleaner":
 		if err := tracker.TriggerCleanerManual(h.DB); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			log.Error().Err(err).Msg("admin: TriggerCleanerManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal menjalankan pembersihan notifikasi."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1336,7 +1343,8 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 	case "item_retention_worker", "item_retention", "moderation_cleanup", "item_cleanup":
 		stats, err := tracker.TriggerItemRetentionManual(h.DB, nil)
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			log.Error().Err(err).Msg("admin: TriggerItemRetentionManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot retensi item moderasi."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1347,7 +1355,8 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 	case "test_guide", "sandbox_test", "test_sandbox", "guide":
 		notif, err := tracker.TriggerSandboxTestGuide(h.DB, user)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("Gagal mengirim notifikasi uji coba: %v", err)})
+			log.Error().Err(err).Msg("notif: gagal mengirim notifikasi uji coba")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal mengirim notifikasi uji coba."})
 		}
 		return c.JSON(fiber.Map{
 			"success":      true,
