@@ -53,6 +53,19 @@ func InitRedis() {
 			redisMu.Lock()
 			isRedisUp = false
 			redisMu.Unlock()
+
+			// SECURITY (M3): fail closed di production. State keamanan (blacklist JWT,
+			// lockout login, rate limit) hilang saat restart bila jatuh ke memori,
+			// sehingga token logout bisa hidup lagi & brute-force tak terkunci.
+			// Di local/dev, fallback memori tetap diizinkan agar pengembangan lancar.
+			if isProductionEnv() {
+				log.Fatal().
+					Str("addr", addr).
+					Msg("REDIS WAJIB di production: tanpa Redis, blacklist token & lockout login " +
+						"tidak persisten (token logout bisa valid lagi setelah restart). " +
+						"Set APP_ENV=local untuk mode pengembangan, atau sediakan Redis.")
+			}
+			log.Warn().Msg("APP_ENV bukan production: memakai fallback in-memory. JANGAN dipakai di production.")
 			return
 		}
 
@@ -284,6 +297,22 @@ var (
 	memoryLoginFailures  sync.Map
 )
 
+// isProductionEnv melaporkan apakah aplikasi berjalan di environment production.
+//
+// Di production, state keamanan WAJIB persisten (Redis): blacklist JWT dan lockout
+// login tidak boleh hilang saat restart. Di local/dev, fallback in-memory diizinkan.
+func isProductionEnv() bool {
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	return env == "production" || env == "prod"
+}
+
+// securityStateUnavailable menandakan state keamanan tidak tersedia (Redis down di
+// production). Pemanggil harus memperlakukan ini sebagai GAGAL (fail closed),
+// bukan sebagai "tidak ada di blacklist" atau "tidak terkunci".
+func securityStateUnavailable() bool {
+	return isProductionEnv() && !IsRedisAvailable()
+}
+
 type loginFailureRecord struct {
 	Count     int
 	ExpiresAt time.Time
@@ -327,6 +356,12 @@ func IsTokenBlacklisted(jti string) bool {
 		if err == nil && exists > 0 {
 			return true
 		}
+	} else if isProductionEnv() {
+		// SECURITY (M3): fail closed. Di production tanpa Redis kita TIDAK bisa
+		// memastikan token sudah di-revoke atau belum. Perlakukan sebagai revoked
+		// agar token yang sudah logout tidak diam-diam diterima kembali.
+		log.Error().Str("jti", jti).Msg("M3: Redis tidak tersedia di production — menolak token (fail closed)")
+		return true
 	}
 
 	return false
@@ -388,6 +423,12 @@ func IsAccountLoginLocked(email string) (bool, time.Duration) {
 				return true, ttl
 			}
 		}
+	} else if isProductionEnv() {
+		// SECURITY (M3): fail closed. Tanpa Redis di production kita tidak dapat
+		// memastikan status lockout, sehingga brute-force bisa lolos. Tolak login
+		// sementara (retry 30 detik) alih-alih membiarkan percobaan tak terbatas.
+		log.Error().Str("email", cleaned).Msg("M3: Redis tidak tersedia di production — menolak login (fail closed)")
+		return true, 30 * time.Second
 	}
 
 	if val, ok := memoryLoginFailures.Load(cleaned); ok {

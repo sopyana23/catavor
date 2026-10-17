@@ -10,6 +10,7 @@ Read-only audit. Tidak ada perubahan kode dari proses audit.
 | [security-audit-report-update.md](security-audit-report-update.md) | **Re-audit** — status temuan lama + permukaan baru commit `0fd2143` |
 | [perbaikan-h1-h2.md](perbaikan-h1-h2.md) | **Eksekusi H1 & H2** — CVE bump + body leak fix (terverifikasi runtime) |
 | [perbaikan-m4.md](perbaikan-m4.md) | **Eksekusi M4** — `err.Error()` di response (31 titik → 0) |
+| [perbaikan-m3.md](perbaikan-m3.md) | **Eksekusi M3** — Redis wajib di production (fail closed) |
 | [remediation-plan.md](remediation-plan.md) | Urutan fix + patch minimal |
 | [findings.json](findings.json) | Data temuan (machine-readable) |
 
