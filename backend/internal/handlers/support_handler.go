@@ -2205,10 +2205,14 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 		}
 	}
 
-	// 2. Fallback lookup by storage_key or file_name if query param or path token provided
-	if !found {
+	// 2. Fallback lookup by storage_key / file_url. Input user WAJIB di-escape:
+	// tanpa ini, "%" atau "_" yang dikirim penyerang menjadi wildcard dan bisa
+	// mencocokkan lampiran milik tiket lain (L1: ambiguous lookup).
+	if !found && idStr != "" {
+		escaped := escapeLikePattern(idStr)
 		if err := database.DB.Preload("Message.Ticket").
-			Where("storage_key LIKE ? OR file_url LIKE ?", "%"+idStr+"%", "%"+idStr+"%").
+			Where("storage_key LIKE ? ESCAPE '\\' OR file_url LIKE ? ESCAPE '\\'",
+				"%"+escaped+"%", "%"+escaped+"%").
 			First(&attachment).Error; err == nil {
 			found = true
 		}

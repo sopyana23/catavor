@@ -947,7 +947,11 @@ func (h *NotificationHandler) SuperadminGetOne(c *fiber.Ctx) error {
 			FROM notification_reads 
 			GROUP BY notification_id
 		) reads ON reads.notification_id = notifications.id`).
-		Where("notifications.id = ? OR notifications.id = ? OR notifications.id LIKE ?", notifID, cleanID, "%"+cleanID).
+		// L1: escape wildcard. Tanpa ini, cleanID="%" mencocokkan notifikasi
+		// mana pun (ambiguous match). Dua kondisi pertama sudah exact match,
+		// yang ketiga adalah prefix lookup sehingga butuh escape.
+		Where("notifications.id = ? OR notifications.id = ? OR notifications.id LIKE ?",
+			notifID, cleanID, escapeLikePattern(cleanID)+"%").
 		First(&result).Error
 
 	if err != nil {
@@ -973,7 +977,9 @@ func (h *NotificationHandler) SuperadminDelete(c *fiber.Ctx) error {
 	cleanID = strings.TrimSpace(cleanID)
 
 	var notif models.Notification
-	if err := h.DB.Where("id = ? OR id = ? OR id LIKE ?", notifID, cleanID, "%"+cleanID).First(&notif).Error; err == nil {
+	// L1: escape wildcard pada prefix lookup agar "%" tidak mencocokkan sembarang notifikasi.
+	if err := h.DB.Where("id = ? OR id = ? OR id LIKE ?",
+		notifID, cleanID, escapeLikePattern(cleanID)+"%").First(&notif).Error; err == nil {
 		h.DB.Where("notification_id = ?", notif.ID).Delete(&models.NotificationRead{})
 		h.DB.Where("id = ?", notif.ID).Delete(&models.Notification{})
 	} else {
