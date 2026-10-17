@@ -9,20 +9,15 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/microcosm-cc/bluemonday"
 )
 
 var (
-	htmlTagRegex       = regexp.MustCompile(`(?i)<[^>]*>`)
-	scriptTagRegex     = regexp.MustCompile(`(?is)<script.*?>.*?</script>`)
-	styleTagRegex      = regexp.MustCompile(`(?is)<style.*?>.*?</style>`)
-	iframeTagRegex     = regexp.MustCompile(`(?is)<iframe.*?>.*?</iframe>`)
-	objectTagRegex     = regexp.MustCompile(`(?is)<(object|embed|applet).*?>.*?</(object|embed|applet)>`)
-	formTagRegex       = regexp.MustCompile(`(?is)<(form|input|button|textarea|select).*?>.*?</(form|button|textarea|select)>`)
-	onEventHandler     = regexp.MustCompile(`(?i)\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
-	jsProtocolRegex    = regexp.MustCompile(`(?i)(javascript|vbscript|data\s*:\s*text\/html)\s*:`)
-	phoneAllowedRegex  = regexp.MustCompile(`[^0-9+\-\s()]`)
-	slugAllowedRegex   = regexp.MustCompile(`[^a-z0-9\-]`)
-	emailRegex         = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+	htmlTagRegex      = regexp.MustCompile(`(?i)<[^>]*>`)
+	phoneAllowedRegex = regexp.MustCompile(`[^0-9+\-\s()]`)
+	slugAllowedRegex  = regexp.MustCompile(`[^a-z0-9\-]`)
+	emailRegex        = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 )
 
 // SanitizePlainText removes all HTML tags, control bytes, and limits length
@@ -57,31 +52,60 @@ func SanitizePlainText(input string, maxLen int) string {
 }
 
 // SanitizeRichText removes dangerous executable tags (script, iframe, on*) while preserving safe markdown and text structure
+// richTextPolicy adalah ALLOWLIST sanitizer (bluemonday): hanya tag/atribut yang
+// didaftarkan di sini yang dipertahankan; sisanya dibuang. Ini menggantikan
+// pendekatan blacklist-regex yang bisa dibypass (mis. "<scr<script>ipt>").
+//
+// SECURITY (L2): allowlist tidak bisa dibypass dengan trik nested-tag karena
+// parsing dilakukan oleh parser HTML sungguhan, bukan regex.
+var richTextPolicy = func() *bluemonday.Policy {
+	p := bluemonday.NewPolicy()
+
+	// Tag teks dasar yang aman untuk deskripsi produk/artikel.
+	p.AllowElements(
+		"p", "br", "hr", "span", "div",
+		"strong", "b", "em", "i", "u", "s", "strike", "del", "ins", "mark", "small", "sub", "sup",
+		"h1", "h2", "h3", "h4", "h5", "h6",
+		"ul", "ol", "li", "dl", "dt", "dd",
+		"blockquote", "pre", "code",
+		"table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "colgroup", "col",
+	)
+
+	// Atribut aman (tanpa event handler).
+	p.AllowAttrs("class", "title", "dir", "lang").Globally()
+	p.AllowAttrs("align", "colspan", "rowspan", "scope").OnElements("table", "thead", "tbody", "tfoot", "tr", "th", "td")
+
+	// Tautan: hanya protokol aman, dan rel/target dipaksa aman.
+	p.AllowAttrs("href").OnElements("a")
+	p.AllowAttrs("title").OnElements("a")
+	p.RequireNoFollowOnLinks(true)
+	p.AddTargetBlankToFullyQualifiedLinks(true)
+
+	// Gambar inline (opsional): hanya src http/https, tanpa data: URI.
+	p.AllowAttrs("src", "alt", "title", "width", "height").OnElements("img")
+	p.AllowURLSchemes("http", "https", "mailto", "tel")
+
+	return p
+}()
+
+// SanitizeRichText membersihkan HTML rich-text memakai allowlist (bluemonday).
+// Tag/atribut di luar daftar dihapus; event handler & protokol berbahaya
+// (javascript:, data:) tidak mungkin lolos karena parser HTML asli yang menilai.
 func SanitizeRichText(input string, maxLen int) string {
 	if input == "" {
 		return ""
 	}
 
-	// 1. Remove null bytes
+	// 1. Buang null byte sebelum parsing.
 	cleaned := strings.ReplaceAll(input, "\x00", "")
 
-	// 2. Strip dangerous tags
-	cleaned = scriptTagRegex.ReplaceAllString(cleaned, "")
-	cleaned = styleTagRegex.ReplaceAllString(cleaned, "")
-	cleaned = iframeTagRegex.ReplaceAllString(cleaned, "")
-	cleaned = objectTagRegex.ReplaceAllString(cleaned, "")
-	cleaned = formTagRegex.ReplaceAllString(cleaned, "")
+	// 2. Allowlist sanitize (parser HTML, bukan regex).
+	cleaned = richTextPolicy.Sanitize(cleaned)
 
-	// 3. Strip inline event handlers (e.g. onload, onerror, onclick)
-	cleaned = onEventHandler.ReplaceAllString(cleaned, "")
-
-	// 4. Neutralize javascript/data pseudo-protocols
-	cleaned = jsProtocolRegex.ReplaceAllString(cleaned, "blocked:")
-
-	// 5. Trim
+	// 3. Trim.
 	cleaned = strings.TrimSpace(cleaned)
 
-	// 6. Enforce max length constraint
+	// 4. Batasi panjang.
 	if maxLen > 0 {
 		runes := []rune(cleaned)
 		if len(runes) > maxLen {
@@ -348,10 +372,10 @@ func SanitizeSocialLinks(jsonStr string) string {
 	if strings.TrimSpace(jsonStr) == "" {
 		return "[]"
 	}
-	// Sanitize raw text to prevent stored XSS inside JSON structures
+	// SECURITY (L2): strip tag/atribut dengan allowlist parser, bukan regex
+	// blacklist. Nilai ini masuk ke JSON lalu dirender, jadi wajib bersih.
 	cleaned := strings.ReplaceAll(jsonStr, "\x00", "")
-	cleaned = scriptTagRegex.ReplaceAllString(cleaned, "")
-	cleaned = onEventHandler.ReplaceAllString(cleaned, "")
+	cleaned = richTextPolicy.Sanitize(cleaned)
 	return cleaned
 }
 

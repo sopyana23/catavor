@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog/log"
 )
 
 type Config struct {
@@ -85,7 +86,27 @@ func LoadConfig() *Config {
 	const defaultJWTSecret = "***REMOVED***"
 	if appEnv == "production" || appEnv == "staging" || appEnv == "prod" {
 		if jwtSecret == defaultJWTSecret || len(jwtSecret) < 32 {
-			fmt.Fprintf(os.Stderr, "\n[CRITICAL SECURITY WARNING] In %s environment, JWT_SECRET must NOT use default key and must be at least 32 characters (256-bit entropy). Run 'openssl rand -hex 32' to generate a secure secret!\n\n", strings.ToUpper(appEnv))
+			// SECURITY (L4): SECRET DEFAULT = siapa pun bisa memalsukan JWT
+			// (ambil alih akun apa pun, termasuk superadmin). Dulu hanya warning,
+			// kini FAIL CLOSED di production/staging: tolak start.
+			log.Fatal().
+				Str("environment", strings.ToUpper(appEnv)).
+				Int("secret_length", len(jwtSecret)).
+				Msg("JWT_SECRET tidak aman: jangan pakai default dan minimal 32 karakter (256-bit). " +
+					"Generate dengan 'openssl rand -hex 32' lalu set JWT_SECRET.")
+		}
+	}
+
+	// SECURITY (L6): koneksi DB tanpa TLS memungkinkan penyadapan kredensial /
+	// data di jaringan. Di production/staging, wajib sslmode selain "disable".
+	dbSSLMode := strings.ToLower(strings.TrimSpace(getEnv("DB_SSLMODE", "disable")))
+	if appEnv == "production" || appEnv == "prod" || appEnv == "staging" {
+		if dbSSLMode == "disable" || dbSSLMode == "" {
+			log.Fatal().
+				Str("environment", strings.ToUpper(appEnv)).
+				Str("db_sslmode", dbSSLMode).
+				Msg("DB_SSLMODE=disable tidak diizinkan di production/staging: koneksi database " +
+					"harus terenkripsi. Set DB_SSLMODE=require (atau verify-full bila CA tersedia).")
 		}
 	}
 
@@ -98,7 +119,7 @@ func LoadConfig() *Config {
 		DBUser:             getEnv("DB_USER", "postgres"),
 		DBPassword:         getEnv("DB_PASSWORD", ""),
 		DBName:             getEnv("DB_NAME", "catavor"),
-		DBSSLMode:          getEnv("DB_SSLMODE", "disable"),
+		DBSSLMode:          dbSSLMode,
 		DBAutoMigrate:      dbAutoMigrate,
 		JWTSecret:          jwtSecret,
 		JWTExpirationHours: jwtHours,

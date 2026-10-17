@@ -2254,11 +2254,13 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	}
 
 	// 4. Resolve Local File Path on Server
+	// SECURITY (L1): semua path WAJIB tetap di dalam StorageLocalRoot.
+	// Tanpa ini, StorageKey/FileURL berisi "../" bisa membaca berkas di luar root
+	// (path traversal). resolveInsideRoot menolak hasil yang keluar dari root.
 	cleanKey := strings.TrimLeft(filepath.ToSlash(attachment.StorageKey), "/")
 	var filePath string
 	if cleanKey != "" {
-		candidate := filepath.Join(h.cfg.StorageLocalRoot, filepath.FromSlash(cleanKey))
-		if isRegularFile(candidate) {
+		if candidate, ok := resolveInsideRoot(h.cfg.StorageLocalRoot, cleanKey); ok && isRegularFile(candidate) {
 			filePath = candidate
 		}
 	}
@@ -2268,8 +2270,7 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 		if u, err := url.Parse(attachment.FileURL); err == nil {
 			urlPath := strings.TrimPrefix(u.Path, "/storage/")
 			urlPath = strings.TrimPrefix(urlPath, "storage/")
-			candidate := filepath.Join(h.cfg.StorageLocalRoot, filepath.FromSlash(urlPath))
-			if isRegularFile(candidate) {
+			if candidate, ok := resolveInsideRoot(h.cfg.StorageLocalRoot, urlPath); ok && isRegularFile(candidate) {
 				filePath = candidate
 			}
 		}
@@ -2318,5 +2319,42 @@ func isRegularFile(path string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+// resolveInsideRoot menggabungkan root dengan key relatif dan MEMASTIKAN hasilnya
+// tetap berada di dalam root. Mencegah path traversal ("../") pada nilai yang
+// berasal dari database (storage_key / file_url).
+//
+// Return ok=false bila key kosong, absolut, atau hasil resolve keluar dari root.
+func resolveInsideRoot(root, key string) (string, bool) {
+	if root == "" || key == "" {
+		return "", false
+	}
+	// Tolak path absolut & skema drive (C:\...) sebelum digabung.
+	if filepath.IsAbs(key) || strings.Contains(key, ":") {
+		return "", false
+	}
+
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", false
+	}
+	candidate := filepath.Join(absRoot, filepath.FromSlash(key))
+
+	// EvalSymlinks bila memungkinkan, agar symlink keluar root ikut tertangkap.
+	resolved := candidate
+	if rp, err := filepath.EvalSymlinks(candidate); err == nil {
+		resolved = rp
+	}
+
+	rel, err := filepath.Rel(absRoot, resolved)
+	if err != nil {
+		return "", false
+	}
+	// Rel mengembalikan ".." di awal bila keluar dari root.
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", false
+	}
+	return resolved, true
 }
 

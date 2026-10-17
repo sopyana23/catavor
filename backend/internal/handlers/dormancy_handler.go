@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"html"
 	"strings"
 
 	"catavor-backend/internal/database"
@@ -46,7 +47,7 @@ func HandlePublicReactivateStore(c *fiber.Ctx) error {
   </div>
 </body>
 </html>
-`, err.Error()))
+`, html.EscapeString(safeErrMsg(err, "Tautan reaktivasi tidak valid atau sudah kedaluwarsa."))))
 	}
 
 	// Record Activity Log

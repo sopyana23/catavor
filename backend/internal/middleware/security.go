@@ -50,11 +50,28 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 		allowedOrigins = "http://localhost:8000, http://127.0.0.1:8000, http://localhost:5173, http://localhost:3000, http://127.0.0.1:5173"
 	}
 
+	// SECURITY (L3): AllowCredentials=true + origin wildcard = browser menolak,
+	// tapi kalau lolos ke proxy bisa jadi celah. Di non-local, wildcard dilarang
+	// keras dan AllowCredentials hanya aktif bila origin eksplisit (bukan "*").
+	allowCredentials := true
+	if cfg.AppEnv != "local" && strings.Contains(allowedOrigins, "*") {
+		log.Fatal().
+			Str("allowed_origins", allowedOrigins).
+			Msg("ALLOWED_ORIGINS tidak boleh memakai wildcard ('*') di non-local saat AllowCredentials aktif. " +
+				"Sebutkan origin secara eksplisit (mis. https://app.example.com).")
+	}
+	if cfg.AppEnv != "local" && allowedOrigins == "" {
+		// Tidak ada origin eksplisit -> matikan credentials agar tidak ada
+		// kombinasi berbahaya (cookie/Authorization lintas origin).
+		allowCredentials = false
+		log.Warn().Msg("ALLOWED_ORIGINS kosong di non-local: AllowCredentials dinonaktifkan.")
+	}
+
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins,
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Store-Slug, X-Request-ID",
 		AllowMethods:     "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
-		AllowCredentials: true,
+		AllowCredentials: allowCredentials,
 		MaxAge:           86400,
 	}))
 
