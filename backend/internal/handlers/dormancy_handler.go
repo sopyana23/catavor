@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"html"
 	"strings"
@@ -34,7 +36,11 @@ func HandlePublicReactivateStore(c *fiber.Ctx) error {
 
 	store, err := services.ReactivateStoreByToken(database.DB, token)
 	if err != nil {
-		log.Warn().Err(err).Str("token", token).Msg("Failed to reactivate store via token")
+		// SECURITY (N-02b): JANGAN catat token ke log. Token reaktivasi adalah
+		// kapabilitas sekali-pakai — siapa pun yang membaca log bisa memakainya.
+		// Catat hanya sidik jari (8 hex pertama sha256) untuk korelasi.
+		sum := sha256.Sum256([]byte(token))
+		log.Warn().Err(err).Str("token_fp", hex.EncodeToString(sum[:4])).Msg("Failed to reactivate store via token")
 		return c.Status(fiber.StatusBadRequest).SendString(fmt.Sprintf(`
 <!DOCTYPE html>
 <html>

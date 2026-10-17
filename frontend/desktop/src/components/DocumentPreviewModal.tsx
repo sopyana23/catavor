@@ -556,7 +556,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
 
     const link = document.createElement('a');
     link.href = docId 
-      ? `/api/support/attachments/${docId}?download=1&token=${authToken}` 
+      ? `/api/support/attachments/${docId}?download=1` 
       : (fileUrl || '');
     link.download = safeFileName;
     link.target = '_blank';

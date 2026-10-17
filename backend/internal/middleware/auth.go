@@ -92,9 +92,7 @@ func ExtractOptionalClaims(c *fiber.Ctx, cfg *config.Config) *JWTClaims {
 		}
 	}
 	if tokenString == "" {
-		tokenString = strings.TrimSpace(c.Query("token"))
-	}
-	if tokenString == "" {
+		// SECURITY (N-02): ?token= TIDAK lagi diterima sebagai sumber auth.
 		return nil
 	}
 
@@ -178,10 +176,8 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 				})
 			}
 
-			isTicketAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
-				strings.EqualFold(user.PlatformRole, "support") ||
-				strings.EqualFold(user.PlatformRole, "compliance") ||
-				strings.EqualFold(user.PlatformRole, "admin") ||
+			// SECURITY (N-05): whitelist terpusat, konsisten dengan RequireAdmin.
+			isTicketAdmin := IsPlatformStaffRole(user.PlatformRole) ||
 				user.Email == "admin@catavor.com"
 
 			if !isTicketAdmin && user.IsBlacklisted {
@@ -221,11 +217,11 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			return c.Next()
 		}
 
-		// Fallback to query parameter (dipertahankan untuk kompatibilitas klien
-		// lama; klien baru memakai tiket).
-		if tokenString == "" {
-			tokenString = strings.TrimSpace(c.Query("token"))
-		}
+		// SECURITY (N-02): fallback ?token= DIHAPUS.
+		// Token di URL bocor ke log reverse-proxy/CDN, header Referer, riwayat
+		// browser, dan berbagi tautan. Auth hanya lewat cookie httpOnly,
+		// header Authorization, atau tiket SSE sekali-pakai (?ticket= di atas).
+		// Klien lama yang masih mengirim ?token= akan menerima 401 — disengaja.
 
 		if tokenString == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -283,7 +279,10 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		}
 
 		// Security Check: Verify global token version (e.g. password reset or credential invalidation)
-		if user.TokenVersion > 0 && claims.TokenVersion > 0 && claims.TokenVersion < user.TokenVersion {
+		// SECURITY (N-04): token yang diterbitkan server SELALU punya token_version >= 1
+		// (lihat GenerateTokenWithID). Klaim yang hilang / 0 hanya mungkin berasal dari
+		// token yang dipalsukan, jadi perlakukan sebagai tidak valid — jangan fail-open.
+		if claims.TokenVersion <= 0 || claims.TokenVersion < user.TokenVersion {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"code":    "PASSWORD_CHANGED",
@@ -296,11 +295,10 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		// dicatat sebagai WARN agar bisa ditindaklanjuti lewat monitoring.
 		CheckSessionFingerprint(c, claims.ID, user.ID)
 
-		isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
-			strings.EqualFold(user.PlatformRole, "support") ||
-			strings.EqualFold(user.PlatformRole, "compliance") ||
-			strings.EqualFold(user.PlatformRole, "admin") ||
-			user.Email == "admin@catavor.com"
+		// SECURITY (N-05): gunakan whitelist terpusat (satu sumber kebenaran).
+		// Sebelumnya daftar ini hardcoded dan tidak konsisten dengan DB: memuat
+		// "admin" (tidak pernah ada di platform_role) dan melewatkan finance/content.
+		isPlatformAdmin := IsPlatformStaffRole(user.PlatformRole) || user.Email == "admin@catavor.com"
 
 		if !isPlatformAdmin && user.IsBlacklisted {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{

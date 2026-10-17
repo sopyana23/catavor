@@ -8196,7 +8196,7 @@ Terima kasih.`;
     }
 
     const link = document.createElement('a');
-    link.href = att.id ? `/api/support/attachments/${att.id}?download=1&token=${authToken}` : att.file_url;
+    link.href = att.id ? `/api/support/attachments/${att.id}?download=1` : att.file_url;
     link.download = fileName;
     link.target = '_blank';
     document.body.appendChild(link);
