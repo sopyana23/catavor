@@ -336,17 +336,26 @@ func main() {
 		guarded.Get("/support/attachments/:id", supportHandler.ServeAttachment)
 
 		// Admin Support Moderation, Quick Reply Canned Responses & Collision Detection
-		guarded.Get("/admin/support/tickets", supportHandler.ListAllTickets)
-		guarded.Get("/admin/support/tickets/:id", supportHandler.GetAdminTicketDetails)
-		guarded.Post("/admin/support/tickets/:id/reply", supportHandler.ReplyAsAdmin)
-		guarded.Put("/admin/support/tickets/:id/status", supportHandler.UpdateTicketStatus)
-		guarded.Post("/admin/support/tickets/:id/presence", supportHandler.UpdatePresence)
-		guarded.Get("/admin/support/tickets/:id/presence", supportHandler.GetPresence)
-		guarded.Get("/admin/support/templates", supportHandler.ListCannedResponses)
-		guarded.Post("/admin/support/templates", supportHandler.CreateCannedResponse)
-		guarded.Put("/admin/support/templates/:id", supportHandler.UpdateCannedResponse)
-		guarded.Delete("/admin/support/templates/:id", supportHandler.DeleteCannedResponse)
-		guarded.Post("/admin/support/templates/reset-defaults", supportHandler.ResetDefaultCannedResponses)
+		// SECURITY (N-06): rute moderasi support adalah area PLATFORM, bukan area
+		// merchant. Sebelumnya 11 rute di bawah ini hanya memakai AuthRequired
+		// (grup "guarded"), sehingga merchant yang login bisa membaca seluruh
+		// tiket tenant lain, membaca template canned response, dan — dengan
+		// header Origin yang sah — MEMBUAT/MENGUBAH/MENGHAPUS template platform.
+		// Sudah dibuktikan runtime: POST /api/admin/support/templates -> 201.
+		// Kini wajib izin support:tickets:* seperti pada grup adminApi.
+		supportRead := middleware.RequirePermission(cfg, "support:tickets:read")
+		supportReply := middleware.RequirePermission(cfg, "support:tickets:reply")
+		guarded.Get("/admin/support/tickets", supportRead, supportHandler.ListAllTickets)
+		guarded.Get("/admin/support/tickets/:id", supportRead, supportHandler.GetAdminTicketDetails)
+		guarded.Post("/admin/support/tickets/:id/reply", supportReply, supportHandler.ReplyAsAdmin)
+		guarded.Put("/admin/support/tickets/:id/status", supportReply, supportHandler.UpdateTicketStatus)
+		guarded.Post("/admin/support/tickets/:id/presence", supportRead, supportHandler.UpdatePresence)
+		guarded.Get("/admin/support/tickets/:id/presence", supportRead, supportHandler.GetPresence)
+		guarded.Get("/admin/support/templates", supportRead, supportHandler.ListCannedResponses)
+		guarded.Post("/admin/support/templates", supportReply, supportHandler.CreateCannedResponse)
+		guarded.Put("/admin/support/templates/:id", supportReply, supportHandler.UpdateCannedResponse)
+		guarded.Delete("/admin/support/templates/:id", supportReply, supportHandler.DeleteCannedResponse)
+		guarded.Post("/admin/support/templates/reset-defaults", supportReply, supportHandler.ResetDefaultCannedResponses)
 
 		// CRUD Item Catalog (Legacy Aliases)
 		guardedMutations.Post("/fauna", productHandler.Store)
@@ -398,45 +407,56 @@ func main() {
 		guarded.Post("/reports/review-item", reportHandler.ReviewRemediatedItem)
 
 
-		// Superadmin Broadcast Notifications (Backward Compatibility Alias)
-		guarded.Get("/notifications/:id", notificationHandler.SuperadminGetOne)
-		guarded.Get("/admin/notifications", notificationHandler.SuperadminIndex)
-		guarded.Get("/admin/notifications/:id", notificationHandler.SuperadminGetOne)
-		guarded.Post("/admin/notifications/broadcast", notificationHandler.SuperadminBroadcast)
-		guarded.Delete("/admin/notifications/:id", notificationHandler.SuperadminDelete)
-		guarded.Get("/admin/stores/search", notificationHandler.SearchStores)
-		guarded.Get("/admin/users/search", notificationHandler.SearchUsers)
-		guarded.Get("/stores/search", notificationHandler.SearchStores)
-		guarded.Get("/users/search", notificationHandler.SearchUsers)
+		// SECURITY (N-06b): alias "backward compatibility" ini menunjuk handler
+		// platform (siaran notifikasi, pencarian lintas-tenant, audit, market
+		// intelligence, safe domains, bot automation) tetapi hanya memakai
+		// AuthRequired. Terbukti runtime: merchant membaca seluruh email user,
+		// seluruh toko, dan data market intelligence platform.
+		// Catatan: /admin/analytics & /admin/categories TIDAK dikunci di sini —
+		// keduanya memang area merchant (lihat komentar "Merchant Analytics").
+		sysManage := middleware.RequirePermission(cfg, "system:admins:manage")
+		contentSend := middleware.RequirePermission(cfg, "content:broadcast:send")
+		auditRead := middleware.RequirePermission(cfg, "audit:logs:read")
+		marketIntel := middleware.RequirePermission(cfg, "market_intel:manage")
+
+		guarded.Get("/notifications/:id", contentSend, notificationHandler.SuperadminGetOne)
+		guarded.Get("/admin/notifications", contentSend, notificationHandler.SuperadminIndex)
+		guarded.Get("/admin/notifications/:id", contentSend, notificationHandler.SuperadminGetOne)
+		guarded.Post("/admin/notifications/broadcast", contentSend, notificationHandler.SuperadminBroadcast)
+		guarded.Delete("/admin/notifications/:id", contentSend, notificationHandler.SuperadminDelete)
+		guarded.Get("/admin/stores/search", sysManage, notificationHandler.SearchStores)
+		guarded.Get("/admin/users/search", sysManage, notificationHandler.SearchUsers)
+		guarded.Get("/stores/search", sysManage, notificationHandler.SearchStores)
+		guarded.Get("/users/search", sysManage, notificationHandler.SearchUsers)
 
 		// Store Activity Extension & Superadmin Dormancy Metrics
 		guardedMutations.Post("/stores/extend-activity", handlers.HandleExtendStoreActivity)
 		guardedMutations.Post("/store/extend-activity", handlers.HandleExtendStoreActivity)
 
 		// System Bot & Automation Engine Monitoring & Sandbox
-		guarded.Get("/admin/automation/status", notificationHandler.GetAutomationStatus)
-		guarded.Get("/admin/automation/logs", notificationHandler.GetAutomationLogs)
-		guarded.Post("/admin/automation/trigger", notificationHandler.TriggerAutomationBot)
-		guarded.Get("/automation/status", notificationHandler.GetAutomationStatus)
-		guarded.Get("/automation/logs", notificationHandler.GetAutomationLogs)
-		guarded.Post("/automation/trigger", notificationHandler.TriggerAutomationBot)
+		guarded.Get("/admin/automation/status", sysManage, notificationHandler.GetAutomationStatus)
+		guarded.Get("/admin/automation/logs", sysManage, notificationHandler.GetAutomationLogs)
+		guarded.Post("/admin/automation/trigger", sysManage, notificationHandler.TriggerAutomationBot)
+		guarded.Get("/automation/status", sysManage, notificationHandler.GetAutomationStatus)
+		guarded.Get("/automation/logs", sysManage, notificationHandler.GetAutomationLogs)
+		guarded.Post("/automation/trigger", sysManage, notificationHandler.TriggerAutomationBot)
 
 		// Enterprise Activity & Audit Logs
 		guarded.Get("/activity-logs", activityLogHandler.GetStoreActivityLogs)
 		guarded.Get("/activity-logs/summary", activityLogHandler.GetActivitySummary)
-		guarded.Get("/admin/audit-logs", activityLogHandler.GetSuperadminAuditLogs)
-		guarded.Get("/superadmin/dormancy/metrics", handlers.HandleGetDormancyMetrics)
+		guarded.Get("/admin/audit-logs", auditRead, activityLogHandler.GetSuperadminAuditLogs)
+		guarded.Get("/superadmin/dormancy/metrics", auditRead, handlers.HandleGetDormancyMetrics)
 
 		// Market Intelligence & Macro Analytics
-		guarded.Get("/admin/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)
-		guarded.Get("/admin/market-intelligence/export", analyticsHandler.ExportMarketIntelligenceData)
+		guarded.Get("/admin/market-intelligence", marketIntel, analyticsHandler.GetMarketIntelligenceSummary)
+		guarded.Get("/admin/market-intelligence/export", marketIntel, analyticsHandler.ExportMarketIntelligenceData)
 
 		// Master Safe Domains
-		guarded.Get("/admin/safe-domains", safeDomainHandler.GetAdminSafeDomains)
-		guarded.Post("/admin/safe-domains", safeDomainHandler.CreateSafeDomain)
-		guarded.Put("/admin/safe-domains/:id", safeDomainHandler.UpdateSafeDomain)
-		guarded.Delete("/admin/safe-domains/:id", safeDomainHandler.DeleteSafeDomain)
-		guarded.Post("/admin/safe-domains/reset-defaults", safeDomainHandler.ResetDefaultSafeDomains)
+		guarded.Get("/admin/safe-domains", sysManage, safeDomainHandler.GetAdminSafeDomains)
+		guarded.Post("/admin/safe-domains", sysManage, safeDomainHandler.CreateSafeDomain)
+		guarded.Put("/admin/safe-domains/:id", sysManage, safeDomainHandler.UpdateSafeDomain)
+		guarded.Delete("/admin/safe-domains/:id", sysManage, safeDomainHandler.DeleteSafeDomain)
+		guarded.Post("/admin/safe-domains/reset-defaults", sysManage, safeDomainHandler.ResetDefaultSafeDomains)
 	}
 
 	// 8.1 Dedicated Platform Admin API Group (Granular RBAC Protected)
