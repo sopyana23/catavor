@@ -5301,6 +5301,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const mobileIsFetchingTicketDetailsRef = useRef<boolean>(false);
   const mobileCheckAuthResponseRef = useRef<((res: Response, data?: any) => boolean) | null>(null);
   const mobileHandleStoreBannedEvictionRef = useRef<((bannedSlug?: string, customMessage?: string) => void) | null>(null);
+  // checkTokenValidity dideklarasikan setelah effect resync, jadi aksesnya via ref
+  const mobileCheckTokenValidityRef = useRef<((force?: boolean) => void) | null>(null);
   const mobileTicketReplyDebounceRef = useRef<any>(null);
   const mobileRecentNotifEventsRef = useRef<Set<string>>(new Set());
   const mobileLastStoreStatusToastTimeRef = useRef<number>(0);
@@ -10833,17 +10835,36 @@ Terima kasih atas perhatian dan kerja samanya.`;
   }, [token, isSuspendedAccountState]);
 
   // Window Focus & Visibility Passive Revalidation (Mobile)
+  // Dua tingkat: >60 detik segarkan kuota ringan; >5 menit lakukan resync penuh
+  // (validasi token, tiket/support, notifikasi) karena SSE yang putus saat tab
+  // hidden bisa membuat user melihat data basi.
   useEffect(() => {
     let lastFocusSync = Date.now();
+    const IDLE_LIGHT_MS = 60000;
+    const IDLE_DEEP_MS = 5 * 60 * 1000;
+
     const handleVisibilityOrFocus = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       const now = Date.now();
-      // Only revalidate if user was away for > 60 seconds
-      if (now - lastFocusSync > 60000) {
-        lastFocusSync = now;
-        if (token && !isSuspendedAccountState && !checkIsStoreSuspended(storeSlug)) {
-          fetchMyQuota();
+      const away = now - lastFocusSync;
+      if (away <= IDLE_LIGHT_MS) return;
+      lastFocusSync = now;
+
+      const canSync = token && !isSuspendedAccountState && !checkIsStoreSuspended(storeSlug);
+      if (!canSync) return;
+
+      fetchMyQuota();
+
+      if (away > IDLE_DEEP_MS) {
+        // Resync penuh: token bisa kedaluwarsa selama idle, dan stream SSE
+        // mungkin sudah mati tanpa event yang terlihat.
+        if (typeof mobileCheckTokenValidityRef.current === 'function') {
+          mobileCheckTokenValidityRef.current(true);
         }
+        if (adminSubTab === 'help') {
+          fetchSupportTickets(true, ticketPage);
+        }
+        fetchNotificationsFromBackend(1, false);
       }
     };
     window.addEventListener('focus', handleVisibilityOrFocus);
@@ -10957,7 +10978,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   // Proactive token verification & expired session check (Throttled 60 detik untuk efisiensi resource)
   useEffect(() => {
     let lastChecked = 0;
-    const THROTTLE_MS = 4000; // Minimal jeda 4 detik antar verifikasi token di background agar responsif saat kembali ke tab
+    const THROTTLE_MS = 60000; // Minimal jeda 60 detik antar verifikasi token di background (samakan dengan desktop)
 
     const checkTokenValidity = async (force: boolean = false) => {
       const now = Date.now();
@@ -11032,6 +11053,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
       checkTokenValidity(true);
     }
 
+    // Ekspos ke effect resync idle (>5 menit) yang dideklarasikan lebih awal.
+    mobileCheckTokenValidityRef.current = (force?: boolean) => {
+      void checkTokenValidity(force === true);
+    };
+
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible' && localStorage.getItem('catavor_token')) {
         checkTokenValidity(false);
@@ -11046,7 +11072,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
       window.removeEventListener('focus', handleVisibilityOrFocus);
     };
   }, [token]);
-
   // Industry Best Practice: Cross-Tab Session & Store Synchronization
   useEffect(() => {
     const unsubscribe = subscribeAuthSync((event) => {

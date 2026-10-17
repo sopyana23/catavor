@@ -5452,6 +5452,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const desktopFetchTicketDetailsRef = useRef<((id: string | number) => void) | null>(null);
   const desktopFetchSupportTicketsRef = useRef<((silent?: boolean, page?: number) => void) | null>(null);
   const desktopFetchTicketsPingRef = useRef<(() => void) | null>(null);
+  // checkTokenValidity dideklarasikan setelah effect resync idle, jadi via ref
+  const desktopCheckTokenValidityRef = useRef<((force?: boolean) => void) | null>(null);
   const desktopIsFetchingTicketsRef = useRef<boolean>(false);
   const desktopLastTicketsFetchTimeRef = useRef<number>(0);
   const desktopIsFetchingTicketDetailsRef = useRef<string | number | null>(null);
@@ -10696,24 +10698,43 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   }, [token, isStoreOwner, view, isSuspendedAccount]);
 
-  // Window Focus Passive Revalidation (Industry Best Practice)
+  // Window Focus & Visibility Passive Revalidation (Industry Best Practice)
+  // Dua tingkat: >60 detik segarkan kuota ringan; >5 menit resync penuh
+  // (validasi token, tiket/support, notifikasi) karena SSE yang putus saat tab
+  // hidden bisa membuat user melihat data basi.
   useEffect(() => {
     let lastFocusSync = Date.now();
+    const IDLE_LIGHT_MS = 60000;
+    const IDLE_DEEP_MS = 5 * 60 * 1000;
+
     const handleWindowFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       const now = Date.now();
-      // Only revalidate if user was away for > 60 seconds
-      if (now - lastFocusSync > 60000) {
-        lastFocusSync = now;
-        if (token && isStoreOwner && view === 'admin' && !isSuspendedAccount) {
-          fetchMyQuota();
+      const away = now - lastFocusSync;
+      if (away <= IDLE_LIGHT_MS) return;
+      lastFocusSync = now;
+
+      if (token && isStoreOwner && view === 'admin' && !isSuspendedAccount) {
+        fetchMyQuota();
+      }
+
+      if (away > IDLE_DEEP_MS && token && !isSuspendedAccount) {
+        if (typeof desktopCheckTokenValidityRef.current === 'function') {
+          desktopCheckTokenValidityRef.current(true);
         }
+        if (adminTab === 'help') {
+          fetchSupportTickets(true);
+        }
+        fetchNotificationsFromBackend(1, false);
       }
     };
     window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleWindowFocus);
     return () => {
       window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleWindowFocus);
     };
-  }, [token, isStoreOwner, view, isSuspendedAccount]);
+  }, [token, isStoreOwner, view, isSuspendedAccount, adminTab]);
 
   // Global API Unauthorized session interception
   useEffect(() => {
@@ -10850,6 +10871,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (token) {
       checkTokenValidity(true);
     }
+
+    // Ekspos ke effect resync idle (>5 menit) yang dideklarasikan lebih awal.
+    desktopCheckTokenValidityRef.current = (force?: boolean) => {
+      void checkTokenValidity(force === true);
+    };
 
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible' && localStorage.getItem('catavor_token')) {
