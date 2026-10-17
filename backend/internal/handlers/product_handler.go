@@ -181,9 +181,17 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 		database.DB.Model(&product).UpdateColumn("view_count", gormExpr("view_count + 1"))
 	}
 
+	// SECURITY (N-08): jangan kirim models.Store mentah ke endpoint publik.
+	// Relasi Store memuat data operasional internal (is_blacklisted,
+	// suspension_reason, plan, storage_used_bytes, dormancy_status, user_id)
+	// yang tidak boleh dibaca pengunjung anonim.
+	publicStore := product.Store.ToPublicView()
+	product.Store = nil
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    product,
+		"store":   publicStore,
 	})
 }
 
