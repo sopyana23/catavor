@@ -104,6 +104,25 @@ func RequireAnyPermission(cfg *config.Config, permissions ...string) fiber.Handl
 	}
 }
 
+// PlatformStaffRoles adalah daftar TUNGGAL role staf platform yang sah.
+// SECURITY (N-05): dipakai sebagai whitelist eksplisit. Sebelumnya RequireAdmin
+// hanya menolak "" dan "merchant" sehingga string role apa pun (mis. typo atau
+// nilai sisa migrasi) otomatis dianggap admin — fail-open.
+// Nilai di bawah diverifikasi terhadap data nyata di tabel users.platform_role.
+var PlatformStaffRoles = map[string]struct{}{
+	"superadmin": {},
+	"support":    {},
+	"compliance": {},
+	"finance":    {},
+	"content":    {},
+}
+
+// IsPlatformStaffRole melaporkan apakah role (case-insensitive) termasuk staf platform.
+func IsPlatformStaffRole(role string) bool {
+	_, ok := PlatformStaffRoles[strings.ToLower(strings.TrimSpace(role))]
+	return ok
+}
+
 // RequireAdmin ensures the user is a platform admin (not a regular merchant).
 func RequireAdmin(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -125,8 +144,8 @@ func RequireAdmin(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		role := strings.ToLower(strings.TrimSpace(user.PlatformRole))
-		if role == "" || role == "merchant" {
+		// SECURITY (N-05): whitelist eksplisit, bukan blacklist.
+		if !IsPlatformStaffRole(user.PlatformRole) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"code":    "FORBIDDEN_ADMIN_ONLY",
