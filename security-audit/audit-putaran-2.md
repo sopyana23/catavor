@@ -20,8 +20,11 @@ Putaran pertama menutup 12 temuan dengan benar (diverifikasi ulang). Namun audit
 | N-03 | Path traversal pada `DELETE /api/storage/file` → hapus file lintas-tenant | **TINGGI** | Terbuka, terbukti dinamis | **TERTUTUP** `b4d9b19` |
 | N-04 | `token_version` check bisa dilewati dengan `claims.TokenVersion = 0` | **SEDANG** | Terbuka | **TERTUTUP** `8128290` |
 | N-05 | Service layer RBAC tanpa cek aktor (pertahanan tunggal di route) | **SEDANG** | Defense-in-depth | **TERTUTUP** `8128290` |
+| N-06 | 20 rute platform hanya `AuthRequired` → merchant baca tulis area platform | **TINGGI** | Terbuka, terbukti dinamis | **TERTUTUP** `2d1e1a8` |
 
-**Status: 5/5 temuan putaran kedua ditutup dan diverifikasi ulang.** Rincian verifikasi ada di bagian "Verifikasi Penutupan" di akhir dokumen.
+**Status: 6/6 temuan putaran kedua ditutup dan diverifikasi ulang.**
+
+> N-06 ditemukan **setelah** N-01…N-05 ditutup, saat menguji login e2e memakai akun test merchant yang baru dibuat. Sebelumnya tidak terdeteksi karena belum ada akun merchant ber-role rendah untuk menguji jalur otorisasi.
 
 ---
 
@@ -179,6 +182,58 @@ Terkait: `middleware.RequireAdmin` hanya menolak `""` dan `"merchant"` — strin
 ### Rekomendasi
 
 Tambahkan cek aktor di service layer (pertahanan berlapis), dan ubah `RequireAdmin` menjadi whitelist eksplisit role yang diizinkan.
+
+---
+
+## N-06 — TINGGI: 20 Rute Platform Hanya Memakai `AuthRequired`
+
+Ditemukan pada 2026-10-18 saat menguji login e2e dengan akun test `merchant`.
+Ini kelas bug yang **tidak bisa terdeteksi** oleh audit statis N-01…N-05 karena
+membutuhkan sesi sah ber-role rendah untuk membuktikannya.
+
+### Akar masalah
+
+`main.go` punya dua grup berbeda tingkat keamanan:
+
+- `adminApi := api.Group("/admin", AuthRequired, RequireAdmin)` — benar, ber-RBAC.
+- `guarded := api.Group("", AuthRequired)` — **hanya** mewajibkan login.
+
+Sejumlah rute ber-prefix `/admin/` (dan beberapa alias tanpa prefix) didaftarkan
+di `guarded`, sehingga izin tidak pernah diperiksa.
+
+### Bukti dinamis (akun `role=merchant`, sebelum perbaikan)
+
+| Permintaan | Hasil | Dampak |
+|---|---|---|
+| `GET /api/admin/support/tickets` | **200** | membaca 20 tiket **semua tenant** |
+| `GET /api/admin/support/templates` | **200** | membaca canned response platform |
+| `POST /api/admin/support/templates` | **201** | **membuat** template platform (id 16, sudah dihapus) |
+| `GET /api/admin/users/search` | **200** | email + `platform_role` seluruh staf |
+| `GET /api/admin/stores/search` | **200** | email pemilik toko lain |
+| `GET /api/admin/market-intelligence` | **200** | data agregat platform |
+| `GET /api/admin/audit-logs`, `/safe-domains`, `/automation/logs` | **200** | log & konfigurasi platform |
+
+Catatan penting: CSRF **bukan** penghalang di sini. Dengan header `Origin` yang
+sah (mis. `http://localhost:8000`), `POST` yang sama langsung diterima `201`.
+CSRF melindungi dari situs pihak ketiga, bukan dari pengguna yang sudah login.
+
+### Perbaikan
+
+20 rute dikunci dengan `RequirePermission` sesuai izin masing-masing:
+`support:tickets:read`, `support:tickets:reply`, `system:admins:manage`,
+`content:broadcast:send`, `audit:logs:read`, `market_intel:manage`.
+
+Sengaja **tidak** dikunci karena memang area merchant: `/admin/analytics`,
+`/admin/analytics/products`, `/admin/categories`, `/activity-logs`.
+
+### Verifikasi setelah perbaikan
+
+| Peran | Rute | Hasil |
+|---|---|---|
+| merchant | 11 rute platform (baca + tulis) | **403** semua |
+| support | `/admin/support/tickets`, `/templates` | **200** (staf tetap bisa kerja) |
+| support | `/admin/users/search`, `/safe-domains`, `/market-intelligence`, `/audit-logs` | **403** (tidak over-blocking) |
+| merchant | `/admin/analytics`, `/admin/analytics/products`, `/admin/categories` | **200** (fitur sah tetap jalan) |
 
 ---
 
