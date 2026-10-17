@@ -17,6 +17,7 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 	"catavor-backend/internal/storage"
@@ -198,10 +199,25 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	var isStaffUser bool = false
 	if userVal, ok := c.Locals("user").(*models.User); ok && userVal != nil {
 		userID = userVal.ID
-		isStaffUser = strings.EqualFold(userVal.PlatformRole, "superadmin") ||
-			strings.EqualFold(userVal.PlatformRole, "support") ||
-			strings.EqualFold(userVal.PlatformRole, "admin") ||
-			userVal.Email == "admin@catavor.com"
+		// SECURITY (N-09): gunakan whitelist peran platform terpusat, bukan
+		// daftar string manual. Sebelumnya "compliance", "finance" dan
+		// "content" tidak dianggap staf, sehingga staf sah bisa ikut terkena
+		// jalur kuota toko / dianggap merchant.
+		isStaffUser = middleware.IsPlatformStaffRole(userVal.PlatformRole)
+	}
+
+	// SECURITY (N-09): unggahan ke namespace platform (platform/branding,
+	// platform/partners) adalah wewenang staf platform. Sebelumnya merchant
+	// bisa mengunggah ke sana: tidak ada cek peran, dan isPlatformScope
+	// membuat berkas TIDAK dihitung kuota penyimpanan (bypass kuota), serta
+	// mencemari aset branding platform. Hapus (DeleteFile) sudah menolak,
+	// sehingga unggah harus menolak juga (simetris).
+	if isPlatformScope && !isStaffUser {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "PLATFORM_SCOPE_FORBIDDEN",
+			"message": "Unggahan aset platform hanya diizinkan untuk staf platform.",
+		})
 	}
 
 	var storeID uint = 0
