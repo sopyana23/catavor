@@ -11,7 +11,7 @@ Server **menolak start** bila salah satu terlanggar — bukan sekadar warning:
 
 | Guard | Perilaku | Lokasi |
 |---|---|---|
-| `JWT_SECRET` default atau < 32 karakter | `log.Fatal` di production/staging | `config/config.go:106` |
+| `JWT_SECRET` kosong, < 32 karakter, atau masih memakai nilai default lama yang sudah bocor | `log.Fatal` di SEMUA environment (fail closed) | `config/config.go` |
 | `DB_SSLMODE=disable` di production/staging | `log.Fatal` | `config/config.go:122` |
 | Redis tidak tersedia di production | fail closed (token blacklist & rate limit butuh Redis) | `database/redis.go` |
 | `JWT_EXPIRATION_HOURS > 24` di production/staging | `log.Fatal` (disarankan 12) | `config/config.go:88` |
@@ -21,7 +21,7 @@ Verifikasi manual:
 
 ```bash
 # harus GAGAL start
-APP_ENV=production JWT_SECRET=***REMOVED*** \
+APP_ENV=production JWT_SECRET="$(openssl rand -hex 32)" \
   DB_SSLMODE=require ./catavor-server.exe
 ```
 

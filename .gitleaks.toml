@@ -12,6 +12,5 @@ paths = [
   '''legacy/laravel/composer\.lock'''
 ]
 regexes = [
-  '''***REMOVED***_2026_enterprise_saas''',
   '''847403664953-ef7k9h5n99mtlnbdpr4a6300dt83efk5\.apps\.googleusercontent\.com'''
 ]

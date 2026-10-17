@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -104,20 +105,41 @@ func LoadConfig() *Config {
 			Int("jwt_expiration_hours", jwtHours).
 			Msg("JWT_EXPIRATION_HOURS > 24 jam: tidak aman untuk production (hanya wajar untuk local/dev).")
 	}
-	jwtSecret := getEnv("JWT_SECRET", "***REMOVED***")
+	// SECURITY (N-01): TIDAK ADA default secret lagi.
+	// Sebelumnya nilai fallback hardcoded ini ikut commit ke repo (.env.example,
+	// README, docs) sehingga siapa pun bisa memalsukan JWT superadmin. Default
+	// yang diketahui publik = tidak ada autentikasi sama sekali.
+	// Kini JWT_SECRET WAJIB di-set eksplisit di semua environment.
+	jwtSecret := strings.TrimSpace(getEnv("JWT_SECRET", ""))
+	if jwtSecret == "" {
+		log.Fatal().
+			Str("environment", strings.ToUpper(appEnv)).
+			Msg("JWT_SECRET wajib di-set dan tidak boleh kosong. " +
+				"Generate dengan 'openssl rand -hex 32' lalu set JWT_SECRET di file .env.")
+	}
+	if len(jwtSecret) < 32 {
+		log.Fatal().
+			Str("environment", strings.ToUpper(appEnv)).
+			Int("secret_length", len(jwtSecret)).
+			Msg("JWT_SECRET terlalu pendek: minimal 32 karakter (256-bit). " +
+				"Generate dengan 'openssl rand -hex 32' lalu set JWT_SECRET.")
+	}
 
-	// OWASP ASVS / NIST SP 800-63B: Audit validation for JWT secret key in production/staging
-	const defaultJWTSecret = "***REMOVED***"
-	if appEnv == "production" || appEnv == "staging" || appEnv == "prod" {
-		if jwtSecret == defaultJWTSecret || len(jwtSecret) < 32 {
-			// SECURITY (L4): SECRET DEFAULT = siapa pun bisa memalsukan JWT
-			// (ambil alih akun apa pun, termasuk superadmin). Dulu hanya warning,
-			// kini FAIL CLOSED di production/staging: tolak start.
+	// Nilai default lama yang sudah bocor di riwayat git. Tetap ditolak walau
+	// operator menyalinnya kembali, karena nilainya harus dianggap kompromi.
+	// Dicocokkan lewat SHA-256 agar string secret-nya sendiri TIDAK ditulis ulang
+	// di source (menulis nilai bocor di kode = leak baru, dan memicu scanner).
+	leakedLegacyJWTSecrets := []string{
+		"ce44cdfdb3832af3da3e29ca1e2d8abf0e4d882faa4205dbc8e2888c9b1ab9a0",
+		"7b247fda216a97b4b91649247db133fde5a5e7b9bf0ec6175a81eeeb710a7d91",
+	}
+	secretHash := fmt.Sprintf("%x", sha256.Sum256([]byte(jwtSecret)))
+	for _, leaked := range leakedLegacyJWTSecrets {
+		if secretHash == leaked {
 			log.Fatal().
 				Str("environment", strings.ToUpper(appEnv)).
-				Int("secret_length", len(jwtSecret)).
-				Msg("JWT_SECRET tidak aman: jangan pakai default dan minimal 32 karakter (256-bit). " +
-					"Generate dengan 'openssl rand -hex 32' lalu set JWT_SECRET.")
+				Msg("JWT_SECRET memakai nilai default lama yang sudah bocor di riwayat git. " +
+					"Rotasi ke nilai acak baru: 'openssl rand -hex 32'.")
 		}
 	}
 

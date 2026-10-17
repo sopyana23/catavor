@@ -155,7 +155,7 @@ DB_PASSWORD=postgres
 DB_NAME=catavor
 DB_SSLMODE=disable
 
-JWT_SECRET=***REMOVED***_2026_enterprise_saas
+JWT_SECRET=<generate-dengan-openssl-rand-hex-32>
 
 STORAGE_DIR=../public/storage
 DESKTOP_DIST_DIR=../public/desktop
