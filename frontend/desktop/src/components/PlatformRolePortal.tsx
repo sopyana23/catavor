@@ -2102,10 +2102,28 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     let reconnectTimeout: any = null;
     let isUnmounted = false;
 
-    const connectSSE = () => {
+    const connectSSE = async () => {
       if (isUnmounted) return;
       try {
-        const streamUrl = `/api/notifications/stream?token=${encodeURIComponent(token)}`;
+        // SECURITY (M1/SSE): jangan taruh JWT di URL — tukar sesi cookie
+        // dengan tiket sekali pakai (30 detik) sebelum membuka stream.
+        const tkRes = await fetch('/api/notifications/ticket', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (tkRes.status === 401) {
+          // Sesi habis — jangan buka stream, biarkan lapisan auth menangani.
+          console.warn('SSE: sesi tidak valid, tiket tidak diterbitkan');
+          return;
+        }
+        if (!tkRes.ok) throw new Error(`ticket ${tkRes.status}`);
+        const tkJson = await tkRes.json();
+        const streamTicket = String((tkJson && (tkJson.ticket || (tkJson.data && tkJson.data.ticket))) || '');
+        if (!streamTicket) throw new Error('tiket kosong');
+        if (isUnmounted) return;
+
+        const streamUrl = `/api/notifications/stream?ticket=${encodeURIComponent(streamTicket)}`;
         eventSource = new EventSource(streamUrl);
 
         eventSource.onmessage = (e) => {

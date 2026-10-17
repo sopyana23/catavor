@@ -94,6 +94,26 @@ pakai" palsu selama cookie hidup.
 Cookie sengaja tidak dipakai sebagai cadangan. Middleware langsung `c.Next()`
 setelah membangun konteks dari tiket, dan menolak 401 bila tiket tidak sah.
 
+### Temuan ketiga: stream kedua yang terlewat
+
+Pemeriksaan bundle produksi (bukan hanya source) mengungkap bahwa
+`?token=` **masih ada di bundle** meski `App.tsx` sudah bersih. Penyebabnya:
+`components/PlatformRolePortal.tsx` di desktop dan mobile punya **koneksi SSE
+kedua** untuk portal support/compliance yang juga membawa JWT di URL.
+
+Pencarian awal hanya menyapu `App.tsx` — itu kelalaian, dan hanya tertangkap
+karena bundle ikut diperiksa. Keduanya sudah diperbaiki dan kini memakai tiket.
+Verifikasi akhir: `stream?token=` = **0** di sumber maupun bundle aktif.
+
+### Temuan keempat: bundle yatim di direktori statis
+
+`public/desktop/assets` dan `public/mobile/assets` menyimpan bundle hasil build
+lama yang tidak lagi dirujuk `index.html` namun **tetap disajikan** oleh
+`app.Static("/desktop", ...)`. Dua di antaranya masih memuat JWT-di-URL,
+sehingga kode rentan bisa diambil langsung lewat URL selama file itu ada.
+Bundle yatim (`.js` dan `.fiber.gz`) sudah dihapus; `index.html` dan bundle
+aktif kini sinkron dan bersih.
+
 ---
 
 ## 5. Verifikasi
@@ -141,8 +161,10 @@ bogusTicketWithCookie   401      cookie tak menyelamatkan tiket palsu
 tsc -b desktop   0
 tsc -b mobile    0
 vite build       0 (keduanya)
-grep 'stream?token=' → 0 hasil
-panggilan /api/notifications/ticket → 1 per platform
+grep 'stream?token=' → 0 hasil (seluruh source, bukan hanya App.tsx)
+bundle aktif  → stream?token= 0, stream?ticket= 2, endpoint tiket 2
+bundle yatim  → tidak ada (yang tersisa = yang dirujuk index.html)
+curl bundle lama → 404/SPA fallback, tidak lagi menyajikan kode rentan
 ```
 
 ### E2E Playwright
