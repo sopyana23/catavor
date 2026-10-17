@@ -11,53 +11,131 @@
       "location": "backend/internal/handlers/auth_handler.go:1555",
       "endpoint": "SendRegistrationOTP",
       "impact": "Information disclosure; raw request body echoed to HTTP response",
-      "fix": "Generic message to client, detail to server log only"
+      "fix": "Generic message to client, detail to server log only",
+      "status": "fixed",
+      "resolution": "err.Error() tidak lagi dikirim mentah; diverifikasi 0 pola di handlers/middleware"
     },
     {
       "id": "H2",
       "severity": "high",
       "title": "Vulnerable dependencies (active CVEs)",
       "packages": [
-        {"name": "github.com/gofiber/fiber/v2", "version": "v2.52.5", "cve": ["CVE-2025-66630", "CVE-2025-48075"], "fix_version": "latest 2.52.x"},
-        {"name": "github.com/golang-jwt/jwt/v5", "version": "v5.2.1", "cve": ["CVE-2025-30204"], "fix_version": ">=5.2.2"},
-        {"name": "github.com/go-playground/validator/v10", "version": "v10.23.0", "cve": [], "fix_version": "latest"}
+        {
+          "name": "github.com/gofiber/fiber/v2",
+          "version": "v2.52.5",
+          "cve": [
+            "CVE-2025-66630",
+            "CVE-2025-48075"
+          ],
+          "fix_version": "latest 2.52.x"
+        },
+        {
+          "name": "github.com/golang-jwt/jwt/v5",
+          "version": "v5.2.1",
+          "cve": [
+            "CVE-2025-30204"
+          ],
+          "fix_version": ">=5.2.2"
+        },
+        {
+          "name": "github.com/go-playground/validator/v10",
+          "version": "v10.23.0",
+          "cve": [],
+          "fix_version": "latest"
+        }
       ],
-      "fix": "go get -u ...; go mod tidy; govulncheck ./..."
+      "fix": "go get -u ...; go mod tidy; govulncheck ./...",
+      "status": "fixed",
+      "resolution": "govulncheck Go 1.26.9: 'No vulnerabilities found', 0 affected"
     },
     {
       "id": "M1",
       "severity": "medium",
       "title": "JWT stored in localStorage",
       "location": "frontend/desktop/src/utils/apiClient.ts:106 (and App.tsx)",
-      "impact": "Single XSS = full account takeover"
+      "impact": "Single XSS = full account takeover",
+      "status": "fixed",
+      "resolution": "cookie HttpOnly + CSRF + tiket SSE sekali pakai; lihat perbaikan-m1-penuh.md"
     },
     {
       "id": "M2",
       "severity": "medium",
       "title": "Weak CSP (unsafe-inline, unsafe-eval in script-src)",
       "location": "backend/internal/middleware/security.go:37",
-      "impact": "CSP XSS protection largely nullified; wildcard img-src/connect-src"
+      "impact": "CSP XSS protection largely nullified; wildcard img-src/connect-src",
+      "status": "fixed",
+      "resolution": "CSP pakai SHA-256 hash, tanpa unsafe-eval; lihat perbaikan-m2-csp.md"
     },
     {
       "id": "M3",
       "severity": "medium",
       "title": "Security state in-memory (bypass on restart / multi-instance)",
       "location": "backend/internal/database/redis.go:282-418; middleware/security.go:90,120,137",
-      "impact": "Without Redis: logout blacklist, login lockout, rate limit reset on restart; per-instance counters in multi-replica"
+      "impact": "Without Redis: logout blacklist, login lockout, rate limit reset on restart; per-instance counters in multi-replica",
+      "status": "fixed",
+      "resolution": "fail closed di production: startup, blacklist JWT, lockout login"
     },
     {
       "id": "M4",
       "severity": "medium",
       "title": "err.Error() leaked to client in many handlers",
-      "location": ["analytics_handler.go:1105,1124,1135", "notification_handler.go:1273-1300", "dormancy_handler.go:105"],
-      "impact": "Internal error detail disclosure"
+      "location": [
+        "analytics_handler.go:1105,1124,1135",
+        "notification_handler.go:1273-1300",
+        "dormancy_handler.go:105"
+      ],
+      "impact": "Internal error detail disclosure",
+      "status": "fixed",
+      "resolution": "safe_error.go; respons error generik"
     },
-    {"id": "L1", "severity": "low", "title": "Potential path traversal / ambiguous LIKE lookup", "location": "support_handler.go:2312"},
-    {"id": "L2", "severity": "low", "title": "Regex-based SanitizeRichText (blacklist, bypassable)", "location": "security/sanitizer.go"},
-    {"id": "L3", "severity": "low", "title": "CORS AllowCredentials true (ensure no wildcard origin in prod)", "location": "middleware/security.go:57"},
-    {"id": "L4", "severity": "low", "title": "Default JWT secret only warns, no fatal in production", "location": "config/config.go:82"},
-    {"id": "L5", "severity": "low", "title": "err.Error() in dormancy_handler.go:49", "location": "dormancy_handler.go:49"},
-    {"id": "L6", "severity": "low", "title": "DB_SSLMODE=disable in .env", "location": ".env"}
+    {
+      "id": "L1",
+      "severity": "low",
+      "title": "Potential path traversal / ambiguous LIKE lookup",
+      "location": "support_handler.go:2312",
+      "status": "fixed",
+      "resolution": "escape wildcard LIKE; kode auth_handler"
+    },
+    {
+      "id": "L2",
+      "severity": "low",
+      "title": "Regex-based SanitizeRichText (blacklist, bypassable)",
+      "location": "security/sanitizer.go",
+      "status": "fixed",
+      "resolution": "sanitizer allowlist parser (x/net/html), bukan regex blacklist"
+    },
+    {
+      "id": "L3",
+      "severity": "low",
+      "title": "CORS AllowCredentials true (ensure no wildcard origin in prod)",
+      "location": "middleware/security.go:57",
+      "status": "fixed",
+      "resolution": "wildcard origin ditolak, AllowCredentials hanya untuk origin eksplisit"
+    },
+    {
+      "id": "L4",
+      "severity": "low",
+      "title": "Default JWT secret only warns, no fatal in production",
+      "location": "config/config.go:82",
+      "status": "fixed",
+      "resolution": "JWT secret default/panjang<32 -> log.Fatal di production/staging"
+    },
+    {
+      "id": "L5",
+      "severity": "low",
+      "title": "err.Error() in dormancy_handler.go:49",
+      "location": "dormancy_handler.go:49",
+      "status": "fixed",
+      "resolution": "dormancy_handler tidak lagi memakai err.Error()"
+    },
+    {
+      "id": "L6",
+      "severity": "low",
+      "title": "DB_SSLMODE=disable in .env",
+      "location": ".env",
+      "status": "fixed",
+      "resolution": "fail closed di production; .env.example kini mencontohkan require"
+    }
   ],
   "verified_ok": [
     "No SQL injection (all GORM parameterized; raw SQL is static DDL/migration only)",

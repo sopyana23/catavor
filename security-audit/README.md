@@ -1,11 +1,14 @@
 # Audit Keamanan — DFauna / Catavor
 
+> **Status: 12/12 temuan tertutup.** Lihat [STATUS-AKHIR.md](STATUS-AKHIR.md) untuk ringkasan + cara verifikasi ulang.
+
 Read-only audit. Tidak ada perubahan kode dari proses audit.
 
 ## Laporan utama
 
 | File | Isi |
 |---|---|
+| [STATUS-AKHIR.md](STATUS-AKHIR.md) | **Ringkasan akhir 12/12 temuan + cara verifikasi ulang** |
 | [security-audit-report.md](security-audit-report.md) | Audit #1 — keamanan aplikasi (OWASP), 2 HIGH / 4 MED / 6 LOW |
 | [security-audit-report-update.md](security-audit-report-update.md) | **Re-audit** — status temuan lama + permukaan baru commit `0fd2143` |
 | [perbaikan-h1-h2.md](perbaikan-h1-h2.md) | **Eksekusi H1 & H2** — CVE bump + body leak fix (terverifikasi runtime) |
