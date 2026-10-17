@@ -69,6 +69,14 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 		allowedOrigins = "http://localhost:8000, http://127.0.0.1:8000, http://localhost:5173, http://localhost:3000, http://127.0.0.1:5173"
 	}
 
+	// Daftar origin untuk pemeriksaan CSRF (dipisah koma -> slice).
+	csrfOrigins := make([]string, 0, 8)
+	for _, o := range strings.Split(allowedOrigins, ",") {
+		if t := strings.TrimSpace(o); t != "" {
+			csrfOrigins = append(csrfOrigins, t)
+		}
+	}
+
 	// SECURITY (L3): AllowCredentials=true + origin wildcard = browser menolak,
 	// tapi kalau lolos ke proxy bisa jadi celah. Di non-local, wildcard dilarang
 	// keras dan AllowCredentials hanya aktif bila origin eksplisit (bukan "*").
@@ -93,6 +101,10 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 		AllowCredentials: allowCredentials,
 		MaxAge:           86400,
 	}))
+
+	// SECURITY (M1/CSRF): lapisan kedua setelah SameSite=Strict — tolak
+	// permintaan yang mengubah data bila Origin/Referer bukan origin kita.
+	app.Use(CSRFProtection(csrfOrigins))
 
 	// 5. Zero-Allocation Structured Logger
 	app.Use(func(c *fiber.Ctx) error {

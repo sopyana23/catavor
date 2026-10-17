@@ -80,6 +80,19 @@ func main() {
 	}
 
 	// Cabut semua sesi aktif user ini: password berganti = token lama harus mati.
+	//
+	// PENTING: selain menandai user_sessions, token_version di users WAJIB
+	// dinaikkan. Middleware auth membandingkan claims.TokenVersion dengan
+	// user.TokenVersion; tanpa kenaikan ini, JWT yang sudah diterbitkan tetap
+	// dianggap sah sampai kedaluwarsa — persis skenario yang harus dicegah
+	// saat kredensial bocor. Alur reset password normal (auth_handler.go) juga
+	// menaikkan nilai ini, jadi skrip rotasi harus konsisten.
+	if err := database.DB.Model(&models.User{}).Where("id = ?", user.ID).
+		UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
+		fmt.Fprintf(os.Stderr, "gagal menaikkan token_version: %v\n", err)
+		os.Exit(1)
+	}
+
 	revoked := database.DB.Exec(
 		"UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL", user.ID)
 	if revoked.Error != nil {
