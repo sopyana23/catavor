@@ -342,15 +342,36 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		})
 	}
 
-	expectedPrefix := fmt.Sprintf("stores/%d/", store.ID)
-	if !strings.HasPrefix(cleanKey, expectedPrefix) {
+	// SECURITY (N-03): satu panggilan menutup dua kelas serangan sekaligus —
+	// (a) keluar dari storage root, dan (b) perpindahan antar-tenant di dalam root
+	// (mis. "stores/5/../../2/x"). Prefix diperiksa SETELAH normalisasi, jadi
+	// ".." tidak bisa dipakai untuk melewatinya.
+	absRoot, ok := services.GetStorageRootAbs()
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Konfigurasi penyimpanan tidak valid.",
+		})
+	}
+
+	expectedPrefix := fmt.Sprintf("stores/%d", store.ID)
+	targetPath, ok := services.ResolveInsidePrefix(absRoot, cleanKey, expectedPrefix)
+	if !ok {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Akses tidak sah: Anda hanya diizinkan menghapus file milik toko Anda sendiri.",
 		})
 	}
 
-	targetPath := filepath.Join(services.GetStorageRoot(), filepath.FromSlash(cleanKey))
+	// Gunakan key hasil normalisasi untuk operasi hapus (bukan input mentah).
+	relKey, err := filepath.Rel(absRoot, targetPath)
+	if err != nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses tidak sah: path file tidak valid.",
+		})
+	}
+	cleanKey = filepath.ToSlash(relKey)
 	_ = os.Remove(targetPath + ".fiber.gz")
 
 	if err := h.storage.Delete(c.Context(), cleanKey); err != nil {

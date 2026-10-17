@@ -723,6 +723,21 @@ func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	return GetStoreQuotaInfo(db, storeID)
 }
 
+// GetStorageRootAbs mengembalikan storage root sebagai path absolut.
+// SECURITY (N-03): ResolveInsideRoot membutuhkan root absolut yang sudah
+// dinormalisasi agar perbandingan relatif tidak bisa diakali.
+func GetStorageRootAbs() (string, bool) {
+	root := GetStorageRoot()
+	if root == "" {
+		return "", false
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", false
+	}
+	return abs, true
+}
+
 // GetStorageRoot returns the absolute directory for local storage
 func GetStorageRoot() string {
 	if config.AppConfig != nil && config.AppConfig.StorageLocalRoot != "" {
