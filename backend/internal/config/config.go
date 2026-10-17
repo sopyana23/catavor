@@ -15,6 +15,11 @@ type Config struct {
 	Port               string
 	AppEnv             string
 	AppURL             string
+	// TLS opsional: bila keduanya diisi, server listen HTTPS langsung
+	// (berguna untuk deploy tanpa reverse proxy). Bila kosong, TLS
+	// diterminasi di reverse proxy/LB dan server tetap HTTP.
+	TLSCertFile        string
+	TLSKeyFile         string
 	DBHost             string
 	DBPort             string
 	DBUser             string
@@ -133,6 +138,8 @@ func LoadConfig() *Config {
 		Port:               port,
 		AppEnv:             appEnv,
 		AppURL:             appURL,
+		TLSCertFile:        strings.TrimSpace(getEnv("TLS_CERT_FILE", "")),
+		TLSKeyFile:         strings.TrimSpace(getEnv("TLS_KEY_FILE", "")),
 		DBHost:             getEnv("DB_HOST", "127.0.0.1"),
 		DBPort:             getEnv("DB_PORT", "5432"),
 		DBUser:             getEnv("DB_USER", "postgres"),

@@ -178,6 +178,10 @@ func main() {
 
 	// 8. Register API Endpoints
 	app.Get("/ads.txt", settingHandler.GetAdsTxt)
+
+	// Health probe untuk load balancer / orchestrator (tanpa auth, tanpa detail internal)
+	app.Get("/healthz", handlers.LivenessHandler)
+	app.Get("/readyz", handlers.ReadinessHandler)
 	api := app.Group("/api", middleware.GlobalAPIRateLimiter())
 
 	// Public Modern Product & Category Endpoints
@@ -512,15 +516,28 @@ func main() {
 
 	// 10. Graceful Shutdown & Server Listen
 	listenAddr := fmt.Sprintf("0.0.0.0:%s", cfg.Port)
+	useTLS := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
+	scheme := "http"
+	if useTLS {
+		scheme = "https"
+	}
 
 	go func() {
-		if err := app.Listen(listenAddr); err != nil {
+		var err error
+		if useTLS {
+			// TLS langsung dari proses: dipakai bila tidak ada reverse proxy.
+			err = app.ListenTLS(listenAddr, cfg.TLSCertFile, cfg.TLSKeyFile)
+		} else {
+			err = app.Listen(listenAddr)
+		}
+		if err != nil {
 			log.Info().Err(err).Msg("Server shutting down")
 		}
 	}()
 
 	log.Info().
-		Str("address", fmt.Sprintf("http://localhost:%s", cfg.Port)).
+		Str("address", fmt.Sprintf("%s://localhost:%s", scheme, cfg.Port)).
+		Bool("tls", useTLS).
 		Str("environment", cfg.AppEnv).
 		Msg("Catavor Golang Server is LIVE and ready!")
 
