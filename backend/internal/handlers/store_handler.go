@@ -152,19 +152,16 @@ func IsReservedSlug(slug string) bool {
 	return false
 }
 
+// SECURITY/LOGIC (N-21): reserved-slug adalah aturan PENAMAAN, bukan syarat lookup.
+// Karena itu TIDAK diperiksa di sini — toko yang sudah terlanjur/tetap memakai slug
+// mengandung merek platform harus tetap dapat dibaca publik. Penolakan reserved
+// tetap ditegakkan di jalur tulis: Register, CreateStore, UpdateStore, dan CheckSlug.
 func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
 	if slug == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "Slug toko tidak valid.",
-		})
-	}
-
-	if IsReservedSlug(slug) {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"success": false,
-			"message": "Toko tidak ditemukan.",
 		})
 	}
 
@@ -252,12 +249,7 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 
 func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
-	if IsReservedSlug(slug) {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"success": false,
-			"message": "Toko tidak ditemukan.",
-		})
-	}
+	// N-21: reserved-slug hanya aturan penamaan (ditegakkan di jalur tulis), bukan lookup.
 
 	// Check if slug is blacklisted
 	var blacklistedFaunaCount int64
@@ -434,12 +426,7 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 // IndexProducts returns normalized catalog products with preloaded Category, Images, and Variants.
 func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
-	if IsReservedSlug(slug) {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"success": false,
-			"message": "Toko tidak ditemukan.",
-		})
-	}
+	// N-21: reserved-slug hanya aturan penamaan (ditegakkan di jalur tulis), bukan lookup.
 	// Check if slug is blacklisted
 	var blacklistedCount int64
 	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedCount)
@@ -689,12 +676,7 @@ func InvalidateStoreProfileCache(slug string) {
 // CatalogMetrics returns aggregated metrics (total counts, by_type, by_category, by_status, total_value) with Redis Cache-Aside.
 func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
-	if IsReservedSlug(slug) {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"success": false,
-			"message": "Toko tidak ditemukan.",
-		})
-	}
+	// N-21: reserved-slug hanya aturan penamaan (ditegakkan di jalur tulis), bukan lookup.
 
 	var store models.Store
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
