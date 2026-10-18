@@ -975,7 +975,7 @@ func seedCatalogItems(db *gorm.DB, stores map[string]models.Store) {
 		attrsJSON, _ := json.Marshal(item.Attributes)
 		detailsJSON, _ := json.Marshal(item.DetailedInfo)
 
-		fauna := models.Fauna{
+		fauna := models.Product{
 			StoreID:             item.StoreID,
 			Name:                item.Name,
 			ScientificName:      item.ScientificName,
@@ -1019,7 +1019,7 @@ func seedCatalogItems(db *gorm.DB, stores map[string]models.Store) {
 func seedArticlesAndComments(db *gorm.DB, storeID uint) {
 	articles := []models.Article{
 		{
-			StoreID:                  storeID,
+			StoreID:                  &storeID,
 			Title:                    "Panduan Memulai Katalog Digital Multi-Sektor di Era SaaS Modern",
 			Slug:                     "panduan-memulai-katalog-digital-multi-sektor-2026",
 			Content:                  "Di era perdagangan digital serba cepat saat ini, memiliki katalog online yang cepat, responsif, dan terintegrasi langsung dengan saluran komunikasi pelanggan (seperti WhatsApp) adalah kunci meningkatkan konversi penjualan.\n\n### 1. Keunggulan Single URL Catalog\nSetiap tenant bisnis memiliki identitas toko unik (slug URL) yang dapat dibagikan di bio Instagram, status WhatsApp, maupun kartu nama digital. Pelanggan tidak perlu mengunduh aplikasi tambahan untuk menjelajahi seluruh varian produk.\n\n### 2. Integrasi Multi-Channel WhatsApp\nFitur order generator otomatis merangkum detail nama produk, harga, dan tautan katalog ke dalam pesan WhatsApp siap kirim, memangkas waktu tanya-jawab berulang antara pembeli dan admin toko.",
@@ -1033,7 +1033,7 @@ func seedArticlesAndComments(db *gorm.DB, storeID uint) {
 			VerifyCommentEmailDomain: false,
 		},
 		{
-			StoreID:                  storeID,
+			StoreID:                  &storeID,
 			Title:                    "5 Tips Memilih Sepatu Lari yang Tepat untuk Menghindari Cedera",
 			Slug:                     "5-tips-memilih-sepatu-lari-yang-tepat",
 			Content:                  "Memilih sepatu lari bukan sekadar melihat warna atau model yang keren. Bentuk telapak kaki (pronation) dan jenis lintasan yang Anda tempuh sangat menentukan kenyamanan serta keselamatan sendi kaki Anda.\n\n### 1. Kenali Tipe Pronasi Kaki\nApakah kaki Anda bertipe Normal Arch, Flat Feet (Overpronation), atau High Arch (Underpronation)? Untuk pelari jarak jauh, bantalan empuk dan fleksibel seperti teknologi Ultraboost sangat disarankan.",

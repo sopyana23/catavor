@@ -67,7 +67,7 @@ func seedItemsForStore(db *gorm.DB, storeID uint) {
 		"max_order":        50,
 	})
 
-	foodItem := models.Fauna{
+	foodItem := models.Product{
 		StoreID:             storeID,
 		Name:                "Paket Nasi Bebek Bakar Madu Spesial Rempah",
 		ScientificName:      "",
@@ -105,7 +105,7 @@ func seedItemsForStore(db *gorm.DB, storeID uint) {
 		"max_order":         5,
 	})
 
-	serviceItem := models.Fauna{
+	serviceItem := models.Product{
 		StoreID:             storeID,
 		Name:                "Jasa Maintenance & Deep Cleaning Aquascape Tank",
 		ScientificName:      "",
@@ -142,7 +142,7 @@ func seedItemsForStore(db *gorm.DB, storeID uint) {
 		"max_order":     1,
 	})
 
-	digitalItem := models.Fauna{
+	digitalItem := models.Product{
 		StoreID:             storeID,
 		Name:                "E-Book Panduan Lengkap Aquascape & Biotop Indonesia",
 		ScientificName:      "",
@@ -181,7 +181,7 @@ func seedItemsForStore(db *gorm.DB, storeID uint) {
 		"certification":       "Sertifikat Kesehatan Ikan Karantina KKP",
 	})
 
-	faunaItem := models.Fauna{
+	faunaItem := models.Product{
 		StoreID:             storeID,
 		Name:                "Discus Pigeon Blood Red High Body 3.5 Inch",
 		ScientificName:      "Symphysodon aequifasciatus",
@@ -224,7 +224,7 @@ func seedItemsForStore(db *gorm.DB, storeID uint) {
 		"certification": "SNI & Glass Safety Certified",
 	})
 
-	physicalItem := models.Fauna{
+	physicalItem := models.Product{
 		StoreID:             storeID,
 		Name:                "Aquarium Crystal Clear Rimless Glass 60x30x36 cm (8mm)",
 		ScientificName:      "",
@@ -270,7 +270,7 @@ func seedItemsForStore(db *gorm.DB, storeID uint) {
 		"max_order":         1,
 	})
 
-	propertyItem := models.Fauna{
+	propertyItem := models.Product{
 		StoreID:             storeID,
 		Name:                "Rumah Minimalis Modern 2 Lantai Siap Huni - BSD City",
 		ScientificName:      "",
@@ -290,10 +290,49 @@ func seedItemsForStore(db *gorm.DB, storeID uint) {
 		UpdatedAt:           time.Now(),
 	}
 
-	// Insert all 6 sample items into database
-	items := []models.Fauna{foodItem, serviceItem, digitalItem, faunaItem, physicalItem, propertyItem}
+		// Sample 7: Tanaman Hias (Plant)
+	plantDetails, _ := json.Marshal(map[string]interface{}{
+		"shipping_terms":   "### Pengiraman & Perawatan\n- **Pengiriman**: Dikirim dalam pot plastik dengan packing aman (bubble wrap + stirofoam) untuk mencegah kerusakan akar dan daun selama perjalanan.\n- **Tips Perawatan**: Letakkan di tempat dengan cahaya terang tidak langsung (*bright indirect light*). Siram 2-3 kali seminggu, pastikan media tanam lembap tapi tidak tergenang air.",
+		"shipping_coverage": "Pengiriman Jabodetabek & kota besar via ekspedisi tanaman",
+	})
+
+	plantAttributes, _ := json.Marshal(map[string]interface{}{
+		"habitat":             "Hutan Tropis Asia Tenggara",
+		"growing_media":       "Cocopeat + pakis + arang sekam (1:1:1)",
+		"light_requirement":   "Cahaya terang tidak langsung",
+		"watering_frequency":  "2-3 kali seminggu",
+		"plant_size":          "Tinggi 30-45 cm, diameter pot 12 cm",
+		"plant_legality":      "Budidaya komersial, non-CITES",
+		"protection_status":   "Tidak dilindungi (jenis budidaya)",
+		"delivery_condition":  "Tanaman utuh dalam pot",
+		"min_order":           1,
+		"max_order":           10,
+	})
+
+	plantItem := models.Product{
+		StoreID:             storeID,
+		Name:                "Monstera Deliciosa Variegata - Tanaman Hias Premium",
+		ScientificName:      "Monstera deliciosa 'Albo Variegata'",
+		Class:               "Araceae (Keladi-keladian)",
+		Habitat:             "Hutan Tropis Asia Tenggara",
+		Diet:                "Fotosintesis",
+		ConservationStatus:  "Stok Terbatas",
+		Price:               750000,
+		MinOrder:            1,
+		IsShippingAvailable: true,
+		Description:         "Monstera Deliciosa Variegata adalah varian langka dari keluarga Araceae dengan pola warna putih-krem (*variegata*) yang kontras dengan hijau tua pada setiap helai daunnya. Tanaman ini berasal dari hasil budidaya komersial, bukan diambil dari alam liar, sehingga legal dan ramah lingkungan.\n\nSetiap tanaman dikirim dalam kondisi sehat dengan akar yang sudah tumbuh kokoh di media tanam. Daun sudah berlubang khas (*fenestration*) yang menunjukkan tanaman telah dewasa dan sehat. Merupakan pilihan sempurna untuk dekorasi interior ruangan dengan sentuhan tropis yang elegan.",
+		ImageURL:            "https://images.unsplash.com/photo-1614594975525-e45190c55d0b?auto=format&fit=crop&w=800&q=80",
+		ProductType:         "plant",
+		DetailedInfo:        datatypes.JSON(plantDetails),
+		Attributes:          datatypes.JSON(plantAttributes),
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
+	}
+
+// Insert all 7 sample items into database
+	items := []models.Product{foodItem, serviceItem, digitalItem, faunaItem, physicalItem, propertyItem, plantItem}
 	for _, item := range items {
-		var existing models.Fauna
+		var existing models.Product
 		if err := db.Where("store_id = ? AND name = ?", item.StoreID, item.Name).First(&existing).Error; err != nil {
 			if err := db.Create(&item).Error; err != nil {
 				fmt.Printf("Error creating item %s: %v\n", item.Name, err)

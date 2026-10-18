@@ -78,6 +78,8 @@ func main() {
 	authHandler := handlers.NewAuthHandler(cfg)
 	sessionHandler := handlers.NewSessionHandler(cfg)
 	storeHandler := handlers.NewStoreHandler(cfg)
+	// Muat cache master categories dari DB (single source of truth).
+	handlers.LoadMasterCategoryCache()
 	subscriptionHandler := handlers.NewSubscriptionHandler()
 	productHandler := handlers.NewProductHandler(cfg)
 	categoryHandler := handlers.NewCategoryHandler()
@@ -193,6 +195,7 @@ func main() {
 	api.Get("/products/:id", productHandler.Show)
 	api.Get("/products/:id/recommendations", productHandler.GetRecommendations)
 	api.Get("/categories", categoryHandler.Index)
+	api.Get("/master-categories", storeHandler.GetMasterCategoriesHandler)
 
 	// Public Help Center / Knowledge Base Endpoints
 	api.Get("/help/articles", supportHandler.GetHelpArticles)

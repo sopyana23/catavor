@@ -81,8 +81,15 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
 	if !cfg.DBAutoMigrate {
+		// AutoMigrate dan seeding dilewati, TETAPI migrasi SQL tetap
+		// dijalankan: skema harus tetap terkelola walau AutoMigrate dimatikan.
+		// Tanpa ini, deploy dengan DB_AUTO_MIGRATE=false tidak pernah
+		// menerima migrasi apa pun dan skema diam-diam tertinggal.
+		if err := RunMigrations(db); err != nil {
+			return nil, fmt.Errorf("migrasi SQL gagal: %w", err)
+		}
 		DB = db
-		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED)")
+		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED, SQL migrations applied)")
 		return db, nil
 	}
 
@@ -158,6 +165,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.StoreDailyTrafficSource{},
 		&models.Notification{},
 		&models.NotificationRead{},
+		&models.MasterCategory{},
 		&models.ActivityLog{},
 		&models.SafeDomain{},
 		&models.BlacklistedSlug{},
@@ -168,6 +176,13 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 
 	// 3. Post-Migration Optimizations & Compatibility VIEWs
 	runPostMigrationOptimizations(db)
+
+	// 4. Terapkan migrasi SQL yang ditanam ke binary. Dijalankan SETELAH
+	// optimasi pasca-migrasi tetapi SEBELUM seeding, karena seed bergantung
+	// pada skema final.
+	if err := RunMigrations(db); err != nil {
+		return nil, fmt.Errorf("migrasi SQL gagal: %w", err)
+	}
 
 	DB = db
 	log.Info().Msg("PostgreSQL connected, normalized schemas auto-migrated, and GIN indexes verified successfully")
@@ -311,58 +326,7 @@ func importFromSQLite(pgDB *gorm.DB, sqlitePath string) error {
 		}
 	}
 
-	// 3. Import Faunas (Items)
-	var sqliteFaunas []struct {
-		ID                  uint
-		StoreID             uint
-		Name                string
-		ScientificName      string
-		Class               string
-		Habitat             string
-		Diet                string
-		ConservationStatus  string
-		Price               float64
-		VideoURL            string
-		IsShippingAvailable bool
-		Description         string
-		ImageURL            string
-		DetailedInfo        string
-		ProductType         string
-		Attributes          string
-		CreatedAt           time.Time
-		UpdatedAt           time.Time
-	}
-	if err := sqliteDB.Table("faunas").Find(&sqliteFaunas).Error; err == nil {
-		for _, f := range sqliteFaunas {
-			pType := f.ProductType
-			if pType == "" {
-				pType = "physical"
-			}
-			fauna := models.Fauna{
-				ID:                  f.ID,
-				StoreID:             f.StoreID,
-				Name:                f.Name,
-				ScientificName:      f.ScientificName,
-				Class:               f.Class,
-				Habitat:             f.Habitat,
-				Diet:                f.Diet,
-				ConservationStatus:  f.ConservationStatus,
-				Price:               f.Price,
-				VideoURL:            f.VideoURL,
-				IsShippingAvailable: f.IsShippingAvailable,
-				Description:         f.Description,
-				ImageURL:            f.ImageURL,
-				DetailedInfo:        datatypes.JSON([]byte(f.DetailedInfo)),
-				ProductType:         pType,
-				Attributes:          datatypes.JSON([]byte(f.Attributes)),
-				CreatedAt:           f.CreatedAt,
-				UpdatedAt:           f.UpdatedAt,
-			}
-			pgDB.Save(&fauna)
-		}
-	}
-
-	// 4. Import Articles, Comments, Settings
+	// 3. Import Articles, Comments, Settings
 	var sqliteSettings []models.Setting
 	if err := sqliteDB.Table("settings").Find(&sqliteSettings).Error; err == nil {
 		for _, st := range sqliteSettings {

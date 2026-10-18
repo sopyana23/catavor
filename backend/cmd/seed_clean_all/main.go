@@ -55,7 +55,7 @@ func main() {
 			"brand":     store.StoreTitle,
 			"variant":   "Size: 40, 41, 42, 43, 44 (Warna: Core Black / Cloud White)",
 		})
-		itemPhysical := models.Fauna{
+		itemPhysical := models.Product{
 			StoreID:             store.ID,
 			Name:                "Sepatu Lari Ultraboost Light Performance Edition",
 			ScientificName:      "UB-LIGHT-2026",
@@ -92,7 +92,7 @@ func main() {
 			"file_size":    "18.4 MB",
 			"license_type": "Lisensi Personal",
 		})
-		itemDigital := models.Fauna{
+		itemDigital := models.Product{
 			StoreID:             store.ID,
 			Name:                "Preset Lightroom Mobile & Desktop: Urban Streetwear Tone",
 			ScientificName:      "Digital Color Grading LUTs Pack",
@@ -127,7 +127,7 @@ func main() {
 				{"platform": "WhatsApp Admin", "url": "https://wa.me/"},
 			},
 		})
-		itemFauna := models.Fauna{
+		itemFauna := models.Product{
 			StoreID:             store.ID,
 			Name:                "Chinchilla Grey Royal Velvet Anakan Usia 4 Bulan",
 			ScientificName:      "Chinchilla lanigera",
@@ -164,7 +164,7 @@ func main() {
 			"service_location": "Home Visit (Ke Rumah)",
 			"service_area":     "Jabodetabek (Jakarta, Bogor, Depok, Tangerang, Bekasi)",
 		})
-		itemService := models.Fauna{
+		itemService := models.Product{
 			StoreID:             store.ID,
 			Name:                "Jasa Deep Cleaning & Unyellowing Sepatu Sneaker",
 			ScientificName:      "Premium Sneaker Spa & Restoration",
@@ -197,7 +197,7 @@ func main() {
 				{"platform": "GrabFood Official", "url": "https://grab.link/"},
 			},
 		})
-		itemFood := models.Fauna{
+		itemFood := models.Product{
 			StoreID:             store.ID,
 			Name:                "Wagyu Beef Rice Bowl Sambal Matah",
 			ScientificName:      "Wagyu Beef Donburi Set",
@@ -220,7 +220,7 @@ func main() {
 		}
 
 		// Insert all 5 items
-		storeItems := []models.Fauna{itemPhysical, itemDigital, itemFauna, itemService, itemFood}
+		storeItems := []models.Product{itemPhysical, itemDigital, itemFauna, itemService, itemFood}
 		for _, it := range storeItems {
 			if err := db.Create(&it).Error; err != nil {
 				fmt.Printf("Error creating %s: %v\n", it.Name, err)

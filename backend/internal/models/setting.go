@@ -55,4 +55,9 @@ type UserPolicyAgreement struct {
 	AgreedContext   string    `gorm:"size:50" json:"agreed_context"` // checkout | registration | popup
 	CustomerContact string    `gorm:"size:255" json:"customer_contact"`
 	AgreedAt        time.Time `json:"agreed_at"`
+
+	// Catatan persetujuan harus tetap ada walau user/toko dihapus — itu bukti
+	// hukum. Karena itu ON DELETE SET NULL, bukan CASCADE.
+	User  *User  `gorm:"foreignKey:UserID;constraint:OnDelete:SET NULL" json:"user,omitempty"`
+	Store *Store `gorm:"foreignKey:StoreID;constraint:OnDelete:SET NULL" json:"store,omitempty"`
 }

@@ -65,7 +65,7 @@ func main() {
 	}
 
 	// 2. Clear existing fauna items for this store
-	deleteRes := db.Where("store_id = ?", store.ID).Delete(&models.Fauna{})
+	deleteRes := db.Where("store_id = ?", store.ID).Delete(&models.Product{})
 	log.Info().Int64("deleted_items", deleteRes.RowsAffected).Msg("Existing items cleared for fresh 100-item dataset")
 
 	// 3. Build 100 diverse, high-quality items
@@ -77,7 +77,7 @@ func main() {
 		detJSON, _ := json.Marshal(item.DetailedInfo)
 		attrJSON, _ := json.Marshal(item.Attributes)
 
-		fauna := models.Fauna{
+		fauna := models.Product{
 			StoreID:             store.ID,
 			Name:                item.Name,
 			ScientificName:      item.ScientificName,

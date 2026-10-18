@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"catavor-backend/internal/config"
@@ -1300,24 +1301,72 @@ var DefaultMasterCategories = map[string][]string{
 	"plant":    {"Tanaman Hias Daun", "Tanaman Bunga & Anggrek", "Bibit Buah & Pohon", "Kaktus & Sukulen", "Bonsai & Tanaman Seni", "Tanaman Herbal & Rempah", "Aquascape & Tanaman Air", "Lainnya"},
 }
 
-// IsSystemDefaultCategory checks if a category belongs to immutable system default master categories
+// --- Master Category cache (DB-backed, single source of truth) ---
+
+var (
+	masterCategoryOnce sync.Once
+	masterCategoryCache map[string][]string // product_type -> []category names
+)
+
+// LoadMasterCategoryCache memuat kategori default dari DB ke cache in-memory.
+// Dipanggil sekali di startup (sync.Once). Bila DB kosong, jatuh ke DefaultMasterCategories.
+func LoadMasterCategoryCache() {
+	masterCategoryOnce.Do(func() {
+		masterCategoryCache = make(map[string][]string)
+		if database.DB == nil {
+			return
+		}
+		var cats []models.MasterCategory
+		if err := database.DB.Order("product_type, sort_order").Find(&cats).Error; err != nil {
+			log.Warn().Err(err).Msg("gagal memuat master category cache, menggunakan hardcoded fallback")
+			return
+		}
+		if len(cats) == 0 {
+			return // DB kosong; fallback ke DefaultMasterCategories
+		}
+		for _, c := range cats {
+			masterCategoryCache[c.ProductType] = append(masterCategoryCache[c.ProductType], c.Name)
+		}
+		log.Info().Int("total", len(cats)).Msg("master category cache dimuat dari DB")
+	})
+}
+
+// GetMasterCategories mengembalikan kategori default per product type.
+// Prioritas: cache DB > DefaultMasterCategories (fallback).
+func GetMasterCategories() map[string][]string {
+	LoadMasterCategoryCache()
+	if len(masterCategoryCache) > 0 {
+		return masterCategoryCache
+	}
+	return DefaultMasterCategories
+}
+
+// GetMasterCategoriesHandler melayani GET /api/master-categories.
+func (h *StoreHandler) GetMasterCategoriesHandler(c *fiber.Ctx) error {
+	cats := GetMasterCategories()
+	return c.JSON(fiber.Map{
+		"categories": cats,
+	})
+}
+// IsSystemDefaultCategory checks if a category belongs to immutable system default master categories.
 func IsSystemDefaultCategory(pType, val string) bool {
 	pType = strings.ToLower(strings.TrimSpace(pType))
 	val = strings.TrimSpace(val)
 	if val == "" {
 		return false
 	}
+	defs := GetMasterCategories()
 	if pType != "" {
-		if defs, ok := DefaultMasterCategories[pType]; ok {
-			for _, d := range defs {
+		if names, ok := defs[pType]; ok {
+			for _, d := range names {
 				if strings.EqualFold(d, val) {
 					return true
 				}
 			}
 		}
 	} else {
-		for _, defs := range DefaultMasterCategories {
-			for _, d := range defs {
+		for _, names := range defs {
+			for _, d := range names {
 				if strings.EqualFold(d, val) {
 					return true
 				}
@@ -1342,8 +1391,8 @@ func appendMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON 
 	}
 	list := catMap[pType]
 	if len(list) == 0 {
-		if defs, ok := DefaultMasterCategories[pType]; ok {
-			list = append([]string{}, defs...)
+		if defs := GetMasterCategories(); len(defs[pType]) > 0 {
+			list = append([]string{}, defs[pType]...)
 		}
 	}
 	for _, item := range list {
@@ -1373,8 +1422,8 @@ func replaceMasterCategory(raw datatypes.JSON, pType, oldVal, newVal string) dat
 	}
 	list := catMap[pType]
 	if len(list) == 0 {
-		if defs, ok := DefaultMasterCategories[pType]; ok {
-			list = append([]string{}, defs...)
+		if defs := GetMasterCategories(); len(defs[pType]) > 0 {
+			list = append([]string{}, defs[pType]...)
 		}
 	}
 	for i, item := range list {
@@ -1401,8 +1450,8 @@ func removeMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON 
 	}
 	list := catMap[pType]
 	if len(list) == 0 {
-		if defs, ok := DefaultMasterCategories[pType]; ok {
-			list = append([]string{}, defs...)
+		if defs := GetMasterCategories(); len(defs[pType]) > 0 {
+			list = append([]string{}, defs[pType]...)
 		}
 	}
 	var updated []string
@@ -1587,8 +1636,8 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 		})
 	}
 
-	// Master data defaults from canonical system taxonomy
-	bDefCats, _ := json.Marshal(DefaultMasterCategories)
+	// Master data defaults from canonical system taxonomy (DB-backed)
+	bDefCats, _ := json.Marshal(GetMasterCategories())
 	defaultMasterCategories := datatypes.JSON(bDefCats)
 
 	newStore := models.Store{

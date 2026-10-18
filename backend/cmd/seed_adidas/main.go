@@ -34,7 +34,7 @@ func main() {
 
 	// 1. Find all fauna IDs for store adidas
 	var faunaIDs []uint
-	db.Model(&models.Fauna{}).Where("store_id = ?", adidasStore.ID).Pluck("id", &faunaIDs)
+	db.Model(&models.Product{}).Where("store_id = ?", adidasStore.ID).Pluck("id", &faunaIDs)
 
 	if len(faunaIDs) > 0 {
 		// Clean up foreign key references in reports and sightings
@@ -42,7 +42,7 @@ func main() {
 		db.Where("fauna_id IN ?", faunaIDs).Delete(&models.Sighting{})
 
 		// Delete all faunas for store adidas
-		result := db.Where("store_id = ?", adidasStore.ID).Delete(&models.Fauna{})
+		result := db.Where("store_id = ?", adidasStore.ID).Delete(&models.Product{})
 		if result.Error != nil {
 			fmt.Printf("Error deleting existing items: %v\n", result.Error)
 			os.Exit(1)
@@ -77,7 +77,7 @@ func main() {
 		"certification": "100% Original Authentic & SNI Certified",
 	})
 
-	physicalItem := models.Fauna{
+	physicalItem := models.Product{
 		StoreID:             adidasStore.ID,
 		Name:                "Sepatu Lari Ultraboost Light 23 Running Shoes",
 		ScientificName:      "HP6420 - Core Black / Cloud White",
@@ -123,7 +123,7 @@ func main() {
 		"max_order":        50,
 	})
 
-	foodItem := models.Fauna{
+	foodItem := models.Product{
 		StoreID:             adidasStore.ID,
 		Name:                "Signature Wagyu Beef Bowl Sambal Matah Onsen Egg",
 		ScientificName:      "Japanese-Nusantara Fusion Beef Rice Bowl",
@@ -164,7 +164,7 @@ func main() {
 		"max_order":            5,
 	})
 
-	serviceItem := models.Fauna{
+	serviceItem := models.Product{
 		StoreID:             adidasStore.ID,
 		Name:                "Jasa Deep Cleaning & Unyellowing Treatment Sepatu Sneaker",
 		ScientificName:      "Premium Sneaker Care & Restoration Treatment",
@@ -204,7 +204,7 @@ func main() {
 		"max_order":     1,
 	})
 
-	digitalItem := models.Fauna{
+	digitalItem := models.Product{
 		StoreID:             adidasStore.ID,
 		Name:                "Preset Lightroom Mobile & Desktop: Streetwear & Moody Tone",
 		ScientificName:      "Color Grading LUTs & Aesthetic Filter Pack",
@@ -246,7 +246,7 @@ func main() {
 		"certification": "Buku Vaksin & Sertifikat Sehat Dokter Hewan",
 	})
 
-	faunaItem := models.Fauna{
+	faunaItem := models.Product{
 		StoreID:             adidasStore.ID,
 		Name:                "Chinchilla Grey Royal Velvet Keturunan Import Usia 4 Bulan",
 		ScientificName:      "Chinchilla lanigera",
@@ -269,7 +269,7 @@ func main() {
 	}
 
 	// 3. Insert all new items
-	items := []models.Fauna{physicalItem, foodItem, serviceItem, digitalItem, faunaItem}
+	items := []models.Product{physicalItem, foodItem, serviceItem, digitalItem, faunaItem}
 	for _, item := range items {
 		if err := db.Create(&item).Error; err != nil {
 			fmt.Printf("Failed to create item %s: %v\n", item.Name, err)

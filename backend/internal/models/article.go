@@ -6,7 +6,7 @@ import (
 
 type Article struct {
 	ID                       uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	StoreID                  uint      `gorm:"index;default:1" json:"store_id"`
+	StoreID                  *uint     `gorm:"index" json:"store_id"`
 	Title                    string    `gorm:"size:255;not null" json:"title"`
 	Slug                     string    `gorm:"size:255;uniqueIndex;not null" json:"slug"`
 	Content                  string    `gorm:"type:text;not null" json:"content"`
@@ -23,6 +23,9 @@ type Article struct {
 
 	// Relations
 	Comments []Comment `gorm:"foreignKey:ArticleID" json:"comments,omitempty"`
+	// Artikel platform tidak dimiliki toko mana pun. Bila toko dihapus,
+	// artikelnya tetap terbit sebagai artikel platform (ON DELETE SET NULL).
+	Store *Store `gorm:"foreignKey:StoreID;constraint:OnDelete:SET NULL" json:"store,omitempty"`
 }
 
 type Comment struct {

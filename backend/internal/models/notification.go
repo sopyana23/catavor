@@ -50,6 +50,11 @@ type NotificationRead struct {
 	DismissedAt    *time.Time `json:"dismissed_at" gorm:"index"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+
+	// Relasi dideklarasikan agar constraint ON DELETE CASCADE terbentuk.
+	// Tanpa ini kolom user_id/store_id hanya angka tanpa penjaga.
+	User  *User  `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
+	Store *Store `gorm:"foreignKey:StoreID;constraint:OnDelete:CASCADE" json:"store,omitempty"`
 }
 
 // TableName explicitly maps to 'notification_reads' table.
