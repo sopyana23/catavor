@@ -236,6 +236,15 @@
    "status": "fixed",
    "summary": "Kupon bawaan CATAVOR100/GRATISPRO memberi potongan harga penuh sehingga finalAmount 0 dan payment_status otomatis paid; paket langsung aktif. Kupon kini hanya dari setting master_coupons yang dikelola admin.",
    "runtime_proof": "Sebelum: order pro_business annual dengan CATAVOR100 -> discount 1290000, status paid, stores.id=25 plan pro_business sampai 2027. Sesudah: discount 0, status pending, toko tetap free; kupon sah admin (fixed 10000 dan type free) tetap berfungsi."
+  },
+  {
+   "id": "N-20",
+   "severity": "medium",
+   "title": "Persetujuan invoice langganan tidak meninggalkan jejak audit",
+   "location": "backend/internal/handlers/subscription_handler.go: ApproveOrder",
+   "status": "fixed",
+   "summary": "Approve mengubah order pending menjadi paid dan mengaktifkan paket, tetapi tidak menulis activity_logs dan subscription_orders tidak punya kolom approved_by; hanya zerolog ke stdout. Aksi katalog biasa justru tercatat. Kini ditulis sebagai billing.subscription_approve lengkap dengan pelaku dan approved_by.",
+   "runtime_proof": "Sebelum: approve 200, activity_logs ILIKE '%approv%' = 0 baris. Sesudah: tercatat user_id=12, action=billing.subscription_approve, entity_title=INV-SUB-..., changes.approved_by=12. Kontrol negatif: pencatatan dicabut -> approve 200 tetapi baris audit tetap 1->1; patch dipulihkan -> 1->2."
   }
  ],
  "verified_ok": [

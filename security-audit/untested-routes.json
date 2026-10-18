@@ -151,22 +151,6 @@
   "cls": "AUTH-ONLY",
   "line": 266
  },
- "POST|/api/auth/refresh": {
-  "cls": "AUTH-ONLY",
-  "line": 268
- },
- "POST|/api/logout": {
-  "cls": "AUTH-ONLY",
-  "line": 269
- },
- "POST|/api/profile": {
-  "cls": "AUTH-ONLY",
-  "line": 270
- },
- "PUT|/api/profile": {
-  "cls": "AUTH-ONLY",
-  "line": 271
- },
  "GET|/api/user/stores": {
   "cls": "AUTH-ONLY",
   "line": 275
@@ -175,69 +159,13 @@
   "cls": "AUTH-ONLY",
   "line": 276
  },
- "POST|/api/user/stores": {
-  "cls": "AUTH-ONLY",
-  "line": 277
- },
- "POST|/api/user/stores/create": {
-  "cls": "AUTH-ONLY",
-  "line": 278
- },
- "POST|/api/user/stores/switch": {
-  "cls": "AUTH-ONLY",
-  "line": 279
- },
  "GET|/api/user/sessions": {
   "cls": "AUTH-ONLY",
   "line": 282
  },
- "POST|/api/user/sessions/:id/revoke": {
-  "cls": "AUTH-ONLY",
-  "line": 283
- },
- "POST|/api/user/sessions/revoke-others": {
-  "cls": "AUTH-ONLY",
-  "line": 284
- },
- "DELETE|/api/stores/:id": {
-  "cls": "AUTH-ONLY",
-  "line": 287
- },
- "POST|/api/stores/:id/delete": {
-  "cls": "AUTH-ONLY",
-  "line": 288
- },
- "POST|/api/user/account/delete": {
-  "cls": "AUTH-ONLY",
-  "line": 290
- },
  "GET|/api/notifications": {
   "cls": "AUTH-ONLY",
   "line": 293
- },
- "POST|/api/notifications/read-all": {
-  "cls": "AUTH-ONLY",
-  "line": 294
- },
- "POST|/api/notifications/clear-read": {
-  "cls": "AUTH-ONLY",
-  "line": 295
- },
- "POST|/api/notifications/:id/read": {
-  "cls": "AUTH-ONLY",
-  "line": 296
- },
- "POST|/api/notifications/:id/dismiss": {
-  "cls": "AUTH-ONLY",
-  "line": 297
- },
- "POST|/api/notifications/ticket": {
-  "cls": "AUTH-ONLY",
-  "line": 300
- },
- "POST|/api/v1/notifications/ticket": {
-  "cls": "AUTH-ONLY",
-  "line": 301
  },
  "GET|/api/notifications/stream": {
   "cls": "AUTH-ONLY",

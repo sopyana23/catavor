@@ -352,11 +352,54 @@ func (h *SubscriptionHandler) ApproveOrder(c *fiber.Ctx) error {
 		})
 	}
 
+	// SECURITY (N-20): persetujuan invoice mengaktifkan paket berbayar tanpa
+	// verifikasi pembayaran otomatis, sehingga aksi ini WAJIB meninggalkan
+	// jejak siapa pelakunya. Sebelumnya hanya tercatat di stdout (zerolog)
+	// yang hilang saat rotasi log, sementara aksi katalog biasa sudah masuk
+	// activity_logs. Catat agar penyalahgunaan wewenang finance dapat ditelusuri.
+	adminEmail, _ := c.Locals("email").(string)
+	catatAktivitasApprove(c, "billing.subscription_approve", "Invoice langganan disetujui",
+		order, adminID, adminEmail)
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Invoice langganan berhasil disetujui dan paket toko telah aktif.",
 		"order":   order,
 		"quota":   quota,
+	})
+}
+
+// catatAktivitasApprove menulis entri audit untuk persetujuan invoice
+// langganan. Dipisah agar dapat diuji dan agar kegagalan pencatatan tidak
+// membatalkan aksi yang sudah terjadi.
+func catatAktivitasApprove(c *fiber.Ctx, action, deskripsi string,
+	order *models.SubscriptionOrder, adminID uint, adminEmail string) {
+	if order == nil {
+		return
+	}
+	storeID := order.StoreID
+	entityID := order.ID
+	actorID := adminID
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		StoreID:     &storeID,
+		UserID:      &actorID,
+		ActorRole:   "superadmin",
+		ActorEmail:  adminEmail,
+		Action:      action,
+		Category:    "billing",
+		EntityType:  "plan",
+		EntityID:    &entityID,
+		EntityTitle: order.OrderNumber,
+		Description: deskripsi,
+		Changes: map[string]interface{}{
+			"plan_code":      order.PlanCode,
+			"duration_month": order.DurationMonths,
+			"payment_status": order.PaymentStatus,
+			"approved_by":    adminID,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
 	})
 }
 
@@ -378,4 +421,3 @@ func (h *SubscriptionHandler) AdminListOrders(c *fiber.Ctx) error {
 		"data":    orders,
 	})
 }
-

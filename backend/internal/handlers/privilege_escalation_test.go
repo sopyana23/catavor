@@ -93,3 +93,25 @@ func TestN19TanpaKuponGratisHardcoded(t *testing.T) {
 			"kupon sah buatan admin tidak akan pernah berlaku")
 	}
 }
+
+// TestN20ApproveLanggananTercatat memastikan persetujuan invoice langganan
+// menulis jejak audit. Approve mengaktifkan paket berbayar tanpa verifikasi
+// pembayaran otomatis, jadi tanpa activity_logs tidak ada bukti siapa pelakunya
+// (N-20).
+func TestN20ApproveLanggananTercatat(t *testing.T) {
+	src, err := bacaSumberHandler("subscription_handler.go")
+	if err != nil {
+		t.Fatalf("N-20: gagal membaca subscription_handler.go: %v", err)
+	}
+
+	if !strings.Contains(src, "billing.subscription_approve") {
+		t.Error("N-20: ApproveOrder tidak menulis action billing.subscription_approve ke activity_logs")
+	}
+	if !strings.Contains(src, "services.RecordActivity(") {
+		t.Error("N-20: ApproveOrder tidak memanggil services.RecordActivity")
+	}
+	// Approve wajib mencatat identitas penyetuju, bukan sekadar plan yang dibeli.
+	if !strings.Contains(src, `"approved_by"`) {
+		t.Error("N-20: changes pada entri audit tidak memuat approved_by")
+	}
+}

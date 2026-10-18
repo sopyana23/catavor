@@ -27,6 +27,7 @@ Baseline commit: `2fb1d9f`.
 | N-17 | `/api/send-register-otp` & forgot-password membocorkan status akun (enumerasi) | SEDANG | TERTUTUP |
 | N-18 | Merchant bisa menerbitkan/mengubah/menghapus artikel platform & menulis master settings | KRITIS | TERTUTUP |
 | N-19 | Kupon gratis hardcoded (`CATAVOR100`, `GRATISPRO`) mengaktifkan paket berbayar tanpa bayar | KRITIS | TERTUTUP |
+| N-20 | Persetujuan invoice langganan tidak meninggalkan jejak audit (siapa menyetujui?) | SEDANG | TERTUTUP |
 
 Semua perbaikan di atas dibuktikan dengan probe runtime, dan N-11 serta N-12
 disertai **kontrol negatif** (source dikembalikan ke versi rentan, di-build
@@ -870,3 +871,78 @@ sendiri. Dibuktikan dengan pasangan kontrol — tiket miliknya `GET 200`,
 sedangkan tiket milik user lain `404` pada keempat rute. Isolasi produk
 lintas-toko juga terbukti: `PUT/DELETE/resubmit-review` produk toko lain
 `404`, sedangkan CRUD produk sendiri `201/200/200`.
+
+---
+
+## N-20 — Persetujuan invoice langganan tanpa jejak audit (SEDANG)
+
+**Konteks.** `POST /api/admin/subscription/orders/:id/approve` memang
+dirancang untuk persetujuan manual (alur transfer bank), dan
+`ApproveSubscriptionOrder` sengaja mengubah status `pending` menjadi `paid`
+lalu mengaktifkan paket — itu perilaku yang diinginkan, bukan celah.
+Yang salah adalah **tidak ada jejak pelakunya**.
+
+**Bukti runtime sebelum perbaikan** (staf `finance`, user 12):
+
+```
+POST /api/admin/subscription/orders/1/approve -> 200
+order 1: payment_status pending -> paid
+stores.id=23: plan free -> pro_starter, aktif sampai 2026-11-18
+```
+
+Sesudah aksi itu, `SELECT ... FROM activity_logs WHERE action ILIKE '%approv%'`
+mengembalikan **0 baris**. Padahal pada rentang waktu yang sama
+`activity_logs` mencatat `product.create`, `product.delete`,
+`product.price_change`, `auth.login`, dan `RBAC_ACCESS_DENIED`. Jadi aksi
+finansial paling sensitif justru satu-satunya yang tidak tercatat — hanya
+masuk zerolog ke stdout yang hilang saat rotasi log. Tabel
+`subscription_orders` juga tidak punya kolom `approved_by`.
+
+Konsekuensi: bila staf finance menyetujui invoice fiktif, tidak ada bukti
+siapa pelakunya.
+
+**Perbaikan.** `ApproveOrder` kini memanggil `services.RecordActivity` setelah
+persetujuan berhasil, menulis ke `activity_logs`:
+`action=billing.subscription_approve`, `category=billing`,
+`entity_title=<order_number>`, plus `changes` berisi `plan_code`,
+`duration_month`, `payment_status`, dan `approved_by`. Kegagalan pencatatan
+tidak membatalkan aksi (helper dipisah, mengikuti pola toleran yang sudah ada).
+
+**Bukti runtime sesudah perbaikan:**
+
+| Uji | Hasil |
+|---|---|
+| `finance` approve order 1 | `200`, dan `activity_logs` bertambah 1 baris |
+| Isi baris audit | `user_id=12`, `actor_role=superadmin`, `action=billing.subscription_approve`, `entity_title=INV-SUB-...0023-7667`, `changes.approved_by=12` |
+| Kontrol negatif: pencatatan dicabut, approve dijalankan | `200`, tetapi jumlah baris audit **tidak bertambah** (`1 -> 1`) |
+| Patch dipulihkan, approve dijalankan lagi | `200`, baris audit bertambah (`1 -> 2`) |
+
+Kontrol negatif ini penting: tanpa langkah itu, "ada baris audit" bisa saja
+berasal dari kode lain. Yang membuktikan adalah approve sukses tanpa catatan
+saat pencatatan dicabut.
+
+**Data uji dibersihkan.** Order 1 kembali `pending`/`paid_at=NULL`,
+`stores.id=23` kembali `free/active`, dan baris `activity_logs` hasil uji
+dihapus.
+
+---
+
+## Hasil probe rute AUTH-ONLY (18 rute tulis)
+
+Semua diuji sebagai merchant `qa.merchant` (user 18, store 25), dengan
+**kontrol positif** pada rute yang sama agar penolakan bermakna.
+
+| Rute | Hasil merchant | Kontrol positif | Kesimpulan |
+|---|---|---|---|
+| `POST /user/sessions/:id/revoke` | **404** untuk sesi user 5 & 12 | sesi sendiri **200** (id 303 ter-revoke) | isolasi sah |
+| `POST /user/stores/switch` | **403** untuk slug toko user 1 | slug sendiri **200** | isolasi sah |
+| `DELETE /stores/:id`, `POST /stores/:id/delete` | **403** untuk toko 1 & 23 | — | pemeriksaan pemilik ada di handler |
+| `POST /notifications/:id/read`, `/:id/dismiss` | 200, tetapi membuat record **milik user 18 sendiri** (id 338); record user 5 (id 337) tidak berubah | — | aman by design |
+| `POST /notifications/read-all`, `clear-read` | 200, tidak ada record user lain yang berubah (`updated_at` user 5 tetap 17 Okt) | — | terbatas pada user sendiri |
+| `POST /notifications/ticket` | 200 | — | normal |
+
+Catatan metodologi: `POST /notifications/:id/read` membalas 200 untuk
+notifikasi milik orang lain. Ini sempat terlihat seperti IDOR, tetapi
+pemeriksaan database menunjukkan yang dibuat adalah baris baca **untuk user
+pelaku** — tidak ada data korban yang tersentuh. Status 200 saja tidak cukup
+untuk menyimpulkan kebocoran; efek di database yang menentukan.
