@@ -325,7 +325,7 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 		Price:               math.Max(0, req.Price),
 		MinOrder:            minOrder,
 		MaxOrder:            req.MaxOrder,
-		VideoURL:            security.SanitizeURL(req.VideoURL),
+		VideoURL:            security.SanitizeVideoURL(req.VideoURL),
 		IsShippingAvailable: isShipping,
 		Description:         security.SanitizeRichText(req.Description, 5000),
 		ImageURL:            security.SanitizeURL(req.ImageURL),
@@ -627,7 +627,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	}
 	product.MaxOrder = req.MaxOrder
 	if req.VideoURL != "" {
-		product.VideoURL = security.SanitizeURL(req.VideoURL)
+		product.VideoURL = security.SanitizeVideoURL(req.VideoURL)
 	}
 	if req.IsShippingAvailable != nil {
 		product.IsShippingAvailable = *req.IsShippingAvailable

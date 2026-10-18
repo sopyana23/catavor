@@ -433,6 +433,28 @@
    "fix": "Diterapkan 2026-10-18 (commit 0d773d6): konstanta JWTIssuer/JWTAudience sebagai satu sumber kebenaran, dipakai saat menerbitkan DAN memverifikasi. Kedua titik verifikasi kini memakai jwt.WithValidMethods([\"HS256\"]), jwt.WithIssuer(JWTIssuer), jwt.WithAudience(JWTAudience).",
    "status": "fixed",
    "resolution": "Dibuktikan runtime (server PID 10484): iss=evil-issuer -> 401 (sebelum 200), aud=[evil-audience] -> 401 (sebelum 200), aud=[] -> 401, iss dihapus -> 401, aud dihapus -> 401, iss=catavor-saas-x -> 401. Kontrol positif token sah -> 200 dengan body berisi owner@catavor.local. Regresi: alg=none/token sampah/tanpa token 401; browser login SPA berhasil lalu /api/auth/me, /api/admin/rbac/me, /api/admin/automation/status semua 200 via cookie HttpOnly; N-32 cmap tetap 39443B; healthz/landing/desktop/mobile 200. 18 PASS / 0 FAIL."
+  },
+  {
+   "id": "N-37",
+   "severity": "high",
+   "title": "SanitizeVideoURL cocokkan domain sebagai substring — URL pihak ketiga lolos ke halaman toko publik",
+   "location": "backend/internal/security/sanitizer.go (SanitizeVideoURL) dipakai di fauna_handler.go:253/:385 dan product_handler.go:328/:630",
+   "endpoint": "POST /api/fauna, PUT /api/fauna/:id (jalur productHandler.Store/Update)",
+   "impact": "Pencocokan memakai strings.Contains(host, \"youtube.com\"), sehingga host penyerang seperti youtube.com.evil.com, notyoutube.com.evil.com, dan evil-youtu.be.attacker.net diterima dan disimpan apa adanya ke products.video_url. Penjual dapat menanamkan URL pihak ketiga di halaman toko publik. Dampak XSS dibatasi karena frontend merender host tak dikenal sebagai <a href> dengan rel=noopener noreferrer, bukan iframe — tetapi validasi domain tetap gagal dan kelak berbahaya bila render diubah menjadi iframe.",
+   "fix": "Diterapkan: pencocokan label domain utuh (host == domain atau berakhiran '.'+domain) untuk youtube.com, youtube-nocookie.com, youtu.be, vimeo.com. Skema berbahaya (javascript:, vbscript:, data:, file:, blob:) dan protokol-relatif '//host' ditolak. File video langsung (.mp4/.webm/.mov/.ogg/.m3u8) tetap diterima dari host mana pun karena dirender sebagai elemen <video>, bukan iframe. Keempat titik tulis video_url kini memakai SanitizeVideoURL (sebelumnya jalur produk memakai SanitizeURL yang hanya memfilter skema).",
+   "status": "fixed",
+   "resolution": "Dibuktikan runtime (server PID 31716, binary dibangun ulang dari source): POST /api/fauna dengan ketiga vektor bypass kini menyimpan video_url kosong (DB: <DIBUANG>), sedangkan https://www.youtube.com/watch?v=abc123 dan https://cdn.contoh.com/klip.mp4 tetap tersimpan. Kode LAMA + test baru GAGAL pada 3 vektor; kode baru LULUS (kontrol negatif). Unit test internal/security coverage 28.9% -> 90.2%."
+  },
+  {
+   "id": "N-38",
+   "severity": "medium",
+   "title": "UserIDFromLocals menerima NaN/Inf sebagai user ID sah dan string angka overflow",
+   "location": "backend/internal/security/locals.go (UserIDFromLocals)",
+   "endpoint": "Seluruh jalur yang membaca user_id dari fiber.Ctx.Locals",
+   "impact": "Konversi float64 -> integer pada amd64 mengubah NaN dan +Inf menjadi 9223372036854775808 tanpa error, sehingga nilai sampah lolos dengan ok=true sebagai 'user ID sah'. String angka raksasa juga membungkus (wrap around) ke nilai kecil yang tampak sah. Nilai pecahan (5.9) dipotong diam-diam menjadi 5. Berpotensi melewati pemeriksaan kepemilikan.",
+   "fix": "Diterapkan: float64 wajib bilangan bulat dan bukan NaN/±Inf serta berada dalam jangkauan uint; konversi string memakai penjagaan overflow sebelum akumulasi.",
+   "status": "fixed",
+   "resolution": "Dibuktikan dengan kontrol negatif: kode LAMA gagal (NaN ok=true id=9223372036854775808, +Inf ok=true, string overflow lolos); kode baru menolak semuanya. Positive control 4294967295 tetap terbaca."
   }
  ],
  "verified_ok": [

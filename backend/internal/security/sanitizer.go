@@ -158,11 +158,43 @@ func SanitizeURL(rawURL string) string {
 	return trimmed
 }
 
-// SanitizeVideoURL verifies that video embeds belong to trusted domains like YouTube
+// SanitizeVideoURL memverifikasi bahwa URL embed video berasal dari domain
+// tepercaya, atau merupakan file video langsung dengan ekstensi yang sah.
+//
+// SECURITY: pencocokan domain WAJIB berbasis label utuh, bukan substring.
+// Versi sebelumnya memakai strings.Contains(host, "youtube.com") sehingga
+// "https://youtube.com.evil.com/embed" LOLOS — cukup bagi penjual untuk
+// menyisipkan URL pihak ketiga ke halaman toko publik.
+//
+// Kontrak:
+//   - Domain resmi (YouTube, youtu.be, youtube-nocookie, Vimeo) beserta
+//     subdomainnya → diterima.
+//   - File video langsung (.mp4/.webm/.mov/.ogg/.m3u8) → diterima dari host
+//     mana pun, karena dirender sebagai elemen <video>, bukan iframe.
+//   - Path relatif "/..." (aset milik sendiri) → diterima.
+//   - Skema berbahaya (javascript:, data:, file:, blob:) → ditolak.
+//   - Selain itu → string kosong, fail-closed.
 func SanitizeVideoURL(rawURL string) string {
 	trimmed := strings.TrimSpace(rawURL)
 	if trimmed == "" {
 		return ""
+	}
+
+	// Tolak skema berbahaya sebelum parsing apa pun.
+	lower := strings.ToLower(trimmed)
+	for _, bad := range []string{"javascript:", "vbscript:", "data:", "file:", "blob:"} {
+		if strings.HasPrefix(lower, bad) {
+			return ""
+		}
+	}
+
+	// Path relatif hanya boleh menunjuk ke aset sendiri. Protokol-relatif
+	// ("//evil.com") ditolak karena berarti host pihak ketiga.
+	if strings.HasPrefix(trimmed, "/") {
+		if strings.HasPrefix(trimmed, "//") {
+			return ""
+		}
+		return SanitizeURL(trimmed)
 	}
 
 	cleaned := SanitizeURL(trimmed)
@@ -174,14 +206,51 @@ func SanitizeVideoURL(rawURL string) string {
 	if err != nil {
 		return ""
 	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return ""
+	}
 
-	host := strings.ToLower(parsed.Host)
-	// Whitelist YouTube domains
-	if strings.Contains(host, "youtube.com") || strings.Contains(host, "youtu.be") {
+	// Hostname() membuang port; buang juga titik di ujung (FQDN absolut).
+	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+	if host == "" {
+		return ""
+	}
+
+	// File video langsung: aman dari host mana pun karena dirender sebagai
+	// elemen <video src>, bukan iframe (tidak mengeksekusi HTML/JS).
+	path := strings.ToLower(parsed.Path)
+	for _, ext := range []string{".mp4", ".webm", ".mov", ".ogg", ".m3u8"} {
+		if strings.HasSuffix(path, ext) {
+			return cleaned
+		}
+	}
+
+	if isTrustedVideoHost(host) {
 		return cleaned
 	}
 
 	return ""
+}
+
+// videoAllowedHosts adalah domain platform video yang diizinkan. Pencocokan
+// dilakukan pada label domain utuh agar host penyerang tidak bisa menyelipkan
+// nama domain ini sebagai substring.
+var videoAllowedHosts = []string{
+	"youtube.com",
+	"youtube-nocookie.com",
+	"youtu.be",
+	"vimeo.com",
+}
+
+// isTrustedVideoHost melaporkan apakah host adalah salah satu domain video sah
+// atau subdomain darinya (mis. www.youtube.com, m.youtube.com).
+func isTrustedVideoHost(host string) bool {
+	for _, allowed := range videoAllowedHosts {
+		if host == allowed || strings.HasSuffix(host, "."+allowed) {
+			return true
+		}
+	}
+	return false
 }
 
 // SanitizePhone keeps only phone digits and format symbols (+, -, space, parentheses)
@@ -437,4 +506,3 @@ func ValidateOrderLimits(minVal interface{}, maxVal interface{}) (int, *int) {
 func IsBotHoneypotTriggered(val string) bool {
 	return strings.TrimSpace(val) != ""
 }
-
