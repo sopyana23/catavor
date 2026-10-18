@@ -290,6 +290,30 @@
    "summary": "StoreOwnerRequired, bila user tidak punya toko, mencari toko ber-slug 'catavor' (nama platform, hardcode) lalu bila gagal memakai toko dengan id terkecil, dan memasangnya sebagai konteks store request. Staf platform jadi memperoleh tenant sembarang — bukan miliknya — sehingga query ber-scope store_id bisa membaca data tenant lain. Selain itu slug 'catavor' adalah nama platform yang dilarang dipakai toko mana pun.",
    "evidence": "grep hardcode: auth.go:446 WHERE LOWER(slug) = 'catavor'. Setelah perbaikan blok tersebut dihapus total; staf tanpa toko diloloskan tanpa konteks store (c.Next()), handler yang butuh store_id tetap menolak sendiri (terbukti: /admin/analytics -> 403, /admin/categories -> 400 untuk staf tanpa toko).",
    "fix": "Hapus fallback toko pengganti. Staf platform tanpa toko diloloskan tanpa store context; merchant tanpa toko tetap 403 STORE_NOT_REGISTERED."
+  },
+  {
+   "id": "N-25",
+   "severity": "high",
+   "title": "Penanda staf platform berbasis string email hardcode (34 titik)",
+   "category": "Broken Access Control / CWE-798",
+   "status": "fixed",
+   "description": "Otorisasi staf platform ditentukan dengan membandingkan email ke literal 'admin@catavor.com' di 34 titik (middleware + 6 handler + service). Akun tersebut tidak ada di database, sehingga nilainya murni string magic. Efek: (a) staf dengan role sah (support/finance/compliance/content) tidak diakui pada jalur yang memakai hardcode; (b) beberapa blok memakai role fiktif ('platform_admin','super_admin','moderator','investigator','admin') yang tidak ada di tabel platform_roles; (c) penanda anti-lockout terikat ke email sehingga hilang bila email diganti.",
+   "impact": "Staf platform dengan role sah dapat kehilangan akses pada jalur tertentu, dan sebaliknya logika penanda staf tidak konsisten antar-endpoint.",
+   "remediation": "Satu sumber kebenaran: models.PlatformStaffRoles, models.IsPlatformStaffRole(role), models.NormalizePlatformRole, (*User).IsPlatformStaff(), (*User).IsSuperadmin(). middleware.PlatformStaffRoles menjadi alias. 34 titik hardcode email diganti helper; role fiktif dihapus; anti-lockout dihitung dari jumlah superadmin di DB, bukan email.",
+   "evidence": "grep 'admin@catavor.com' -> 34 titik sebelum perbaikan; setelah perbaikan 0 titik otorisasi (sisa hanya komentar dan seeder instalasi-baru). Verifikasi runtime 30 PASS / 0 FAIL.",
+   "verified_by": "hermes-verify-n25.sh + cmd/hermes_verify_lockout (cabang anti-lockout, kontrol positif superadmin=2 -> izin)"
+  },
+  {
+   "id": "N-26",
+   "severity": "high",
+   "title": "DeleteStore selalu 500: transaksi ter-abort karena error diabaikan + kolom store_id salah",
+   "category": "Error Handling / CWE-754",
+   "status": "fixed",
+   "description": "StoreHandler.DeleteStore menghapus 10 tabel dengan `_ = ...Delete(...).Error` sehingga kegagalan diabaikan. Di PostgreSQL satu perintah gagal membuat transaksi berstatus aborted (SQLSTATE 25P02) dan semua perintah berikutnya ikut gagal, termasuk DELETE toko. Dua kegagalan nyata ditemukan: (1) tabel store_daily_traffic_sources tidak ada di DB karena DB_AUTO_MIGRATE=false; (2) product_variants dan product_images tidak memiliki kolom store_id (relasi lewat product_id), sehingga WHERE store_id = ? selalu error.",
+   "impact": "Merchant tidak dapat menghapus tokonya sendiri; endpoint mengembalikan 500 tanpa informasi penyebab. Data toko tetap utuh sebagian.",
+   "remediation": "Setiap error kini ditangani: rollback + log tabel penyebab + pesan spesifik. Purge mengikuti relasi sebenarnya (product_variants/product_images lewat product_id sub-query; sisanya store_id). Tabel store_daily_traffic_sources dibuat via migrasi idempoten (backend/migrations).",
+   "evidence": "Sebelum: POST /api/stores/{id}/delete -> 500, log 'current transaction is aborted (SQLSTATE 25P02)'. Sesudah: 200 dan baris toko hilang dari DB. Regresi 26 PASS / 0 FAIL.",
+   "verified_by": "hermes-verify-regresi.sh (buat toko -> konfirmasi slug -> hapus -> verifikasi DB kosong)"
   }
  ],
  "verified_ok": [
