@@ -1630,11 +1630,13 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 		}
 	}
 
-	// Security Defense: Anti-bot honeypot check
+	// Security Defense: Anti-bot honeypot check.
+	// N-17: balasan honeypot juga harus memakai pesan seragam — pesan berbeda
+	// akan berfungsi sebagai oracle status email bagi penyerang.
 	if security.IsBotHoneypotTriggered(req.WebsiteHP) {
 		return c.JSON(fiber.Map{
 			"success": true,
-			"message": "Kode OTP 6-digit telah dikirimkan ke kotak masuk email Anda.",
+			"message": "Jika email tersebut dapat digunakan, kode OTP 6-digit telah dikirimkan ke kotak masuk Anda.",
 		})
 	}
 
@@ -1646,24 +1648,31 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 		})
 	}
 
+	// N-17: jangan bocorkan status pendaftaran.
+	// Sebelumnya email terdaftar dibalas 422 "Email sudah terdaftar" sementara
+	// email bebas dibalas 200 — perbedaan ini memungkinkan enumerasi akun.
+	// Email blacklisted juga dibalas 403 eksplisit, membocorkan status penangguhan.
+	// Sekarang ketiga kondisi memberi respons identik; hanya email yang benar-benar
+	// menerima OTP yang tahu bedanya.
+	responsSeragam := fiber.Map{
+		"success": true,
+		"message": "Jika email tersebut dapat digunakan, kode OTP 6-digit telah dikirimkan ke kotak masuk Anda.",
+	}
+
 	// Check if email is blacklisted
 	var blacklistedCount int64
 	database.DB.Model(&models.User{}).Where("LOWER(email) = ? AND is_blacklisted = true", reqEmail).Count(&blacklistedCount)
 	if blacklistedCount > 0 {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"success": false,
-			"message": "Pendaftaran ditolak: Alamat email ini telah ditangguhkan secara permanen oleh platform.",
-		})
+		log.Warn().Str("ip", c.IP()).Msg("SendRegistrationOTP: email blacklisted (respons disamarkan)")
+		return c.JSON(responsSeragam)
 	}
 
 	// Check if email already registered
 	var existingCount int64
 	database.DB.Model(&models.User{}).Where("LOWER(email) = ?", reqEmail).Count(&existingCount)
 	if existingCount > 0 {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"success": false,
-			"message": "Email sudah terdaftar. Silakan login atau gunakan email lain.",
-		})
+		log.Info().Str("ip", c.IP()).Msg("SendRegistrationOTP: email sudah terdaftar (respons disamarkan)")
+		return c.JSON(responsSeragam)
 	}
 
 	_, err := services.GetOTPService().GenerateAndSendRegistrationOTP(reqEmail, req.Name)
@@ -1674,10 +1683,9 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Kode OTP 6-digit telah dikirimkan ke kotak masuk email Anda.",
-	})
+	// Respons akhir WAJIB identik dengan responsSeragam di atas; kalau berbeda,
+	// perbedaan itulah yang membocorkan status pendaftaran email.
+	return c.JSON(responsSeragam)
 }
 
 // VerifyRegistrationOTP checks the OTP and generates a temporary verification token.
@@ -1737,10 +1745,14 @@ func (h *AuthHandler) ForgotPasswordRequest(c *fiber.Ctx) error {
 		})
 	}
 
+	// N-17: akun blacklisted tidak boleh dibedakan dari email tak terdaftar —
+	// sebelumnya 403 "Akun ini telah dinonaktifkan" vs 200 membuat status
+	// penangguhan sebuah akun dapat dipetakan dari luar.
 	if user.IsBlacklisted {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"success": false,
-			"message": "Akun ini telah dinonaktifkan.",
+		log.Warn().Str("ip", c.IP()).Msg("ForgotPasswordRequest: akun blacklisted (respons disamarkan)")
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Jika email terdaftar, instruksi pemulihan telah dikirimkan ke kotak masuk Anda.",
 		})
 	}
 

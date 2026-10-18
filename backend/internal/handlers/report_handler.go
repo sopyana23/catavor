@@ -201,10 +201,11 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 	}
 
 	// 6. Capture Client Metadata
+	// N-15: pakai c.IP() saja. Membaca X-Forwarded-For mentah di sini
+	// mengabaikan EnableTrustedProxyCheck di Fiber, sehingga header itu bisa
+	// dipakai untuk memalsukan IP dan melewati dedup/anti-spam di bawah.
+	// c.IP() sudah menormalkan header hanya bila peer-nya proxy terpercaya.
 	clientIP := c.IP()
-	if forwarded := c.Get("X-Forwarded-For"); forwarded != "" {
-		clientIP = strings.TrimSpace(strings.Split(forwarded, ",")[0])
-	}
 	userAgent := c.Get("User-Agent")
 
 	targetDisplayName := store.StoreTitle

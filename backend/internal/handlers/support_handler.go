@@ -2095,10 +2095,48 @@ func (h *SupportHandler) GetHelpArticleBySlug(c *fiber.Ctx) error {
 	})
 }
 
+// helpfulVoteDedup mencegah satu klien menggelembungkan helpful_count.
+// Sebelumnya rute ini terbuka tanpa rate limiter dan tanpa dedup: 40 permintaan
+// POST berturut-turut dari satu IP menaikkan helpful_count 0 -> 40.
+var helpfulVoteDedup = struct {
+	mu   sync.Mutex
+	seen map[string]time.Time
+}{seen: make(map[string]time.Time)}
+
+const helpfulVoteWindow = 24 * time.Hour
+
+// sudahVoteHelpful mencatat dan melaporkan apakah (ip, articleID) sudah vote
+// dalam jendela waktu. Entri kedaluwarsa dibersihkan saat pemanggilan.
+func sudahVoteHelpful(ip string, articleID uint) bool {
+	key := fmt.Sprintf("%s:%d", ip, articleID)
+	now := time.Now()
+
+	helpfulVoteDedup.mu.Lock()
+	defer helpfulVoteDedup.mu.Unlock()
+
+	for k, t := range helpfulVoteDedup.seen {
+		if now.Sub(t) > helpfulVoteWindow {
+			delete(helpfulVoteDedup.seen, k)
+		}
+	}
+	if t, ok := helpfulVoteDedup.seen[key]; ok && now.Sub(t) <= helpfulVoteWindow {
+		return true
+	}
+	helpfulVoteDedup.seen[key] = now
+	return false
+}
+
 // VoteHelpful increments the helpful count of a guide article.
 func (h *SupportHandler) VoteHelpful(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if artID, err := strconv.ParseUint(id, 10, 32); err == nil {
+		// N-16: tolak vote berulang dari klien yang sama.
+		if sudahVoteHelpful(c.IP(), uint(artID)) {
+			return c.JSON(fiber.Map{
+				"success": true,
+				"message": "Terima kasih atas feedback Anda!",
+			})
+		}
 		database.DB.Model(&models.HelpArticle{}).Where("id = ?", uint(artID)).UpdateColumn("helpful_count", gorm.Expr("helpful_count + 1"))
 		return c.JSON(fiber.Map{
 			"success": true,

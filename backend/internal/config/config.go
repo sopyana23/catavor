@@ -13,9 +13,12 @@ import (
 )
 
 type Config struct {
-	Port               string
-	AppEnv             string
-	AppURL             string
+	Port   string
+	AppEnv string
+	// TrustedProxies: daftar peer yang boleh menetapkan X-Forwarded-For.
+	// Lihat catatan N-15 di LoadConfig.
+	TrustedProxies []string
+	AppURL         string
 	// TLS opsional: bila keduanya diisi, server listen HTTPS langsung
 	// (berguna untuk deploy tanpa reverse proxy). Bila kosong, TLS
 	// diterminasi di reverse proxy/LB dan server tetap HTTP.
@@ -90,6 +93,28 @@ func LoadConfig() *Config {
 
 	appEnv := strings.ToLower(strings.TrimSpace(getEnv("APP_ENV", "local")))
 
+	// SECURITY (N-15): daftar proxy yang dipercaya menentukan apakah header
+	// X-Forwarded-For dipakai untuk menentukan IP klien. Sebelumnya daftar ini
+	// di-hardcode mencakup 127.0.0.1, ::1, dan SELURUH RFC1918 (10/8, 172.16/12,
+	// 192.168/16). Akibatnya siapa pun yang bisa menjangkau server dari jaringan
+	// lokal — atau dari localhost — dapat memalsukan X-Forwarded-For dan lolos
+	// dari rate limiter maupun dedup berbasis IP. Terbukti di runtime: setelah
+	// kuota habis (429), 8 permintaan dengan XFF berputar kembali dijawab 200.
+	//
+	// Default sekarang hanya loopback, cukup untuk reverse proxy di host yang
+	// sama. Deployment lain WAJIB menyetel TRUSTED_PROXIES secara eksplisit,
+	// mis. TRUSTED_PROXIES=10.0.0.5 (IP Nginx) atau "10.0.0.0/24".
+	trustedProxiesRaw := getEnv("TRUSTED_PROXIES", "127.0.0.1,::1")
+	var trustedProxies []string
+	for _, p := range strings.Split(trustedProxiesRaw, ",") {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			trustedProxies = append(trustedProxies, trimmed)
+		}
+	}
+	if len(trustedProxies) == 0 {
+		trustedProxies = []string{"127.0.0.1", "::1"}
+	}
+
 	// SECURITY (M1-mitigasi): JWT disimpan di localStorage, sehingga token yang
 	// tercuri (via XSS) berlaku selama sisa masa hidupnya. Batasi agar dampak
 	// pencurian tidak berlangsung berhari-hari. Frontend sudah menangani 401
@@ -159,6 +184,7 @@ func LoadConfig() *Config {
 	AppConfig = &Config{
 		Port:               port,
 		AppEnv:             appEnv,
+		TrustedProxies:     trustedProxies,
 		AppURL:             appURL,
 		TLSCertFile:        strings.TrimSpace(getEnv("TLS_CERT_FILE", "")),
 		TLSKeyFile:         strings.TrimSpace(getEnv("TLS_KEY_FILE", "")),

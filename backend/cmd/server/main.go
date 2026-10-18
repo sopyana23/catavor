@@ -56,7 +56,11 @@ func main() {
 		DisableStartupMessage:   false,
 		ProxyHeader:             fiber.HeaderXForwardedFor,
 		EnableTrustedProxyCheck: true,
-		TrustedProxies:          []string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"},
+		// N-15: daftar ini sebelumnya di-hardcode ke "127.0.0.1","::1" plus
+		// seluruh RFC1918, sehingga header X-Forwarded-For dapat dipalsukan dari
+		// jaringan lokal dan rate limiter berbasis IP bisa dilewati. Sekarang
+		// dapat dikonfigurasi lewat TRUSTED_PROXIES (default hanya loopback).
+		TrustedProxies: cfg.TrustedProxies,
 	})
 
 	// 5. Setup Security Middlewares (CORS, Headers, Recovery, Tracing, Logger)
@@ -193,7 +197,9 @@ func main() {
 	// Public Help Center / Knowledge Base Endpoints
 	api.Get("/help/articles", supportHandler.GetHelpArticles)
 	api.Get("/help/articles/:slug", supportHandler.GetHelpArticleBySlug)
-	api.Post("/help/articles/:id/helpful", supportHandler.VoteHelpful)
+	// N-16: VoteHelpful sebelumnya terbuka tanpa rate limiter sama sekali;
+	// 40 POST berturut-turut dari satu IP menaikkan helpful_count 0 -> 40.
+	api.Post("/help/articles/:id/helpful", middleware.PublicSubmissionRateLimiter(), supportHandler.VoteHelpful)
 
 	// Public Legacy Endpoints (Maintained for Backward Compatibility)
 	api.Get("/fauna", productHandler.Index)

@@ -153,13 +153,11 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 	}
 
 	// 3. Sliding Window Deduplication per Client IP + UA + Store + Event + Product
+	// N-15: jangan baca X-Forwarded-For mentah di sini. Fiber sudah menormalkan
+	// header ini lewat c.IP() hanya bila peer merupakan proxy terpercaya
+	// (EnableTrustedProxyCheck). Membacanya langsung membuat kunci dedup di
+	// bawah dapat dipalsukan sehingga penghitung analitik bisa digelembungkan.
 	clientIP := c.IP()
-	if xff := c.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		if len(parts) > 0 {
-			clientIP = strings.TrimSpace(parts[0])
-		}
-	}
 
 	uaHash := fmt.Sprintf("%x", sha256.Sum256([]byte(ua)))[:12]
 	sessionToken := strings.TrimSpace(req.SessionID)
