@@ -161,3 +161,63 @@ Tanpa itu → 400 "Format data konfirmasi tidak valid" — bukan bug.
 - Residu frontend: redirect `/catavor` (`App.tsx` desktop:9920 / mobile:9969)
   dan fallback `storeSlug || 'catavor'` (desktop:4056, 4131).
 - `IsReservedSlug` masih exact-match (lubang awalan `catavor-x`).
+
+---
+
+## N-27 — Landing page crash total saat `/stores/featured` mengembalikan `null` (HIGH)
+
+### Temuan
+
+Ditemukan saat verifikasi runtime residu frontend, **bukan** saat membaca kode.
+Landing page desktop menampilkan ErrorBoundary "Kendala Memuat Aplikasi Catavor
+Desktop"; konsol: `TypeError: Cannot read properties of null (reading 'filter')`.
+
+Bukti langsung dari API:
+
+```
+$ curl -s http://127.0.0.1:8000/api/stores/featured
+{"data":null,"success":true}
+```
+
+Alurnya:
+
+1. `setFeaturedStores(featuredData.data)` dipanggil tanpa cek tipe
+   (`App.tsx:11258`). Jalur `onFresh` di atasnya **sudah** memakai
+   `Array.isArray`, jalur data cache tidak.
+2. State menjadi `null` → `featuredStores.filter(...)` (`App.tsx:14503`)
+   melempar TypeError.
+3. ErrorBoundary menangkapnya dan menggantikan **seluruh** halaman.
+
+Pola identik ada pada `faunas` (`setFaunas(faunaData.data)`).
+
+Dampak: seluruh halaman depan tidak dapat diakses setiap kali basis data tidak
+punya toko unggulan — termasuk **instalasi baru** dan kondisi DB saat ini.
+Di mobile, bug yang sama ada di `App.tsx:11444`.
+
+### Perbaikan
+
+- `setFeaturedStores` / `setFaunas`: `Array.isArray(x) ? x : []` (desktop + mobile).
+- Titik pemakaian: `(featuredStores || []).filter(...)` sebagai lapisan kedua.
+
+### Verifikasi
+
+| Uji | Sebelum | Sesudah |
+|---|---|---|
+| Desktop `GET /` | ErrorBoundary aktif, 2 console error | Render penuh, **0 error** |
+| Mobile `GET /mobile/` | crash yang sama | Render penuh, **0 error** |
+
+Verifikasi juga memakai bukti negatif: build dari kode **sebelum** perubahan
+(`git stash`) tetap crash — membuktikan bug ini bukan regresi dari perubahan
+residu slug.
+
+### Residu slug `catavor`
+
+Fallback `storeSlug || 'catavor'` (8 titik) dihapus. `IsReservedSlug` menolak
+semua varian (`catavor`, `catavor-x`, `c4t4v0r`, `cat-avor`, …) — diuji runtime
+via helper Go, semuanya `reserved=true`, sedangkan `tokosaya`/`bunga` lolos.
+Artinya `catavor.id/catavor` **tidak pernah** menunjuk toko nyata: pengunjung
+yang memindai QR akan mendarat di landing page. Kini tanpa slug tidak ada URL
+atau QR yang dibuat, dan aksi salin ditolak dengan pesan jelas.
+
+Redirect `/catavor` → `/` **dipertahankan** — itu perilaku yang benar karena
+`catavor` adalah nama platform.

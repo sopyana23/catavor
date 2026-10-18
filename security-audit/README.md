@@ -4,8 +4,9 @@
 > (H1–L6), 6 temuan putaran 2 tertutup (N-01…N-06), 17 temuan putaran 3
 > tertutup (N-07…N-20), N-22 (urutan toko default), N-23 & N-24 (pemisahan
 > bidang otorisasi: jalur admin platform tidak lagi mewajibkan toko),
-> N-25 (penanda staf platform: 34 hardcode email → satu sumber kebenaran)
-> dan N-26 (`DeleteStore` selalu 500 karena transaksi ter-abort).
+> N-25 (penanda staf platform: 34 hardcode email → satu sumber kebenaran),
+> N-26 (`DeleteStore` selalu 500 karena transaksi ter-abort) dan N-27
+> (landing page crash total saat `/stores/featured` mengembalikan `null`).
 > Satu temuan masih terbuka: **N-21** (fungsional) yang menunggu keputusan
 > produk, bukan perbaikan kode.
 >
@@ -37,7 +38,7 @@ Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 | [mitigasi-m1.md](mitigasi-m1.md) | **Mitigasi M1** — token 12 jam + deteksi anomali sesi |
 | [perbaikan-m1-penuh.md](perbaikan-m1-penuh.md) | **M1 penuh** — cookie HttpOnly + CSRF + tiket SSE |
 | [remediation-plan.md](remediation-plan.md) | Urutan fix + patch minimal |
-| [findings.json](findings.json) | Data temuan (machine-readable) — H1–L6 + N-01…N-26 (29 temuan; hanya N-21 masih `open`) |
+| [findings.json](findings.json) | Data temuan (machine-readable) — H1–L6 + N-01…N-27 (30 temuan; hanya N-21 masih `open`) |
 
 ## Ketahanan sesi panjang (UI/memori/stabilitas)
 

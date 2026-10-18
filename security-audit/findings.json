@@ -314,6 +314,21 @@
    "remediation": "Setiap error kini ditangani: rollback + log tabel penyebab + pesan spesifik. Purge mengikuti relasi sebenarnya (product_variants/product_images lewat product_id sub-query; sisanya store_id). Tabel store_daily_traffic_sources dibuat via migrasi idempoten (backend/migrations).",
    "evidence": "Sebelum: POST /api/stores/{id}/delete -> 500, log 'current transaction is aborted (SQLSTATE 25P02)'. Sesudah: 200 dan baris toko hilang dari DB. Regresi 26 PASS / 0 FAIL.",
    "verified_by": "hermes-verify-regresi.sh (buat toko -> konfirmasi slug -> hapus -> verifikasi DB kosong)"
+  },
+  {
+   "id": "N-27",
+   "severity": "high",
+   "category": "availability / frontend robustness",
+   "title": "Landing page crash total saat /stores/featured mengembalikan data:null",
+   "status": "fixed",
+   "location": "frontend/desktop/src/App.tsx + frontend/mobile/src/App.tsx (setFeaturedStores, setFaunas)",
+   "evidence": "GET /api/stores/featured -> {\"data\":null,\"success\":true}; state disimpan tanpa cek tipe; featuredStores.filter() melempar TypeError dan ErrorBoundary mengaktifkan 'Kendala Memuat Aplikasi Catavor Desktop'.",
+   "impact": "Seluruh halaman depan tidak dapat diakses setiap kali DB tidak punya toko unggulan (termasuk instalasi baru).",
+   "fix": "Array.isArray guard pada setFeaturedStores/setFaunas; fallback (featuredStores || []) di titik pemakaian; build ulang public/{desktop,mobile}.",
+   "verification": "Landing desktop & mobile dimuat ulang di browser: render penuh, 0 console error, 0 JS exception.",
+   "related": [
+    "N-26"
+   ]
   }
  ],
  "verified_ok": [
