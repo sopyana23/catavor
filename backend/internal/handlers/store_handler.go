@@ -18,6 +18,7 @@ import (
 	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog/log"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -52,7 +53,8 @@ func (h *StoreHandler) isMerchantRequester(c *fiber.Ctx, store *models.Store) bo
 	}
 	var user models.User
 	if err := database.DB.Select("id, platform_role").First(&user, claims.UserID).Error; err == nil {
-		if user.PlatformRole == "platform_admin" || user.PlatformRole == "super_admin" || user.PlatformRole == "moderator" {
+		// ARSITEKTUR (N-25): satu sumber kebenaran (lihat models.PlatformStaffRoles).
+		if user.IsPlatformStaff() {
 			return true
 		}
 	}
@@ -784,7 +786,6 @@ func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	return c.JSON(responsePayload)
 }
 
-
 func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
 	slugParam := c.Params("slug")
 	if slugParam == "" {
@@ -1003,9 +1004,7 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		userID = &u.ID
 		actorName = u.Name
 		actorEmail = u.Email
-		if u.Email == "admin@catavor.com" {
-			actorRole = "superadmin"
-		}
+		actorRole = u.PlatformStaffRoleLabel()
 	}
 
 	action := "store.profile_update"
@@ -1495,15 +1494,15 @@ func (h *StoreHandler) GetMyStores(c *fiber.Ctx) error {
 		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
 
 		result = append(result, fiber.Map{
-			"id":              s.ID,
-			"slug":            s.Slug,
-			"store_title":     s.StoreTitle,
-			"store_slogan":    s.StoreSlogan,
-			"store_theme":     theme,
-			"store_logo_url":  s.StoreLogoURL,
-			"plan":            s.Plan,
-			"payment_status":  s.PaymentStatus,
-			"whatsapp_number": s.WhatsappNumber,
+			"id":                s.ID,
+			"slug":              s.Slug,
+			"store_title":       s.StoreTitle,
+			"store_slogan":      s.StoreSlogan,
+			"store_theme":       theme,
+			"store_logo_url":    s.StoreLogoURL,
+			"plan":              s.Plan,
+			"payment_status":    s.PaymentStatus,
+			"whatsapp_number":   s.WhatsappNumber,
 			"item_count":        itemCount,
 			"dormancy_status":   s.DormancyStatus,
 			"is_suspended":      s.IsSuspended || s.DormancyStatus == "suspended",
@@ -1757,14 +1756,14 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 		var itemCount int64
 		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
 		storeSummaries = append(storeSummaries, fiber.Map{
-			"id":              s.ID,
-			"slug":            s.Slug,
-			"store_title":     s.StoreTitle,
-			"store_slogan":    s.StoreSlogan,
-			"store_theme":     th,
-			"store_logo_url":  s.StoreLogoURL,
-			"plan":            s.Plan,
-			"payment_status":  s.PaymentStatus,
+			"id":                s.ID,
+			"slug":              s.Slug,
+			"store_title":       s.StoreTitle,
+			"store_slogan":      s.StoreSlogan,
+			"store_theme":       th,
+			"store_logo_url":    s.StoreLogoURL,
+			"plan":              s.Plan,
+			"payment_status":    s.PaymentStatus,
 			"whatsapp_number":   s.WhatsappNumber,
 			"item_count":        itemCount,
 			"dormancy_status":   s.DormancyStatus,
@@ -1821,7 +1820,10 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 	}
 
 	// Authorization Check: Must be the owner or platform admin
-	isStaff := user.PlatformRole == "superadmin" || user.PlatformRole == "platform_admin" || user.PlatformRole == "admin"
+	// ARSITEKTUR (N-25): satu sumber kebenaran. Daftar manual sebelumnya
+	// menyebut "platform_admin"/"admin" (tidak ada di DB maupun whitelist)
+	// dan TIDAK mengenali role sah seperti support/finance/compliance.
+	isStaff := user.IsPlatformStaff()
 	if store.UserID != user.ID && !isStaff {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -1870,16 +1872,64 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 	}()
 
 	// Delete all products and variants
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.ProductVariant{}).Error
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.ProductImage{}).Error
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.Product{}).Error
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.Category{}).Error
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.Article{}).Error
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.StoreDailyAnalytics{}).Error
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.ProductDailyAnalytics{}).Error
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.StoreDailyTrafficSource{}).Error
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.NotificationRead{}).Error
-	_ = tx.Where("store_id = ?", store.ID).Delete(&models.ActivityLog{}).Error
+	//
+	// PENTING (N-26): setiap error WAJIB ditangani. Di PostgreSQL, satu
+	// perintah yang gagal membuat seluruh transaksi berstatus aborted
+	// (SQLSTATE 25P02), sehingga semua perintah berikutnya ikut gagal —
+	// termasuk DELETE toko. Dengan `_ =` akar masalahnya tersembunyi dan
+	// pengguna hanya melihat 500 tanpa sebab yang jelas.
+	// Urutan purge mengikuti RELASI SEBENARNYA di skema (N-26):
+	//   product_variants / product_images  -> product_id  (BUKAN store_id)
+	//   products, categories, articles, ... -> store_id
+	// Sebelumnya semua tabel dihapus dengan WHERE store_id = ? sehingga
+	// tabel anak produk gagal dan (karena error diabaikan) transaksi
+	// PostgreSQL ter-abort, membuat DELETE toko selalu 500.
+	// Sub-query dipakai (bukan daftar ID di memori) agar tetap benar
+	// untuk toko dengan jumlah produk besar.
+	productIDs := tx.Model(&models.Product{}).Select("id").Where("store_id = ?", store.ID)
+	if err := tx.Where("product_id IN (?)", productIDs).Delete(&models.ProductVariant{}).Error; err != nil {
+		tx.Rollback()
+		log.Error().Err(err).Uint("store_id", store.ID).Str("tabel", "product_variants").
+			Msg("gagal membersihkan data toko; transaksi dibatalkan")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghapus data katalog: pembersihan product_variants gagal.",
+		})
+	}
+	if err := tx.Where("product_id IN (?)", productIDs).Delete(&models.ProductImage{}).Error; err != nil {
+		tx.Rollback()
+		log.Error().Err(err).Uint("store_id", store.ID).Str("tabel", "product_images").
+			Msg("gagal membersihkan data toko; transaksi dibatalkan")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghapus data katalog: pembersihan product_images gagal.",
+		})
+	}
+
+	purge := []struct {
+		label string
+		model interface{}
+	}{
+		{"products", &models.Product{}},
+		{"categories", &models.Category{}},
+		{"articles", &models.Article{}},
+		{"store_daily_analytics", &models.StoreDailyAnalytics{}},
+		{"product_daily_analytics", &models.ProductDailyAnalytics{}},
+		{"store_daily_traffic_sources", &models.StoreDailyTrafficSource{}},
+		{"notification_reads", &models.NotificationRead{}},
+		{"activity_logs", &models.ActivityLog{}},
+	}
+	for _, p := range purge {
+		if err := tx.Where("store_id = ?", store.ID).Delete(p.model).Error; err != nil {
+			tx.Rollback()
+			log.Error().Err(err).Uint("store_id", store.ID).Str("tabel", p.label).
+				Msg("gagal membersihkan data toko; transaksi dibatalkan")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal menghapus data katalog: pembersihan tabel " + p.label + " gagal.",
+			})
+		}
+	}
 
 	// Delete store record
 	if err := tx.Delete(&store).Error; err != nil {
@@ -1929,4 +1979,3 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		"next_store":       nextStore,
 	})
 }
-

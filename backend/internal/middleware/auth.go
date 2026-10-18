@@ -177,8 +177,9 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			}
 
 			// SECURITY (N-05): whitelist terpusat, konsisten dengan RequireAdmin.
-			isTicketAdmin := IsPlatformStaffRole(user.PlatformRole) ||
-				user.Email == "admin@catavor.com"
+			// ARSITEKTUR: staf platform ditentukan oleh platform_role yang
+			// ditetapkan dinamis (dapat dicabut & diaudit), bukan alamat email.
+			isTicketAdmin := user.IsPlatformStaff()
 
 			if !isTicketAdmin && user.IsBlacklisted {
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -298,7 +299,7 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		// SECURITY (N-05): gunakan whitelist terpusat (satu sumber kebenaran).
 		// Sebelumnya daftar ini hardcoded dan tidak konsisten dengan DB: memuat
 		// "admin" (tidak pernah ada di platform_role) dan melewatkan finance/content.
-		isPlatformAdmin := IsPlatformStaffRole(user.PlatformRole) || user.Email == "admin@catavor.com"
+		isPlatformAdmin := user.IsPlatformStaff()
 
 		if !isPlatformAdmin && user.IsBlacklisted {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -371,12 +372,7 @@ func StoreOwnerRequired() fiber.Handler {
 		}
 
 		var matchedStore *models.Store
-		isPlatformAdminUser := strings.EqualFold(user.PlatformRole, "superadmin") ||
-			strings.EqualFold(user.PlatformRole, "support") ||
-			strings.EqualFold(user.PlatformRole, "compliance") ||
-			strings.EqualFold(user.PlatformRole, "finance") ||
-			strings.EqualFold(user.PlatformRole, "admin") ||
-			user.Email == "admin@catavor.com"
+		isPlatformAdminUser := user.IsPlatformStaff()
 
 		if targetSlug != "" {
 			// Check against user's owned stores
@@ -485,10 +481,7 @@ func OperationalStoreRequired() fiber.Handler {
 		}
 
 		user, _ := c.Locals("user").(*models.User)
-		isStaff := user != nil && (strings.EqualFold(user.PlatformRole, "superadmin") ||
-			strings.EqualFold(user.PlatformRole, "support") ||
-			strings.EqualFold(user.PlatformRole, "compliance") ||
-			user.Email == "admin@catavor.com")
+		isStaff := user.IsPlatformStaff()
 
 		if isStaff {
 			return c.Next()

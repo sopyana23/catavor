@@ -1,6 +1,8 @@
 package database
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -19,6 +21,18 @@ import (
 )
 
 var DB *gorm.DB
+
+// randomSeedPassword menghasilkan password acak kuat untuk akun contoh saat
+// instalasi baru (192 bit entropi dari crypto/rand, base64 URL-safe).
+func randomSeedPassword() string {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		// Jangan pernah jatuh ke password tetap: gagal keras lebih baik
+		// daripada diam-diam membuat admin berkredensial yang bisa ditebak.
+		panic("crypto/rand gagal: " + err.Error())
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}
 
 func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	dsn := cfg.GetPostgresDSN()
@@ -447,7 +461,12 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_users_platform_role ON users(platform_role);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_users_is_blacklisted ON users(is_blacklisted);").Error
-	_ = db.Exec("UPDATE users SET platform_role = 'superadmin', is_password_changed = true WHERE email = 'admin@catavor.com';").Error
+	// SECURITY (N-25): dulu baris ini menaikkan akun ber-email hardcode
+	// "admin@catavor.com" menjadi superadmin pada SETIAP boot — eskalasi hak
+	// otomatis berbasis alamat email. Siapa pun yang bisa mendaftarkan email
+	// tersebut (mis. lewat jalur OAuth yang tidak memverifikasi kepemilikan)
+	// akan menjadi superadmin tanpa penugasan. Penugasan role sekarang hanya
+	// lewat RBAC (POST /api/admin/rbac/staff) yang tercatat dan dapat dicabut.
 	_ = db.AutoMigrate(&models.PlatformRole{}, &models.PlatformPermission{}, &models.PlatformRolePermission{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_platform_roles_slug ON platform_roles(slug);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_platform_permissions_key ON platform_permissions(key);").Error
@@ -780,14 +799,28 @@ func resetSequences(db *gorm.DB) {
 	}
 }
 
+// seedDefaultData membuat data contoh saat database KOSONG (instalasi baru).
+//
+// SECURITY (N-25): akun admin contoh dulu memakai email hardcode
+// "admin@catavor.com" dengan password literal "password", sementara boot
+// menaikkannya menjadi superadmin otomatis. Kombinasi itu berarti setiap
+// instalasi baru punya superadmin dengan kredensial yang dapat ditebak.
+// Sekarang password dibuat acak dan dicetak sekali ke log; pengguna wajib
+// menggantinya lewat alur ganti-password saat login pertama.
 func seedDefaultData(db *gorm.DB) {
 	adminUser := models.User{
 		Name:              "Administrator",
-		Email:             "admin@catavor.com",
-		IsPasswordChanged: true,
+		Email:             "admin@catavor.local",
+		IsPasswordChanged: false,
 	}
-	_ = adminUser.SetPassword("password")
-	db.Create(&adminUser)
+	initialPassword := randomSeedPassword()
+	_ = adminUser.SetPassword(initialPassword)
+	if err := db.Create(&adminUser).Error; err == nil {
+		log.Warn().
+			Str("email", adminUser.Email).
+			Str("password_sementara", initialPassword).
+			Msg("Akun administrator awal dibuat dengan password acak — ganti segera setelah login pertama")
+	}
 
 	defaultClasses, _ := json.Marshal([]string{"Pakaian & Busana", "Aksesoris & Fashion", "Gadget & Elektronik", "Kebutuhan Rumah Tangga", "Kerajinan Tangan"})
 	defaultHabitats, _ := json.Marshal([]string{"Item Baru (Ready Stock)", "Pre-Order (PO)", "Varian Koleksi Khusus"})
@@ -945,5 +978,3 @@ func ensureStoreCategoriesPopulated(db *gorm.DB) {
 		log.Info().Msg("Auto-populated categories table from store master_classes")
 	}
 }
-
-

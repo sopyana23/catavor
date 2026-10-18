@@ -50,10 +50,7 @@ func (h *ActivityLogHandler) GetStoreActivityLogs(c *fiber.Ctx) error {
 		storeID = store.ID
 	}
 
-	isStaff := user != nil && (strings.EqualFold(user.PlatformRole, "superadmin") ||
-		strings.EqualFold(user.PlatformRole, "support") ||
-		strings.EqualFold(user.PlatformRole, "compliance") ||
-		user.Email == "admin@catavor.com")
+	isStaff := user.IsPlatformStaff()
 	if !isStaff && activeStore != nil && (activeStore.DormancyStatus == "suspended" || activeStore.IsSuspended || activeStore.DormancyStatus == "banned" || activeStore.IsBlacklisted) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,

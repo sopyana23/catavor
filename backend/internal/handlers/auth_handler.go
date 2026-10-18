@@ -282,10 +282,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	database.ResetLoginFailures(cleanedEmail)
 
 	isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
-		strings.EqualFold(user.PlatformRole, "support") ||
-		strings.EqualFold(user.PlatformRole, "compliance") ||
-		strings.EqualFold(user.PlatformRole, "admin") ||
-		user.Email == "admin@catavor.com"
+		user.IsPlatformStaff()
 
 	if !isPlatformAdmin && user.IsBlacklisted {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -349,10 +346,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		services.TouchStoreActivity(database.DB, user.Store.ID)
 	}
 
-	actorRole := "merchant"
-	if user.Email == "admin@catavor.com" {
-		actorRole = "superadmin"
-	}
+	actorRole := user.PlatformStaffRoleLabel()
 	var activeStoreID *uint
 	if activeStore.ID > 0 {
 		activeStoreID = &activeStore.ID
@@ -413,8 +407,8 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 			"name":                user.Name,
 			"email":               user.Email,
 			"platform_role":       user.PlatformRole,
-			"is_superadmin":       strings.EqualFold(user.PlatformRole, "superadmin") || user.Email == "admin@catavor.com",
-			"is_admin":            (user.PlatformRole != "" && user.PlatformRole != "merchant") || user.Email == "admin@catavor.com",
+			"is_superadmin":       user.IsSuperadmin(),
+			"is_admin":            user.IsPlatformStaff(),
 			"permissions":         services.GetRBACService().GetUserPermissions(&user),
 			"is_password_changed": user.IsPasswordChanged,
 			"has_custom_password": user.HasCustomPassword,
@@ -1266,10 +1260,7 @@ func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
 	}
 
 	isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
-		strings.EqualFold(user.PlatformRole, "support") ||
-		strings.EqualFold(user.PlatformRole, "compliance") ||
-		strings.EqualFold(user.PlatformRole, "admin") ||
-		user.Email == "admin@catavor.com"
+		user.IsPlatformStaff()
 
 	if !isPlatformAdmin && user.IsBlacklisted {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -1311,8 +1302,8 @@ func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
 			"name":                user.Name,
 			"email":               user.Email,
 			"platform_role":       user.PlatformRole,
-			"is_superadmin":       strings.EqualFold(user.PlatformRole, "superadmin") || user.Email == "admin@catavor.com",
-			"is_admin":            (user.PlatformRole != "" && user.PlatformRole != "merchant") || user.Email == "admin@catavor.com",
+			"is_superadmin":       user.IsSuperadmin(),
+			"is_admin":            user.IsPlatformStaff(),
 			"permissions":         services.GetRBACService().GetUserPermissions(user),
 			"is_password_changed": user.IsPasswordChanged,
 			"has_custom_password": user.HasCustomPassword,
@@ -1337,10 +1328,7 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	}
 
 	isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
-		strings.EqualFold(user.PlatformRole, "support") ||
-		strings.EqualFold(user.PlatformRole, "compliance") ||
-		strings.EqualFold(user.PlatformRole, "admin") ||
-		user.Email == "admin@catavor.com"
+		user.IsPlatformStaff()
 
 	if !isPlatformAdmin && user.IsBlacklisted {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -1400,8 +1388,8 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 			"name":                user.Name,
 			"email":               user.Email,
 			"platform_role":       user.PlatformRole,
-			"is_superadmin":       strings.EqualFold(user.PlatformRole, "superadmin") || user.Email == "admin@catavor.com",
-			"is_admin":            (user.PlatformRole != "" && user.PlatformRole != "merchant") || user.Email == "admin@catavor.com",
+			"is_superadmin":       user.IsSuperadmin(),
+			"is_admin":            user.IsPlatformStaff(),
 			"permissions":         services.GetRBACService().GetUserPermissions(user),
 			"is_password_changed": user.IsPasswordChanged,
 			"store_slug":          activeStore.Slug,
@@ -1567,10 +1555,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	actorRole := "merchant"
-	if user.Email == "admin@catavor.com" {
-		actorRole = "superadmin"
-	}
+	actorRole := user.PlatformStaffRoleLabel()
 	action := "auth.profile_updated"
 	desc := fmt.Sprintf("Pengguna %s memperbarui data profil.", user.Name)
 	if req.Password != "" {

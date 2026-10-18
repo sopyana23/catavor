@@ -78,15 +78,20 @@ func (s *RBACService) HasPermission(user *models.User, requiredPermission string
 		return false
 	}
 
-	roleSlug := strings.ToLower(strings.TrimSpace(user.PlatformRole))
-	if roleSlug == "" || roleSlug == "merchant" {
+	// ARSITEKTUR (N-25): pakai satu sumber kebenaran untuk menandai staf.
+	// Sebelumnya baris ini menolak hanya "" dan "merchant", sehingga string
+	// sampah (mis. salah ketik saat penugasan role) dianggap staf dan lanjut
+	// ke pemeriksaan cache. Sekarang whitelist eksplisit.
+	if !user.IsPlatformStaff() {
 		return false
 	}
 
 	// Superadmin has absolute wildcard access to all platform features
-	if roleSlug == "superadmin" {
+	if user.IsSuperadmin() {
 		return true
 	}
+
+	roleSlug := models.NormalizePlatformRole(user.PlatformRole)
 
 	s.cacheLock.RLock()
 	rolePerms, exists := s.permCache[roleSlug]
@@ -326,6 +331,15 @@ func (s *RBACService) AssignStaffRole(targetEmailOrID string, roleSlug string, a
 		return fmt.Errorf("role '%s' tidak terdaftar dalam sistem", roleSlug)
 	}
 
+	// ARSITEKTUR (N-25): staf platform dan merchant adalah dua dimensi yang
+	// INDEPENDEN. Menugaskan platform_role kepada akun yang sudah punya toko
+	// adalah SAH (karyawan boleh berjualan dengan email pribadi), dan mencabut
+	// platform_role tidak boleh menghapus tokonya. Karena itu di sini TIDAK ada
+	// syarat "target belum punya toko" — yang ditegakkan adalah role-nya sah
+	// (divalidasi di atas) dan tercatat dalam audit di bawah.
+	//
+	// Yang dilarang adalah kebalikannya: mewajibkan staf memiliki toko. Itu
+	// dijaga di middleware tenant yang sudah memisahkan jalur admin platform.
 	oldRole := targetUser.PlatformRole
 	targetUser.PlatformRole = roleSlug
 	if err := s.db.Save(&targetUser).Error; err != nil {
@@ -365,8 +379,22 @@ func (s *RBACService) RevokeStaffRole(targetUserID uint, actor *models.User) err
 		return errors.New("pengguna tidak ditemukan")
 	}
 
-	if targetUser.Email == "admin@catavor.com" {
-		return errors.New("role Superadmin utama (admin@catavor.com) tidak dapat dicabut")
+	// SECURITY (N-25): anti-lockout TIDAK boleh bergantung pada alamat email.
+	// Dulu akun hardcode "admin@catavor.com" dilindungi, yang berarti (a) akun
+	// itu tidak pernah ada di DB produksi sehingga perlindungannya kosong, dan
+	// (b) superadmin sungguhan bisa dicabut sampai habis -> platform tanpa
+	// admin. Aturan yang benar bersifat kapabilitas: jangan pernah mencabut
+	// superadmin TERAKHIR.
+	if targetUser.IsSuperadmin() {
+		var superadminCount int64
+		if err := s.db.Model(&models.User{}).
+			Where("LOWER(TRIM(platform_role)) = ?", "superadmin").
+			Count(&superadminCount).Error; err != nil {
+			return errors.New("gagal memverifikasi jumlah superadmin")
+		}
+		if superadminCount <= 1 {
+			return errors.New("role superadmin terakhir tidak dapat dicabut — tugaskan superadmin lain terlebih dahulu")
+		}
 	}
 
 	if actor != nil && targetUser.ID == actor.ID {

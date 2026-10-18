@@ -404,7 +404,7 @@ type CategoryMetricSummary struct {
 }
 
 type SmartInsight struct {
-	Type        string `json:"type"`        // success | tip | warning
+	Type        string `json:"type"` // success | tip | warning
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
@@ -419,10 +419,10 @@ type TrafficSourceSummary struct {
 }
 
 type PeriodGrowthSummary struct {
-	StoreViewsGrowthPercent     float64 `json:"store_views_growth_percent"`
-	TotalActionsGrowthPercent   float64 `json:"total_actions_growth_percent"`
-	PrevStoreViews              int     `json:"prev_store_views"`
-	PrevTotalActions            int     `json:"prev_total_actions"`
+	StoreViewsGrowthPercent   float64 `json:"store_views_growth_percent"`
+	TotalActionsGrowthPercent float64 `json:"total_actions_growth_percent"`
+	PrevStoreViews            int     `json:"prev_store_views"`
+	PrevTotalActions          int     `json:"prev_total_actions"`
 }
 
 type ConversionFunnelSummary struct {
@@ -451,10 +451,7 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	}
 
 	user, _ := c.Locals("user").(*models.User)
-	isStaff := user != nil && (strings.EqualFold(user.PlatformRole, "superadmin") ||
-		strings.EqualFold(user.PlatformRole, "support") ||
-		strings.EqualFold(user.PlatformRole, "compliance") ||
-		user.Email == "admin@catavor.com")
+	isStaff := user.IsPlatformStaff()
 	if !isStaff && (store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -904,10 +901,7 @@ func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
 	}
 
 	user, _ := c.Locals("user").(*models.User)
-	isStaff := user != nil && (strings.EqualFold(user.PlatformRole, "superadmin") ||
-		strings.EqualFold(user.PlatformRole, "support") ||
-		strings.EqualFold(user.PlatformRole, "compliance") ||
-		user.Email == "admin@catavor.com")
+	isStaff := user.IsPlatformStaff()
 	if !isStaff && (store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -1391,5 +1385,3 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	return c.Send([]byte(sb.String()))
 }
-
-

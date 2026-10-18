@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"fmt"
-	"strings"
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
@@ -104,22 +103,15 @@ func RequireAnyPermission(cfg *config.Config, permissions ...string) fiber.Handl
 	}
 }
 
-// PlatformStaffRoles adalah daftar TUNGGAL role staf platform yang sah.
-// SECURITY (N-05): dipakai sebagai whitelist eksplisit. Sebelumnya RequireAdmin
-// hanya menolak "" dan "merchant" sehingga string role apa pun (mis. typo atau
-// nilai sisa migrasi) otomatis dianggap admin — fail-open.
-// Nilai di bawah diverifikasi terhadap data nyata di tabel users.platform_role.
-var PlatformStaffRoles = map[string]struct{}{
-	"superadmin": {},
-	"support":    {},
-	"compliance": {},
-	"finance":    {},
-	"content":    {},
-}
+// PlatformStaffRoles adalah alias dari models.PlatformStaffRoles — SATU sumber
+// kebenaran. Sebelumnya daftar ini hidup di dua tempat (middleware dan handler
+// punya salinan logika sendiri), sehingga role baru bisa lolos di satu jalur
+// tapi ditolak di jalur lain.
+var PlatformStaffRoles = models.PlatformStaffRoles
 
 // IsPlatformStaffRole melaporkan apakah role (case-insensitive) termasuk staf platform.
 func IsPlatformStaffRole(role string) bool {
-	_, ok := PlatformStaffRoles[strings.ToLower(strings.TrimSpace(role))]
+	_, ok := PlatformStaffRoles[models.NormalizePlatformRole(role)]
 	return ok
 }
 

@@ -99,9 +99,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 		limit = 100
 	}
 
-	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") || 
-		strings.EqualFold(user.PlatformRole, "support") || 
-		user.Email == "admin@catavor.com"
+	isStaff := user.IsPlatformStaff()
 
 	baseQuery := database.DB.Model(&models.SupportTicket{})
 	if !isStaff {
@@ -316,9 +314,7 @@ func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
 	var ticket models.SupportTicket
 
 	// Scoped ownership check: user must own the ticket, or be platform staff (lookup by id or ticket_number)
-	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") || 
-		strings.EqualFold(user.PlatformRole, "support") || 
-		user.Email == "admin@catavor.com"
+	isStaff := user.IsPlatformStaff()
 
 	q := database.DB.Preload("User").Preload("Store")
 	if !isStaff {
@@ -463,9 +459,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") || 
-		strings.EqualFold(user.PlatformRole, "support") || 
-		user.Email == "admin@catavor.com"
+	isStaff := user.IsPlatformStaff()
 
 	// Resolve targeted store context (Store-Scoped Best Practice)
 	var store models.Store
@@ -723,15 +717,15 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 
 	// Broadcast real-time ticket reply event to all Superadmin & Support staff via SSE
 	go services.GetNotificationHub().BroadcastTicketEvent("ticket_reply_from_user", map[string]interface{}{
-		"ticket_id":      ticket.ID,
-		"ticket_number":  ticket.TicketNumber,
-		"store_id":       ticket.StoreID,
-		"store_slug":     ticketStoreSlug,
-		"subject":        ticket.Subject,
-		"status":         ticket.Status,
-		"priority":       ticket.Priority,
-		"sender_name":    user.Name,
-		"message":        msg,
+		"ticket_id":     ticket.ID,
+		"ticket_number": ticket.TicketNumber,
+		"store_id":      ticket.StoreID,
+		"store_slug":    ticketStoreSlug,
+		"subject":       ticket.Subject,
+		"status":        ticket.Status,
+		"priority":      ticket.Priority,
+		"sender_name":   user.Name,
+		"message":       msg,
 	}, 0, targetStoreID, "superadmin")
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -924,9 +918,9 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 		"count":   len(tickets),
 		"data":    tickets,
 		"metrics": fiber.Map{
-			"total":           totalCount,
-			"action_required": actionReqCount,
-			"in_progress":     inProgCount,
+			"total":              totalCount,
+			"action_required":    actionReqCount,
+			"in_progress":        inProgCount,
 			"waiting_user":       waitUserCount,
 			"urgent":             urgentCount,
 			"resolved":           resolvedCount,
@@ -2160,9 +2154,7 @@ func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
 		})
 	}
 
-	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") || 
-		strings.EqualFold(user.PlatformRole, "support") || 
-		user.Email == "admin@catavor.com"
+	isStaff := user.IsPlatformStaff()
 
 	var unreadTicketsCount int64
 	if isStaff {
@@ -2264,10 +2256,7 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	}
 
 	// 3. Strict RBAC Authorization Check
-	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") ||
-		strings.EqualFold(user.PlatformRole, "support") ||
-		strings.EqualFold(user.PlatformRole, "admin") ||
-		user.Email == "admin@catavor.com"
+	isStaff := user.IsPlatformStaff()
 
 	isOwner := false
 	if attachment.Message != nil && attachment.Message.Ticket != nil {
@@ -2399,4 +2388,3 @@ func resolveInsideRoot(root, key string) (string, bool) {
 	}
 	return resolved, true
 }
-

@@ -170,7 +170,7 @@ func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData inte
 		// 2. Target by Role (e.g. "superadmin", "support")
 		if targetRoleClean != "" {
 			if targetRoleClean == "superadmin" || targetRoleClean == "support" {
-				if client.PlatformRole == "superadmin" || client.PlatformRole == "support" {
+				if models.IsPlatformStaffRole(client.PlatformRole) {
 					shouldSend = true
 				}
 			} else if client.PlatformRole == targetRoleClean {
@@ -316,7 +316,7 @@ func (h *NotificationHub) isClientTargetMatch(client *SSEClient, notif *models.N
 	case "single_user":
 		return notif.TargetID > 0 && client.UserID == notif.TargetID
 	case "role", "platform_role", "superadmin":
-		return client.PlatformRole == "superadmin" || client.PlatformRole == "support"
+		return models.IsPlatformStaffRole(client.PlatformRole)
 	default:
 		return true
 	}

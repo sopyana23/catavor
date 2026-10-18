@@ -160,7 +160,7 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 					isAuthorized = true
 				} else {
 					var user models.User
-					if err := database.DB.Select("platform_role").First(&user, claims.UserID).Error; err == nil && (user.PlatformRole == "superadmin" || user.PlatformRole == "investigator") {
+					if err := database.DB.Select("platform_role").First(&user, claims.UserID).Error; err == nil && user.IsPlatformStaff() {
 						isAuthorized = true
 					}
 				}

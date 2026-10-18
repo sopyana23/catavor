@@ -532,9 +532,8 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 	if user != nil {
 		userID = user.ID
 		platformRole = user.PlatformRole
-		if strings.EqualFold(user.PlatformRole, "superadmin") || user.Email == "admin@catavor.com" {
-			platformRole = "superadmin"
-		}
+		// ARSITEKTUR: label role diturunkan dari platform_role, bukan email.
+		platformRole = user.PlatformStaffRoleLabel()
 	}
 
 	storeID, storePlan, _, _, _ := h.resolveStoreContext(c, user)
@@ -769,7 +768,7 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 	// Record Superadmin Audit Log
 	var userID *uint
 	actorName := "Superadmin"
-	actorEmail := "admin@catavor.com"
+	actorEmail := "system@catavor.com" // default bila konteks user tak tersedia
 	if user != nil {
 		userID = &user.ID
 		actorName = user.Name
@@ -1030,7 +1029,7 @@ func (h *NotificationHandler) SuperadminDelete(c *fiber.Ctx) error {
 	userVal := c.Locals("user")
 	var userID *uint
 	actorName := "Superadmin"
-	actorEmail := "admin@catavor.com"
+	actorEmail := "system@catavor.com" // default bila konteks user tak tersedia
 	if userVal != nil {
 		u := userVal.(*models.User)
 		userID = &u.ID
