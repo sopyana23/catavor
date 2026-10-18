@@ -3922,12 +3922,18 @@ export function ShareCatalogCard({
 
   const fullUrl = useMemo(() => {
     if (typeof window !== 'undefined') {
-      return `${window.location.origin}/${storeSlug || 'catavor'}`;
+      if (!storeSlug) return '';
+      return `${window.location.origin}/${storeSlug}`;
     }
-    return `https://catavor.id/${storeSlug || 'catavor'}`;
+    if (!storeSlug) return '';
+    return `https://catavor.id/${storeSlug}`;
   }, [storeSlug]);
 
   const handleCopy = () => {
+    if (!fullUrl) {
+      if (onToast) onToast('Slug katalog belum tersedia, link tidak dapat disalin.', 'error');
+      return;
+    }
     navigator.clipboard.writeText(fullUrl);
     setCopied(true);
     if (onToast) onToast('Link katalog berhasil disalin ke clipboard!', 'success');
@@ -3995,14 +4001,24 @@ export function QRCodeMobileSubPage({
 
   const fullUrl = useMemo(() => {
     if (typeof window !== 'undefined') {
-      return `${window.location.origin}/${storeSlug || 'catavor'}`;
+      if (!storeSlug) return '';
+      return `${window.location.origin}/${storeSlug}`;
     }
-    return `https://catavor.id/${storeSlug || 'catavor'}`;
+    if (!storeSlug) return '';
+    return `https://catavor.id/${storeSlug}`;
   }, [storeSlug]);
 
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(fullUrl)}&color=0b0e0c&bgcolor=ffffff&margin=12`;
+  // Tanpa slug tidak ada URL sah (platform menolak slug 'catavor'),
+  // jadi QR tidak dibuat sama sekali.
+  const qrImageUrl = fullUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(fullUrl)}&color=0b0e0c&bgcolor=ffffff&margin=12`
+    : '';
 
   const handleDownload = async () => {
+    if (!qrImageUrl) {
+      if (onToast) onToast('Slug katalog belum tersedia, QR tidak dapat dibuat.', 'error');
+      return;
+    }
     setDownloading(true);
     try {
       const res = await fetch(qrImageUrl);
@@ -4025,6 +4041,10 @@ export function QRCodeMobileSubPage({
   };
 
   const handleCopy = () => {
+    if (!fullUrl) {
+      if (onToast) onToast('Slug katalog belum tersedia, link tidak dapat disalin.', 'error');
+      return;
+    }
     navigator.clipboard.writeText(fullUrl);
     setCopied(true);
     if (onToast) onToast('Link katalog berhasil disalin ke clipboard!', 'success');
@@ -11337,7 +11357,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
               }
             });
             if (faunaData && faunaData.success) {
-              setFaunas(faunaData.data);
+              // N-27: jaga tipe — API dapat mengembalikan data:null, dan
+              // `faunas.filter/map` di banyak tempat akan crash.
+              setFaunas(Array.isArray(faunaData.data) ? faunaData.data : []);
             } else {
               setError(faunaData?.message || 'Gagal memuat produk.');
             }
@@ -11421,7 +11443,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
         });
         if (featuredData && featuredData.success) {
-          setFeaturedStores(featuredData.data);
+          // N-27: API mengembalikan {"data":null,"success":true} saat belum ada
+          // toko unggulan. Tanpa cek Array.isArray, state menjadi null dan
+          // landing page crash di `featuredStores.filter(...)`.
+          setFeaturedStores(Array.isArray(featuredData.data) ? featuredData.data : []);
         }
       }
     } catch (err: any) {
@@ -14978,7 +15003,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   const isAnyAdminPath = currentPath.includes('/admin') || currentPath.includes('/platform') || currentPath.includes('/ops');
   if (!storeSlug && !error && !isAnyAdminPath) {
     const activeIndustryData = LANDING_INDUSTRIES.find(ind => ind.id === landingCategory) || LANDING_INDUSTRIES[0];
-    const filteredStores = featuredStores.filter(st => {
+    const filteredStores = (featuredStores || []).filter(st => {
       if (!searchStoreQuery.trim()) return true;
       const q = searchStoreQuery.toLowerCase();
       return (st.store_title && st.store_title.toLowerCase().includes(q)) || 
