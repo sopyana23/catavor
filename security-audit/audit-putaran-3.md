@@ -182,12 +182,25 @@ benar-benar diprobe runtime:
 
 | Ukuran | Jumlah |
 |--------|--------|
-| Rute terdaftar (dengan prefix) | **168** |
-| Dibuktikan runtime (putaran 1–3) | **32** (19,0 %) |
-| Belum diuji sama sekali | **136** (81,0 %) |
+| Rute terdaftar (path+method unik, dengan prefix) | **195** |
+| Dibuktikan runtime (putaran 1–3) | **32** (16,4 %) |
+| Belum diuji sama sekali | **163** (83,6 %) |
 
-(Registrasi path unik tanpa prefix = 173; angka 168 adalah hasil pemetaan
-prefix grup, dan itulah yang dipakai karena mencerminkan URL sebenarnya.)
+Rincian per kelas proteksi: `PUBLIC` 58, `ADMIN` 47, `MERCHANT(+op)` 33,
+`AUTH-ONLY` 29, `MERCHANT` 28. Sebanyak **19 rute PUBLIC bersifat menulis**
+(`analytics/track`, `client-logs`, `reports`, `policies/agree`,
+`articles/:id/comments`, `help/articles/:id/helpful`, seluruh `auth/*`,
+`forgot-password`, `reset-password`).
+
+Catatan metodologi: hitungan pertama saya (168) salah karena regex `\.` tidak
+menangkap semua bentuk registrasi; hitungan kedua (230) juga salah karena
+memetakan grup bersarang secara keliru. Angka 195 berasal dari pemetaan
+`var := parent.Group("segmen")` + klasifikasi dari middleware asli grup
+(`RequireAdmin` → ADMIN, `StoreOwnerRequired` → MERCHANT,
+`OperationalStoreRequired` → MERCHANT(+op)). Pemetaan yang salah sempat
+melabeli `/api/products` dan `/api/storage/upload` sebagai PUBLIC padahal
+keduanya ada di `guardedMutations` — bukti bahwa label rute harus dibaca dari
+deklarasi grup, bukan dari nama variabel.
 
 Probe runtime adalah satu-satunya metode yang terbukti menemukan kelas temuan
 ini: N-06 lolos dari audit statis, N-07 lolos dari satu putaran audit penuh.
@@ -309,6 +322,62 @@ Commit: `a240eae` (N-07), `b09d496` (N-08), `d232e2f` (N-09).
    yang saya tulis pun awalnya salah (mengasumsikan `data.store = null` dan
    memakai PNG korup), dan kesalahan itu menutupi hasil yang sebenarnya benar —
    verifier ad-hoc harus selalu disertai kontrol positif.
-5. **136 dari 168 rute (81 %) belum pernah diprobe runtime.** Ini permukaan
+5. **163 dari 195 rute (83,6 %) belum pernah diprobe runtime.** Ini permukaan
    yang *belum terbukti*, bukan permukaan yang *terbukti aman*. Lihat bagian
    "Cakupan Penyisiran — Angka Sebenarnya".
+
+---
+
+## N-11 (KRITIS) — Verifikasi email bisa dilewati total
+
+**Ditemukan saat menyisir 19 rute PUBLIC yang menulis.**
+
+`ValidateAndConsumeToken` mengembalikan `bool`, tetapi hasilnya diabaikan di
+tiga lokasi dengan `_ =` (`auth_handler.go`). Akibatnya pemeriksaan token tidak
+pernah berpengaruh pada hasil.
+
+### Registrasi (`Register`)
+Token hanya dicek `req.VerificationToken != ""`; `VerifyOTP` **tidak pernah
+dipanggil** pada alur ini. Siapa pun dapat mendaftar tanpa pernah menerima
+email verifikasi.
+
+Bukti runtime (sebelum perbaikan):
+
+| Uji | Hasil |
+|-----|-------|
+| `POST /api/auth/register` dengan `verification_token: "vt_palsu..."` | **200**, toko id 26 dibuat |
+| `POST /api/auth/register` tanpa field `verification_token` | **200**, toko id 27 dibuat |
+| `POST /api/login` ke akun hasil bypass | **200**, JWT diterbitkan |
+| `SELECT count(*) FROM email_verification_otps` untuk email tersebut | **0** |
+
+`email_verified_at` tetap terisi padahal tidak ada satu pun OTP yang pernah
+dibuat — verifikasi email sepenuhnya kosmetik.
+
+### Reset password (`ForgotPasswordReset`, `ResetPassword`)
+Token yang gagal dikonsumsi tidak menghentikan penggantian password. Karena
+`VerifyOTP` sudah dijalankan lebih dulu, ini **bukan** bypass autentikasi —
+penyerang tetap butuh OTP yang benar. Dampak nyata: token yang sudah
+kedaluwarsa/dipakai masih meloloskan reset, dan satu token bisa dipakai
+berulang selama record OTP belum terhapus.
+
+Urutan juga salah: token dikonsumsi **sebelum** user dicek, sehingga token
+hangus hanya karena email tidak terdaftar.
+
+### Perbaikan (`8c7a78d`)
+- Registrasi: `verification_token` wajib ada dan wajib lolos
+  `ValidateAndConsumeToken` (alur Google SSO dikecualikan, diverifikasi lewat
+  `GoogleID`).
+- Reset password: token wajib lolos konsumsi.
+- Cek user dipindah ke sebelum konsumsi token.
+
+### Verifikasi pasca-perbaikan
+| Uji | Hasil |
+|-----|-------|
+| register tanpa token | **422** |
+| register dengan token palsu | **422** |
+| reset password dengan OTP palsu | **422** |
+| alur sah: OTP benar → `verification_token` → register | **200** (toko dibuat) |
+| replay token yang sudah terpakai | **422** |
+
+Alur sah tetap berfungsi, sehingga perbaikan tidak mematahkan registrasi.
+
