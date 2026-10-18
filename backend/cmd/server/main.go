@@ -508,11 +508,19 @@ func main() {
 		adminApi.Post("/settings/rekber/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetRekberDefaults)
 
 		// Master Safe Domains (Ecosystem URL Whitelist)
-		adminApi.Get("/safe-domains", safeDomainHandler.GetAdminSafeDomains)
-		adminApi.Post("/safe-domains", safeDomainHandler.CreateSafeDomain)
-		adminApi.Put("/safe-domains/:id", safeDomainHandler.UpdateSafeDomain)
-		adminApi.Delete("/safe-domains/:id", safeDomainHandler.DeleteSafeDomain)
-		adminApi.Post("/safe-domains/reset-defaults", safeDomainHandler.ResetDefaultSafeDomains)
+		// SECURITY (N-29): daftar ini adalah whitelist domain tepercaya yang dipakai
+		// frontend (safeHref) untuk MEMBUKA tautan tanpa peringatan konfirmasi anti-
+		// phishing. Siapa pun yang bisa menulis ke sini bisa menambahkan domain
+		// penyerang dan mematikan guard redirect untuk seluruh pengguna platform.
+		// Karena itu seluruh mutasi WAJIB memakai izin master settings — bukan
+		// sekadar "staf platform". Sebelumnya 5 rute ini terdaftar dua kali tanpa
+		// RequirePermission sehingga semua staf (support/content/finance) bisa
+		// mengubahnya. Duplikat dihapus, satu sumber kebenaran di sini.
+		adminApi.Get("/safe-domains", middleware.RequirePermission(cfg, "system:settings:manage"), safeDomainHandler.GetAdminSafeDomains)
+		adminApi.Post("/safe-domains", middleware.RequirePermission(cfg, "system:settings:manage"), safeDomainHandler.CreateSafeDomain)
+		adminApi.Put("/safe-domains/:id", middleware.RequirePermission(cfg, "system:settings:manage"), safeDomainHandler.UpdateSafeDomain)
+		adminApi.Delete("/safe-domains/:id", middleware.RequirePermission(cfg, "system:settings:manage"), safeDomainHandler.DeleteSafeDomain)
+		adminApi.Post("/safe-domains/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), safeDomainHandler.ResetDefaultSafeDomains)
 
 		// Finance & Billing
 		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.AdminListOrders)
@@ -522,13 +530,6 @@ func main() {
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)
 		adminApi.Get("/market-intelligence", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetMarketIntelligenceSummary)
 		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.ExportMarketIntelligenceData)
-
-		// Master Safe Domains (RBAC Protected)
-		adminApi.Get("/safe-domains", safeDomainHandler.GetAdminSafeDomains)
-		adminApi.Post("/safe-domains", safeDomainHandler.CreateSafeDomain)
-		adminApi.Put("/safe-domains/:id", safeDomainHandler.UpdateSafeDomain)
-		adminApi.Delete("/safe-domains/:id", safeDomainHandler.DeleteSafeDomain)
-		adminApi.Post("/safe-domains/reset-defaults", safeDomainHandler.ResetDefaultSafeDomains)
 	}
 
 	// 9. SPA Wildcard Fallback Router for Desktop & Mobile clients
