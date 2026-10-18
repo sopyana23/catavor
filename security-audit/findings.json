@@ -258,6 +258,18 @@
    "impact": "Katalog toko milik pemilik platform (11 produk aktif) tidak dapat diakses publik maupun lewat API. Bukan kebocoran data; kebalikannya — kehilangan akses sah.",
    "fix": "Belum diperbaiki: butuh keputusan produk. Opsi: (a) kecualikan toko brand-owned (id=1 / flag is_brand_owner) dari IsReservedSlug saat pembacaan; (b) terapkan reserved hanya pada saat registrasi/rename, bukan pada lookup. Tidak diubah sepihak karena menyangkut kebijakan penamaan.",
    "resolution": "Terbuka - menunggu keputusan produk"
+  },
+  {
+   "id": "N-22",
+   "severity": "medium",
+   "title": "Urutan Stores[0] tidak deterministik — toko blacklisted terpilih sebagai default login",
+   "location": "backend/internal/handlers/auth_handler.go:309, :933 (Preload \"Stores\" tanpa ORDER BY)",
+   "status": "fixed",
+   "summary": "Login/GoogleAuth memuat relasi Stores tanpa ORDER BY lalu memakai user.Stores[0] sebagai toko default. Postgres mengembalikan urutan fisik: untuk user 5 (7 toko) elemen pertama adalah toko id 8 'jaja' yang is_suspended dan is_blacklisted. Token berisi store_id=8 sementara middleware memasang store 15 ke request, sehingga token dan request aktif tidak sepakat soal toko.",
+   "evidence": "Sebelum: JWT store_id=8 (jaja, blacklisted) x3 login stabil; request aktif store_id=15. Sesudah helper preloadUserStores(): store_id=5 (adidas) 3/3, request aktif 5. Kontrol negatif (ORDER BY dihapus, build bersih): kembali store_id=8.",
+   "impact": "Pengguna dengan lebih dari satu toko bisa mendarat di toko yang salah, termasuk toko suspended/blacklisted. Token dan konteks request menunjuk toko berbeda, berisiko operasi tulis masuk ke toko yang tidak dipilih pengguna.",
+   "fix": "func preloadUserStores(q *gorm.DB) *gorm.DB { return q.Preload(\"Stores\", func(db *gorm.DB) *gorm.DB { return db.Order(\"is_blacklisted ASC, is_suspended ASC, id ASC\") }) } — dipakai di ketiga Preload(\"Stores\").",
+   "resolution": "Terverifikasi runtime; kontrol negatif mereproduksi bug; hash owner dipulihkan dan password probe ditolak 401."
   }
  ],
  "verified_ok": [

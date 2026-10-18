@@ -1250,3 +1250,64 @@ sudah memakai slug tersebut menjadi tidak dapat diakses.
 brand-owned dikecualikan (mis. `id=1` atau via flag `is_brand_owner`), atau
 aturan reserved hanya berlaku saat registrasi/rename. Tidak boleh diubah
 sepihak karena menyangkut kebijakan penamaan.
+
+---
+
+## N-22 — urutan `Stores[0]` tidak deterministik, toko blacklisted jadi default
+
+**Severity: medium. Status: fixed (terverifikasi runtime + kontrol negatif).**
+
+### Masalah
+
+`Login` dan `GoogleAuth` memuat relasi lewat `database.DB.Preload("Stores")`
+tanpa `ORDER BY`, lalu memakai `user.Stores[0]` sebagai toko default
+(`auth_handler.go:309` dan `:933`). Postgres tidak menjamin urutan baris tanpa
+`ORDER BY`; yang keluar adalah urutan fisik tabel.
+
+Data nyata memicu ini: **user 5 memiliki 7 toko** (5, 8, 15, 16, 18, 19, 24).
+Urutan natural yang dikembalikan Postgres:
+
+```
+id urut   : 5, 8, 15, 16, 18, 19, 24
+Preload   : 8, 15, 19, 5, 16, 18, 24
+```
+
+Elemen pertama = **8 = `jaja`**, toko dengan `is_suspended=true` dan
+`is_blacklisted=true`.
+
+### Bukti runtime (sebelum perbaikan)
+
+| Yang diukur | Hasil |
+|---|---|
+| `store_id` di dalam JWT | **8** (`jaja`) |
+| store yang benar-benar dipasang middleware ke request | **15** (`dfuna-store-unlimited`) |
+| Tiga login berturut-turut | **8, 8, 8** — stabil tapi terblokir |
+
+Jadi selain tidak deterministik, token dan request aktif **tidak sepakat**
+tentang toko mana yang dipakai.
+
+### Perbaikan
+
+Helper `preloadUserStores()` (`auth_handler.go:126`) memberi urutan eksplisit
+pada relasi: `is_blacklisted ASC, is_suspended ASC, id ASC`. Toko yang bisa
+dipakai selalu menang; di antara yang sehat dipilih `id` terkecil. Dipakai di
+ketiga titik `Preload("Stores")` (login, dan dua cabang `GoogleAuth`).
+
+### Verifikasi
+
+| Uji | Hasil |
+|---|---|
+| Login user 5 di kode perbaikan | `store_id=5` (`adidas`) — 3/3 konsisten |
+| Request aktif vs token | 5 = 5, kini sepakat |
+| **Kontrol negatif** (urutan dihapus, kompilasi bersih) | `store_id=8` (`jaja`) — bug muncul lagi |
+
+Kontrol negatif sah: kode rentan dikompilasi tanpa error (bukan `redeclared`
+atau `declared and not used`), hanya `ORDER BY` yang hilang, dan uji
+mengembalikan nilai yang sama seperti sebelum perbaikan.
+
+### Catatan
+
+`middleware/auth.go:206, 338, 440` juga memakai `user.Stores[0]`, tetapi jalur
+itu berjalan setelah login dan biasanya didahului `?slug=` eksplisit. Karena
+sekarang urutan `Preload` sudah deterministik di sumber, hasilnya ikut stabil.
+Tidak diubah agar perubahan tetap minimal dan terverifikasi.

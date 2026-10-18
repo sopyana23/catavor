@@ -2,8 +2,9 @@
 
 > **Status: cakupan rute 195/195 tuntas.** 12/12 temuan putaran 1 tertutup
 > (H1–L6), 6 temuan putaran 2 tertutup (N-01…N-06), 17 temuan putaran 3
-> tertutup (N-07…N-20). Putaran terbaru menambahkan **1 temuan fungsional
-> terbuka (N-21)** yang menunggu keputusan produk, bukan perbaikan kode.
+> tertutup (N-07…N-20), ditambah N-22 tertutup (urutan toko default).
+> Satu temuan masih terbuka: **N-21** (fungsional) yang menunggu keputusan
+> produk, bukan perbaikan kode.
 >
 > Seluruh 195 rute pada `routes.json` sudah diprobe dengan verifikasi runtime:
 > PUBLIC 38, AUTH-ONLY 26, MERCHANT 27, ADMIN 45, sisa pengujian lintas-peran.
@@ -18,7 +19,7 @@ Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 
 | File | Isi |
 |---|---|
-| [audit-putaran-3.md](audit-putaran-3.md) | **Laporan terbaru** — N-07…N-21, cakupan rute 195/195, sisa risiko |
+| [audit-putaran-3.md](audit-putaran-3.md) | **Laporan terbaru** — N-07…N-22, cakupan rute 195/195, sisa risiko |
 | [audit-putaran-2.md](audit-putaran-2.md) | Putaran 2 — N-01…N-06 (JWT secret, path guard, route gating) |
 | [STATUS-AKHIR.md](STATUS-AKHIR.md) | Ringkasan putaran 1 (H1–L6) + cara verifikasi ulang |
 | [security-audit-report.md](security-audit-report.md) | Audit #1 — keamanan aplikasi (OWASP), 2 HIGH / 4 MED / 6 LOW |
@@ -31,7 +32,7 @@ Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 | [mitigasi-m1.md](mitigasi-m1.md) | **Mitigasi M1** — token 12 jam + deteksi anomali sesi |
 | [perbaikan-m1-penuh.md](perbaikan-m1-penuh.md) | **M1 penuh** — cookie HttpOnly + CSRF + tiket SSE |
 | [remediation-plan.md](remediation-plan.md) | Urutan fix + patch minimal |
-| [findings.json](findings.json) | Data temuan (machine-readable) — H1–L6 + N-01…N-21 (24 temuan; N-21 masih `open`) |
+| [findings.json](findings.json) | Data temuan (machine-readable) — H1–L6 + N-01…N-22 (25 temuan; hanya N-21 masih `open`) |
 
 ## Ketahanan sesi panjang (UI/memori/stabilitas)
 

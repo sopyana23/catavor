@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 var validate = validator.New()
@@ -121,6 +122,22 @@ type StoreSummary struct {
 	IsBlacklisted    bool   `json:"is_blacklisted"`
 }
 
+// preloadUserStores memuat relasi Stores dengan urutan yang DETERMINISTIK.
+//
+// Tanpa ORDER BY, Postgres/GORM mengembalikan baris dalam urutan fisik yang
+// tidak dijamin. Kode pemanggil memakai Stores[0] sebagai toko default saat
+// login, sehingga urutan acak membuat pengguna dengan beberapa toko bisa
+// mendarat di toko yang salah (pernah teramati: toko blacklisted jadi default).
+//
+// Urutan: toko non-suspended & non-blacklisted lebih dulu, lalu toko aktif,
+// lalu id terkecil. Hasilnya stabil dan toko yang bisa dipakai selalu menang.
+func preloadUserStores(q *gorm.DB) *gorm.DB {
+	return q.Preload("Stores", func(db *gorm.DB) *gorm.DB {
+		return db.Order("is_blacklisted ASC, is_suspended ASC, id ASC")
+	})
+}
+
+// buildStoreSummaries menyusun ringkasan toko untuk respons autentikasi.
 func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targetSlug string) ([]StoreSummary, StoreSummary) {
 	var list []StoreSummary
 	for _, s := range stores {
@@ -231,7 +248,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	var user models.User
-	if err := database.DB.Preload("Stores").Preload("Store").Where("LOWER(email) = ?", cleanedEmail).First(&user).Error; err != nil {
+	if err := preloadUserStores(database.DB.Preload("Store")).Where("LOWER(email) = ?", cleanedEmail).First(&user).Error; err != nil {
 		_, _ = database.RecordLoginFailure(cleanedEmail)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
@@ -881,9 +898,9 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 
 	// Check if user already exists
 	var user models.User
-	query := database.DB.Preload("Stores").Preload("Store").Where("LOWER(email) = ?", email)
+	query := preloadUserStores(database.DB.Preload("Store")).Where("LOWER(email) = ?", email)
 	if googleID != "" {
-		query = database.DB.Preload("Stores").Preload("Store").Where("LOWER(email) = ? OR google_id = ?", email, googleID)
+		query = preloadUserStores(database.DB.Preload("Store")).Where("LOWER(email) = ? OR google_id = ?", email, googleID)
 	}
 
 	err = query.First(&user).Error
