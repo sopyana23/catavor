@@ -1000,3 +1000,87 @@ baseline (`catavor.com`, `localhost`, `catavor.id`).
 
 Dicatat di sini justru karena klaim awalnya menarik tetapi tidak terbukti —
 melaporkannya sebagai celah akan melebih-lebihkan temuan.
+
+---
+
+## Hasil probe rute MERCHANT (14 baca) + MERCHANT(+op) (13 tulis)
+
+Diuji dengan sesi `qa.merchant@catavor-test.local` (user 18, store 25).
+Setiap penolakan disertai kontrol positif pada aktor yang berhak.
+
+### Rute baca (14)
+
+| Rute | Hasil | Catatan isolasi |
+|---|---|---|
+| `GET /activity-logs` | 200 | semua baris `store_id=25`, `user_id=18` |
+| `GET /activity-logs/summary` | 200 | total 32 = `COUNT(*)` DB untuk store 25 (konsisten) |
+| `GET /admin/analytics`, `/analytics`, `*/products` | 200 | data store 25 (kosong, wajar) |
+| `GET /admin/categories` | 200 | `[]` |
+| `GET /admin/comments` | **403** | `content:articles:manage` — benar |
+| `GET /settings/policy-audit-logs` | 200 | `[]` |
+| `GET /subscription/my-quota`, `/orders` | 200 | `store_id=25` |
+| `GET /support/tickets`, `/tickets-ping` | 200 | 0 tiket (user 18 tidak punya tiket) |
+| `GET /support/attachments/:id` | **403** / 404 | lihat uji di bawah |
+
+**Uji IDOR `activity-logs`**: `?store_id=1`, `?store_id=23`, `?store_id=5`,
+`?store_ids=1,23` semuanya tetap mengembalikan `store_id=25` — parameter klien
+diabaikan, toko diambil dari `c.Locals`.
+
+### Rute tulis (13)
+
+| Rute | Hasil | Bukti |
+|---|---|---|
+| `POST /categories` | 201 | dibuat `store_id=25` walau payload kirim `store_id:1`; store 1 bersih |
+| `POST /fauna` | 201 | idem, `store_id=25` |
+| `PUT /fauna/:id` | 200 milik sendiri / **404** lain | `"Produk tidak ditemukan atau bukan milik toko Anda."` |
+| `DELETE /fauna/:id` | 200 milik sendiri / **404** lain | idem |
+| `POST /store|stores/extend-activity` | 200 keduanya | memperbarui `last_activity_at` store sendiri |
+| `POST /subscription/schedule-downgrade` | 200 | respons `store_id=25` walau body kirim `store_id:1` |
+| `POST /subscription/cancel-downgrade` | 200 | `store_id=25` |
+| `POST /upload-image`, `/storage/upload` | 400 PHP / **200** PNG asli | kontrol positif: PNG valid diterima |
+| `DELETE /storage/file` | 200 milik sendiri / **403** lain | prefix `stores/{id}/` + normalisasi traversal |
+| `DELETE /admin/comments/:id`, `POST .../approve` | **403** | kontrol positif `content` staff → **200** |
+
+### Uji `DELETE /storage/file` (bypass)
+
+| `key` | Hasil |
+|---|---|
+| `stores/25/nonexist.jpg` | 200 (milik sendiri — sesuai desain) |
+| `stores/1/nonexist.jpg` | **403** |
+| `stores/25/../../1/nonexist.jpg` | **403** |
+| `../public/index.html` | **403** |
+| `stores/1/../25/nonexist.jpg` | 200 → dinormalisasi ke `stores/25/...` (benar) |
+
+### Uji `GET /support/attachments/:id` — kontrol positif sempat gagal
+
+Percobaan pertama memberi **404 untuk pemilik asli** (user 5), bukan 200.
+Sebabnya bukan izin, melainkan **berkas fisiknya memang tidak ada di disk**
+(`"File fisik lampiran tidak ditemukan di penyimpanan server."`). Artinya 403
+yang diterima merchant pada percobaan itu **belum membuktikan apa pun**.
+
+Uji diulang dengan membuat berkas fisik placeholder untuk lampiran 27
+(owner = user 5), lalu:
+
+| Aktor | Hasil |
+|---|---|
+| user 5 (pemilik) | **200**, `len=18` (isi placeholder) |
+| user 18 (merchant lain) | **403** |
+| anonim | **401** |
+
+Baru setelah itu isolasi dianggap terbukti. Placeholder dihapus; berkas
+terkunci antivirus sehingga server harus dimatikan dulu sebelum `rm` berhasil.
+
+### Catatan teknis (bukan temuan keamanan)
+
+- **Fauna disimpan di tabel `products`, bukan `faunas`.** `POST /api/fauna`
+  membuat baris `products` dengan `product_type='physical'`; tabel `faunas`
+  tetap 0 baris sepanjang pengujian. Ini menjelaskan pesan
+  `"Produk berhasil dihapus dari katalog."` pada `DELETE /api/fauna/:id`.
+  Perlu dicatat karena `product_type` fauna tidak di-set ke `fauna`.
+- **`PNG` disimpan sebagai `.jpg`** dengan `file_type: "image/jpeg"` pada kedua
+  endpoint upload. Sudah dipastikan tidak berbahaya (`X-Content-Type-Options:
+  nosniff`, ekstensi dipaksa), tetapi tipe berkas yang dilaporkan menyesatkan
+  klien.
+- Semua data uji dibersihkan: kategori 53, fauna 0, produk 107 total / 87
+  aktif, `comments` 1 (status & `updated_at` dipulihkan), storage 0 berkas,
+  akun 5/13/18 dikembalikan ke hash semula (login password uji → 401).

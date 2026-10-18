@@ -179,38 +179,6 @@
   "cls": "AUTH-ONLY",
   "line": 304
  },
- "POST|/api/storage/upload": {
-  "cls": "MERCHANT(+op)",
-  "line": 313
- },
- "DELETE|/api/storage/file": {
-  "cls": "MERCHANT(+op)",
-  "line": 314
- },
- "POST|/api/upload-image": {
-  "cls": "MERCHANT(+op)",
-  "line": 315
- },
- "GET|/api/admin/categories": {
-  "cls": "MERCHANT",
-  "line": 323
- },
- "POST|/api/categories": {
-  "cls": "MERCHANT(+op)",
-  "line": 324
- },
- "GET|/api/support/tickets": {
-  "cls": "MERCHANT",
-  "line": 329
- },
- "GET|/api/support/tickets-ping": {
-  "cls": "MERCHANT",
-  "line": 335
- },
- "GET|/api/support/attachments/:id": {
-  "cls": "MERCHANT",
-  "line": 336
- },
  "GET|/api/admin/support/tickets/:id": {
   "cls": "ADMIN",
   "line": 349
@@ -222,66 +190,6 @@
  "GET|/api/admin/support/templates": {
   "cls": "ADMIN",
   "line": 354
- },
- "POST|/api/fauna": {
-  "cls": "MERCHANT(+op)",
-  "line": 361
- },
- "PUT|/api/fauna/:id": {
-  "cls": "MERCHANT(+op)",
-  "line": 362
- },
- "DELETE|/api/fauna/:id": {
-  "cls": "MERCHANT(+op)",
-  "line": 363
- },
- "GET|/api/subscription/my-quota": {
-  "cls": "MERCHANT",
-  "line": 374
- },
- "POST|/api/subscription/schedule-downgrade": {
-  "cls": "MERCHANT(+op)",
-  "line": 376
- },
- "POST|/api/subscription/cancel-downgrade": {
-  "cls": "MERCHANT(+op)",
-  "line": 377
- },
- "GET|/api/subscription/orders": {
-  "cls": "MERCHANT",
-  "line": 380
- },
- "GET|/api/admin/analytics/products": {
-  "cls": "MERCHANT",
-  "line": 383
- },
- "GET|/api/analytics/products": {
-  "cls": "MERCHANT",
-  "line": 384
- },
- "GET|/api/admin/analytics": {
-  "cls": "MERCHANT",
-  "line": 385
- },
- "GET|/api/analytics": {
-  "cls": "MERCHANT",
-  "line": 386
- },
- "GET|/api/settings/policy-audit-logs": {
-  "cls": "MERCHANT",
-  "line": 393
- },
- "GET|/api/admin/comments": {
-  "cls": "MERCHANT",
-  "line": 399
- },
- "POST|/api/admin/comments/:id/approve": {
-  "cls": "MERCHANT(+op)",
-  "line": 405
- },
- "DELETE|/api/admin/comments/:id": {
-  "cls": "MERCHANT(+op)",
-  "line": 407
  },
  "GET|/api/notifications/:id": {
   "cls": "ADMIN",
@@ -311,14 +219,6 @@
   "cls": "ADMIN",
   "line": 437
  },
- "POST|/api/stores/extend-activity": {
-  "cls": "MERCHANT(+op)",
-  "line": 440
- },
- "POST|/api/store/extend-activity": {
-  "cls": "MERCHANT(+op)",
-  "line": 441
- },
  "GET|/api/admin/automation/logs": {
   "cls": "ADMIN",
   "line": 445
@@ -330,14 +230,6 @@
  "GET|/api/automation/logs": {
   "cls": "ADMIN",
   "line": 448
- },
- "GET|/api/activity-logs": {
-  "cls": "MERCHANT",
-  "line": 452
- },
- "GET|/api/activity-logs/summary": {
-  "cls": "MERCHANT",
-  "line": 453
  },
  "GET|/api/superadmin/dormancy/metrics": {
   "cls": "ADMIN",
