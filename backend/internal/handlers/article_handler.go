@@ -3,22 +3,30 @@ package handlers
 import (
 	"time"
 
-	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
-type ArticleHandler struct{}
+type ArticleHandler struct {
+	db *gorm.DB
+}
 
-func NewArticleHandler() *ArticleHandler {
-	return &ArticleHandler{}
+func NewArticleHandler(db *gorm.DB) *ArticleHandler {
+	return &ArticleHandler{db: db}
 }
 
 func (h *ArticleHandler) Index(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var articles []models.Article
-	if err := database.DB.Preload("Comments").Order("id desc").Find(&articles).Error; err != nil {
+	if err := h.db.Preload("Comments").Order("id desc").Find(&articles).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memuat artikel.",
@@ -32,10 +40,16 @@ func (h *ArticleHandler) Index(c *fiber.Ctx) error {
 }
 
 func (h *ArticleHandler) Show(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	param := c.Params("id")
 	var article models.Article
 
-	err := database.DB.Preload("Comments.Replies").Where("id = ? OR slug = ?", param, param).First(&article).Error
+	err := h.db.Preload("Comments.Replies").Where("id = ? OR slug = ?", param, param).First(&article).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
@@ -50,6 +64,12 @@ func (h *ArticleHandler) Show(c *fiber.Ctx) error {
 }
 
 func (h *ArticleHandler) Store(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var payload models.Article
 	if err := c.BodyParser(&payload); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -78,7 +98,7 @@ func (h *ArticleHandler) Store(c *fiber.Ctx) error {
 		payload.Slug = security.SanitizeSlug(payload.Slug)
 	}
 
-	if err := database.DB.Create(&payload).Error; err != nil {
+	if err := h.db.Create(&payload).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal membuat artikel.",
@@ -93,9 +113,15 @@ func (h *ArticleHandler) Store(c *fiber.Ctx) error {
 }
 
 func (h *ArticleHandler) Update(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	var article models.Article
-	if err := database.DB.First(&article, id).Error; err != nil {
+	if err := h.db.First(&article, id).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Artikel tidak ditemukan.",
@@ -136,7 +162,7 @@ func (h *ArticleHandler) Update(c *fiber.Ctx) error {
 	article.RequireCommentEmail = payload.RequireCommentEmail
 	article.VerifyCommentEmailDomain = payload.VerifyCommentEmailDomain
 
-	if err := database.DB.Save(&article).Error; err != nil {
+	if err := h.db.Save(&article).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memperbarui artikel.",
@@ -151,8 +177,14 @@ func (h *ArticleHandler) Update(c *fiber.Ctx) error {
 }
 
 func (h *ArticleHandler) Destroy(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
-	database.DB.Delete(&models.Article{}, id)
+	h.db.Delete(&models.Article{}, id)
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Artikel berhasil dihapus.",
@@ -160,9 +192,15 @@ func (h *ArticleHandler) Destroy(c *fiber.Ctx) error {
 }
 
 func (h *ArticleHandler) GetArticleComments(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	var comments []models.Comment
-	database.DB.Where("article_id = ? AND parent_id IS NULL AND is_approved = true", id).
+	h.db.Where("article_id = ? AND parent_id IS NULL AND is_approved = true", id).
 		Preload("Replies", "is_approved = true").
 		Order("created_at desc").
 		Find(&comments)
@@ -174,9 +212,15 @@ func (h *ArticleHandler) GetArticleComments(c *fiber.Ctx) error {
 }
 
 func (h *ArticleHandler) StoreComment(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	articleID := c.Params("id")
 	var article models.Article
-	if err := database.DB.First(&article, articleID).Error; err != nil {
+	if err := h.db.First(&article, articleID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Artikel tidak ditemukan.",
@@ -242,7 +286,7 @@ func (h *ArticleHandler) StoreComment(c *fiber.Ctx) error {
 		CreatedAt:   time.Now(),
 	}
 
-	if err := database.DB.Create(&comment).Error; err != nil {
+	if err := h.db.Create(&comment).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal menyimpan komentar.",
@@ -262,8 +306,14 @@ func (h *ArticleHandler) StoreComment(c *fiber.Ctx) error {
 }
 
 func (h *ArticleHandler) GetAdminComments(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var comments []models.Comment
-	database.DB.Order("created_at desc").Find(&comments)
+	h.db.Order("created_at desc").Find(&comments)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -272,8 +322,14 @@ func (h *ArticleHandler) GetAdminComments(c *fiber.Ctx) error {
 }
 
 func (h *ArticleHandler) ApproveComment(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
-	database.DB.Model(&models.Comment{}).Where("id = ?", id).Update("is_approved", true)
+	h.db.Model(&models.Comment{}).Where("id = ?", id).Update("is_approved", true)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -282,8 +338,14 @@ func (h *ArticleHandler) ApproveComment(c *fiber.Ctx) error {
 }
 
 func (h *ArticleHandler) DeleteComment(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
-	database.DB.Delete(&models.Comment{}, id)
+	h.db.Delete(&models.Comment{}, id)
 
 	return c.JSON(fiber.Map{
 		"success": true,

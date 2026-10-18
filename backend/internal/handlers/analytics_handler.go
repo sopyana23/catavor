@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
-	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 
@@ -58,10 +57,11 @@ func (c *dedupCache) isDuplicate(key string, ttlSeconds int64) bool {
 
 type AnalyticsHandler struct {
 	cfg *config.Config
+	db  *gorm.DB
 }
 
-func NewAnalyticsHandler(cfg *config.Config) *AnalyticsHandler {
-	return &AnalyticsHandler{cfg: cfg}
+func NewAnalyticsHandler(cfg *config.Config, db *gorm.DB) *AnalyticsHandler {
+	return &AnalyticsHandler{cfg: cfg, db: db}
 }
 
 type TrackEventRequest struct {
@@ -104,6 +104,12 @@ func isBotOrCrawler(ua string) bool {
 
 // TrackEvent handles public non-blocking telemetry events with Bot Defense & Deduplication.
 func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req TrackEventRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -141,7 +147,7 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 		event = "store_view"
 	}
 
-	db := database.DB
+	db := h.db
 
 	// Find store by slug
 	var store models.Store
@@ -436,6 +442,12 @@ type ConversionFunnelSummary struct {
 
 // GetStoreAnalytics returns aggregated stats, multi-channel metrics, product type breakdown, and actionable insights.
 func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var store *models.Store
 	if s, ok := c.Locals("store").(*models.Store); ok {
 		store = s
@@ -471,7 +483,7 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	}
 
 	startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
-	db := database.DB
+	db := h.db
 
 	// Query daily analytics for store
 	var dailyRecords []models.StoreDailyAnalytics
@@ -886,6 +898,12 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 
 // GetStoreAnalyticsProducts returns server-side paginated product performance analytics with filtering, search, and sorting.
 func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var store *models.Store
 	if s, ok := c.Locals("store").(*models.Store); ok {
 		store = s
@@ -910,7 +928,7 @@ func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
 		})
 	}
 
-	db := database.DB
+	db := h.db
 
 	// Parse pagination parameters
 	page := 1
@@ -1080,9 +1098,15 @@ func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
 
 // GetMarketIntelligenceSummary returns macro industry trends, channel metrics, and price benchmarks with zero PII.
 func (h *AnalyticsHandler) GetMarketIntelligenceSummary(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	// Check if market intelligence is enabled
 	var setting models.Setting
-	if err := database.DB.Where("key = ?", "market_intel_enabled").First(&setting).Error; err == nil {
+	if err := h.db.Where("key = ?", "market_intel_enabled").First(&setting).Error; err == nil {
 		if setting.Value == "0" || setting.Value == "false" {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
@@ -1091,7 +1115,7 @@ func (h *AnalyticsHandler) GetMarketIntelligenceSummary(c *fiber.Ctx) error {
 		}
 	}
 
-	summary, err := services.GetMacroMarketSummary(database.DB)
+	summary, err := services.GetMacroMarketSummary(h.db)
 	if err != nil {
 		log.Error().Err(err).Msg("analytics: gagal mengagregasi market intelligence")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -1108,10 +1132,16 @@ func (h *AnalyticsHandler) GetMarketIntelligenceSummary(c *fiber.Ctx) error {
 
 // ExportMarketIntelligenceData streams an anonymized CSV or JSON export of market trends.
 func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	format := strings.ToLower(c.Query("format", "csv"))
 
 	if format == "json" {
-		summary, err := services.GetMacroMarketSummary(database.DB)
+		summary, err := services.GetMacroMarketSummary(h.db)
 		if err != nil {
 			log.Error().Err(err).Msg("analytics: gagal mengekspor market intelligence")
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -1123,7 +1153,7 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 		return c.JSON(summary)
 	}
 
-	csvData, err := services.GenerateMarketIntelligenceCSV(database.DB)
+	csvData, err := services.GenerateMarketIntelligenceCSV(h.db)
 	if err != nil {
 		log.Error().Err(err).Msg("analytics: gagal membuat berkas CSV")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -1140,6 +1170,12 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 // ExportStoreAnalytics streams a clean, Excel-compatible CSV export of the store's performance metrics.
 // Supports periods ('7d', '30d', '90d', 'all') and report types ('daily', 'products', 'full').
 func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var store *models.Store
 	if s, ok := c.Locals("store").(*models.Store); ok {
 		store = s
@@ -1178,7 +1214,7 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 		period = "30d"
 	}
 
-	db := database.DB
+	db := h.db
 
 	// CSV formatting & security helpers
 	escapeCSV := func(s string) string {

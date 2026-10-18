@@ -7,16 +7,30 @@ import (
 	"html"
 	"strings"
 
-	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
+	"gorm.io/gorm"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 )
 
+type DormancyHandler struct {
+	db *gorm.DB
+}
+
+func NewDormancyHandler(db *gorm.DB) *DormancyHandler {
+	return &DormancyHandler{db: db}
+}
+
 // HandlePublicReactivateStore handles 1-click magic link reactivation from emails.
-func HandlePublicReactivateStore(c *fiber.Ctx) error {
+func (h *DormancyHandler) HandlePublicReactivateStore(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	token := strings.TrimSpace(c.Query("token"))
 	if token == "" {
 		return c.Status(fiber.StatusBadRequest).SendString(`
@@ -34,7 +48,7 @@ func HandlePublicReactivateStore(c *fiber.Ctx) error {
 `)
 	}
 
-	store, err := services.ReactivateStoreByToken(database.DB, token)
+	store, err := services.ReactivateStoreByToken(h.db, token)
 	if err != nil {
 		// SECURITY (N-02b): JANGAN catat token ke log. Token reaktivasi adalah
 		// kapabilitas sekali-pakai — siapa pun yang membaca log bisa memakainya.
@@ -58,7 +72,7 @@ func HandlePublicReactivateStore(c *fiber.Ctx) error {
 
 	// Record Activity Log
 	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
+		DB:          h.db,
 		StoreID:     &store.ID,
 		ActorRole:   "system",
 		ActorName:   "Magic Link Reaktivasi",
@@ -79,7 +93,13 @@ func HandlePublicReactivateStore(c *fiber.Ctx) error {
 }
 
 // HandleExtendStoreActivity handles manual 1-click extend from merchant dashboard.
-func HandleExtendStoreActivity(c *fiber.Ctx) error {
+func (h *DormancyHandler) HandleExtendStoreActivity(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -93,7 +113,7 @@ func HandleExtendStoreActivity(c *fiber.Ctx) error {
 	// Fallback lookup by UserID
 	if store == nil {
 		var s models.Store
-		if err := database.DB.Where("user_id = ?", user.ID).First(&s).Error; err == nil {
+		if err := h.db.Where("user_id = ?", user.ID).First(&s).Error; err == nil {
 			store = &s
 		}
 	}
@@ -105,7 +125,7 @@ func HandleExtendStoreActivity(c *fiber.Ctx) error {
 		})
 	}
 
-	updatedStore, err := services.ReactivateStoreByID(database.DB, store.ID)
+	updatedStore, err := services.ReactivateStoreByID(h.db, store.ID)
 	if err != nil {
 		log.Error().Err(err).Msg("dormancy: ReactivateStoreByID gagal")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -116,7 +136,7 @@ func HandleExtendStoreActivity(c *fiber.Ctx) error {
 
 	// Record Activity Log
 	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
+		DB:          h.db,
 		StoreID:     &store.ID,
 		UserID:      &user.ID,
 		ActorRole:   "merchant",
@@ -141,8 +161,14 @@ func HandleExtendStoreActivity(c *fiber.Ctx) error {
 }
 
 // HandleGetDormancyMetrics returns dormancy and activity statistics for superadmin dashboard.
-func HandleGetDormancyMetrics(c *fiber.Ctx) error {
-	metrics := services.GetDormancyMetrics(database.DB)
+func (h *DormancyHandler) HandleGetDormancyMetrics(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	metrics := services.GetDormancyMetrics(h.db)
 	return c.JSON(fiber.Map{
 		"status": "success",
 		"data":   metrics,

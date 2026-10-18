@@ -4,21 +4,23 @@ import (
 	"strconv"
 	"strings"
 
-	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
+	"gorm.io/gorm"
 )
 
 type RBACHandler struct {
 	rbacService *services.RBACService
+	db          *gorm.DB
 }
 
-func NewRBACHandler() *RBACHandler {
+func NewRBACHandler(db *gorm.DB) *RBACHandler {
 	return &RBACHandler{
 		rbacService: services.GetRBACService(),
+		db:          db,
 	}
 }
 
@@ -186,6 +188,12 @@ type RevokeStaffRequest struct {
 
 // RevokeStaff revokes admin access from a staff member.
 func (h *RBACHandler) RevokeStaff(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	userVal := c.Locals("user")
 	var actor *models.User
 	if userVal != nil {
@@ -210,7 +218,7 @@ func (h *RBACHandler) RevokeStaff(c *fiber.Ctx) error {
 
 	if req.UserID == 0 && strings.TrimSpace(req.Email) != "" {
 		var targetUser models.User
-		if err := database.DB.Where("LOWER(email) = ?", strings.ToLower(strings.TrimSpace(req.Email))).First(&targetUser).Error; err == nil {
+		if err := h.db.Where("LOWER(email) = ?", strings.ToLower(strings.TrimSpace(req.Email))).First(&targetUser).Error; err == nil {
 			req.UserID = targetUser.ID
 		}
 	}

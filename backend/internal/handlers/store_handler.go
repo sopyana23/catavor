@@ -26,10 +26,11 @@ import (
 
 type StoreHandler struct {
 	cfg *config.Config
+	db  *gorm.DB
 }
 
-func NewStoreHandler(cfg ...*config.Config) *StoreHandler {
-	h := &StoreHandler{}
+func NewStoreHandler(db *gorm.DB, cfg ...*config.Config) *StoreHandler {
+	h := &StoreHandler{db: db}
 	if len(cfg) > 0 {
 		h.cfg = cfg[0]
 	}
@@ -48,12 +49,12 @@ func (h *StoreHandler) isMerchantRequester(c *fiber.Ctx, store *models.Store) bo
 		return true
 	}
 	var count int64
-	database.DB.Model(&models.Store{}).Where("id = ? AND user_id = ?", store.ID, claims.UserID).Count(&count)
+	h.db.Model(&models.Store{}).Where("id = ? AND user_id = ?", store.ID, claims.UserID).Count(&count)
 	if count > 0 {
 		return true
 	}
 	var user models.User
-	if err := database.DB.Select("id, platform_role").First(&user, claims.UserID).Error; err == nil {
+	if err := h.db.Select("id, platform_role").First(&user, claims.UserID).Error; err == nil {
 		// ARSITEKTUR (N-25): satu sumber kebenaran (lihat models.PlatformStaffRoles).
 		if user.IsPlatformStaff() {
 			return true
@@ -158,6 +159,12 @@ func IsReservedSlug(slug string) bool {
 // mengandung merek platform harus tetap dapat dibaca publik. Penolakan reserved
 // tetap ditegakkan di jalur tulis: Register, CreateStore, UpdateStore, dan CheckSlug.
 func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
 	if slug == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -179,7 +186,7 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 
 	// 1. Check if slug is in blacklisted_slugs (Permanently banned / terminated store)
 	var blacklisted models.BlacklistedSlug
-	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&blacklisted).Error; err == nil {
+	if err := h.db.Where("LOWER(slug) = ?", slug).First(&blacklisted).Error; err == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"code":    "STORE_BANNED",
@@ -189,7 +196,7 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 
 	// 2. Fetch Store from DB
 	var store models.Store
-	if err := database.DB.Preload("Categories", func(db *gorm.DB) *gorm.DB {
+	if err := h.db.Preload("Categories", func(db *gorm.DB) *gorm.DB {
 		return db.Where("is_active = true").Order("sort_order ASC, id ASC")
 	}).Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -231,7 +238,7 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	}
 
 	// Touch store activity on public catalog view (throttled & only affects active stores before warning stage)
-	services.TouchStoreActivity(database.DB, store.ID)
+	services.TouchStoreActivity(h.db, store.ID)
 
 	responsePayload := fiber.Map{
 		"success": true,
@@ -249,12 +256,18 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
 	// N-21: reserved-slug hanya aturan penamaan (ditegakkan di jalur tulis), bukan lookup.
 
 	// Check if slug is blacklisted
 	var blacklistedFaunaCount int64
-	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedFaunaCount)
+	h.db.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedFaunaCount)
 	if blacklistedFaunaCount > 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
@@ -264,7 +277,7 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 	}
 
 	var store models.Store
-	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
+	if err := h.db.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Toko tidak ditemukan.",
@@ -289,7 +302,7 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 
 	isMerchantView := h.isMerchantRequester(c, &store)
 
-	query := database.DB.Model(&models.Product{}).Where("store_id = ?", store.ID)
+	query := h.db.Model(&models.Product{}).Where("store_id = ?", store.ID)
 	if isMerchantView {
 		statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
 		if statusFilter == "active" {
@@ -426,11 +439,17 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 
 // IndexProducts returns normalized catalog products with preloaded Category, Images, and Variants.
 func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
 	// N-21: reserved-slug hanya aturan penamaan (ditegakkan di jalur tulis), bukan lookup.
 	// Check if slug is blacklisted
 	var blacklistedCount int64
-	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedCount)
+	h.db.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedCount)
 	if blacklistedCount > 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
@@ -440,7 +459,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 	}
 
 	var store models.Store
-	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
+	if err := h.db.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Toko tidak ditemukan.",
@@ -479,7 +498,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 	}
 
 	// Touch store activity on public product catalog query (throttled & only affects active stores before warning stage)
-	services.TouchStoreActivity(database.DB, store.ID)
+	services.TouchStoreActivity(h.db, store.ID)
 
 	isMerchantView := h.isMerchantRequester(c, &store)
 
@@ -513,7 +532,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		}
 	}
 
-	query := database.DB.Model(&models.Product{}).
+	query := h.db.Model(&models.Product{}).
 		Preload("Category").
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
 			return db.Order("sort_order ASC, id ASC")
@@ -676,11 +695,17 @@ func InvalidateStoreProfileCache(slug string) {
 
 // CatalogMetrics returns aggregated metrics (total counts, by_type, by_category, by_status, total_value) with Redis Cache-Aside.
 func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
 	// N-21: reserved-slug hanya aturan penamaan (ditegakkan di jalur tulis), bukan lookup.
 
 	var store models.Store
-	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
+	if err := h.db.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Toko tidak ditemukan.",
@@ -708,7 +733,7 @@ func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	}
 
 	newBaseQuery := func() *gorm.DB {
-		q := database.DB.Model(&models.Product{}).Where("store_id = ?", store.ID)
+		q := h.db.Model(&models.Product{}).Where("store_id = ?", store.ID)
 		if !isMerchantView {
 			return q.Where("is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
 		}
@@ -719,10 +744,10 @@ func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	newBaseQuery().Count(&totalItems)
 
 	var activeItems int64
-	database.DB.Model(&models.Product{}).Where("store_id = ? AND is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&activeItems)
+	h.db.Model(&models.Product{}).Where("store_id = ? AND is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&activeItems)
 
 	var archivedItems int64
-	database.DB.Model(&models.Product{}).Where("store_id = ? AND is_active = false AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&archivedItems)
+	h.db.Model(&models.Product{}).Where("store_id = ? AND is_active = false AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&archivedItems)
 
 	// By Product Type
 	var typeRows []CountResult
@@ -770,6 +795,12 @@ func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	slugParam := c.Params("slug")
 	if slugParam == "" {
 		slugParam = c.Query("slug")
@@ -790,7 +821,7 @@ func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
 	}
 
 	var blacklistedCount int64
-	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedCount)
+	h.db.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedCount)
 	if blacklistedCount > 0 {
 		return c.JSON(fiber.Map{
 			"available": false,
@@ -799,7 +830,7 @@ func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
 	}
 
 	var count int64
-	database.DB.Model(&models.Store{}).Where("LOWER(slug) = ?", slug).Count(&count)
+	h.db.Model(&models.Store{}).Where("LOWER(slug) = ?", slug).Count(&count)
 
 	return c.JSON(fiber.Map{
 		"available": count == 0,
@@ -809,8 +840,14 @@ func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) FeaturedStores(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var stores []models.Store
-	database.DB.Where("dormancy_status NOT IN (?) AND is_blacklisted = false", []string{"suspended", "banned", "purged"}).Order("created_at desc").Limit(12).Find(&stores)
+	h.db.Where("dormancy_status NOT IN (?) AND is_blacklisted = false", []string{"suspended", "banned", "purged"}).Order("created_at desc").Limit(12).Find(&stores)
 
 	type StoreCard struct {
 		ID             uint   `json:"id"`
@@ -827,7 +864,7 @@ func (h *StoreHandler) FeaturedStores(c *fiber.Ctx) error {
 	var result []StoreCard
 	for _, s := range stores {
 		var cnt int64
-		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&cnt)
+		h.db.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&cnt)
 		result = append(result, StoreCard{
 			ID:             s.ID,
 			Slug:           s.Slug,
@@ -848,6 +885,12 @@ func (h *StoreHandler) FeaturedStores(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	store := c.Locals("store").(*models.Store)
 
 	var payload map[string]interface{}
@@ -941,7 +984,7 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 				})
 			}
 			var blacklistedCount int64
-			database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", cleanNewSlug).Count(&blacklistedCount)
+			h.db.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", cleanNewSlug).Count(&blacklistedCount)
 			if blacklistedCount > 0 {
 				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 					"success": false,
@@ -949,7 +992,7 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 				})
 			}
 			var existingCount int64
-			database.DB.Model(&models.Store{}).Where("LOWER(slug) = ? AND id != ?", cleanNewSlug, store.ID).Count(&existingCount)
+			h.db.Model(&models.Store{}).Where("LOWER(slug) = ? AND id != ?", cleanNewSlug, store.ID).Count(&existingCount)
 			if existingCount > 0 {
 				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 					"success": false,
@@ -961,7 +1004,7 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		}
 	}
 
-	if err := database.DB.Save(store).Error; err != nil {
+	if err := h.db.Save(store).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memperbarui profil toko.",
@@ -974,7 +1017,7 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 	}
 
 	// Refresh store activity timestamp for active stores
-	services.TouchStoreActivity(database.DB, store.ID)
+	services.TouchStoreActivity(h.db, store.ID)
 
 	// Record Activity Log
 	userVal := c.Locals("user")
@@ -998,7 +1041,7 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 	}
 
 	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
+		DB:          h.db,
 		StoreID:     &store.ID,
 		UserID:      userID,
 		ActorRole:   actorRole,
@@ -1025,6 +1068,12 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) UpgradePlan(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	store := c.Locals("store").(*models.Store)
 
 	var req struct {
@@ -1039,7 +1088,7 @@ func (h *StoreHandler) UpgradePlan(c *fiber.Ctx) error {
 
 	store.Plan = targetPlan
 	store.PaymentStatus = "paid"
-	database.DB.Save(store)
+	h.db.Save(store)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1049,6 +1098,12 @@ func (h *StoreHandler) UpgradePlan(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	store := c.Locals("store").(*models.Store)
 
 	var req struct {
@@ -1072,14 +1127,14 @@ func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
 	}
 	switch req.Field {
 	case "class", "master_classes", "category", "master_categories":
-		if IsSystemDefaultCategory(req.ProductType, val) {
+		if IsSystemDefaultCategory(h.db, req.ProductType, val) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": fmt.Sprintf("Kategori '%s' sudah merupakan standar bawaan sistem.", val),
 			})
 		}
 		if req.ProductType != "" {
-			store.MasterCategories = appendMasterCategory(store.MasterCategories, security.SanitizePlainText(req.ProductType, 50), val)
+			store.MasterCategories = appendMasterCategory(h.db, store.MasterCategories, security.SanitizePlainText(req.ProductType, 50), val)
 		}
 		store.MasterClasses = appendJSONString(store.MasterClasses, val)
 	case "habitat", "master_habitats":
@@ -1095,7 +1150,7 @@ func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
 		})
 	}
 
-	database.DB.Save(store)
+	h.db.Save(store)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1105,6 +1160,12 @@ func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) RenameMasterOption(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	store := c.Locals("store").(*models.Store)
 
 	var req struct {
@@ -1126,34 +1187,34 @@ func (h *StoreHandler) RenameMasterOption(c *fiber.Ctx) error {
 
 	switch req.Field {
 	case "class", "master_classes", "category", "master_categories":
-		if IsSystemDefaultCategory(prodType, oldVal) {
+		if IsSystemDefaultCategory(h.db, prodType, oldVal) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": fmt.Sprintf("Kategori '%s' adalah standar bawaan sistem dan tidak dapat diubah namanya.", oldVal),
 			})
 		}
-		if IsSystemDefaultCategory(prodType, newVal) {
+		if IsSystemDefaultCategory(h.db, prodType, newVal) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": fmt.Sprintf("Kategori '%s' sudah merupakan nama standar bawaan sistem.", newVal),
 			})
 		}
 		if prodType != "" {
-			store.MasterCategories = replaceMasterCategory(store.MasterCategories, prodType, oldVal, newVal)
+			store.MasterCategories = replaceMasterCategory(h.db, store.MasterCategories, prodType, oldVal, newVal)
 		}
 		store.MasterClasses = replaceJSONString(store.MasterClasses, oldVal, newVal)
-		database.DB.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, oldVal).Update("class", newVal)
+		h.db.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, oldVal).Update("class", newVal)
 	case "habitat", "master_habitats":
 		store.MasterHabitats = replaceJSONString(store.MasterHabitats, oldVal, newVal)
-		database.DB.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, oldVal).Update("habitat", newVal)
+		h.db.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, oldVal).Update("habitat", newVal)
 	case "conservation_status", "master_statuses":
 		store.MasterStatuses = replaceJSONString(store.MasterStatuses, oldVal, newVal)
-		database.DB.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, oldVal).Update("conservation_status", newVal)
+		h.db.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, oldVal).Update("conservation_status", newVal)
 	case "shipping_coverage", "master_shipping_coverages":
 		store.MasterShippingCoverages = replaceJSONString(store.MasterShippingCoverages, oldVal, newVal)
 	}
 
-	database.DB.Save(store)
+	h.db.Save(store)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1163,6 +1224,12 @@ func (h *StoreHandler) RenameMasterOption(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) DeleteMasterOption(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	store := c.Locals("store").(*models.Store)
 
 	var req struct {
@@ -1183,34 +1250,34 @@ func (h *StoreHandler) DeleteMasterOption(c *fiber.Ctx) error {
 
 	switch req.Field {
 	case "class", "master_classes", "category", "master_categories":
-		if IsSystemDefaultCategory(req.ProductType, val) {
+		if IsSystemDefaultCategory(h.db, req.ProductType, val) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": fmt.Sprintf("Kategori '%s' adalah standar bawaan sistem dan tidak dapat dihapus.", val),
 			})
 		}
 		if req.ProductType != "" {
-			store.MasterCategories = removeMasterCategory(store.MasterCategories, req.ProductType, val)
+			store.MasterCategories = removeMasterCategory(h.db, store.MasterCategories, req.ProductType, val)
 		}
 		store.MasterClasses = removeJSONString(store.MasterClasses, val)
 		if replacement != "" {
-			database.DB.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, val).Update("class", replacement)
+			h.db.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, val).Update("class", replacement)
 		}
 	case "habitat", "master_habitats":
 		store.MasterHabitats = removeJSONString(store.MasterHabitats, val)
 		if replacement != "" {
-			database.DB.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, val).Update("habitat", replacement)
+			h.db.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, val).Update("habitat", replacement)
 		}
 	case "conservation_status", "master_statuses":
 		store.MasterStatuses = removeJSONString(store.MasterStatuses, val)
 		if replacement != "" {
-			database.DB.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, val).Update("conservation_status", replacement)
+			h.db.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, val).Update("conservation_status", replacement)
 		}
 	case "shipping_coverage", "master_shipping_coverages":
 		store.MasterShippingCoverages = removeJSONString(store.MasterShippingCoverages, val)
 	}
 
-	database.DB.Save(store)
+	h.db.Save(store)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1220,6 +1287,12 @@ func (h *StoreHandler) DeleteMasterOption(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	store := c.Locals("store").(*models.Store)
 
 	var req struct {
@@ -1233,7 +1306,7 @@ func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
 	}
 
 	presetType := strings.ToLower(strings.TrimSpace(req.Preset))
-	presets := GetMasterPresets()
+	presets := GetMasterPresets(h.db)
 
 	preset, ok := presets[presetType]
 	if !ok {
@@ -1251,7 +1324,7 @@ func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
 	store.MasterStatuses = preset.MasterStatuses
 	store.MasterShippingCoverages = preset.MasterShippingCoverages
 
-	database.DB.Save(store)
+	h.db.Save(store)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1279,14 +1352,14 @@ var (
 
 // LoadMasterCategoryCache memuat kategori default dari DB ke cache in-memory.
 // Dipanggil sekali di startup (sync.Once). Bila DB kosong, jatuh ke DefaultMasterCategories.
-func LoadMasterCategoryCache() {
+func LoadMasterCategoryCache(db *gorm.DB) {
 	masterCategoryOnce.Do(func() {
 		masterCategoryCache = make(map[string][]string)
-		if database.DB == nil {
+		if db == nil {
 			return
 		}
 		var cats []models.MasterCategory
-		if err := database.DB.Order("product_type, sort_order").Find(&cats).Error; err != nil {
+		if err := db.Order("product_type, sort_order").Find(&cats).Error; err != nil {
 			log.Warn().Err(err).Msg("gagal memuat master category cache, menggunakan hardcoded fallback")
 			return
 		}
@@ -1302,8 +1375,8 @@ func LoadMasterCategoryCache() {
 
 // GetMasterCategories mengembalikan kategori default per product type.
 // Prioritas: cache DB > DefaultMasterCategories (fallback).
-func GetMasterCategories() map[string][]string {
-	LoadMasterCategoryCache()
+func GetMasterCategories(db *gorm.DB) map[string][]string {
+	LoadMasterCategoryCache(db)
 	if len(masterCategoryCache) > 0 {
 		return masterCategoryCache
 	}
@@ -1312,7 +1385,13 @@ func GetMasterCategories() map[string][]string {
 
 // GetMasterCategoriesHandler melayani GET /api/master-categories.
 func (h *StoreHandler) GetMasterCategoriesHandler(c *fiber.Ctx) error {
-	cats := GetMasterCategories()
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	cats := GetMasterCategories(h.db)
 	return c.JSON(fiber.Map{
 		"categories": cats,
 	})
@@ -1327,14 +1406,14 @@ var (
 
 // LoadMasterPresetCache memuat preset data dari DB ke cache in-memory.
 // Dipanggil sekali di startup (sync.Once).
-func LoadMasterPresetCache() {
+func LoadMasterPresetCache(db *gorm.DB) {
 	masterPresetOnce.Do(func() {
 		masterPresetCache = make(map[string]models.MasterPreset)
-		if database.DB == nil {
+		if db == nil {
 			return
 		}
 		var presets []models.MasterPreset
-		if err := database.DB.Order("product_type").Find(&presets).Error; err != nil {
+		if err := db.Order("product_type").Find(&presets).Error; err != nil {
 			log.Warn().Err(err).Msg("gagal memuat master preset cache")
 			return
 		}
@@ -1346,19 +1425,19 @@ func LoadMasterPresetCache() {
 }
 
 // GetMasterPresets mengembalikan preset data per product type dari cache DB.
-func GetMasterPresets() map[string]models.MasterPreset {
-	LoadMasterPresetCache()
+func GetMasterPresets(db *gorm.DB) map[string]models.MasterPreset {
+	LoadMasterPresetCache(db)
 	return masterPresetCache
 }
 
 // IsSystemDefaultCategory checks if a category belongs to immutable system default master categories.
-func IsSystemDefaultCategory(pType, val string) bool {
+func IsSystemDefaultCategory(db *gorm.DB, pType, val string) bool {
 	pType = strings.ToLower(strings.TrimSpace(pType))
 	val = strings.TrimSpace(val)
 	if val == "" {
 		return false
 	}
-	defs := GetMasterCategories()
+	defs := GetMasterCategories(db)
 	if pType != "" {
 		if names, ok := defs[pType]; ok {
 			for _, d := range names {
@@ -1380,7 +1459,7 @@ func IsSystemDefaultCategory(pType, val string) bool {
 }
 
 // Helper MasterCategories JSON map functions
-func appendMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON {
+func appendMasterCategory(db *gorm.DB, raw datatypes.JSON, pType, val string) datatypes.JSON {
 	pType = strings.ToLower(strings.TrimSpace(pType))
 	if pType == "" {
 		pType = "physical"
@@ -1394,7 +1473,7 @@ func appendMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON 
 	}
 	list := catMap[pType]
 	if len(list) == 0 {
-		if defs := GetMasterCategories(); len(defs[pType]) > 0 {
+		if defs := GetMasterCategories(db); len(defs[pType]) > 0 {
 			list = append([]string{}, defs[pType]...)
 		}
 	}
@@ -1411,7 +1490,7 @@ func appendMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON 
 	return datatypes.JSON(b)
 }
 
-func replaceMasterCategory(raw datatypes.JSON, pType, oldVal, newVal string) datatypes.JSON {
+func replaceMasterCategory(db *gorm.DB, raw datatypes.JSON, pType, oldVal, newVal string) datatypes.JSON {
 	pType = strings.ToLower(strings.TrimSpace(pType))
 	if pType == "" {
 		pType = "physical"
@@ -1425,7 +1504,7 @@ func replaceMasterCategory(raw datatypes.JSON, pType, oldVal, newVal string) dat
 	}
 	list := catMap[pType]
 	if len(list) == 0 {
-		if defs := GetMasterCategories(); len(defs[pType]) > 0 {
+		if defs := GetMasterCategories(db); len(defs[pType]) > 0 {
 			list = append([]string{}, defs[pType]...)
 		}
 	}
@@ -1439,7 +1518,7 @@ func replaceMasterCategory(raw datatypes.JSON, pType, oldVal, newVal string) dat
 	return datatypes.JSON(b)
 }
 
-func removeMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON {
+func removeMasterCategory(db *gorm.DB, raw datatypes.JSON, pType, val string) datatypes.JSON {
 	pType = strings.ToLower(strings.TrimSpace(pType))
 	if pType == "" {
 		pType = "physical"
@@ -1453,7 +1532,7 @@ func removeMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON 
 	}
 	list := catMap[pType]
 	if len(list) == 0 {
-		if defs := GetMasterCategories(); len(defs[pType]) > 0 {
+		if defs := GetMasterCategories(db); len(defs[pType]) > 0 {
 			list = append([]string{}, defs[pType]...)
 		}
 	}
@@ -1509,9 +1588,15 @@ func removeJSONString(jsonBytes datatypes.JSON, val string) datatypes.JSON {
 
 // GetMyStores returns all store catalog profiles owned by the logged-in user
 func (h *StoreHandler) GetMyStores(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 	var stores []models.Store
-	if err := database.DB.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).Order("id asc").Find(&stores).Error; err != nil {
+	if err := h.db.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).Order("id asc").Find(&stores).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mengambil daftar katalog toko.",
@@ -1525,7 +1610,7 @@ func (h *StoreHandler) GetMyStores(c *fiber.Ctx) error {
 			theme = "navy"
 		}
 		var itemCount int64
-		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
+		h.db.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
 
 		result = append(result, fiber.Map{
 			"id":                s.ID,
@@ -1573,6 +1658,12 @@ type CreateStoreRequest struct {
 
 // CreateStore creates a new store profile under the logged-in user
 func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 
 	var req CreateStoreRequest
@@ -1621,7 +1712,7 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 
 	// Check if slug is blacklisted
 	var blacklistedCreateCount int64
-	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", req.StoreSlug).Count(&blacklistedCreateCount)
+	h.db.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", req.StoreSlug).Count(&blacklistedCreateCount)
 	if blacklistedCreateCount > 0 {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -1631,7 +1722,7 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 
 	// Check slug uniqueness
 	var count int64
-	database.DB.Model(&models.Store{}).Where("LOWER(slug) = ?", req.StoreSlug).Count(&count)
+	h.db.Model(&models.Store{}).Where("LOWER(slug) = ?", req.StoreSlug).Count(&count)
 	if count > 0 {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
@@ -1640,7 +1731,7 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 	}
 
 	// Master data defaults from canonical system taxonomy (DB-backed)
-	bDefCats, _ := json.Marshal(GetMasterCategories())
+	bDefCats, _ := json.Marshal(GetMasterCategories(h.db))
 	defaultMasterCategories := datatypes.JSON(bDefCats)
 
 	newStore := models.Store{
@@ -1659,7 +1750,7 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 		MasterCategories:     defaultMasterCategories,
 	}
 
-	if err := database.DB.Create(&newStore).Error; err != nil {
+	if err := h.db.Create(&newStore).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal membuat profil katalog baru.",
@@ -1671,7 +1762,7 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 
 	// Fetch all stores of user
 	var allStores []models.Store
-	database.DB.Where("user_id = ?", user.ID).Order("id asc").Find(&allStores)
+	h.db.Where("user_id = ?", user.ID).Order("id asc").Find(&allStores)
 	var storeSummaries []fiber.Map
 	for _, s := range allStores {
 		theme := s.StoreTheme
@@ -1679,7 +1770,7 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 			theme = "navy"
 		}
 		var itemCount int64
-		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
+		h.db.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
 		storeSummaries = append(storeSummaries, fiber.Map{
 			"id":              s.ID,
 			"slug":            s.Slug,
@@ -1725,6 +1816,12 @@ type SwitchStoreRequest struct {
 
 // SwitchStore issues a fresh token with claims pinned to target store
 func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 
 	var req SwitchStoreRequest
@@ -1750,7 +1847,7 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 	}
 
 	var targetStore models.Store
-	if err := database.DB.Where("LOWER(slug) = ? AND user_id = ?", targetSlug, user.ID).First(&targetStore).Error; err != nil {
+	if err := h.db.Where("LOWER(slug) = ? AND user_id = ?", targetSlug, user.ID).First(&targetStore).Error; err != nil {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Anda tidak memiliki akses ke profil katalog ini.",
@@ -1780,7 +1877,7 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 
 	// Fetch all stores of user (excluding banned stores)
 	var allStores []models.Store
-	database.DB.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).Order("id asc").Find(&allStores)
+	h.db.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).Order("id asc").Find(&allStores)
 	var storeSummaries []fiber.Map
 	for _, s := range allStores {
 		th := s.StoreTheme
@@ -1788,7 +1885,7 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 			th = "navy"
 		}
 		var itemCount int64
-		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
+		h.db.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
 		storeSummaries = append(storeSummaries, fiber.Map{
 			"id":                s.ID,
 			"slug":              s.Slug,
@@ -1835,6 +1932,12 @@ type DeleteStoreRequest struct {
 
 // DeleteStore handles single store deletion with safe multi-tenant storage cleanup
 func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 	storeIDStr := c.Params("id")
 	storeID, err := strconv.ParseUint(storeIDStr, 10, 32)
@@ -1846,7 +1949,7 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 	}
 
 	var store models.Store
-	if err := database.DB.First(&store, uint(storeID)).Error; err != nil {
+	if err := h.db.First(&store, uint(storeID)).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Profil katalog tidak ditemukan.",
@@ -1898,7 +2001,7 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		cfg = config.LoadConfig()
 	}
 
-	tx := database.DB.Begin()
+	tx := h.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -1991,7 +2094,7 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 
 	// Fetch remaining active stores of user
 	var remainingStores []models.Store
-	database.DB.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).
+	h.db.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).
 		Order("id asc").Find(&remainingStores)
 
 	var nextToken string

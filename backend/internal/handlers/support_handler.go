@@ -41,10 +41,11 @@ var (
 type SupportHandler struct {
 	cfg     *config.Config
 	storage storage.StorageService
+	db      *gorm.DB
 }
 
-func NewSupportHandler(cfg *config.Config, strg storage.StorageService) *SupportHandler {
-	return &SupportHandler{cfg: cfg, storage: strg}
+func NewSupportHandler(cfg *config.Config, strg storage.StorageService, db *gorm.DB) *SupportHandler {
+	return &SupportHandler{cfg: cfg, storage: strg, db: db}
 }
 
 func generateTicketNumber() string {
@@ -80,6 +81,12 @@ type ReplyTicketRequest struct {
 
 // ListMyTickets returns all tickets opened by the authenticated user with server-side filtering, store-scoping, and pagination.
 func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -101,7 +108,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 
 	isStaff := user.IsPlatformStaff()
 
-	baseQuery := database.DB.Model(&models.SupportTicket{})
+	baseQuery := h.db.Model(&models.SupportTicket{})
 	if !isStaff {
 		baseQuery = baseQuery.Where("user_id = ?", user.ID)
 	}
@@ -113,7 +120,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 
 	if storeSlug != "" && scope != "all" {
 		var targetStore models.Store
-		if err := database.DB.Where("slug = ?", storeSlug).First(&targetStore).Error; err == nil && targetStore.ID != 0 {
+		if err := h.db.Where("slug = ?", storeSlug).First(&targetStore).Error; err == nil && targetStore.ID != 0 {
 			scopedStoreID = &targetStore.ID
 			baseQuery = baseQuery.Where("store_id = ?", targetStore.ID)
 		}
@@ -132,7 +139,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 		Count  int64
 	}
 	var sgs []statusGroup
-	metricQuery := database.DB.Model(&models.SupportTicket{})
+	metricQuery := h.db.Model(&models.SupportTicket{})
 	if !isStaff {
 		metricQuery = metricQuery.Where("user_id = ?", user.ID)
 	}
@@ -219,7 +226,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 			Count    int  `gorm:"column:count"`
 		}
 		var unreadRows []unreadRes
-		database.DB.Model(&models.SupportMessage{}).
+		h.db.Model(&models.SupportMessage{}).
 			Select("ticket_id, COUNT(id) as count").
 			Where("ticket_id IN (?) AND sender_type = ? AND read_at IS NULL AND is_internal_note = false", ticketIDs, "agent").
 			Group("ticket_id").
@@ -232,7 +239,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 
 		// 2. Batch fetch ONLY the single latest message per ticket (lean DTO compatibility)
 		var latestMessages []models.SupportMessage
-		database.DB.Raw(`
+		h.db.Raw(`
 			SELECT sm.* FROM support_messages sm
 			INNER JOIN (
 				SELECT ticket_id, MAX(id) as max_id 
@@ -252,7 +259,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 			Count    int  `gorm:"column:count"`
 		}
 		var attRows []attRes
-		database.DB.Table("support_attachments").
+		h.db.Table("support_attachments").
 			Select("support_messages.ticket_id, COUNT(support_attachments.id) as count").
 			Joins("INNER JOIN support_messages ON support_messages.id = support_attachments.message_id").
 			Where("support_messages.ticket_id IN (?) AND support_attachments.deleted_at IS NULL AND support_messages.deleted_at IS NULL", ticketIDs).
@@ -302,6 +309,12 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 
 // GetTicketDetails returns the full conversation thread for a ticket with verified ownership.
 func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -316,7 +329,7 @@ func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
 	// Scoped ownership check: user must own the ticket, or be platform staff (lookup by id or ticket_number)
 	isStaff := user.IsPlatformStaff()
 
-	q := database.DB.Preload("User").Preload("Store")
+	q := h.db.Preload("User").Preload("Store")
 	if !isStaff {
 		q = q.Where("user_id = ?", user.ID)
 	}
@@ -334,17 +347,17 @@ func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
 
 	// Mark unread agent messages in this ticket as read by the user
 	now := time.Now().UTC()
-	database.DB.Model(&models.SupportMessage{}).
+	h.db.Model(&models.SupportMessage{}).
 		Where("ticket_id = ? AND sender_type = ? AND read_at IS NULL", ticket.ID, "agent").
 		Update("read_at", now)
 
 	if ticket.Status == "waiting_user" {
-		database.DB.Model(&models.SupportTicket{}).Where("id = ?", ticket.ID).Update("status", "in_progress")
+		h.db.Model(&models.SupportTicket{}).Where("id = ?", ticket.ID).Update("status", "in_progress")
 		ticket.Status = "in_progress"
 	}
 
 	var messages []models.SupportMessage
-	database.DB.Where("ticket_id = ? AND is_internal_note = false", ticket.ID).
+	h.db.Where("ticket_id = ? AND is_internal_note = false", ticket.ID).
 		Preload("Attachments").
 		Preload("Sender").
 		Order("created_at ASC, id ASC").
@@ -371,6 +384,12 @@ func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
 
 // MarkTicketAsRead marks all agent messages in a ticket as read by the merchant.
 func (h *SupportHandler) MarkTicketAsRead(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -381,7 +400,7 @@ func (h *SupportHandler) MarkTicketAsRead(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 	var ticket models.SupportTicket
-	q := database.DB.Where("user_id = ?", user.ID)
+	q := h.db.Where("user_id = ?", user.ID)
 	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
 		q = q.Where("id = ? OR ticket_number = ?", num, id)
 	} else {
@@ -395,12 +414,12 @@ func (h *SupportHandler) MarkTicketAsRead(c *fiber.Ctx) error {
 	}
 
 	now := time.Now().UTC()
-	database.DB.Model(&models.SupportMessage{}).
+	h.db.Model(&models.SupportMessage{}).
 		Where("ticket_id = ? AND sender_type = ? AND read_at IS NULL", ticket.ID, "agent").
 		Update("read_at", now)
 
 	if ticket.Status == "waiting_user" {
-		database.DB.Model(&models.SupportTicket{}).Where("id = ?", ticket.ID).Update("status", "in_progress")
+		h.db.Model(&models.SupportTicket{}).Where("id = ?", ticket.ID).Update("status", "in_progress")
 	}
 
 	return c.JSON(fiber.Map{
@@ -411,6 +430,12 @@ func (h *SupportHandler) MarkTicketAsRead(c *fiber.Ctx) error {
 
 // CreateTicket opens a new support inquiry ticket and adds the initial merchant message.
 func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -467,13 +492,13 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	targetSlug := strings.TrimSpace(req.StoreSlug)
 
 	if targetSlug != "" {
-		if err := database.DB.Where("slug = ?", targetSlug).First(&store).Error; err == nil && store.ID != 0 {
+		if err := h.db.Where("slug = ?", targetSlug).First(&store).Error; err == nil && store.ID != 0 {
 			if store.UserID == user.ID || isStaff {
 				storeID = &store.ID
 			}
 		}
 	} else if req.StoreID != nil && *req.StoreID != 0 {
-		if err := database.DB.Where("id = ?", *req.StoreID).First(&store).Error; err == nil && store.ID != 0 {
+		if err := h.db.Where("id = ?", *req.StoreID).First(&store).Error; err == nil && store.ID != 0 {
 			if store.UserID == user.ID || isStaff {
 				storeID = &store.ID
 			}
@@ -482,7 +507,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 
 	// Fallback to user's first store only if no specific store was specified but user owns a store
 	if storeID == nil {
-		if err := database.DB.Where("user_id = ?", user.ID).First(&store).Error; err == nil && store.ID != 0 {
+		if err := h.db.Where("user_id = ?", user.ID).First(&store).Error; err == nil && store.ID != 0 {
 			storeID = &store.ID
 		}
 	}
@@ -516,7 +541,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		UpdatedAt:     now,
 	}
 
-	if err := database.DB.Create(&ticket).Error; err != nil {
+	if err := h.db.Create(&ticket).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal membuat tiket bantuan baru.",
@@ -532,7 +557,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		IsInternalNote: false,
 		CreatedAt:      now,
 	}
-	database.DB.Create(&msg)
+	h.db.Create(&msg)
 
 	// Save attachments
 	if len(req.Attachments) > 0 {
@@ -548,7 +573,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 					FileType:   security.SanitizePlainText(att.FileType, 100),
 					CreatedAt:  now,
 				}
-				database.DB.Create(&attachment)
+				h.db.Create(&attachment)
 			}
 		}
 	}
@@ -556,7 +581,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	// 🤖 Automated SLA & Welcome Auto-Responder (Instant Trigger)
 	var systemUserID uint = 1
 	var firstAdmin models.User
-	if err := database.DB.Where("is_superadmin = ? OR platform_role IN ?", true, []string{"superadmin", "support"}).First(&firstAdmin).Error; err == nil && firstAdmin.ID != 0 {
+	if err := h.db.Where("is_superadmin = ? OR platform_role IN ?", true, []string{"superadmin", "support"}).First(&firstAdmin).Error; err == nil && firstAdmin.ID != 0 {
 		systemUserID = firstAdmin.ID
 	}
 
@@ -584,10 +609,10 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		IsInternalNote: false,
 		CreatedAt:      now.Add(time.Second),
 	}
-	database.DB.Create(&autoMsg)
+	h.db.Create(&autoMsg)
 
 	// Preload ticket relations
-	database.DB.Preload("User").Preload("Store").Preload("Messages.Attachments").First(&ticket, ticket.ID)
+	h.db.Preload("User").Preload("Store").Preload("Messages.Attachments").First(&ticket, ticket.ID)
 
 	targetStoreID := uint(0)
 	if ticket.StoreID != nil {
@@ -606,6 +631,12 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 
 // ReplyTicket sends a reply message with screenshot attachments to an existing ticket.
 func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -617,7 +648,7 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var ticket models.SupportTicket
 
-	q := database.DB.Where("user_id = ?", user.ID)
+	q := h.db.Where("user_id = ?", user.ID)
 	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
 		q = q.Where("id = ? OR ticket_number = ?", num, id)
 	} else {
@@ -662,7 +693,7 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 		IsInternalNote: false,
 		CreatedAt:      now,
 	}
-	database.DB.Create(&msg)
+	h.db.Create(&msg)
 
 	// Save attachments
 	if len(req.Attachments) > 0 {
@@ -678,7 +709,7 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 					FileType:   security.SanitizePlainText(att.FileType, 100),
 					CreatedAt:  now,
 				}
-				database.DB.Create(&attachment)
+				h.db.Create(&attachment)
 			}
 		}
 	}
@@ -695,11 +726,11 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 	ticket.ReminderSentAt = nil
 	ticket.LastMessageAt = now
 	ticket.UpdatedAt = now
-	database.DB.Save(&ticket)
+	h.db.Save(&ticket)
 	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	// Preload created message
-	database.DB.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
+	h.db.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
 
 	targetStoreID := uint(0)
 	if ticket.StoreID != nil {
@@ -710,7 +741,7 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 		ticketStoreSlug = ticket.Store.Slug
 	} else if targetStoreID > 0 {
 		var st models.Store
-		if err := database.DB.Select("slug").Where("id = ?", targetStoreID).First(&st).Error; err == nil {
+		if err := h.db.Select("slug").Where("id = ?", targetStoreID).First(&st).Error; err == nil {
 			ticketStoreSlug = st.Slug
 		}
 	}
@@ -741,6 +772,12 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 
 // ListAllTickets returns all tickets in system with server-side filtering, search, pagination, and triage metrics.
 func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	if page < 1 {
 		page = 1
@@ -755,27 +792,27 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 	// 1. Calculate Realtime Triage Metrics across all tickets
 	var totalCount, actionReqCount, inProgCount, waitUserCount, urgentCount, resolvedCount, slaBreachedCount int64
 	nowTime := time.Now().UTC()
-	database.DB.Model(&models.SupportTicket{}).Count(&totalCount)
-	database.DB.Model(&models.SupportTicket{}).Where("status IN (?)", []string{"open", "waiting_agent"}).Count(&actionReqCount)
-	database.DB.Model(&models.SupportTicket{}).Where("status = ?", "in_progress").Count(&inProgCount)
-	database.DB.Model(&models.SupportTicket{}).Where("status = ?", "waiting_user").Count(&waitUserCount)
-	database.DB.Model(&models.SupportTicket{}).Where("priority IN (?) AND status NOT IN (?)", []string{"urgent", "high"}, []string{"resolved", "closed"}).Count(&urgentCount)
-	database.DB.Model(&models.SupportTicket{}).Where("status IN (?)", []string{"resolved", "closed"}).Count(&resolvedCount)
-	database.DB.Model(&models.SupportTicket{}).Where("(sla_breached = true OR (status = 'open' AND sla_due_at IS NOT NULL AND sla_due_at < ?)) AND status NOT IN (?)", nowTime, []string{"resolved", "closed"}).Count(&slaBreachedCount)
+	h.db.Model(&models.SupportTicket{}).Count(&totalCount)
+	h.db.Model(&models.SupportTicket{}).Where("status IN (?)", []string{"open", "waiting_agent"}).Count(&actionReqCount)
+	h.db.Model(&models.SupportTicket{}).Where("status = ?", "in_progress").Count(&inProgCount)
+	h.db.Model(&models.SupportTicket{}).Where("status = ?", "waiting_user").Count(&waitUserCount)
+	h.db.Model(&models.SupportTicket{}).Where("priority IN (?) AND status NOT IN (?)", []string{"urgent", "high"}, []string{"resolved", "closed"}).Count(&urgentCount)
+	h.db.Model(&models.SupportTicket{}).Where("status IN (?)", []string{"resolved", "closed"}).Count(&resolvedCount)
+	h.db.Model(&models.SupportTicket{}).Where("(sla_breached = true OR (status = 'open' AND sla_due_at IS NOT NULL AND sla_due_at < ?)) AND status NOT IN (?)", nowTime, []string{"resolved", "closed"}).Count(&slaBreachedCount)
 
 	// CSAT Metrics
 	var csatRatedCount, csatPositiveCount int64
 	var csatAvg float64
-	database.DB.Model(&models.SupportTicket{}).Where("rating IS NOT NULL AND rating > 0").Count(&csatRatedCount)
-	database.DB.Model(&models.SupportTicket{}).Where("rating >= 4").Count(&csatPositiveCount)
-	database.DB.Model(&models.SupportTicket{}).Where("rating IS NOT NULL AND rating > 0").Select("COALESCE(AVG(rating), 0)").Scan(&csatAvg)
+	h.db.Model(&models.SupportTicket{}).Where("rating IS NOT NULL AND rating > 0").Count(&csatRatedCount)
+	h.db.Model(&models.SupportTicket{}).Where("rating >= 4").Count(&csatPositiveCount)
+	h.db.Model(&models.SupportTicket{}).Where("rating IS NOT NULL AND rating > 0").Select("COALESCE(AVG(rating), 0)").Scan(&csatAvg)
 	var csatScorePct float64
 	if csatRatedCount > 0 {
 		csatScorePct = (float64(csatPositiveCount) / float64(csatRatedCount)) * 100.0
 	}
 
 	// 2. Build Filtered Query
-	query := database.DB.Model(&models.SupportTicket{})
+	query := h.db.Model(&models.SupportTicket{})
 
 	if status := strings.TrimSpace(c.Query("status")); status != "" && status != "all" {
 		if status == "action_required" {
@@ -852,7 +889,7 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 			Count    int  `gorm:"column:count"`
 		}
 		var unreadRows []unreadRes
-		database.DB.Model(&models.SupportMessage{}).
+		h.db.Model(&models.SupportMessage{}).
 			Select("ticket_id, COUNT(id) as count").
 			Where("ticket_id IN (?) AND sender_type = ? AND read_at IS NULL", ticketIDs, "user").
 			Group("ticket_id").
@@ -864,7 +901,7 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 		}
 
 		var latestMessages []models.SupportMessage
-		database.DB.Raw(`
+		h.db.Raw(`
 			SELECT sm.* FROM support_messages sm
 			INNER JOIN (
 				SELECT ticket_id, MAX(id) as max_id 
@@ -884,7 +921,7 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 			Count    int  `gorm:"column:count"`
 		}
 		var attRows []attRes
-		database.DB.Table("support_attachments").
+		h.db.Table("support_attachments").
 			Select("support_messages.ticket_id, COUNT(support_attachments.id) as count").
 			Joins("INNER JOIN support_messages ON support_messages.id = support_attachments.message_id").
 			Where("support_messages.ticket_id IN (?) AND support_attachments.deleted_at IS NULL AND support_messages.deleted_at IS NULL", ticketIDs).
@@ -941,10 +978,16 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 
 // GetAdminTicketDetails returns full ticket with chronological messages (including internal notes), sender info, attachments, and store data.
 func (h *SupportHandler) GetAdminTicketDetails(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	var ticket models.SupportTicket
 
-	q := database.DB.Preload("User").Preload("Store")
+	q := h.db.Preload("User").Preload("Store")
 	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
 		q = q.Where("id = ? OR ticket_number = ?", num, id)
 	} else {
@@ -959,12 +1002,12 @@ func (h *SupportHandler) GetAdminTicketDetails(c *fiber.Ctx) error {
 
 	// Tandai pesan user di tiket ini sebagai sudah dibaca oleh tim CS/Admin
 	now := time.Now().UTC()
-	database.DB.Model(&models.SupportMessage{}).
+	h.db.Model(&models.SupportMessage{}).
 		Where("ticket_id = ? AND sender_type = ? AND read_at IS NULL", ticket.ID, "user").
 		Update("read_at", now)
 
 	var messages []models.SupportMessage
-	database.DB.Where("ticket_id = ?", ticket.ID).
+	h.db.Where("ticket_id = ?", ticket.ID).
 		Preload("Attachments").
 		Preload("Sender").
 		Order("created_at ASC, id ASC").
@@ -991,6 +1034,12 @@ func (h *SupportHandler) GetAdminTicketDetails(c *fiber.Ctx) error {
 
 // ReplyAsAdmin allows CS agents to reply or create internal notes.
 func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -1001,7 +1050,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 	var ticket models.SupportTicket
-	q := database.DB
+	q := h.db
 	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
 		q = q.Where("id = ? OR ticket_number = ?", num, id)
 	} else {
@@ -1046,7 +1095,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 		IsInternalNote: req.IsInternalNote,
 		CreatedAt:      now,
 	}
-	database.DB.Create(&msg)
+	h.db.Create(&msg)
 
 	// Save attachments
 	if len(req.Attachments) > 0 {
@@ -1062,7 +1111,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 					FileType:   security.SanitizePlainText(att.FileType, 100),
 					CreatedAt:  now,
 				}
-				database.DB.Create(&attachment)
+				h.db.Create(&attachment)
 			}
 		}
 	}
@@ -1089,7 +1138,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			notifTargetID = *ticket.StoreID
 
 			var st models.Store
-			if err := database.DB.Select("slug").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil && st.Slug != "" {
+			if err := h.db.Select("slug").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil && st.Slug != "" {
 				actionURL = fmt.Sprintf("/%s/admin/help?ticket=%s", st.Slug, ticket.TicketNumber)
 			}
 		}
@@ -1109,13 +1158,13 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		}
-		if err := database.DB.Create(&notif).Error; err == nil {
+		if err := h.db.Create(&notif).Error; err == nil {
 			services.GetNotificationHub().Broadcast(&notif)
 		}
 
 		// Transactional Outbox Email Dispatch: Enqueue professional notification email for merchant
 		var ticketUser models.User
-		if err := database.DB.Select("id, name, email").Where("id = ?", ticket.UserID).First(&ticketUser).Error; err == nil && ticketUser.Email != "" {
+		if err := h.db.Select("id, name, email").Where("id = ?", ticket.UserID).First(&ticketUser).Error; err == nil && ticketUser.Email != "" {
 			recipientName := ticketUser.Name
 			if recipientName == "" {
 				recipientName = "Pengelola Katalog"
@@ -1128,7 +1177,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			ticketStoreTitle := ""
 			if ticket.StoreID != nil && *ticket.StoreID > 0 {
 				var st models.Store
-				if err := database.DB.Select("slug, store_title").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil {
+				if err := h.db.Select("slug, store_title").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil {
 					ticketStoreSlug = st.Slug
 					ticketStoreTitle = st.StoreTitle
 				}
@@ -1155,17 +1204,17 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 	}
 	ticket.LastMessageAt = now
 	ticket.UpdatedAt = now
-	database.DB.Save(&ticket)
+	h.db.Save(&ticket)
 	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
-	database.DB.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
+	h.db.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
 
 	targetStoreID := uint(0)
 	var ticketStoreSlug string
 	if ticket.StoreID != nil && *ticket.StoreID > 0 {
 		targetStoreID = *ticket.StoreID
 		var st models.Store
-		if err := database.DB.Select("slug").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil {
+		if err := h.db.Select("slug").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil {
 			ticketStoreSlug = st.Slug
 		}
 	}
@@ -1190,9 +1239,15 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 
 // UpdateTicketStatus modifies ticket status (resolved, closed, in_progress).
 func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	var ticket models.SupportTicket
-	q := database.DB
+	q := h.db
 	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
 		q = q.Where("id = ? OR ticket_number = ?", num, id)
 	} else {
@@ -1241,13 +1296,13 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 	}
 	ticket.UpdatedAt = now
 
-	database.DB.Save(&ticket)
+	h.db.Save(&ticket)
 	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	// 🤖 Automated Resolution Notice (When status transitioned to resolved)
 	if ticket.Status == "resolved" && oldStatus != "resolved" {
 		var merchant models.User
-		database.DB.First(&merchant, ticket.UserID)
+		h.db.First(&merchant, ticket.UserID)
 		merchantName := merchant.Name
 		if merchantName == "" {
 			merchantName = "Bapak/Ibu Merchant"
@@ -1261,7 +1316,7 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 			IsInternalNote: false,
 			CreatedAt:      now.Add(time.Second),
 		}
-		database.DB.Create(&resolutionMsg)
+		h.db.Create(&resolutionMsg)
 	}
 
 	targetStoreID := uint(0)
@@ -1269,7 +1324,7 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 	if ticket.StoreID != nil && *ticket.StoreID > 0 {
 		targetStoreID = *ticket.StoreID
 		var st models.Store
-		if err := database.DB.Select("slug").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil {
+		if err := h.db.Select("slug").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil {
 			ticketStoreSlug = st.Slug
 		}
 	}
@@ -1293,6 +1348,12 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 
 // RateTicket allows a merchant to submit CSAT rating & optional feedback for a resolved or closed ticket.
 func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -1303,7 +1364,7 @@ func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 	var ticket models.SupportTicket
-	q := database.DB.Where("user_id = ?", user.ID)
+	q := h.db.Where("user_id = ?", user.ID)
 	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
 		q = q.Where("id = ? OR ticket_number = ?", num, id)
 	} else {
@@ -1353,13 +1414,13 @@ func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
 		ticket.RatedAgentID = req.AgentID
 	} else {
 		var lastAgentMsg models.SupportMessage
-		if err := database.DB.Where("ticket_id = ? AND sender_type = ? AND is_internal_note = false", ticket.ID, "agent").
+		if err := h.db.Where("ticket_id = ? AND sender_type = ? AND is_internal_note = false", ticket.ID, "agent").
 			Order("id DESC").First(&lastAgentMsg).Error; err == nil && lastAgentMsg.SenderID > 0 {
 			ticket.RatedAgentID = &lastAgentMsg.SenderID
 		}
 	}
 
-	database.DB.Save(&ticket)
+	h.db.Save(&ticket)
 	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	return c.JSON(fiber.Map{
@@ -1371,6 +1432,12 @@ func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
 
 // UpdatePresence records an active admin presence and typing state on a support ticket.
 func (h *SupportHandler) UpdatePresence(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -1385,7 +1452,7 @@ func (h *SupportHandler) UpdatePresence(c *fiber.Ctx) error {
 		ticketID = uint(num)
 	} else {
 		var t models.SupportTicket
-		if err := database.DB.Where("ticket_number = ?", id).Select("id").First(&t).Error; err == nil {
+		if err := h.db.Where("ticket_number = ?", id).Select("id").First(&t).Error; err == nil {
 			ticketID = t.ID
 		}
 	}
@@ -1436,6 +1503,12 @@ func (h *SupportHandler) UpdatePresence(c *fiber.Ctx) error {
 
 // GetPresence returns list of other CS agents currently viewing or typing on this ticket.
 func (h *SupportHandler) GetPresence(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -1450,7 +1523,7 @@ func (h *SupportHandler) GetPresence(c *fiber.Ctx) error {
 		ticketID = uint(num)
 	} else {
 		var t models.SupportTicket
-		if err := database.DB.Where("ticket_number = ?", id).Select("id").First(&t).Error; err == nil {
+		if err := h.db.Where("ticket_number = ?", id).Select("id").First(&t).Error; err == nil {
 			ticketID = t.ID
 		}
 	}
@@ -1517,10 +1590,10 @@ func (h *SupportHandler) runLifecycleTasks() {
 	// 1. Stale Ticket Auto-Reminder (72 jam / 3 hari di waiting_user)
 	threeDaysAgo := now.Add(-72 * time.Hour)
 	var staleWaitingTickets []models.SupportTicket
-	if err := database.DB.Where("status = ? AND reminder_count = 0 AND last_message_at <= ?", "waiting_user", threeDaysAgo).Find(&staleWaitingTickets).Error; err == nil {
+	if err := h.db.Where("status = ? AND reminder_count = 0 AND last_message_at <= ?", "waiting_user", threeDaysAgo).Find(&staleWaitingTickets).Error; err == nil {
 		for _, t := range staleWaitingTickets {
 			var merchant models.User
-			database.DB.First(&merchant, t.UserID)
+			h.db.First(&merchant, t.UserID)
 			merchantName := merchant.Name
 			if merchantName == "" {
 				merchantName = "Bapak/Ibu Merchant"
@@ -1534,22 +1607,22 @@ func (h *SupportHandler) runLifecycleTasks() {
 				IsInternalNote: false,
 				CreatedAt:      now,
 			}
-			database.DB.Create(&reminderMsg)
+			h.db.Create(&reminderMsg)
 
 			t.ReminderCount = 1
 			t.ReminderSentAt = &now
 			t.UpdatedAt = now
-			database.DB.Save(&t)
+			h.db.Save(&t)
 		}
 	}
 
 	// 2. Stale Ticket Auto-Resolve (48 jam setelah Reminder)
 	twoDaysAgo := now.Add(-48 * time.Hour)
 	var ticketsToResolve []models.SupportTicket
-	if err := database.DB.Where("status = ? AND reminder_count >= 1 AND reminder_sent_at <= ?", "waiting_user", twoDaysAgo).Find(&ticketsToResolve).Error; err == nil {
+	if err := h.db.Where("status = ? AND reminder_count >= 1 AND reminder_sent_at <= ?", "waiting_user", twoDaysAgo).Find(&ticketsToResolve).Error; err == nil {
 		for _, t := range ticketsToResolve {
 			var merchant models.User
-			database.DB.First(&merchant, t.UserID)
+			h.db.First(&merchant, t.UserID)
 			merchantName := merchant.Name
 			if merchantName == "" {
 				merchantName = "Bapak/Ibu Merchant"
@@ -1563,40 +1636,40 @@ func (h *SupportHandler) runLifecycleTasks() {
 				IsInternalNote: false,
 				CreatedAt:      now,
 			}
-			database.DB.Create(&autoResolveMsg)
+			h.db.Create(&autoResolveMsg)
 
 			t.Status = "resolved"
 			t.ResolvedAt = &now
 			t.UpdatedAt = now
-			database.DB.Save(&t)
+			h.db.Save(&t)
 		}
 	}
 
 	// 3. Stale Resolved Ticket Auto-Close (7 hari setelah Resolved)
 	sevenDaysAgo := now.AddDate(0, 0, -7)
 	var staleResolvedTickets []models.SupportTicket
-	if err := database.DB.Where("status = ? AND resolved_at <= ?", "resolved", sevenDaysAgo).Find(&staleResolvedTickets).Error; err == nil {
+	if err := h.db.Where("status = ? AND resolved_at <= ?", "resolved", sevenDaysAgo).Find(&staleResolvedTickets).Error; err == nil {
 		for _, t := range staleResolvedTickets {
 			t.Status = "closed"
 			t.ClosedAt = &now
 			t.UpdatedAt = now
-			database.DB.Save(&t)
+			h.db.Save(&t)
 		}
 	}
 
 	// 4. Multi-Tier SLA Breach Detection
 	var breachCount int64
-	database.DB.Model(&models.SupportTicket{}).
+	h.db.Model(&models.SupportTicket{}).
 		Where("status = ? AND first_response_at IS NULL AND sla_breached = false AND sla_due_at IS NOT NULL AND sla_due_at <= ?", "open", now).
 		Count(&breachCount)
 	if breachCount > 0 {
-		database.DB.Model(&models.SupportTicket{}).
+		h.db.Model(&models.SupportTicket{}).
 			Where("status = ? AND first_response_at IS NULL AND sla_breached = false AND sla_due_at IS NOT NULL AND sla_due_at <= ?", "open", now).
 			Update("sla_breached", true)
 	}
 
 	// 5. Automated PDP Ticket Retention & Physical File Hard Purge (UU PDP No. 27/2022)
-	pdpStats, err := services.PurgeExpiredClosedTickets(database.DB, h.storage)
+	pdpStats, err := services.PurgeExpiredClosedTickets(h.db, h.storage)
 	if err != nil {
 		log.Warn().Err(err).Msg("PDP Ticket Retention Sweeper error during routine lifecycle")
 	}
@@ -1632,6 +1705,12 @@ func (h *SupportHandler) runLifecycleTasks() {
 
 // ListCannedResponses returns canned response templates with Redis caching, server-side filtering, and pagination.
 func (h *SupportHandler) ListCannedResponses(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	category := strings.TrimSpace(c.Query("category"))
 	search := strings.TrimSpace(c.Query("search"))
 	if search == "" {
@@ -1658,7 +1737,7 @@ func (h *SupportHandler) ListCannedResponses(c *fiber.Ctx) error {
 		return c.SendString(cachedData)
 	}
 
-	q := database.DB.Model(&models.SupportCannedResponse{})
+	q := h.db.Model(&models.SupportCannedResponse{})
 
 	if !includeInactive {
 		q = q.Where("is_active = true")
@@ -1683,7 +1762,7 @@ func (h *SupportHandler) ListCannedResponses(c *fiber.Ctx) error {
 
 	// Auto-seed default canned responses if table is empty
 	if total == 0 && category == "" && search == "" {
-		SeedDefaultCannedResponses(database.DB)
+		SeedDefaultCannedResponses(h.db)
 		_ = q.Count(&total).Error
 	}
 
@@ -1734,6 +1813,12 @@ func (h *SupportHandler) ListCannedResponses(c *fiber.Ctx) error {
 
 // CreateCannedResponse adds a new quick reply template.
 func (h *SupportHandler) CreateCannedResponse(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -1798,7 +1883,7 @@ func (h *SupportHandler) CreateCannedResponse(c *fiber.Ctx) error {
 		UpdatedAt:   time.Now().UTC(),
 	}
 
-	if err := database.DB.Create(&tmpl).Error; err != nil {
+	if err := h.db.Create(&tmpl).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal menyimpan template balasan.",
@@ -1817,6 +1902,12 @@ func (h *SupportHandler) CreateCannedResponse(c *fiber.Ctx) error {
 
 // UpdateCannedResponse updates an existing canned response template.
 func (h *SupportHandler) UpdateCannedResponse(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	tmplID, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
@@ -1827,7 +1918,7 @@ func (h *SupportHandler) UpdateCannedResponse(c *fiber.Ctx) error {
 	}
 
 	var tmpl models.SupportCannedResponse
-	if err := database.DB.First(&tmpl, uint(tmplID)).Error; err != nil {
+	if err := h.db.First(&tmpl, uint(tmplID)).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Template balasan tidak ditemukan.",
@@ -1885,7 +1976,7 @@ func (h *SupportHandler) UpdateCannedResponse(c *fiber.Ctx) error {
 	}
 	tmpl.UpdatedAt = time.Now().UTC()
 
-	if err := database.DB.Save(&tmpl).Error; err != nil {
+	if err := h.db.Save(&tmpl).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memperbarui template balasan.",
@@ -1904,9 +1995,15 @@ func (h *SupportHandler) UpdateCannedResponse(c *fiber.Ctx) error {
 
 // DeleteCannedResponse soft-deletes a canned response template.
 func (h *SupportHandler) DeleteCannedResponse(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	if tmplID, err := strconv.ParseUint(id, 10, 32); err == nil {
-		database.DB.Where("id = ?", uint(tmplID)).Delete(&models.SupportCannedResponse{})
+		h.db.Where("id = ?", uint(tmplID)).Delete(&models.SupportCannedResponse{})
 		// Purge Redis cache
 		database.InvalidateSupportTemplatesCache(c.Context())
 		return c.JSON(fiber.Map{
@@ -1923,15 +2020,21 @@ func (h *SupportHandler) DeleteCannedResponse(c *fiber.Ctx) error {
 
 // ResetDefaultCannedResponses restores standard default templates into the database.
 func (h *SupportHandler) ResetDefaultCannedResponses(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	// Remove existing default or deleted
-	database.DB.Unscoped().Where("1 = 1").Delete(&models.SupportCannedResponse{})
-	SeedDefaultCannedResponses(database.DB)
+	h.db.Unscoped().Where("1 = 1").Delete(&models.SupportCannedResponse{})
+	SeedDefaultCannedResponses(h.db)
 
 	// Purge Redis cache
 	database.InvalidateSupportTemplatesCache(c.Context())
 
 	var templates []models.SupportCannedResponse
-	database.DB.Order("sort_order asc, id asc").Find(&templates)
+	h.db.Order("sort_order asc, id asc").Find(&templates)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -2017,8 +2120,14 @@ func SeedDefaultCannedResponses(db *gorm.DB) {
 
 // ListHelpArticles returns a list of knowledge base guide articles.
 func (h *SupportHandler) ListHelpArticles(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var articles []models.HelpArticle
-	q := database.DB.Where("is_published = true").Order("sort_order asc, id asc")
+	q := h.db.Where("is_published = true").Order("sort_order asc, id asc")
 
 	category := strings.TrimSpace(c.Query("category"))
 	if category != "" && category != "all" {
@@ -2045,8 +2154,14 @@ func (h *SupportHandler) ListHelpArticles(c *fiber.Ctx) error {
 
 // GetHelpArticles returns published self-service guide articles.
 func (h *SupportHandler) GetHelpArticles(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var articles []models.HelpArticle
-	query := database.DB.Where("is_published = true")
+	query := h.db.Where("is_published = true")
 
 	if category := strings.TrimSpace(c.Query("category")); category != "" && category != "all" {
 		query = query.Where("category = ?", category)
@@ -2073,10 +2188,16 @@ func (h *SupportHandler) GetHelpArticles(c *fiber.Ctx) error {
 
 // GetHelpArticleBySlug retrieves a single guide article by slug.
 func (h *SupportHandler) GetHelpArticleBySlug(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
 	var article models.HelpArticle
 
-	if err := database.DB.Where("slug = ? AND is_published = true", slug).First(&article).Error; err != nil {
+	if err := h.db.Where("slug = ? AND is_published = true", slug).First(&article).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Artikel panduan tidak ditemukan.",
@@ -2122,6 +2243,12 @@ func sudahVoteHelpful(ip string, articleID uint) bool {
 
 // VoteHelpful increments the helpful count of a guide article.
 func (h *SupportHandler) VoteHelpful(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	if artID, err := strconv.ParseUint(id, 10, 32); err == nil {
 		// N-16: tolak vote berulang dari klien yang sama.
@@ -2131,7 +2258,7 @@ func (h *SupportHandler) VoteHelpful(c *fiber.Ctx) error {
 				"message": "Terima kasih atas feedback Anda!",
 			})
 		}
-		database.DB.Model(&models.HelpArticle{}).Where("id = ?", uint(artID)).UpdateColumn("helpful_count", gorm.Expr("helpful_count + 1"))
+		h.db.Model(&models.HelpArticle{}).Where("id = ?", uint(artID)).UpdateColumn("helpful_count", gorm.Expr("helpful_count + 1"))
 		return c.JSON(fiber.Map{
 			"success": true,
 			"message": "Terima kasih atas feedback Anda!",
@@ -2146,6 +2273,12 @@ func (h *SupportHandler) VoteHelpful(c *fiber.Ctx) error {
 
 // GetSupportTicketsPing provides a super-fast, lightweight polling heartbeat for merchants and staff.
 func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -2158,7 +2291,7 @@ func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
 
 	var unreadTicketsCount int64
 	if isStaff {
-		database.DB.Model(&models.SupportTicket{}).
+		h.db.Model(&models.SupportTicket{}).
 			Where("status IN (?)", []string{"open", "waiting_agent"}).
 			Count(&unreadTicketsCount)
 	} else {
@@ -2175,12 +2308,12 @@ func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
 		var scopedStoreID uint
 		if storeSlug != "" && scope != "all" {
 			var st models.Store
-			if err := database.DB.Where("slug = ? AND user_id = ?", storeSlug, user.ID).First(&st).Error; err == nil {
+			if err := h.db.Where("slug = ? AND user_id = ?", storeSlug, user.ID).First(&st).Error; err == nil {
 				scopedStoreID = st.ID
 			}
 		}
 
-		q := database.DB.Model(&models.SupportMessage{}).
+		q := h.db.Model(&models.SupportMessage{}).
 			Where("sender_type = ? AND read_at IS NULL AND is_internal_note = false", "agent")
 
 		if scopedStoreID > 0 {
@@ -2194,9 +2327,9 @@ func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
 
 	var latestTime time.Time
 	if isStaff {
-		database.DB.Model(&models.SupportTicket{}).Select("MAX(last_message_at)").Scan(&latestTime)
+		h.db.Model(&models.SupportTicket{}).Select("MAX(last_message_at)").Scan(&latestTime)
 	} else {
-		database.DB.Model(&models.SupportTicket{}).Where("user_id = ?", user.ID).Select("MAX(last_message_at)").Scan(&latestTime)
+		h.db.Model(&models.SupportTicket{}).Where("user_id = ?", user.ID).Select("MAX(last_message_at)").Scan(&latestTime)
 	}
 
 	return c.JSON(fiber.Map{
@@ -2209,6 +2342,12 @@ func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
 
 // ServeAttachment securely serves a support ticket attachment with strict RBAC authorization.
 func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -2230,7 +2369,7 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 
 	// 1. Try lookup by primary key ID
 	if attID, err := strconv.ParseUint(idStr, 10, 64); err == nil && attID > 0 {
-		if err := database.DB.Preload("Message.Ticket").First(&attachment, attID).Error; err == nil {
+		if err := h.db.Preload("Message.Ticket").First(&attachment, attID).Error; err == nil {
 			found = true
 		}
 	}
@@ -2240,7 +2379,7 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	// mencocokkan lampiran milik tiket lain (L1: ambiguous lookup).
 	if !found && idStr != "" {
 		escaped := escapeLikePattern(idStr)
-		if err := database.DB.Preload("Message.Ticket").
+		if err := h.db.Preload("Message.Ticket").
 			Where("storage_key LIKE ? ESCAPE '\\' OR file_url LIKE ? ESCAPE '\\'",
 				"%"+escaped+"%", "%"+escaped+"%").
 			First(&attachment).Error; err == nil {
@@ -2269,7 +2408,7 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 				isOwner = true
 			} else {
 				var count int64
-				database.DB.Model(&models.Store{}).Where("id = ? AND user_id = ?", *ticket.StoreID, user.ID).Count(&count)
+				h.db.Model(&models.Store{}).Where("id = ? AND user_id = ?", *ticket.StoreID, user.ID).Count(&count)
 				if count > 0 {
 					isOwner = true
 				}

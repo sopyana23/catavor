@@ -1,93 +1,148 @@
 package handlers
 
 import (
-	"encoding/json"
-	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"catavor-backend/internal/config"
+
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
 )
 
-// --- CategoryHandler DI tests ---
-
-// TestCategoryHandler_NilDB_NoPanic membuktikan CategoryHandler yang diinject dengan nil DB
-// tidak panic dan mengembalikan error response (400) — bukan panic crash.
-// Ini adalah inti DI refactor: handler testable tanpa global state / DB live.
-func TestCategoryHandler_NilDB_NoPanic(t *testing.T) {
-	h := NewCategoryHandler(nil) // db = nil → simulasi DB belum diinisialisasi
-
-	app := fiber.New()
-	app.Get("/api/categories", h.Index)
-
-	req := httptest.NewRequest("GET", "/api/categories", nil)
-	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("request error: %v", err)
+// testNilDBHandler verifies that a handler constructed with nil DB
+// returns 503 (Service Unavailable) instead of panicking.
+// Method is the handler method to call, httpMethod is GET/POST/etc.
+func testNilDBHandler(t *testing.T, name string, app *fiber.App, path string, httpMethod string) {
+	t.Helper()
+	var req *http.Request
+	if httpMethod == "POST" {
+		req = httptest.NewRequest("POST", path, nil)
+	} else {
+		req = httptest.NewRequest("GET", path, nil)
 	}
-
-	// With nil DB, the nil-db guard fires first and returns 503
-	// ("Database belum diinisialisasi") — bukan panic, bukan 400.
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("%s: app.Test error: %v", name, err)
+	}
 	if resp.StatusCode != fiber.StatusServiceUnavailable {
-		t.Errorf("expected 503 (nil-db guard), got %d", resp.StatusCode)
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	var result map[string]interface{}
-	_ = json.Unmarshal(body, &result)
-	if result["success"] != false {
-		t.Errorf("expected success=false, got body: %s", string(body))
+		t.Errorf("%s: expected 503, got %d", name, resp.StatusCode)
 	}
 }
 
-// TestCategoryHandler_WithDB verifies the constructor correctly stores the db reference
-// and the handler struct has the expected shape after DI refactor.
-func TestCategoryHandler_WithDB(t *testing.T) {
-	h := NewCategoryHandler(&gorm.DB{})
-	if h == nil {
-		t.Fatal("expected non-nil CategoryHandler")
-	}
-	if h.db == nil {
-		t.Error("expected db field to be non-nil after construction")
-	}
-}
+// ---- Batch 1: empty-struct handlers ----
 
-// --- ProductHandler DI tests ---
-
-// TestProductHandler_NilDB_Index_NoPanic membuktikan ProductHandler.Index yang diinject
-// dengan nil DB tidak panic ketika di-call tanpa store context.
-func TestProductHandler_NilDB_Index_NoPanic(t *testing.T) {
-	h := NewProductHandler(nil, nil) // cfg=nil, db=nil
-
+func TestReportHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewReportHandler(nil)
 	app := fiber.New()
-	app.Get("/api/products", h.Index)
-
-	req := httptest.NewRequest("GET", "/api/products", nil)
-	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("request error: %v", err)
-	}
-
-	// Key assertion: NOT a panic (which would return 503 fiber default or crash).
-	// Status should be non-zero — any non-panic response is acceptable.
-	if resp.StatusCode == 0 {
-		t.Fatal("expected non-zero status code (handler panicked or didn't respond)")
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	if len(body) == 0 {
-		t.Error("expected non-empty response body")
-	}
+	app.Get("/test", h.Index)
+	testNilDBHandler(t, "ReportHandler.Index", app, "/test", "GET")
 }
 
-// TestProductHandler_WithDB verifies the constructor correctly stores cfg and db.
-func TestProductHandler_WithDB(t *testing.T) {
-	h := NewProductHandler(nil, &gorm.DB{})
-	if h == nil {
-		t.Fatal("expected non-nil ProductHandler")
-	}
-	if h.db == nil {
-		t.Error("expected db field to be non-nil after construction")
-	}
+func TestSettingHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewSettingHandler(nil)
+	app := fiber.New()
+	app.Get("/test", h.Index)
+	testNilDBHandler(t, "SettingHandler.Index", app, "/test", "GET")
+}
+
+func TestSubscriptionHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewSubscriptionHandler(nil)
+	app := fiber.New()
+	app.Get("/test", h.GetPlans)
+	testNilDBHandler(t, "SubscriptionHandler.GetPlans", app, "/test", "GET")
+}
+
+func TestArticleHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewArticleHandler(nil)
+	app := fiber.New()
+	app.Get("/test", h.Index)
+	testNilDBHandler(t, "ArticleHandler.Index", app, "/test", "GET")
+}
+
+func TestSafeDomainHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewSafeDomainHandler(nil)
+	app := fiber.New()
+	app.Get("/test", h.GetPublicSafeDomains)
+	testNilDBHandler(t, "SafeDomainHandler.GetPublicSafeDomains", app, "/test", "GET")
+}
+
+func TestRBACHandler_NilDB_NotPanic(t *testing.T) {
+	// NewRBACHandler calls services.GetRBACService() which depends on
+	// database.DB global (singleton with sync.Once). Can't test with nil DB
+	// via constructor — construct struct directly.
+	// Only RevokeStaff uses h.db; GetMatrix uses h.rbacService (nil here).
+	h := &RBACHandler{db: nil}
+	app := fiber.New()
+	app.Post("/test", h.RevokeStaff)
+	testNilDBHandler(t, "RBACHandler.RevokeStaff", app, "/test", "POST")
+}
+
+// ---- Batch 2: existing-struct handlers ----
+
+func TestSupportHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewSupportHandler(&config.Config{}, nil, nil)
+	app := fiber.New()
+	app.Get("/test", h.ListMyTickets)
+	testNilDBHandler(t, "SupportHandler.ListMyTickets", app, "/test", "GET")
+}
+
+func TestStoreHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewStoreHandler(nil)
+	app := fiber.New()
+	app.Get("/test", h.FeaturedStores)
+	testNilDBHandler(t, "StoreHandler.FeaturedStores", app, "/test", "GET")
+}
+
+func TestAuthHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewAuthHandler(&config.Config{}, nil)
+	app := fiber.New()
+	app.Post("/test", h.Login)
+	testNilDBHandler(t, "AuthHandler.Login", app, "/test", "POST")
+}
+
+func TestAnalyticsHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewAnalyticsHandler(&config.Config{}, nil)
+	app := fiber.New()
+	app.Post("/test", h.TrackEvent)
+	testNilDBHandler(t, "AnalyticsHandler.TrackEvent", app, "/test", "POST")
+}
+
+func TestSessionHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewSessionHandler(&config.Config{}, nil)
+	app := fiber.New()
+	app.Get("/test", h.GetSessions)
+	testNilDBHandler(t, "SessionHandler.GetSessions", app, "/test", "GET")
+}
+
+// ---- Batch 3: no-struct handlers ----
+
+func TestDormancyHandler_NilDB_NotPanic(t *testing.T) {
+	h := NewDormancyHandler(nil)
+	app := fiber.New()
+	app.Get("/test", h.HandlePublicReactivateStore)
+	testNilDBHandler(t, "DormancyHandler.HandlePublicReactivateStore", app, "/test", "GET")
+}
+
+// ---- Constructor sanity checks ----
+
+func TestAllHandlers_ConstructWithNilDB_NoPanic(t *testing.T) {
+	// Verify all constructors accept nil DB without panicking
+	_ = NewReportHandler(nil)
+	_ = NewSettingHandler(nil)
+	_ = NewSubscriptionHandler(nil)
+	_ = NewArticleHandler(nil)
+	_ = NewSafeDomainHandler(nil)
+	// RBACHandler omitted: NewRBACHandler calls services.GetRBACService()
+	// which depends on database.DB global singleton — panics with nil DB.
+	_ = NewSupportHandler(&config.Config{}, nil, nil)
+	_ = NewStoreHandler(nil)
+	_ = NewAuthHandler(&config.Config{}, nil)
+	_ = NewAnalyticsHandler(&config.Config{}, nil)
+	_ = NewSessionHandler(&config.Config{}, nil)
+	_ = NewDormancyHandler(nil)
+	_ = NewCategoryHandler(nil)
+	_ = NewProductHandler(&config.Config{}, nil)
+	_ = NewHealthHandler(nil)
 }

@@ -4,23 +4,31 @@ import (
 	"strings"
 	"time"
 
-	"catavor-backend/internal/database"
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
-type SettingHandler struct{}
+type SettingHandler struct {
+	db *gorm.DB
+}
 
-func NewSettingHandler() *SettingHandler {
-	return &SettingHandler{}
+func NewSettingHandler(db *gorm.DB) *SettingHandler {
+	return &SettingHandler{db: db}
 }
 
 func (h *SettingHandler) Index(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var settings []models.Setting
-	database.DB.Find(&settings)
+	h.db.Find(&settings)
 
 	res := make(map[string]string)
 	for _, s := range settings {
@@ -123,7 +131,7 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 		if !ok || val == "" || strings.Contains(val, "wa.me") || !strings.Contains(val, "rekber_wa_number") || hasLegacyIcon(val) {
 			res[k] = defaultTmpl
 			if ok && hasLegacyIcon(val) {
-				_ = database.DB.Model(&models.Setting{}).Where("key = ?", k).Update("value", defaultTmpl).Error
+				_ = h.db.Model(&models.Setting{}).Where("key = ?", k).Update("value", defaultTmpl).Error
 			}
 		}
 	}
@@ -136,11 +144,17 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 
 // GetAdsTxt serves public /ads.txt for Google AdSense site verification
 func (h *SettingHandler) GetAdsTxt(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var s models.Setting
 	content := "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0"
-	if err := database.DB.Where("key = ?", "ads_txt_content").First(&s).Error; err == nil && s.Value != "" {
+	if err := h.db.Where("key = ?", "ads_txt_content").First(&s).Error; err == nil && s.Value != "" {
 		content = s.Value
-	} else if err := database.DB.Where("key = ?", "ads_client_id").First(&s).Error; err == nil && s.Value != "" {
+	} else if err := h.db.Where("key = ?", "ads_client_id").First(&s).Error; err == nil && s.Value != "" {
 		pubId := s.Value
 		if len(pubId) > 3 && pubId[:3] == "ca-" {
 			pubId = pubId[3:]
@@ -152,6 +166,12 @@ func (h *SettingHandler) GetAdsTxt(c *fiber.Ctx) error {
 }
 
 func (h *SettingHandler) Store(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	// Security check: Only Platform Admin (Super Admin or operational staff) can mutate platform settings.
 	// Merchants are strictly disallowed to prevent tampering with platform monetization, ads, or partner credentials.
 	userVal := c.Locals("user")
@@ -162,7 +182,7 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 	if user == nil {
 		if uid, ok := c.Locals("user_id").(uint); ok && uid > 0 {
 			var u models.User
-			if err := database.DB.First(&u, uid).Error; err == nil {
+			if err := h.db.First(&u, uid).Error; err == nil {
 				user = &u
 			}
 		}
@@ -202,11 +222,11 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		sanitizedVal := security.SanitizeRichText(v, 10000)
 
 		var s models.Setting
-		if err := database.DB.Where("key = ?", sanitizedKey).First(&s).Error; err != nil {
-			database.DB.Create(&models.Setting{Key: sanitizedKey, Value: sanitizedVal})
+		if err := h.db.Where("key = ?", sanitizedKey).First(&s).Error; err != nil {
+			h.db.Create(&models.Setting{Key: sanitizedKey, Value: sanitizedVal})
 		} else {
 			s.Value = sanitizedVal
-			database.DB.Save(&s)
+			h.db.Save(&s)
 		}
 	}
 
@@ -218,6 +238,12 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 
 // ResetRekberDefaults restores Rekber Syariah configuration back to official factory defaults
 func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	userVal := c.Locals("user")
 	var user *models.User
 	if userVal != nil {
@@ -226,7 +252,7 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 	if user == nil {
 		if uid, ok := c.Locals("user_id").(uint); ok && uid > 0 {
 			var u models.User
-			if err := database.DB.First(&u, uid).Error; err == nil {
+			if err := h.db.First(&u, uid).Error; err == nil {
 				user = &u
 			}
 		}
@@ -265,7 +291,7 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 		"rekber_template_fauna",
 	}
 
-	database.DB.Where("key IN ?", keys).Delete(&models.Setting{})
+	h.db.Where("key IN ?", keys).Delete(&models.Setting{})
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -274,8 +300,14 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 }
 
 func (h *SettingHandler) GetPolicies(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var policies []models.PolicyVersion
-	database.DB.Where("is_active = true").Find(&policies)
+	h.db.Where("is_active = true").Find(&policies)
 
 	res := make(map[string]models.PolicyVersion)
 	for _, p := range policies {
@@ -289,6 +321,12 @@ func (h *SettingHandler) GetPolicies(c *fiber.Ctx) error {
 }
 
 func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 
 	var req struct {
@@ -318,7 +356,7 @@ func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
 	}
 
 	// Deactivate previous
-	database.DB.Model(&models.PolicyVersion{}).Where("type = ?", policyType).Update("is_active", false)
+	h.db.Model(&models.PolicyVersion{}).Where("type = ?", policyType).Update("is_active", false)
 
 	newVersion := models.PolicyVersion{
 		Type:             policyType,
@@ -332,7 +370,7 @@ func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
 		CreatedBy:        user.ID,
 		CreatedAt:        time.Now(),
 	}
-	database.DB.Create(&newVersion)
+	h.db.Create(&newVersion)
 
 	// SOC 2 Audit Trail
 	auditLog := models.PolicyAuditLog{
@@ -344,7 +382,7 @@ func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
 		AdminIP:       c.IP(),
 		CreatedAt:     time.Now(),
 	}
-	database.DB.Create(&auditLog)
+	h.db.Create(&auditLog)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -354,8 +392,14 @@ func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
 }
 
 func (h *SettingHandler) GetPolicyAuditLogs(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var logs []models.PolicyAuditLog
-	database.DB.Order("created_at desc").Limit(100).Find(&logs)
+	h.db.Order("created_at desc").Limit(100).Find(&logs)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -365,6 +409,12 @@ func (h *SettingHandler) GetPolicyAuditLogs(c *fiber.Ctx) error {
 
 // Agreement registration
 func (h *SettingHandler) RecordAgreement(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req struct {
 		StoreID         *uint  `json:"store_id"`
 		PolicyType      string `json:"policy_type"`
@@ -384,7 +434,7 @@ func (h *SettingHandler) RecordAgreement(c *fiber.Ctx) error {
 		CustomerContact: security.SanitizePlainText(req.CustomerContact, 255),
 		AgreedAt:        time.Now(),
 	}
-	database.DB.Create(&agreement)
+	h.db.Create(&agreement)
 
 	return c.JSON(fiber.Map{"success": true})
 }

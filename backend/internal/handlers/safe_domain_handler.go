@@ -13,16 +13,25 @@ import (
 	"catavor-backend/internal/security"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
-type SafeDomainHandler struct{}
+type SafeDomainHandler struct {
+	db *gorm.DB
+}
 
-func NewSafeDomainHandler() *SafeDomainHandler {
-	return &SafeDomainHandler{}
+func NewSafeDomainHandler(db *gorm.DB) *SafeDomainHandler {
+	return &SafeDomainHandler{db: db}
 }
 
 // GetPublicSafeDomains returns active domain strings list with Redis caching for ultra-fast response
 func (h *SafeDomainHandler) GetPublicSafeDomains(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	ctx := c.Context()
 	cacheKey := "public"
 
@@ -40,7 +49,7 @@ func (h *SafeDomainHandler) GetPublicSafeDomains(c *fiber.Ctx) error {
 
 	// 2. Query Database
 	var domains []models.SafeDomain
-	if err := database.DB.Where("is_active = ?", true).Order("domain asc").Find(&domains).Error; err != nil {
+	if err := h.db.Where("is_active = ?", true).Order("domain asc").Find(&domains).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"error":   "Failed to load safe domains",
@@ -70,6 +79,12 @@ func (h *SafeDomainHandler) GetPublicSafeDomains(c *fiber.Ctx) error {
 
 // GetAdminSafeDomains returns paginated list with metadata for Super Admin management (with Redis Caching)
 func (h *SafeDomainHandler) GetAdminSafeDomains(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	ctx := c.Context()
 	q := strings.TrimSpace(c.Query("q"))
 	category := strings.TrimSpace(c.Query("category"))
@@ -101,7 +116,7 @@ func (h *SafeDomainHandler) GetAdminSafeDomains(c *fiber.Ctx) error {
 	}
 
 	// 2. Build Base Query
-	query := database.DB.Model(&models.SafeDomain{})
+	query := h.db.Model(&models.SafeDomain{})
 	if q != "" {
 		searchTerm := "%" + strings.ToLower(q) + "%"
 		query = query.Where("LOWER(domain) LIKE ? OR LOWER(description) LIKE ? OR LOWER(category) LIKE ?", searchTerm, searchTerm, searchTerm)
@@ -158,6 +173,12 @@ func (h *SafeDomainHandler) GetAdminSafeDomains(c *fiber.Ctx) error {
 
 // CreateSafeDomain adds a new domain to the master whitelist
 func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req struct {
 		Domain      string `json:"domain"`
 		Category    string `json:"category"`
@@ -196,7 +217,7 @@ func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
 	}
 
 	var existing models.SafeDomain
-	if err := database.DB.Where("LOWER(domain) = ?", cleanDomain).First(&existing).Error; err == nil {
+	if err := h.db.Where("LOWER(domain) = ?", cleanDomain).First(&existing).Error; err == nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"success": false,
 			"error":   "Domain '" + cleanDomain + "' sudah terdaftar dalam master whitelist",
@@ -214,7 +235,7 @@ func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
 		UpdatedAt:   time.Now(),
 	}
 
-	if err := database.DB.Create(&item).Error; err != nil {
+	if err := h.db.Create(&item).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"error":   "Gagal menambahkan domain",
@@ -232,9 +253,15 @@ func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
 
 // UpdateSafeDomain updates domain attributes or active status
 func (h *SafeDomainHandler) UpdateSafeDomain(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	var item models.SafeDomain
-	if err := database.DB.First(&item, "id = ?", id).Error; err != nil {
+	if err := h.db.First(&item, "id = ?", id).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"error":   "Domain tidak ditemukan",
@@ -282,7 +309,7 @@ func (h *SafeDomainHandler) UpdateSafeDomain(c *fiber.Ctx) error {
 	}
 
 	item.UpdatedAt = time.Now()
-	if err := database.DB.Save(&item).Error; err != nil {
+	if err := h.db.Save(&item).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"error":   "Gagal memperbarui domain",
@@ -300,16 +327,22 @@ func (h *SafeDomainHandler) UpdateSafeDomain(c *fiber.Ctx) error {
 
 // DeleteSafeDomain removes a non-system domain
 func (h *SafeDomainHandler) DeleteSafeDomain(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	var item models.SafeDomain
-	if err := database.DB.First(&item, "id = ?", id).Error; err != nil {
+	if err := h.db.First(&item, "id = ?", id).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"error":   "Domain tidak ditemukan",
 		})
 	}
 
-	if err := database.DB.Delete(&item).Error; err != nil {
+	if err := h.db.Delete(&item).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"error":   "Gagal menghapus domain",
@@ -326,6 +359,12 @@ func (h *SafeDomainHandler) DeleteSafeDomain(c *fiber.Ctx) error {
 
 // ResetDefaultSafeDomains restores original baseline domains
 func (h *SafeDomainHandler) ResetDefaultSafeDomains(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	// Re-insert missing default domains
 	defaults := []models.SafeDomain{
 		{Domain: "catavor.com", Category: "Platform", Description: "Platform Utama Catavor", IsActive: true, IsSystem: true, CreatedBy: "System"},
@@ -335,12 +374,12 @@ func (h *SafeDomainHandler) ResetDefaultSafeDomains(c *fiber.Ctx) error {
 
 	for _, d := range defaults {
 		var existing models.SafeDomain
-		if err := database.DB.Where("LOWER(domain) = ?", strings.ToLower(d.Domain)).First(&existing).Error; err != nil {
-			database.DB.Create(&d)
+		if err := h.db.Where("LOWER(domain) = ?", strings.ToLower(d.Domain)).First(&existing).Error; err != nil {
+			h.db.Create(&d)
 		} else {
 			// Ensure it's marked active
 			existing.IsActive = true
-			database.DB.Save(&existing)
+			h.db.Save(&existing)
 		}
 	}
 

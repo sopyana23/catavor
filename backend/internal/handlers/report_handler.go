@@ -21,23 +21,25 @@ import (
 	"gorm.io/gorm"
 )
 
-type ReportHandler struct{}
+type ReportHandler struct {
+	db *gorm.DB
+}
 
-func NewReportHandler() *ReportHandler {
-	return &ReportHandler{}
+func NewReportHandler(db *gorm.DB) *ReportHandler {
+	return &ReportHandler{db: db}
 }
 
 type CreateReportRequest struct {
-	TargetType     string `json:"target_type"`     // 'catalog' or 'item'
-	StoreID        uint   `json:"store_id"`        // Store ID
-	StoreSlug      string `json:"store_slug"`      // Store Slug
-	StoreTitle     string `json:"store_title"`     // Store Title snapshot
-	FaunaID        *uint  `json:"fauna_id"`        // Optional Fauna/Item ID
-	ItemName       string `json:"item_name"`       // Optional Item Name snapshot
-	ReasonCategory string `json:"reason_category"` // Violation category ID
-	ReasonLabel    string `json:"reason_label"`    // Human-readable violation title
-	Description    string `json:"description"`     // Additional user notes
-	ReporterEmail  string `json:"reporter_email"`  // Optional reporter email
+	TargetType     string `json:"target_type"`          // 'catalog' or 'item'
+	StoreID        uint   `json:"store_id"`             // Store ID
+	StoreSlug      string `json:"store_slug"`           // Store Slug
+	StoreTitle     string `json:"store_title"`          // Store Title snapshot
+	FaunaID        *uint  `json:"fauna_id"`             // Optional Fauna/Item ID
+	ItemName       string `json:"item_name"`            // Optional Item Name snapshot
+	ReasonCategory string `json:"reason_category"`      // Violation category ID
+	ReasonLabel    string `json:"reason_label"`         // Human-readable violation title
+	Description    string `json:"description"`          // Additional user notes
+	ReporterEmail  string `json:"reporter_email"`       // Optional reporter email
 	WebsiteHP      string `json:"website_hp,omitempty"` // Anti-bot honeypot
 }
 
@@ -107,6 +109,12 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 
 // CreateReport handles public submission of a Catalog or Item violation report with Anti-Spam deduplication
 func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req CreateReportRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -148,7 +156,7 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 	// 3. Resolve & Verify Store
 	var store models.Store
 	if req.StoreID > 0 {
-		if err := database.DB.First(&store, req.StoreID).Error; err != nil {
+		if err := h.db.First(&store, req.StoreID).Error; err != nil {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success": false,
 				"message": "Katalog yang dilaporkan tidak ditemukan.",
@@ -156,7 +164,7 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 		}
 	} else if req.StoreSlug != "" {
 		sanitizedSlug := security.SanitizeSlug(req.StoreSlug)
-		if err := database.DB.Where("slug = ?", sanitizedSlug).First(&store).Error; err != nil {
+		if err := h.db.Where("slug = ?", sanitizedSlug).First(&store).Error; err != nil {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success": false,
 				"message": "Katalog dengan slug tersebut tidak ditemukan.",
@@ -175,7 +183,7 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 	if req.TargetType == "item" {
 		if req.FaunaID != nil && *req.FaunaID > 0 {
 			var p models.Product
-			if err := database.DB.Where("id = ? AND store_id = ?", *req.FaunaID, store.ID).First(&p).Error; err == nil {
+			if err := h.db.Where("id = ? AND store_id = ?", *req.FaunaID, store.ID).First(&p).Error; err == nil {
 				product = &p
 				itemName = p.Name
 			}
@@ -215,7 +223,7 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 
 	// 7. Anti-Spam & Deduplication Guard: Check recent active report from same IP / Email within 24h
 	var existingActiveCount int64
-	checkQ := database.DB.Model(&models.Report{}).
+	checkQ := h.db.Model(&models.Report{}).
 		Where("store_id = ? AND status IN ('pending', 'investigating')", store.ID).
 		Where("created_at >= ?", time.Now().UTC().Add(-24*time.Hour))
 
@@ -267,13 +275,13 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 		if req.FaunaID != nil && *req.FaunaID > 0 {
 			report.FaunaID = req.FaunaID
 			var p models.Product
-			if err := database.DB.Select("id, product_type").Where("id = ?", *req.FaunaID).First(&p).Error; err == nil {
+			if err := h.db.Select("id, product_type").Where("id = ?", *req.FaunaID).First(&p).Error; err == nil {
 				report.ItemType = p.ProductType
 			}
 		}
 	}
 
-	if err := database.DB.Create(&report).Error; err != nil {
+	if err := h.db.Create(&report).Error; err != nil {
 		log.Error().Err(err).Msg("Failed to store violation report in database")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -323,6 +331,12 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 
 // Index lists reports with filtering, pagination, and active case counts
 func (h *ReportHandler) Index(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	page := c.QueryInt("page", 1)
 	limit := c.QueryInt("limit", 15)
 	if limit <= 0 || limit > 100 {
@@ -330,7 +344,7 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 	}
 	offset := (page - 1) * limit
 
-	query := database.DB.Model(&models.Report{})
+	query := h.db.Model(&models.Report{})
 
 	status := strings.TrimSpace(c.Query("status"))
 	if status != "" && status != "all" {
@@ -390,7 +404,7 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 			r.ItemType = r.Product.ProductType
 		}
 		var activeCount int64
-		subQ := database.DB.Model(&models.Report{}).
+		subQ := h.db.Model(&models.Report{}).
 			Where("store_id = ? AND status IN ('pending', 'investigating', 're_review')", r.StoreID)
 		if r.TargetType == "item" && r.FaunaID != nil {
 			subQ = subQ.Where("fauna_id = ?", *r.FaunaID)
@@ -405,7 +419,7 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 		}
 	}
 
-	metrics := GetReportMetrics(database.DB)
+	metrics := GetReportMetrics(h.db)
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
 	if totalPages < 1 {
 		totalPages = 1
@@ -426,9 +440,15 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 
 // Show retrieves details of a specific report, including other active reports for the same entity and prior review history
 func (h *ReportHandler) Show(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	var report models.Report
-	query := database.DB.Preload("Store.User").Preload("Product")
+	query := h.db.Preload("Store.User").Preload("Product")
 	if numID, err := strconv.ParseUint(id, 10, 64); err == nil {
 		query = query.Where("id = ? OR report_number = ?", numID, id)
 	} else {
@@ -447,7 +467,7 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 
 	// 1. Fetch other active reports for the same entity (Multi-Reporter Evidence Timeline)
 	var activeReports []models.Report
-	actQ := database.DB.Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating', 're_review')", report.StoreID, report.ID)
+	actQ := h.db.Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating', 're_review')", report.StoreID, report.ID)
 	if report.TargetType == "item" && report.FaunaID != nil {
 		actQ = actQ.Where("fauna_id = ?", *report.FaunaID)
 	} else {
@@ -457,7 +477,7 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 
 	// 2. Fetch prior review history for this entity (Prior Audit History Ledger)
 	var historyReports []models.Report
-	histQ := database.DB.Where("store_id = ? AND id != ? AND status IN ('action_taken', 'dismissed', 'resolved')", report.StoreID, report.ID)
+	histQ := h.db.Where("store_id = ? AND id != ? AND status IN ('action_taken', 'dismissed', 'resolved')", report.StoreID, report.ID)
 	if report.TargetType == "item" && report.FaunaID != nil {
 		histQ = histQ.Where("fauna_id = ?", *report.FaunaID)
 	} else {
@@ -475,9 +495,15 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 
 // UpdateStatus executes ACID transactional enforcement with auto-rollback, multi-channel alerts, and audit logging
 func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	id := c.Params("id")
 	var report models.Report
-	query := database.DB.Preload("Store.User")
+	query := h.db.Preload("Store.User")
 	if numID, err := strconv.ParseUint(id, 10, 64); err == nil {
 		query = query.Where("id = ? OR report_number = ?", numID, id)
 	} else {
@@ -592,7 +618,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	// Ensure report.StoreID is populated if StoreSlug exists
 	if report.StoreID <= 0 && report.StoreSlug != "" {
 		var s models.Store
-		if err := database.DB.Select("id").Where("LOWER(slug) = ?", strings.ToLower(report.StoreSlug)).First(&s).Error; err == nil {
+		if err := h.db.Select("id").Where("LOWER(slug) = ?", strings.ToLower(report.StoreSlug)).First(&s).Error; err == nil {
 			report.StoreID = s.ID
 		}
 	}
@@ -601,7 +627,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	merchantOwnerEmail := ""
 	if report.StoreID > 0 {
 		var s models.Store
-		if err := database.DB.Preload("User").Where("id = ?", report.StoreID).First(&s).Error; err == nil {
+		if err := h.db.Preload("User").Where("id = ?", report.StoreID).First(&s).Error; err == nil {
 			if s.User != nil && s.User.Email != "" {
 				merchantOwnerEmail = s.User.Email
 			}
@@ -615,7 +641,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	}
 
 	var relatedReports []models.Report
-	relQ := database.DB.Select("id, report_number, reporter_email").
+	relQ := h.db.Select("id, report_number, reporter_email").
 		Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating')", report.StoreID, report.ID)
 	if report.TargetType == "item" && report.FaunaID != nil {
 		relQ = relQ.Where("fauna_id = ?", *report.FaunaID)
@@ -634,7 +660,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	}
 
 	// 1. ACID DATABASE TRANSACTION (TRY - CATCH - AUTO-ROLLBACK)
-	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
 		// A. Update current report
 		report.Status = newStatus
 		report.AdminNotes = adminNotes
@@ -999,20 +1025,20 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	// 2. POST-TRANSACTION ACTIONS
 	// Synchronize store storage used and invalidate catalog cache
 	if report.StoreID > 0 {
-		services.SyncStoreStorageUsed(database.DB, report.StoreID)
+		services.SyncStoreStorageUsed(h.db, report.StoreID)
 		database.InvalidateStoreQuotaCache(context.Background(), report.StoreID)
 		InvalidateStoreProductsCache(report.StoreID)
 		if report.StoreSlug != "" {
 			InvalidateStoreProfileCache(report.StoreSlug)
 		}
-		go services.BroadcastStoreQuotaSync(database.DB, report.StoreID)
+		go services.BroadcastStoreQuotaSync(h.db, report.StoreID)
 	}
 
 	// Broadcast real-time store lifecycle events to merchant stream
 	var merchantOwnerUserID uint
 	if report.StoreID > 0 {
 		var st models.Store
-		if err := database.DB.Select("id, user_id").Where("id = ?", report.StoreID).First(&st).Error; err == nil {
+		if err := h.db.Select("id, user_id").Where("id = ?", report.StoreID).First(&st).Error; err == nil {
 			merchantOwnerUserID = st.UserID
 		}
 	}
@@ -1498,11 +1524,11 @@ func purgeBannedStore(tx *gorm.DB, storeID uint, storeSlug, storeTitle, reportNu
 
 	// 3. Update Store Status in database: mark as banned, blacklisted, and record timestamp
 	if err := tx.Model(&models.Store{}).Where("id = ?", storeID).Updates(map[string]interface{}{
-		"dormancy_status":       "banned",
-		"is_suspended":          true,
-		"is_blacklisted":        true,
-		"dormancy_banned_at":    &now,
-		"suspension_reason":     "moderation_violation",
+		"dormancy_status":    "banned",
+		"is_suspended":       true,
+		"is_blacklisted":     true,
+		"dormancy_banned_at": &now,
+		"suspension_reason":  "moderation_violation",
 	}).Error; err != nil {
 		return err
 	}
@@ -1556,6 +1582,12 @@ type ReviewItemRequest struct {
 
 // ReviewRemediatedItem allows platform admin to approve or reject a product that was resubmitted by a merchant.
 func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req ReviewItemRequest
 	if err := c.BodyParser(&req); err != nil || req.ProductID == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -1565,7 +1597,7 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 	}
 
 	var product models.Product
-	if err := database.DB.Preload("Store").Preload("Store.User").Where("id = ?", req.ProductID).First(&product).Error; err != nil {
+	if err := h.db.Preload("Store").Preload("Store.User").Where("id = ?", req.ProductID).First(&product).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Produk tidak ditemukan.",
@@ -1592,8 +1624,8 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 		product.ModerationReason = ""
 		product.ModeratedAt = nil
 		product.ResubmittedAt = nil
-		_ = database.DB.Save(&product).Error
-		_ = database.DB.Table("faunas").Where("id = ?", product.ID).Updates(map[string]interface{}{
+		_ = h.db.Save(&product).Error
+		_ = h.db.Table("faunas").Where("id = ?", product.ID).Updates(map[string]interface{}{
 			"is_active":         true,
 			"moderation_status": "none",
 			"moderation_reason": "",
@@ -1628,11 +1660,11 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
-		_ = database.DB.Create(&notif).Error
+		_ = h.db.Create(&notif).Error
 		services.GetNotificationHub().Broadcast(&notif)
-		services.SyncStoreStorageUsed(database.DB, product.StoreID)
+		services.SyncStoreStorageUsed(h.db, product.StoreID)
 		database.InvalidateStoreQuotaCache(context.Background(), product.StoreID)
-		go services.BroadcastStoreQuotaSync(database.DB, product.StoreID)
+		go services.BroadcastStoreQuotaSync(h.db, product.StoreID)
 
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1651,8 +1683,8 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 	product.ModerationStatus = "needs_fix"
 	product.ModerationReason = notes
 	product.ModeratedAt = &now
-	_ = database.DB.Save(&product).Error
-	_ = database.DB.Table("faunas").Where("id = ?", product.ID).Updates(map[string]interface{}{
+	_ = h.db.Save(&product).Error
+	_ = h.db.Table("faunas").Where("id = ?", product.ID).Updates(map[string]interface{}{
 		"is_active":         false,
 		"moderation_status": "needs_fix",
 		"moderation_reason": notes,
@@ -1684,7 +1716,7 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
-	_ = database.DB.Create(&notif).Error
+	_ = h.db.Create(&notif).Error
 	services.GetNotificationHub().Broadcast(&notif)
 
 	return c.JSON(fiber.Map{
@@ -1693,5 +1725,3 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 		"data":    product,
 	})
 }
-
-

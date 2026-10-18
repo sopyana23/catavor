@@ -3,23 +3,31 @@ package handlers
 import (
 	"strings"
 
-	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
+	"gorm.io/gorm"
 )
 
-type SubscriptionHandler struct{}
+type SubscriptionHandler struct {
+	db *gorm.DB
+}
 
-func NewSubscriptionHandler() *SubscriptionHandler {
-	return &SubscriptionHandler{}
+func NewSubscriptionHandler(db *gorm.DB) *SubscriptionHandler {
+	return &SubscriptionHandler{db: db}
 }
 
 // GetPlans returns all active subscription tiers (Free, Pro Starter, Pro Bisnis)
 func (h *SubscriptionHandler) GetPlans(c *fiber.Ctx) error {
-	plans, err := services.GetSubscriptionPlans(database.DB)
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	plans, err := services.GetSubscriptionPlans(h.db)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -36,6 +44,12 @@ func (h *SubscriptionHandler) GetPlans(c *fiber.Ctx) error {
 
 // GetStoreQuota returns current quota usage, limits, and plan details for the logged-in store
 func (h *SubscriptionHandler) GetStoreQuota(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -45,7 +59,7 @@ func (h *SubscriptionHandler) GetStoreQuota(c *fiber.Ctx) error {
 	}
 	storeID := storeIDVal.(uint)
 
-	quota, err := services.GetStoreQuotaInfo(database.DB, storeID)
+	quota, err := services.GetStoreQuotaInfo(h.db, storeID)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: gagal mengambil kuota toko")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -62,6 +76,12 @@ func (h *SubscriptionHandler) GetStoreQuota(c *fiber.Ctx) error {
 
 // UpgradePlan handles instant upgrade or renewal of store plan
 func (h *SubscriptionHandler) UpgradePlan(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -100,7 +120,7 @@ func (h *SubscriptionHandler) UpgradePlan(c *fiber.Ctx) error {
 		req.Months = 1
 	}
 
-	quota, err := services.UpgradeStorePlan(database.DB, storeID, planCode, req.Months)
+	quota, err := services.UpgradeStorePlan(h.db, storeID, planCode, req.Months)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: UpgradeStorePlan gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -118,6 +138,12 @@ func (h *SubscriptionHandler) UpgradePlan(c *fiber.Ctx) error {
 
 // ScheduleDowngrade schedules a downgrade at the end of the billing cycle
 func (h *SubscriptionHandler) ScheduleDowngrade(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -142,7 +168,7 @@ func (h *SubscriptionHandler) ScheduleDowngrade(c *fiber.Ctx) error {
 		targetCode = "free"
 	}
 
-	quota, err := services.ScheduleStoreDowngrade(database.DB, storeID, targetCode)
+	quota, err := services.ScheduleStoreDowngrade(h.db, storeID, targetCode)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: ScheduleStoreDowngrade gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -160,6 +186,12 @@ func (h *SubscriptionHandler) ScheduleDowngrade(c *fiber.Ctx) error {
 
 // UpdateCustomDomain sets or verifies custom domain for Pro Business stores
 func (h *SubscriptionHandler) UpdateCustomDomain(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -170,14 +202,14 @@ func (h *SubscriptionHandler) UpdateCustomDomain(c *fiber.Ctx) error {
 	storeID := storeIDVal.(uint)
 
 	var store models.Store
-	if err := database.DB.First(&store, storeID).Error; err != nil {
+	if err := h.db.First(&store, storeID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Toko tidak ditemukan.",
 		})
 	}
 
-	plan, _ := services.GetPlanByCode(database.DB, store.Plan)
+	plan, _ := services.GetPlanByCode(h.db, store.Plan)
 	if plan == nil || !plan.HasCustomDomain {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -205,7 +237,7 @@ func (h *SubscriptionHandler) UpdateCustomDomain(c *fiber.Ctx) error {
 		store.CustomDomainStatus = "none"
 	} else {
 		var existing models.Store
-		if err := database.DB.Where("custom_domain = ? AND id != ?", domain, storeID).First(&existing).Error; err == nil {
+		if err := h.db.Where("custom_domain = ? AND id != ?", domain, storeID).First(&existing).Error; err == nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": "Domain ini sudah digunakan oleh toko lain.",
@@ -215,7 +247,7 @@ func (h *SubscriptionHandler) UpdateCustomDomain(c *fiber.Ctx) error {
 		store.CustomDomainStatus = "active"
 	}
 
-	if err := database.DB.Save(&store).Error; err != nil {
+	if err := h.db.Save(&store).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memperbarui custom domain.",
@@ -234,6 +266,12 @@ func (h *SubscriptionHandler) UpdateCustomDomain(c *fiber.Ctx) error {
 
 // CreateOrder handles creating a new subscription invoice, processing payment/coupon, and activating plan
 func (h *SubscriptionHandler) CreateOrder(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	storeIDVal := c.Locals("store_id")
 	userIDVal := c.Locals("user_id")
 	if storeIDVal == nil || userIDVal == nil {
@@ -253,7 +291,7 @@ func (h *SubscriptionHandler) CreateOrder(c *fiber.Ctx) error {
 		})
 	}
 
-	order, quota, err := services.CreateSubscriptionOrder(database.DB, storeID, userID, req)
+	order, quota, err := services.CreateSubscriptionOrder(h.db, storeID, userID, req)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: CreateSubscriptionOrder gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -277,6 +315,12 @@ func (h *SubscriptionHandler) CreateOrder(c *fiber.Ctx) error {
 
 // GetOrders returns subscription invoice history for the authenticated store
 func (h *SubscriptionHandler) GetOrders(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -286,7 +330,7 @@ func (h *SubscriptionHandler) GetOrders(c *fiber.Ctx) error {
 	}
 	storeID := storeIDVal.(uint)
 
-	orders, err := services.GetStoreSubscriptionOrders(database.DB, storeID)
+	orders, err := services.GetStoreSubscriptionOrders(h.db, storeID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -302,6 +346,12 @@ func (h *SubscriptionHandler) GetOrders(c *fiber.Ctx) error {
 
 // CancelDowngrade cancels any scheduled downgrade for the authenticated store
 func (h *SubscriptionHandler) CancelDowngrade(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -311,7 +361,7 @@ func (h *SubscriptionHandler) CancelDowngrade(c *fiber.Ctx) error {
 	}
 	storeID := storeIDVal.(uint)
 
-	quota, err := services.CancelStoreDowngrade(database.DB, storeID)
+	quota, err := services.CancelStoreDowngrade(h.db, storeID)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: CancelStoreDowngrade gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -329,6 +379,12 @@ func (h *SubscriptionHandler) CancelDowngrade(c *fiber.Ctx) error {
 
 // ApproveOrder allows platform admin to verify payment and activate subscription plan
 func (h *SubscriptionHandler) ApproveOrder(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	orderIDVal, err := c.ParamsInt("id")
 	if err != nil || orderIDVal <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -343,7 +399,7 @@ func (h *SubscriptionHandler) ApproveOrder(c *fiber.Ctx) error {
 		adminID = adminIDVal.(uint)
 	}
 
-	order, quota, err := services.ApproveSubscriptionOrder(database.DB, uint(orderIDVal), adminID)
+	order, quota, err := services.ApproveSubscriptionOrder(h.db, uint(orderIDVal), adminID)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: ApproveSubscriptionOrder gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -358,7 +414,7 @@ func (h *SubscriptionHandler) ApproveOrder(c *fiber.Ctx) error {
 	// yang hilang saat rotasi log, sementara aksi katalog biasa sudah masuk
 	// activity_logs. Catat agar penyalahgunaan wewenang finance dapat ditelusuri.
 	adminEmail, _ := c.Locals("email").(string)
-	catatAktivitasApprove(c, "billing.subscription_approve", "Invoice langganan disetujui",
+	catatAktivitasApprove(h.db, c, "billing.subscription_approve", "Invoice langganan disetujui",
 		order, adminID, adminEmail)
 
 	return c.JSON(fiber.Map{
@@ -372,7 +428,7 @@ func (h *SubscriptionHandler) ApproveOrder(c *fiber.Ctx) error {
 // catatAktivitasApprove menulis entri audit untuk persetujuan invoice
 // langganan. Dipisah agar dapat diuji dan agar kegagalan pencatatan tidak
 // membatalkan aksi yang sudah terjadi.
-func catatAktivitasApprove(c *fiber.Ctx, action, deskripsi string,
+func catatAktivitasApprove(db *gorm.DB, c *fiber.Ctx, action, deskripsi string,
 	order *models.SubscriptionOrder, adminID uint, adminEmail string) {
 	if order == nil {
 		return
@@ -381,7 +437,7 @@ func catatAktivitasApprove(c *fiber.Ctx, action, deskripsi string,
 	entityID := order.ID
 	actorID := adminID
 	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
+		DB:          db,
 		StoreID:     &storeID,
 		UserID:      &actorID,
 		ActorRole:   "superadmin",
@@ -405,8 +461,14 @@ func catatAktivitasApprove(c *fiber.Ctx, action, deskripsi string,
 
 // AdminListOrders allows platform admin to view all subscription orders
 func (h *SubscriptionHandler) AdminListOrders(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var orders []models.SubscriptionOrder
-	query := database.DB.Preload("Store").Preload("User").Order("created_at desc")
+	query := h.db.Preload("Store").Preload("User").Order("created_at desc")
 	if status := c.Query("status"); status != "" {
 		query = query.Where("payment_status = ?", status)
 	}

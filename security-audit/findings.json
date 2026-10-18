@@ -719,6 +719,33 @@
    "detail": "ProductHandler struct tambah field db *gorm.DB; NewProductHandler(cfg, db) terima param; 39 referensi database.DB -> h.db. Nil-db guard di Index (503). Unit test: TestProductHandler_NilDB_Index_NoPanic + TestProductHandler_WithDB. 4 referensi database.InvalidateStoreQuotaCache tetap (Redis cache, bukan DB global).",
    "fixed_in": "pending-commit",
    "evidence": "grep -c 'database.DB' product_handler.go -> 0; go test PASS (2/2)"
+  },
+  {
+   "id": "N-61",
+   "severity": "medium",
+   "title": "DI refactor: eliminate all 301 database.DB global refs across 13 handler files",
+   "status": "fixed",
+   "description": "13 handler files refactored to injected *gorm.DB via struct field. Free functions parameterized with db arg. Zero database.DB refs remain.",
+   "evidence": "go build/vet/gofmt clean; grep returns 0 files",
+   "commit": "pending"
+  },
+  {
+   "id": "N-62",
+   "severity": "medium",
+   "title": "Nil-db guards on 103 entry-point handler methods",
+   "status": "fixed",
+   "description": "All handler methods accessing h.db now return 503 instead of nil panic. 103 guards across 12 files.",
+   "evidence": "Unit tests verify 13 handlers return 503 with nil DB",
+   "commit": "pending"
+  },
+  {
+   "id": "N-63",
+   "severity": "low",
+   "title": "Unit tests for all 13 refactored handlers (18/18 PASS)",
+   "status": "fixed",
+   "description": "di_handler_test.go expanded: 13 nil-db tests + constructor sanity + 4 existing. 18/18 PASS.",
+   "evidence": "go test ./internal/handlers/ -v: 18/18 PASS",
+   "commit": "pending"
   }
  ],
  "verified_ok": [

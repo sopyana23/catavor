@@ -5,24 +5,31 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
-	"catavor-backend/internal/database"
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type SessionHandler struct {
 	cfg *config.Config
+	db  *gorm.DB
 }
 
-func NewSessionHandler(cfg *config.Config) *SessionHandler {
-	return &SessionHandler{cfg: cfg}
+func NewSessionHandler(cfg *config.Config, db *gorm.DB) *SessionHandler {
+	return &SessionHandler{cfg: cfg, db: db}
 }
 
 // GetSessions lists all active connected devices and sessions for the current user.
 func (h *SessionHandler) GetSessions(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
 
@@ -33,7 +40,7 @@ func (h *SessionHandler) GetSessions(c *fiber.Ctx) error {
 
 	var sessions []models.UserSession
 	now := time.Now()
-	err := database.DB.Where("user_id = ? AND is_revoked = false AND expires_at > ?", user.ID, now).
+	err := h.db.Where("user_id = ? AND is_revoked = false AND expires_at > ?", user.ID, now).
 		Order("last_active_at DESC").
 		Find(&sessions).Error
 	if err != nil {
@@ -68,6 +75,12 @@ func (h *SessionHandler) GetSessions(c *fiber.Ctx) error {
 
 // RevokeSession revokes a specific session by its session ID.
 func (h *SessionHandler) RevokeSession(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
 
@@ -81,7 +94,7 @@ func (h *SessionHandler) RevokeSession(c *fiber.Ctx) error {
 	}
 
 	var session models.UserSession
-	if err := database.DB.Where("id = ? AND user_id = ?", uint(sessionID), user.ID).First(&session).Error; err != nil {
+	if err := h.db.Where("id = ? AND user_id = ?", uint(sessionID), user.ID).First(&session).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Sesi perangkat tidak ditemukan.",
@@ -95,7 +108,7 @@ func (h *SessionHandler) RevokeSession(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := services.RevokeSessionByTokenID(database.DB, session.TokenID); err != nil {
+	if err := services.RevokeSessionByTokenID(h.db, session.TokenID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mencabut sesi perangkat.",
@@ -113,6 +126,12 @@ func (h *SessionHandler) RevokeSession(c *fiber.Ctx) error {
 
 // RevokeOtherSessions revokes all active sessions for the user except the current session.
 func (h *SessionHandler) RevokeOtherSessions(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
 
@@ -125,7 +144,7 @@ func (h *SessionHandler) RevokeOtherSessions(c *fiber.Ctx) error {
 
 	var otherSessions []models.UserSession
 	now := time.Now()
-	err := database.DB.Where("user_id = ? AND token_id != ? AND is_revoked = false AND expires_at > ?", user.ID, claims.ID, now).
+	err := h.db.Where("user_id = ? AND token_id != ? AND is_revoked = false AND expires_at > ?", user.ID, claims.ID, now).
 		Find(&otherSessions).Error
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -136,7 +155,7 @@ func (h *SessionHandler) RevokeOtherSessions(c *fiber.Ctx) error {
 
 	revokedCount := 0
 	for _, s := range otherSessions {
-		_ = services.RevokeSessionByTokenID(database.DB, s.TokenID)
+		_ = services.RevokeSessionByTokenID(h.db, s.TokenID)
 		revokedCount++
 	}
 

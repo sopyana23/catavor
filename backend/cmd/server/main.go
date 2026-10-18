@@ -75,26 +75,27 @@ func main() {
 		log.Fatal().Err(err).Msg("Fatal: Storage service initialization failed")
 	}
 
-	authHandler := handlers.NewAuthHandler(cfg)
-	sessionHandler := handlers.NewSessionHandler(cfg)
-	storeHandler := handlers.NewStoreHandler(cfg)
+	authHandler := handlers.NewAuthHandler(cfg, database.DB)
+	sessionHandler := handlers.NewSessionHandler(cfg, database.DB)
+	storeHandler := handlers.NewStoreHandler(database.DB, cfg)
 	// Muat cache master categories dari DB (single source of truth).
-	handlers.LoadMasterCategoryCache()
-	handlers.LoadMasterPresetCache()
-	subscriptionHandler := handlers.NewSubscriptionHandler()
+	handlers.LoadMasterCategoryCache(database.DB)
+	handlers.LoadMasterPresetCache(database.DB)
+	subscriptionHandler := handlers.NewSubscriptionHandler(database.DB)
 	productHandler := handlers.NewProductHandler(cfg, database.DB)
 	categoryHandler := handlers.NewCategoryHandler(database.DB)
-	articleHandler := handlers.NewArticleHandler()
-	settingHandler := handlers.NewSettingHandler()
-	reportHandler := handlers.NewReportHandler()
-	supportHandler := handlers.NewSupportHandler(cfg, storageService)
-	analyticsHandler := handlers.NewAnalyticsHandler(cfg)
+	articleHandler := handlers.NewArticleHandler(database.DB)
+	settingHandler := handlers.NewSettingHandler(database.DB)
+	reportHandler := handlers.NewReportHandler(database.DB)
+	supportHandler := handlers.NewSupportHandler(cfg, storageService, database.DB)
+	analyticsHandler := handlers.NewAnalyticsHandler(cfg, database.DB)
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
 	notificationHandler := handlers.NewNotificationHandler(database.DB)
 	activityLogHandler := handlers.NewActivityLogHandler(database.DB)
 	healthHandler := handlers.NewHealthHandler(database.DB)
-	rbacHandler := handlers.NewRBACHandler()
-	safeDomainHandler := handlers.NewSafeDomainHandler()
+	rbacHandler := handlers.NewRBACHandler(database.DB)
+	dormancyHandler := handlers.NewDormancyHandler(database.DB)
+	safeDomainHandler := handlers.NewSafeDomainHandler(database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg, database.DB)
 	// Initialize Automation Tracker
 	services.InitAutomationTracker(database.DB, storageService)
@@ -222,9 +223,9 @@ func main() {
 	api.Get("/u/:slug/products", storeHandler.IndexProducts)
 	api.Get("/u/:slug/catalog-metrics", storeHandler.CatalogMetrics)
 	api.Get("/u/:slug/categories", categoryHandler.Index)
-	api.Get("/public/stores/reactivate", handlers.HandlePublicReactivateStore)
-	api.Get("/stores/reactivate", handlers.HandlePublicReactivateStore)
-	api.Get("/auth/reactivate-store", handlers.HandlePublicReactivateStore)
+	api.Get("/public/stores/reactivate", dormancyHandler.HandlePublicReactivateStore)
+	api.Get("/stores/reactivate", dormancyHandler.HandlePublicReactivateStore)
+	api.Get("/auth/reactivate-store", dormancyHandler.HandlePublicReactivateStore)
 
 	// Public Subscription Plans
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
@@ -430,8 +431,8 @@ func main() {
 		// ===================================================================
 
 		// Store Activity Extension & Superadmin Dormancy Metrics
-		guardedMutations.Post("/stores/extend-activity", handlers.HandleExtendStoreActivity)
-		guardedMutations.Post("/store/extend-activity", handlers.HandleExtendStoreActivity)
+		guardedMutations.Post("/stores/extend-activity", dormancyHandler.HandleExtendStoreActivity)
+		guardedMutations.Post("/store/extend-activity", dormancyHandler.HandleExtendStoreActivity)
 
 		// Enterprise Activity Logs (scoped ke toko sendiri — tetap di grup merchant)
 		guarded.Get("/activity-logs", activityLogHandler.GetStoreActivityLogs)
@@ -461,8 +462,8 @@ func main() {
 		adminApi.Get("/reports", middleware.RequirePermission(cfg, "compliance:reports:manage"), reportHandler.Index)
 		adminApi.Get("/reports/:id", middleware.RequirePermission(cfg, "compliance:reports:manage"), reportHandler.Show)
 		adminApi.Put("/reports/:id", middleware.RequirePermission(cfg, "compliance:reports:manage"), reportHandler.UpdateStatus)
-		adminApi.Get("/dormancy/metrics", middleware.RequirePermission(cfg, "compliance:dormancy:manage"), handlers.HandleGetDormancyMetrics)
-		adminApi.Get("/superadmin/dormancy/metrics", middleware.RequirePermission(cfg, "compliance:dormancy:manage"), handlers.HandleGetDormancyMetrics)
+		adminApi.Get("/dormancy/metrics", middleware.RequirePermission(cfg, "compliance:dormancy:manage"), dormancyHandler.HandleGetDormancyMetrics)
+		adminApi.Get("/superadmin/dormancy/metrics", middleware.RequirePermission(cfg, "compliance:dormancy:manage"), dormancyHandler.HandleGetDormancyMetrics)
 
 		// Support & Helpdesk
 		adminApi.Get("/support/tickets", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.ListAllTickets)

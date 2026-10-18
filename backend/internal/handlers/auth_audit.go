@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
+	"gorm.io/gorm"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -19,8 +19,8 @@ import (
 // PRINSIP KEAMANAN: JANGAN pernah menaruh password, token, OTP, atau hash
 // apa pun ke dalam Changes/Description. Audit log dibaca admin dan bisa
 // diekspor, jadi hanya metadata non-sensitif yang boleh masuk.
-func logAuthEvent(c *fiber.Ctx, action, description string, user *models.User, extra map[string]interface{}) {
-	if database.DB == nil {
+func logAuthEvent(db *gorm.DB, c *fiber.Ctx, action, description string, user *models.User, extra map[string]interface{}) {
+	if db == nil {
 		return
 	}
 
@@ -30,7 +30,7 @@ func logAuthEvent(c *fiber.Ctx, action, description string, user *models.User, e
 	}
 
 	params := services.RecordActivityParams{
-		DB:          database.DB,
+		DB:          db,
 		Action:      action,
 		Category:    "security",
 		EntityType:  "user",

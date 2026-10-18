@@ -138,7 +138,7 @@ func preloadUserStores(q *gorm.DB) *gorm.DB {
 }
 
 // buildStoreSummaries menyusun ringkasan toko untuk respons autentikasi.
-func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targetSlug string) ([]StoreSummary, StoreSummary) {
+func buildStoreSummaries(db *gorm.DB, stores []models.Store, singleStore *models.Store, targetSlug string) ([]StoreSummary, StoreSummary) {
 	var list []StoreSummary
 	for _, s := range stores {
 		if s.DormancyStatus == "banned" || s.IsBlacklisted {
@@ -149,7 +149,7 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 			theme = "navy"
 		}
 		var itemCount int64
-		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
+		db.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
 
 		list = append(list, StoreSummary{
 			ID:               s.ID,
@@ -174,7 +174,7 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 			theme = "navy"
 		}
 		var itemCount int64
-		database.DB.Model(&models.Product{}).Where("store_id = ?", singleStore.ID).Count(&itemCount)
+		db.Model(&models.Product{}).Where("store_id = ?", singleStore.ID).Count(&itemCount)
 
 		summary := StoreSummary{
 			ID:               singleStore.ID,
@@ -212,13 +212,20 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 
 type AuthHandler struct {
 	cfg *config.Config
+	db  *gorm.DB
 }
 
-func NewAuthHandler(cfg *config.Config) *AuthHandler {
-	return &AuthHandler{cfg: cfg}
+func NewAuthHandler(cfg *config.Config, db *gorm.DB) *AuthHandler {
+	return &AuthHandler{cfg: cfg, db: db}
 }
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req LoginRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -248,12 +255,12 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	var user models.User
-	if err := preloadUserStores(database.DB.Preload("Store")).Where("LOWER(email) = ?", cleanedEmail).First(&user).Error; err != nil {
+	if err := preloadUserStores(h.db.Preload("Store")).Where("LOWER(email) = ?", cleanedEmail).First(&user).Error; err != nil {
 		_, _ = database.RecordLoginFailure(cleanedEmail)
 		// N-35: login gagal untuk email yang tidak terdaftar. Email TIDAK
 		// dimasukkan sebagai aktor (tidak ada user), hanya ke Changes agar
 		// pola enumerasi/brute force terlihat di audit log.
-		logAuthEvent(c, "AUTH_LOGIN_FAILED", "Login gagal: email tidak terdaftar", nil, map[string]interface{}{
+		logAuthEvent(h.db, c, "AUTH_LOGIN_FAILED", "Login gagal: email tidak terdaftar", nil, map[string]interface{}{
 			"method": "password",
 			"reason": "unknown_email",
 			"email":  cleanedEmail,
@@ -266,7 +273,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	if !user.CheckPassword(req.Password) {
 		attempts, locked := database.RecordLoginFailure(cleanedEmail)
-		logAuthEvent(c, "AUTH_LOGIN_FAILED", "Login gagal: kata sandi salah", &user, map[string]interface{}{
+		logAuthEvent(h.db, c, "AUTH_LOGIN_FAILED", "Login gagal: kata sandi salah", &user, map[string]interface{}{
 			"method":   "password",
 			"reason":   "bad_password",
 			"attempts": attempts,
@@ -310,7 +317,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	if targetSlug == "" {
 		targetSlug = cleanSlug(c.Get("X-Store-Slug"))
 	}
-	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
+	storeList, activeStore := buildStoreSummaries(h.db, user.Stores, user.Store, targetSlug)
 
 	if !isPlatformAdmin && len(storeList) == 0 && (len(user.Stores) > 0 || user.Store != nil) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -354,10 +361,10 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	// Touch store activity upon admin login
 	for _, st := range user.Stores {
-		services.TouchStoreActivity(database.DB, st.ID)
+		services.TouchStoreActivity(h.db, st.ID)
 	}
 	if user.Store != nil {
-		services.TouchStoreActivity(database.DB, user.Store.ID)
+		services.TouchStoreActivity(h.db, user.Store.ID)
 	}
 
 	actorRole := user.PlatformStaffRoleLabel()
@@ -367,14 +374,14 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 	// Industry Standard Security: Detect logins from new or unrecognized devices / browsers
 	var previousLoginCount int64
-	database.DB.Model(&models.ActivityLog{}).Where(
+	h.db.Model(&models.ActivityLog{}).Where(
 		"user_id = ? AND category = 'security' AND action = 'auth.login'",
 		user.ID,
 	).Count(&previousLoginCount)
 
 	if previousLoginCount > 0 {
 		var matchUA int64
-		database.DB.Model(&models.ActivityLog{}).Where(
+		h.db.Model(&models.ActivityLog{}).Where(
 			"user_id = ? AND category = 'security' AND action = 'auth.login' AND user_agent = ?",
 			user.ID, c.Get("User-Agent"),
 		).Count(&matchUA)
@@ -387,7 +394,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
+		DB:          h.db,
 		StoreID:     activeStoreID,
 		UserID:      &user.ID,
 		ActorRole:   actorRole,
@@ -439,6 +446,12 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -523,7 +536,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	// Check if email or slug is blacklisted due to permanent moderation ban
 	var blacklistedUserCount int64
-	database.DB.Model(&models.User{}).Where("LOWER(email) = ? AND is_blacklisted = true", req.Email).Count(&blacklistedUserCount)
+	h.db.Model(&models.User{}).Where("LOWER(email) = ? AND is_blacklisted = true", req.Email).Count(&blacklistedUserCount)
 	if blacklistedUserCount > 0 {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -532,7 +545,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	var blacklistedStoreCount int64
-	database.DB.Model(&models.Store{}).Where("LOWER(slug) = ? AND (is_blacklisted = true OR dormancy_status = 'banned')", slug).Count(&blacklistedStoreCount)
+	h.db.Model(&models.Store{}).Where("LOWER(slug) = ? AND (is_blacklisted = true OR dormancy_status = 'banned')", slug).Count(&blacklistedStoreCount)
 	if blacklistedStoreCount > 0 {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -541,7 +554,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	var blacklistedSlugCount int64
-	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedSlugCount)
+	h.db.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedSlugCount)
 	if blacklistedSlugCount > 0 {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -551,7 +564,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	// Check store slug uniqueness
 	var existingStore models.Store
-	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&existingStore).Error; err == nil {
+	if err := h.db.Where("LOWER(slug) = ?", slug).First(&existingStore).Error; err == nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
 			"message": "Nama pengguna toko sudah terpakai. Silakan pilih nama lain.",
@@ -561,7 +574,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	// Check email uniqueness
 	var existingUser models.User
 	var targetUser models.User
-	if err := database.DB.Preload("Store").Where("LOWER(email) = ?", req.Email).First(&existingUser).Error; err == nil {
+	if err := h.db.Preload("Store").Where("LOWER(email) = ?", req.Email).First(&existingUser).Error; err == nil {
 		if req.GoogleID != "" {
 			if existingUser.Store != nil {
 				theme := existingUser.Store.StoreTheme
@@ -591,7 +604,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			targetUser = existingUser
 			if (targetUser.GoogleID == nil || *targetUser.GoogleID == "") && req.GoogleID != "" {
 				targetUser.GoogleID = &req.GoogleID
-				database.DB.Save(&targetUser)
+				h.db.Save(&targetUser)
 			}
 		} else {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -640,7 +653,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			}
 		}
 
-		if err := database.DB.Create(&newUser).Error; err != nil {
+		if err := h.db.Create(&newUser).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
 				"message": "Gagal mendaftarkan akun.",
@@ -679,7 +692,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	cleanCoupon := strings.ToUpper(strings.TrimSpace(req.CouponCode))
 
 	if requestedPlan != "free" {
-		planInfo, _ := services.GetPlanByCode(database.DB, requestedPlan)
+		planInfo, _ := services.GetPlanByCode(h.db, requestedPlan)
 		if planInfo != nil {
 			if billingCycle == "annual" {
 				origAmount = planInfo.PriceAnnual
@@ -765,7 +778,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		MasterShippingCoverages: datatypes.JSON(defaultShipping),
 	}
 
-	if err := database.DB.Create(&newStore).Error; err != nil {
+	if err := h.db.Create(&newStore).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal membuat profil toko.",
@@ -807,7 +820,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			PaymentStatus:   orderPaymentStatus,
 			PaidAt:          orderPaidAt,
 		}
-		_ = database.DB.Create(&subOrder).Error
+		_ = h.db.Create(&subOrder).Error
 	}
 
 	token, tokenID, expiresAt, _ := middleware.GenerateTokenWithID(&targetUser, &newStore, h.cfg)
@@ -852,6 +865,12 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req GoogleAuthRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -906,9 +925,9 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 
 	// Check if user already exists
 	var user models.User
-	query := preloadUserStores(database.DB.Preload("Store")).Where("LOWER(email) = ?", email)
+	query := preloadUserStores(h.db.Preload("Store")).Where("LOWER(email) = ?", email)
 	if googleID != "" {
-		query = preloadUserStores(database.DB.Preload("Store")).Where("LOWER(email) = ? OR google_id = ?", email, googleID)
+		query = preloadUserStores(h.db.Preload("Store")).Where("LOWER(email) = ? OR google_id = ?", email, googleID)
 	}
 
 	err = query.First(&user).Error
@@ -932,14 +951,14 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 
 		if belumTertautGoogle && googleID != "" {
 			user.GoogleID = &googleID
-			database.DB.Save(&user)
+			h.db.Save(&user)
 		}
 
 		targetSlug := cleanSlug(req.StoreSlug)
 		if targetSlug == "" {
 			targetSlug = cleanSlug(c.Get("X-Store-Slug"))
 		}
-		storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
+		storeList, activeStore := buildStoreSummaries(h.db, user.Stores, user.Store, targetSlug)
 
 		var primaryStore *models.Store
 		if targetSlug != "" {
@@ -972,22 +991,22 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 
 		// Touch store activity upon Google login
 		for _, st := range user.Stores {
-			services.TouchStoreActivity(database.DB, st.ID)
+			services.TouchStoreActivity(h.db, st.ID)
 		}
 		if user.Store != nil {
-			services.TouchStoreActivity(database.DB, user.Store.ID)
+			services.TouchStoreActivity(h.db, user.Store.ID)
 		}
 
 		// Industry Standard Security: Detect logins from new or unrecognized devices / browsers
 		var previousLoginCount int64
-		database.DB.Model(&models.ActivityLog{}).Where(
+		h.db.Model(&models.ActivityLog{}).Where(
 			"user_id = ? AND category = 'security' AND action = 'auth.login'",
 			user.ID,
 		).Count(&previousLoginCount)
 
 		if previousLoginCount > 0 {
 			var matchUA int64
-			database.DB.Model(&models.ActivityLog{}).Where(
+			h.db.Model(&models.ActivityLog{}).Where(
 				"user_id = ? AND category = 'security' AND action = 'auth.login' AND user_agent = ?",
 				user.ID, c.Get("User-Agent"),
 			).Count(&matchUA)
@@ -1004,7 +1023,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			activeStoreID = &activeStore.ID
 		}
 		services.RecordActivity(services.RecordActivityParams{
-			DB:          database.DB,
+			DB:          h.db,
 			StoreID:     activeStoreID,
 			UserID:      &user.ID,
 			ActorRole:   "merchant",
@@ -1069,7 +1088,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 
 	// Validate slug uniqueness
 	var existingStore models.Store
-	if err := database.DB.Where("LOWER(slug) = ?", storeSlug).First(&existingStore).Error; err == nil {
+	if err := h.db.Where("LOWER(slug) = ?", storeSlug).First(&existingStore).Error; err == nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
 			"message": "Link username toko \"" + storeSlug + "\" sudah digunakan. Silakan pilih username lain.",
@@ -1093,7 +1112,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	}
 	_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
 
-	if err := database.DB.Create(&newUser).Error; err != nil {
+	if err := h.db.Create(&newUser).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mendaftarkan akun.",
@@ -1143,7 +1162,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		MasterShippingCoverages: datatypes.JSON(defaultShipping),
 	}
 
-	if err := database.DB.Create(&newStore).Error; err != nil {
+	if err := h.db.Create(&newStore).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal membuat toko baru.",
@@ -1264,6 +1283,12 @@ func verifyGoogleCredential(credentialStr string, expectedClientID string) (emai
 
 // VerifyToken checks token validity, returns fresh user profile & store state
 func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -1290,11 +1315,11 @@ func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
 			targetSlug = s
 		}
 	}
-	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
+	storeList, activeStore := buildStoreSummaries(h.db, user.Stores, user.Store, targetSlug)
 
 	if !isPlatformAdmin && len(storeList) == 0 {
 		var totalStoresCount int64
-		database.DB.Model(&models.Store{}).Where("user_id = ?", user.ID).Count(&totalStoresCount)
+		h.db.Model(&models.Store{}).Where("user_id = ?", user.ID).Count(&totalStoresCount)
 		if totalStoresCount > 0 {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
@@ -1332,6 +1357,12 @@ func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
 
 // RefreshToken issues a renewed JWT token with extended expiration for an active session
 func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -1353,11 +1384,11 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	}
 
 	targetSlug := c.Get("X-Store-Slug")
-	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
+	storeList, activeStore := buildStoreSummaries(h.db, user.Stores, user.Store, targetSlug)
 
 	if !isPlatformAdmin && len(storeList) == 0 {
 		var totalStoresCount int64
-		database.DB.Model(&models.Store{}).Where("user_id = ?", user.ID).Count(&totalStoresCount)
+		h.db.Model(&models.Store{}).Where("user_id = ?", user.ID).Count(&totalStoresCount)
 		if totalStoresCount > 0 {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
@@ -1455,6 +1486,12 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 
 	var req UpdateProfileRequest
@@ -1478,7 +1515,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			})
 		}
 		var cnt int64
-		database.DB.Model(&models.User{}).Where("LOWER(email) = ? AND id != ?", reqEmail, user.ID).Count(&cnt)
+		h.db.Model(&models.User{}).Where("LOWER(email) = ? AND id != ?", reqEmail, user.ID).Count(&cnt)
 		if cnt > 0 {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
@@ -1561,7 +1598,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		passwordWasChanged = true
 	}
 
-	if err := database.DB.Save(user).Error; err != nil {
+	if err := h.db.Save(user).Error; err != nil {
 		log.Error().Err(err).Msg("UpdateProfile DB.Save failed")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -1578,7 +1615,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	}
 
 	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
+		DB:          h.db,
 		UserID:      &user.ID,
 		ActorRole:   actorRole,
 		ActorName:   user.Name,
@@ -1628,6 +1665,12 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 
 // SendRegistrationOTP issues a 6-digit email OTP for manual registration.
 func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req SendRegistrationOTPRequest
 	if err := c.BodyParser(&req); err != nil {
 		if uErr := json.Unmarshal(c.Body(), &req); uErr != nil {
@@ -1677,7 +1720,7 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 
 	// Check if email is blacklisted
 	var blacklistedCount int64
-	database.DB.Model(&models.User{}).Where("LOWER(email) = ? AND is_blacklisted = true", reqEmail).Count(&blacklistedCount)
+	h.db.Model(&models.User{}).Where("LOWER(email) = ? AND is_blacklisted = true", reqEmail).Count(&blacklistedCount)
 	if blacklistedCount > 0 {
 		log.Warn().Str("ip", c.IP()).Msg("SendRegistrationOTP: email blacklisted (respons disamarkan)")
 		return c.JSON(responsSeragam)
@@ -1685,7 +1728,7 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 
 	// Check if email already registered
 	var existingCount int64
-	database.DB.Model(&models.User{}).Where("LOWER(email) = ?", reqEmail).Count(&existingCount)
+	h.db.Model(&models.User{}).Where("LOWER(email) = ?", reqEmail).Count(&existingCount)
 	if existingCount > 0 {
 		log.Info().Str("ip", c.IP()).Msg("SendRegistrationOTP: email sudah terdaftar (respons disamarkan)")
 		return c.JSON(responsSeragam)
@@ -1734,6 +1777,12 @@ func (h *AuthHandler) VerifyRegistrationOTP(c *fiber.Ctx) error {
 
 // ForgotPasswordRequest sends a password recovery OTP to the user's email.
 func (h *AuthHandler) ForgotPasswordRequest(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req ForgotPasswordRequest
 	if err := c.BodyParser(&req); err != nil {
 		if uErr := json.Unmarshal(c.Body(), &req); uErr != nil {
@@ -1753,7 +1802,7 @@ func (h *AuthHandler) ForgotPasswordRequest(c *fiber.Ctx) error {
 	}
 
 	var user models.User
-	if err := database.DB.Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
+	if err := h.db.Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
 		// Return success message even if not found to prevent user enumeration
 		return c.JSON(fiber.Map{
 			"success": true,
@@ -1788,6 +1837,12 @@ func (h *AuthHandler) ForgotPasswordRequest(c *fiber.Ctx) error {
 
 // ForgotPasswordReset validates the recovery OTP and resets the user's password.
 func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var req ForgotPasswordResetRequest
 	if err := c.BodyParser(&req); err != nil {
 		if uErr := json.Unmarshal(c.Body(), &req); uErr != nil {
@@ -1834,7 +1889,7 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	// SECURITY (N-11): cek user SEBELUM token dikonsumsi, agar token tidak
 	// hangus hanya karena email tidak terdaftar.
 	var user models.User
-	if err := database.DB.Preload("Store").Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
+	if err := h.db.Preload("Store").Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Pengguna tidak ditemukan.",
@@ -1870,7 +1925,7 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	user.HasCustomPassword = true
 	user.TokenVersion++
 
-	if err := database.DB.Save(&user).Error; err != nil {
+	if err := h.db.Save(&user).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memperbarui kata sandi.",
@@ -1882,7 +1937,7 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	_, _ = services.EnqueueEmail(user.Email, user.Name, "Catavor Keamanan", subj, body, "security_alert", fmt.Sprintf("pwd_reset_%d_%d", user.ID, time.Now().Unix()))
 
 	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
+		DB:          h.db,
 		UserID:      &user.ID,
 		ActorRole:   "merchant",
 		ActorName:   user.Name,
@@ -1911,6 +1966,12 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 
 // RequestProfilePasswordOTP sends a password recovery OTP for the authenticated user (or provided email).
 func (h *AuthHandler) RequestProfilePasswordOTP(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var user *models.User
 	if u, ok := c.Locals("user").(*models.User); ok && u != nil {
 		user = u
@@ -1918,7 +1979,7 @@ func (h *AuthHandler) RequestProfilePasswordOTP(c *fiber.Ctx) error {
 		claims := middleware.ExtractOptionalClaims(c, h.cfg)
 		if claims != nil && claims.UserID > 0 {
 			var u models.User
-			if err := database.DB.First(&u, claims.UserID).Error; err == nil {
+			if err := h.db.First(&u, claims.UserID).Error; err == nil {
 				user = &u
 			}
 		}
@@ -1932,7 +1993,7 @@ func (h *AuthHandler) RequestProfilePasswordOTP(c *fiber.Ctx) error {
 			reqEmail := strings.TrimSpace(strings.ToLower(bodyReq.Email))
 			if reqEmail != "" {
 				var u models.User
-				if err := database.DB.Where("LOWER(email) = ?", reqEmail).First(&u).Error; err == nil {
+				if err := h.db.Where("LOWER(email) = ?", reqEmail).First(&u).Error; err == nil {
 					user = &u
 				}
 			}
@@ -1982,6 +2043,12 @@ type DeleteAccountRequest struct {
 
 // DeleteAccount handles permanent deletion of user account and all owned catalogs (Right to Erasure)
 func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	user := c.Locals("user").(*models.User)
 
 	var req DeleteAccountRequest
@@ -2019,9 +2086,9 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 
 	// 3. Find all stores owned by user and hard-delete their media
 	var stores []models.Store
-	database.DB.Where("user_id = ?", user.ID).Find(&stores)
+	h.db.Where("user_id = ?", user.ID).Find(&stores)
 
-	tx := database.DB.Begin()
+	tx := h.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -2053,7 +2120,7 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 	_ = tx.Where("user_id = ?", user.ID).Delete(&models.UserPolicyAgreement{}).Error
 
 	// Clean up user's support tickets and physical media attachments under UU PDP / GDPR Right to Erasure
-	_, _, _ = services.PurgeUserTicketsAndAttachments(database.DB, nil, user.ID)
+	_, _, _ = services.PurgeUserTicketsAndAttachments(h.db, nil, user.ID)
 
 	// Invalidate tokens in memory/Redis
 	user.TokenVersion += 10
