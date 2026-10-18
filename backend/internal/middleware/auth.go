@@ -17,6 +17,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// SECURITY (N-30): satu sumber kebenaran untuk klaim iss/aud.
+// Dipakai saat menerbitkan token DAN saat memverifikasinya, supaya nilai
+// yang diset tidak pernah menyimpang dari yang divalidasi.
+const (
+	JWTIssuer   = "catavor-saas"
+	JWTAudience = "catavor-web"
+)
+
 type JWTClaims struct {
 	UserID            uint   `json:"user_id"`
 	Email             string `json:"email"`
@@ -58,8 +66,8 @@ func GenerateTokenWithID(user *models.User, store *models.Store, cfg *config.Con
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
-			Issuer:    "catavor-saas",
-			Audience:  jwt.ClaimStrings{"catavor-web"},
+			Issuer:    JWTIssuer,
+			Audience:  jwt.ClaimStrings{JWTAudience},
 		},
 	}
 
@@ -97,12 +105,19 @@ func ExtractOptionalClaims(c *fiber.Ctx, cfg *config.Config) *JWTClaims {
 	}
 
 	claims := &JWTClaims{}
+	// SECURITY (N-30): validasi iss/aud, bukan hanya menyetelnya saat menandatangani.
+	// Tanpa opsi ini, token yang ditandatangani secret yang sama tetapi berasal dari
+	// sistem lain (iss/aud berbeda) akan diterima — memungkinkan token confusion.
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing algorithm")
 		}
 		return []byte(cfg.JWTSecret), nil
-	})
+	},
+		jwt.WithValidMethods([]string{"HS256"}),
+		jwt.WithIssuer(JWTIssuer),
+		jwt.WithAudience(JWTAudience),
+	)
 	if err != nil || !token.Valid {
 		return nil
 	}
@@ -240,7 +255,11 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 				return nil, errors.New("unexpected signing algorithm")
 			}
 			return []byte(cfg.JWTSecret), nil
-		})
+		},
+			jwt.WithValidMethods([]string{"HS256"}),
+			jwt.WithIssuer(JWTIssuer),
+			jwt.WithAudience(JWTAudience),
+		)
 
 		if err != nil || !token.Valid {
 			errCode := "TOKEN_EXPIRED"
