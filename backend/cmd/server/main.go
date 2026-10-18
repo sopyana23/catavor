@@ -80,6 +80,7 @@ func main() {
 	storeHandler := handlers.NewStoreHandler(cfg)
 	// Muat cache master categories dari DB (single source of truth).
 	handlers.LoadMasterCategoryCache()
+	handlers.LoadMasterPresetCache()
 	subscriptionHandler := handlers.NewSubscriptionHandler()
 	productHandler := handlers.NewProductHandler(cfg)
 	categoryHandler := handlers.NewCategoryHandler()
@@ -204,10 +205,6 @@ func main() {
 	// 40 POST berturut-turut dari satu IP menaikkan helpful_count 0 -> 40.
 	api.Post("/help/articles/:id/helpful", middleware.PublicSubmissionRateLimiter(), supportHandler.VoteHelpful)
 
-	// Public Legacy Endpoints (Maintained for Backward Compatibility)
-	api.Get("/fauna", productHandler.Index)
-	api.Get("/fauna/:id", productHandler.Show)
-	api.Get("/fauna/:id/recommendations", productHandler.GetRecommendations)
 	api.Get("/taxonomy/culinary", productHandler.GetCulinaryTaxonomy)
 	api.Get("/culinary-taxonomy", productHandler.GetCulinaryTaxonomy)
 	api.Get("/settings", settingHandler.Index)
@@ -226,7 +223,6 @@ func main() {
 	api.Get("/u/:slug/products", storeHandler.IndexProducts)
 	api.Get("/u/:slug/catalog-metrics", storeHandler.CatalogMetrics)
 	api.Get("/u/:slug/categories", categoryHandler.Index)
-	api.Get("/u/:slug/fauna", storeHandler.IndexProducts) // Backward-compatible alias
 	api.Get("/public/stores/reactivate", handlers.HandlePublicReactivateStore)
 	api.Get("/stores/reactivate", handlers.HandlePublicReactivateStore)
 	api.Get("/auth/reactivate-store", handlers.HandlePublicReactivateStore)
@@ -356,11 +352,6 @@ func main() {
 		// padanan ber-otorisasi di grup adminApi. Pendaftaran di grup "guarded"
 		// dihapus — grup itu mensyaratkan StoreOwnerRequired sehingga staf
 		// platform tanpa toko tertolak 403 "Toko Anda belum terdaftar."
-
-		// CRUD Item Catalog (Legacy Aliases)
-		guardedMutations.Post("/fauna", productHandler.Store)
-		guardedMutations.Put("/fauna/:id", productHandler.Update)
-		guardedMutations.Delete("/fauna/:id", productHandler.Destroy)
 
 		// Multi-Tenant Store Settings & Two-Tier Master Data
 		guardedMutations.Post("/stores/update", storeHandler.UpdateStore)

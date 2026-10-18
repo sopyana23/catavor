@@ -665,6 +665,24 @@
    "description": "Fungsi ApplyMasterPreset di store_handler.go memiliki switch case untuk 6 tipe produk (physical, digital, fauna, service, food, property) tetapi tidak ada case 'plant'. Saat toko menerapkan preset 'plant', jatuh ke default dan mendapat kategori generic ('Kategori Utama', 'Koleksi Populer') alih-alih kategori tanaman spesifik.",
    "fix": "Tambah case 'plant' dengan classes/habitats/statuses/shipping yang relevan untuk tanaman hias.",
    "verified": "Runtime: POST /api/stores/apply-master-preset preset=plant mengembalikan classes=['Tanaman Hias Daun','Tanaman Bunga & Anggrek',...]. Regresi physical+food masih benar. Kontrol negatif unknown→default tetap generic."
+  },
+  {
+   "id": "N-55",
+   "title": "Route /api/fauna legacy dihapus — frontend sudah migrasi ke /api/products",
+   "severity": "low",
+   "status": "fixed",
+   "description": "7 route /fauna (GET/POST/PUT/DELETE + /u/:slug/fauna) adalah backward-compatible alias ke productHandler. Frontend sudah pakai /api/products. Route mati tidak menambah nilai, hanya memperluas attack surface.",
+   "fix": "Hapus semua 7 route /fauna dari cmd/server/main.go.",
+   "verified": "Runtime: GET /api/fauna (authenticated) = 404; GET /api/products = 200; source grep 0 match."
+  },
+  {
+   "id": "N-56",
+   "title": "ApplyMasterPreset hardcoded switch → DB-backed master_presets table",
+   "severity": "medium",
+   "status": "fixed",
+   "description": "ApplyMasterPreset punya switch 7+1 case dengan data preset (classes/habitats/statuses/shipping) hardcoded. Tidak bisa diubah tanpa redeploy. Duplikasi pola SoT dengan master_categories (P4).",
+   "fix": "Buat tabel master_presets (product_type + 4 JSONB), migrasi N-55 seed 8 baris, cache sync.Once, ApplyMasterPreset baca dari cache DB. Fallback ke 'default' row jika preset type tidak dikenal.",
+   "verified": "Runtime: 8 preset (physical/digital/fauna/service/food/property/plant/nonexistent→default) semua success dengan data benar. master_presets=8 rows. go test PASS."
   }
  ],
  "verified_ok": [

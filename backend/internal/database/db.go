@@ -166,6 +166,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.Notification{},
 		&models.NotificationRead{},
 		&models.MasterCategory{},
+		&models.MasterPreset{},
 		&models.ActivityLog{},
 		&models.SafeDomain{},
 		&models.BlacklistedSlug{},

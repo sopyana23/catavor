@@ -1232,60 +1232,24 @@ func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
 		})
 	}
 
-	var classes, habitats, statuses, shipping []string
+	presetType := strings.ToLower(strings.TrimSpace(req.Preset))
+	presets := GetMasterPresets()
 
-	switch strings.ToLower(req.Preset) {
-	case "physical":
-		classes = []string{"Pakaian & Fashion", "Aksesoris & Gadget", "Elektronik & Komputer", "Perlengkapan Rumah", "Kerajinan & Kriya", "Koleksi & Hobi", "Lainnya"}
-		habitats = []string{"Item Baru (Ready Stock)", "Pre-Order (PO)", "Varian Koleksi Khusus"}
-		statuses = []string{"Tersedia (Ready Stock)", "Habis (Sold Out)", "Stok Terbatas (Limited)"}
-		shipping = []string{"Bisa Kirim Seluruh Indonesia", "Jabodetabek Saja", "Ambil Sendiri di Toko"}
-	case "digital":
-		classes = []string{"E-Book & Dokumen", "Template Desain", "Preset & Audio", "Source Code & Software", "Video Kursus", "Foto & Ilustrasi", "Lainnya"}
-		habitats = []string{"Instant Download", "Akses Cloud / Web", "Lisensi Sekali Beli"}
-		statuses = []string{"Tersedia (Aktif)", "Maintenance / Update", "Arsip (Tidak Dijual)"}
-		shipping = []string{"Kirim via Email & Link Download", "Akses Portal Anggota"}
-	case "fauna":
-		classes = []string{"Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil", "Kucing & Anjing", "Invertebrata & Serangga", "Lainnya"}
-		habitats = []string{"Air Tawar", "Air Laut", "Darat (Terestrial)", "Arboreal (Pohon)"}
-		statuses = []string{"Tersedia (For Sale)", "Terpesan (Booked)", "Habis Terjual (Sold Out)"}
-		shipping = []string{"Bisa Kirim se-Indonesia (Garansi DoA)", "Pulau Jawa Saja", "Ambil Sendiri di Toko (No Shipping)"}
-	case "service":
-		classes = []string{"Jasa Desain & Kreatif", "Konsultasi & Bisnis", "Reparasi & Servis", "Fotografi & Video", "Pendidikan & Les", "Kecantikan & Perawatan", "Lainnya"}
-		habitats = []string{"Layanan Online / Remote", "Datang ke Lokasi Klien", "Datang ke Workshop / Kantor"}
-		statuses = []string{"Jadwal Tersedia", "Jadwal Penuh (Booked)", "Libur / Tutup Sementara"}
-		shipping = []string{"Layanan Digital / Online", "Area Jabodetabek", "Area Seluruh Indonesia"}
-	case "food":
-		classes = []string{"Makanan Siap Santap", "Minuman & Kopi", "Snack & Makanan Kering", "Bakery, Roti & Pastry", "Bumbu & Bahan Masak", "Katering & Paket Pesanan", "Lainnya"}
-		habitats = []string{"Freshly Cooked", "Frozen Food", "Kemasan Tahan Lama"}
-		statuses = []string{"Menu Tersedia", "Habis untuk Hari Ini", "Menu Spesial Musiman"}
-		shipping = []string{"Kurir Instan / Sameday", "Dine-In & Take Away", "Bisa Kirim Luar Kota (Frozen)"}
-	case "property":
-		classes = []string{"Rumah Tinggal (Landed House)", "Apartemen & Kondominium", "Tanah & Kavling", "Ruko & Komersial", "Villa & Resort", "Gudang & Pabrik", "Kost & Kontrakan", "Lainnya"}
-		habitats = []string{"Siap Huni (Ready)", "Indent / Under Construction", "Secondary / Butuh Renovasi"}
-		statuses = []string{"Tersedia (Available)", "Terpesan (Booked / UTJ)", "Terjual / Tersewa (Sold / Rented)"}
-		shipping = []string{"Survey Lokasi / Janji Temu", "Notaris & Serah Terima Kunci", "Konsultasi Legalitas & KPR"}
-	case "plant":
-		classes = []string{"Tanaman Hias Daun", "Tanaman Bunga & Anggrek", "Bibit Buah & Pohon", "Kaktus & Sukulen", "Bonsai & Tanaman Seni", "Tanaman Herbal & Rempah", "Aquascape & Tanaman Air", "Lainnya"}
-		habitats = []string{"Tanaman Outdoor (Full Sun)", "Tanaman Indoor (Low Light)", "Tanaman Semi Shade", "Tanaman Air / Aquascape"}
-		statuses = []string{"Tersedia (Ready Stock)", "Pre-Order (PO)", "Habis (Sold Out)", "Stok Terbatas (Limited)"}
-		shipping = []string{"Bisa Kirim Seluruh Indonesia", "Pulau Jawa Saja", "Ambil Sendiri di Toko", "Kirim dengan Pot & Media"}
-	default:
-		classes = []string{"Kategori Utama", "Koleksi Populer", "Item Unggulan", "Varian Baru", "Promo Spesial"}
-		habitats = []string{"Standar", "Koleksi Terbatas", "Edisi Khusus"}
-		statuses = []string{"Tersedia", "Habis", "Segera Hadir"}
-		shipping = []string{"Kirim Seluruh Indonesia", "Ambil di Toko"}
+	preset, ok := presets[presetType]
+	if !ok {
+		preset, ok = presets["default"]
+		if !ok {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Preset tidak dikenali dan default tidak tersedia.",
+			})
+		}
 	}
 
-	bClasses, _ := json.Marshal(classes)
-	bHabitats, _ := json.Marshal(habitats)
-	bStatuses, _ := json.Marshal(statuses)
-	bShipping, _ := json.Marshal(shipping)
-
-	store.MasterClasses = datatypes.JSON(bClasses)
-	store.MasterHabitats = datatypes.JSON(bHabitats)
-	store.MasterStatuses = datatypes.JSON(bStatuses)
-	store.MasterShippingCoverages = datatypes.JSON(bShipping)
+	store.MasterClasses = preset.MasterClasses
+	store.MasterHabitats = preset.MasterHabitats
+	store.MasterStatuses = preset.MasterStatuses
+	store.MasterShippingCoverages = preset.MasterShippingCoverages
 
 	database.DB.Save(store)
 
@@ -1309,7 +1273,7 @@ var DefaultMasterCategories = map[string][]string{
 // --- Master Category cache (DB-backed, single source of truth) ---
 
 var (
-	masterCategoryOnce sync.Once
+	masterCategoryOnce  sync.Once
 	masterCategoryCache map[string][]string // product_type -> []category names
 )
 
@@ -1353,6 +1317,40 @@ func (h *StoreHandler) GetMasterCategoriesHandler(c *fiber.Ctx) error {
 		"categories": cats,
 	})
 }
+
+// --- Master Preset cache (DB-backed, single source of truth) ---
+
+var (
+	masterPresetOnce  sync.Once
+	masterPresetCache map[string]models.MasterPreset // product_type -> preset
+)
+
+// LoadMasterPresetCache memuat preset data dari DB ke cache in-memory.
+// Dipanggil sekali di startup (sync.Once).
+func LoadMasterPresetCache() {
+	masterPresetOnce.Do(func() {
+		masterPresetCache = make(map[string]models.MasterPreset)
+		if database.DB == nil {
+			return
+		}
+		var presets []models.MasterPreset
+		if err := database.DB.Order("product_type").Find(&presets).Error; err != nil {
+			log.Warn().Err(err).Msg("gagal memuat master preset cache")
+			return
+		}
+		for _, p := range presets {
+			masterPresetCache[p.ProductType] = p
+		}
+		log.Info().Int("total", len(presets)).Msg("master preset cache dimuat dari DB")
+	})
+}
+
+// GetMasterPresets mengembalikan preset data per product type dari cache DB.
+func GetMasterPresets() map[string]models.MasterPreset {
+	LoadMasterPresetCache()
+	return masterPresetCache
+}
+
 // IsSystemDefaultCategory checks if a category belongs to immutable system default master categories.
 func IsSystemDefaultCategory(pType, val string) bool {
 	pType = strings.ToLower(strings.TrimSpace(pType))

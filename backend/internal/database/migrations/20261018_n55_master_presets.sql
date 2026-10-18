@@ -1,0 +1,56 @@
+-- N-55: master_presets table — DB-backed single source of truth for preset data
+-- Memindahkan hardcoded switch di ApplyMasterPreset ke tabel terstruktur.
+
+CREATE TABLE IF NOT EXISTS master_presets (
+    id SERIAL PRIMARY KEY,
+    product_type VARCHAR(50) NOT NULL UNIQUE,
+    master_classes JSONB NOT NULL DEFAULT '[]',
+    master_habitats JSONB NOT NULL DEFAULT '[]',
+    master_statuses JSONB NOT NULL DEFAULT '[]',
+    master_shipping_coverages JSONB NOT NULL DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO master_presets (product_type, master_classes, master_habitats, master_statuses, master_shipping_coverages) VALUES
+('physical',
+ '["Pakaian & Fashion","Aksesoris & Gadget","Elektronik & Komputer","Perlengkapan Rumah","Kerajinan & Kriya","Koleksi & Hobi","Lainnya"]',
+ '["Item Baru (Ready Stock)","Pre-Order (PO)","Varian Koleksi Khusus"]',
+ '["Tersedia (Ready Stock)","Habis (Sold Out)","Stok Terbatas (Limited)"]',
+ '["Bisa Kirim Seluruh Indonesia","Jabodetabek Saja","Ambil Sendiri di Toko"]'),
+('digital',
+ '["E-Book & Dokumen","Template Desain","Preset & Audio","Source Code & Software","Video Kursus","Foto & Ilustrasi","Lainnya"]',
+ '["Instant Download","Akses Cloud / Web","Lisensi Sekali Beli"]',
+ '["Tersedia (Aktif)","Maintenance / Update","Arsip (Tidak Dijual)"]',
+ '["Kirim via Email & Link Download","Akses Portal Anggota"]'),
+('fauna',
+ '["Ikan Hias","Reptil & Amfibi","Burung & Unggas","Mamalia Kecil","Kucing & Anjing","Invertebrata & Serangga","Lainnya"]',
+ '["Air Tawar","Air Laut","Darat (Terestrial)","Arboreal (Pohon)"]',
+ '["Tersedia (For Sale)","Terpesan (Booked)","Habis Terjual (Sold Out)"]',
+ '["Bisa Kirim se-Indonesia (Garansi DoA)","Pulau Jawa Saja","Ambil Sendiri di Toko (No Shipping)"]'),
+('service',
+ '["Jasa Desain & Kreatif","Konsultasi & Bisnis","Reparasi & Servis","Fotografi & Video","Pendidikan & Les","Kecantikan & Perawatan","Lainnya"]',
+ '["Layanan Online / Remote","Datang ke Lokasi Klien","Datang ke Workshop / Kantor"]',
+ '["Jadwal Tersedia","Jadwal Penuh (Booked)","Libur / Tutup Sementara"]',
+ '["Layanan Digital / Online","Area Jabodetabek","Area Seluruh Indonesia"]'),
+('food',
+ '["Makanan Siap Santap","Minuman & Kopi","Snack & Makanan Kering","Bakery, Roti & Pastry","Bumbu & Bahan Masak","Katering & Paket Pesanan","Lainnya"]',
+ '["Freshly Cooked","Frozen Food","Kemasan Tahan Lama"]',
+ '["Menu Tersedia","Habis untuk Hari Ini","Menu Spesial Musiman"]',
+ '["Kurir Instan / Sameday","Dine-In & Take Away","Bisa Kirim Luar Kota (Frozen)"]'),
+('property',
+ '["Rumah Tinggal (Landed House)","Apartemen & Kondominium","Tanah & Kavling","Ruko & Komersial","Villa & Resort","Gudang & Pabrik","Kost & Kontrakan","Lainnya"]',
+ '["Siap Huni (Ready)","Indent / Under Construction","Secondary / Butuh Renovasi"]',
+ '["Tersedia (Available)","Terpesan (Booked / UTJ)","Terjual / Tersewa (Sold / Rented)"]',
+ '["Survey Lokasi / Janji Temu","Notaris & Serah Terima Kunci","Konsultasi Legalitas & KPR"]'),
+('plant',
+ '["Tanaman Hias Daun","Tanaman Bunga & Anggrek","Bibit Buah & Pohon","Kaktus & Sukulen","Bonsai & Tanaman Seni","Tanaman Herbal & Rempah","Aquascape & Tanaman Air","Lainnya"]',
+ '["Tanaman Outdoor (Full Sun)","Tanaman Indoor (Low Light)","Tanaman Semi Shade","Tanaman Air / Aquascape"]',
+ '["Tersedia (Ready Stock)","Pre-Order (PO)","Habis (Sold Out)","Stok Terbatas (Limited)"]',
+ '["Bisa Kirim Seluruh Indonesia","Pulau Jawa Saja","Ambil Sendiri di Toko","Kirim dengan Pot & Media"]'),
+('default',
+ '["Kategori Utama","Koleksi Populer","Item Unggulan","Varian Baru","Promo Spesial"]',
+ '["Standar","Koleksi Terbatas","Edisi Khusus"]',
+ '["Tersedia","Habis","Segera Hadir"]',
+ '["Kirim Seluruh Indonesia","Ambil di Toko"]')
+ON CONFLICT (product_type) DO NOTHING;
