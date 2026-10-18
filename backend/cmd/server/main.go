@@ -50,8 +50,8 @@ func main() {
 	app := fiber.New(fiber.Config{
 		AppName:                 "Catavor Multi-Channel Commerce Server",
 		BodyLimit:               12 * 1024 * 1024, // 12 MB max payload
-		ReadTimeout:             0,                 // Unlimited for streaming & SSE
-		WriteTimeout:            0,                 // Unlimited write deadline for persistent SSE streams (prevents net::ERR_INCOMPLETE_CHUNKED_ENCODING)
+		ReadTimeout:             0,                // Unlimited for streaming & SSE
+		WriteTimeout:            0,                // Unlimited write deadline for persistent SSE streams (prevents net::ERR_INCOMPLETE_CHUNKED_ENCODING)
 		IdleTimeout:             120 * time.Second,
 		DisableStartupMessage:   false,
 		ProxyHeader:             fiber.HeaderXForwardedFor,
@@ -413,7 +413,6 @@ func main() {
 		// serta mengubah status laporan toko lain menjadi "dismissed".
 		// Versi ber-otorisasi sudah ada di adminApi dengan compliance:reports:manage;
 		// rute duplikat ini dihapus, bukan diberi gate ganda.
-
 
 		// SECURITY (N-06b): alias "backward compatibility" ini menunjuk handler
 		// platform (siaran notifikasi, pencarian lintas-tenant, audit, market

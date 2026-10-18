@@ -363,8 +363,6 @@ func (h *SettingHandler) GetPolicyAuditLogs(c *fiber.Ctx) error {
 	})
 }
 
-
-
 // Agreement registration
 func (h *SettingHandler) RecordAgreement(c *fiber.Ctx) error {
 	var req struct {
