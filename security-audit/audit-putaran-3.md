@@ -419,8 +419,15 @@ Syarat `belumTertautGoogle` ditambahkan agar mereka tetap bisa masuk.
 - `TestClaimsEmailVerified` (10 kasus) — LULUS.
 - `TestPenjagaanN14TidakMengunciAkunTertautGoogle` — LULUS, dan gagal bila
   syarat `google_id` dihapus (kontrol negatif).
-- Kontrol negatif `claimsEmailVerified` yang selalu `true`: 6 dari 10 kasus
-  GAGAL seperti seharusnya.
+- Kontrol negatif `claimsEmailVerified`: badan fungsi asli diganti `return true`,
+  lalu uji dijalankan ulang — 6 dari 10 kasus GAGAL (`false`, `"false"`, `""`,
+  `1`, `nil`, `map`). Kode dipulihkan setelahnya dan diverifikasi identik
+  dengan commit (`git diff` kosong).
+- **Koreksi metode.** Percobaan pertama kontrol negatif ini memakai berkas uji
+  tambahan yang mendeklarasikan ulang `claimsEmailVerified`. Uji memang gagal,
+  tetapi karena *redeclaration* — bukan karena logika — sehingga tidak sah
+  sebagai kontrol. Dicatat di sini supaya tidak terulang: kontrol negatif hanya
+  sah bila kegagalannya berasal dari perilaku yang diuji.
 - Cek data: kelima akun Google asli (id 2, 3, 4, 6, 7) berstatus
   "LOLOS (sudah tertaut)", bukan diblokir.
 
