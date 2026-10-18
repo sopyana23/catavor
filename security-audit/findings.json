@@ -616,6 +616,19 @@
    "fix": "Syarat disamakan menjadi !== 6 dengan pesan 'Kode verifikasi OTP harus berjumlah 6 digit angka'.",
    "verification": "Pemindaian seluruh pola validasi OTP di kedua SPA: semua titik lain sudah menggunakan !== 6, hanya titik ini yang menyimpang. Format OTP dikonfirmasi dari internal/services/otp_service.go:41-47. Typecheck mobile bersih.",
    "date": "2026-10-18"
+  },
+  {
+   "id": "N-50",
+   "title": "product_type tidak divalidasi: tipe sembarang diterima API, seluruh atribut lalu dibuang senyap",
+   "severity": "medium",
+   "status": "fixed",
+   "category": "validation",
+   "component": "backend/internal/handlers/product_handler.go",
+   "description": "req.ProductType hanya di-lowercase dan di-trim; tidak pernah dicocokkan ke daftar tipe resmi. POST /api/products dengan product_type 'superadminx' dijawab 201 Created. Setelah N-45 (filter atribut fail-closed untuk tipe tak dikenal), produk bertipe sampah tersimpan dengan attributes kosong tanpa pesan apa pun ke pengguna. Jalur Update punya celah sama, sehingga tipe produk valid dapat digeser ke tipe sampah lewat PUT.",
+   "impact": "Data kotor pada products.product_type, atribut produk hilang tanpa penjelasan, dan pelanggaran kontrak 7 tipe item. Ditemukan sendiri saat verifikasi N-45.",
+   "fix": "Gerbang models.ValidProductType di jalur Store dan Update, mengembalikan 400 'Tipe item tidak dikenal.' Daftar resmi memakai kunci ProductAttributeSchema sehingga kontrak atribut dan daftar tipe tidak dapat menyimpang.",
+   "verification": "Sebelum perbaikan: POST product_type 'superadminx' -> 201. Sesudah: -> 400. Skrip ad-hoc 13 PASS / 0 FAIL, mencakup healthz/readyz, filter atribut physical & food, penyaringan jalur Update, penolakan tipe tak dikenal, validasi frontend, FK duplikat=0, 3 FK ON DELETE CASCADE, dan DB kembali bersih (stores=0).",
+   "date": "2026-10-18"
   }
  ],
  "verified_ok": [

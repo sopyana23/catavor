@@ -237,6 +237,15 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	if pType == "" {
 		pType = "physical"
 	}
+	// Daftar tipe resmi = kunci ProductAttributeSchema. Tanpa gerbang ini,
+	// tipe sembarang diterima dan kontrak atribut jadi fail-closed secara
+	// diam-diam (semua atribut dibuang tanpa penjelasan ke pengguna).
+	if !models.ValidProductType(pType) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Tipe item tidak dikenal.",
+		})
+	}
 
 	minOrder := req.MinOrder
 	if minOrder < 1 {
@@ -546,6 +555,14 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	effectiveType := product.ProductType
 	if req.ProductType != "" {
 		effectiveType = strings.ToLower(strings.TrimSpace(req.ProductType))
+		// Same gate as Store: a product must never drift to an unknown type,
+		// which would silently void its whole attribute contract.
+		if !models.ValidProductType(effectiveType) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Tipe item tidak dikenal.",
+			})
+		}
 		product.ProductType = effectiveType
 	}
 
