@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
-	"catavor-backend/internal/security"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -371,11 +371,11 @@ func StoreOwnerRequired() fiber.Handler {
 		}
 
 		var matchedStore *models.Store
-		isPlatformAdminUser := strings.EqualFold(user.PlatformRole, "superadmin") || 
-			strings.EqualFold(user.PlatformRole, "support") || 
-			strings.EqualFold(user.PlatformRole, "compliance") || 
-			strings.EqualFold(user.PlatformRole, "finance") || 
-			strings.EqualFold(user.PlatformRole, "admin") || 
+		isPlatformAdminUser := strings.EqualFold(user.PlatformRole, "superadmin") ||
+			strings.EqualFold(user.PlatformRole, "support") ||
+			strings.EqualFold(user.PlatformRole, "compliance") ||
+			strings.EqualFold(user.PlatformRole, "finance") ||
+			strings.EqualFold(user.PlatformRole, "admin") ||
 			user.Email == "admin@catavor.com"
 
 		if targetSlug != "" {
@@ -440,20 +440,26 @@ func StoreOwnerRequired() fiber.Handler {
 				matchedStore = &user.Stores[0]
 			} else if user.Store != nil {
 				matchedStore = user.Store
-			} else if isPlatformAdminUser {
-				// Fallback to default or first store for platform admins
-				var defaultStore models.Store
-				if err := database.DB.Where("LOWER(slug) = 'catavor'").First(&defaultStore).Error; err == nil {
-					matchedStore = &defaultStore
-				} else if err := database.DB.Order("id ASC").First(&defaultStore).Error; err == nil {
-					matchedStore = &defaultStore
-				}
 			}
 		}
 
+		// ARSITEKTUR (pemisahan bidang otorisasi, OWASP Multi-Tenant):
+		// Staf platform (superadmin/support/compliance/finance/content) BUKAN
+		// anggota tenant. Jalur admin platform punya grup route sendiri
+		// (adminApi) yang tidak memuat middleware ini, sehingga staf tidak
+		// pernah sampai di sini. Rem di bawah adalah jaring pengaman bila ada
+		// rute tenant yang keliru dipanggil staf: jangan mencarikan toko
+		// pengganti (dulu: hardcode slug 'catavor' lalu sembarang toko id
+		// terkecil — itu menyuntikkan tenant acak ke konteks request).
+		// Staf tanpa toko cukup diloloskan tanpa konteks store; handler yang
+		// memang butuh store_id tetap akan menolak sendiri.
 		if matchedStore == nil {
+			if IsPlatformStaffRole(user.PlatformRole) {
+				return c.Next()
+			}
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
+				"code":    "STORE_NOT_REGISTERED",
 				"message": "Toko Anda belum terdaftar.",
 			})
 		}

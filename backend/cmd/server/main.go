@@ -349,19 +349,10 @@ func main() {
 		// header Origin yang sah — MEMBUAT/MENGUBAH/MENGHAPUS template platform.
 		// Sudah dibuktikan runtime: POST /api/admin/support/templates -> 201.
 		// Kini wajib izin support:tickets:* seperti pada grup adminApi.
-		supportRead := middleware.RequirePermission(cfg, "support:tickets:read")
-		supportReply := middleware.RequirePermission(cfg, "support:tickets:reply")
-		guarded.Get("/admin/support/tickets", supportRead, supportHandler.ListAllTickets)
-		guarded.Get("/admin/support/tickets/:id", supportRead, supportHandler.GetAdminTicketDetails)
-		guarded.Post("/admin/support/tickets/:id/reply", supportReply, supportHandler.ReplyAsAdmin)
-		guarded.Put("/admin/support/tickets/:id/status", supportReply, supportHandler.UpdateTicketStatus)
-		guarded.Post("/admin/support/tickets/:id/presence", supportRead, supportHandler.UpdatePresence)
-		guarded.Get("/admin/support/tickets/:id/presence", supportRead, supportHandler.GetPresence)
-		guarded.Get("/admin/support/templates", supportRead, supportHandler.ListCannedResponses)
-		guarded.Post("/admin/support/templates", supportReply, supportHandler.CreateCannedResponse)
-		guarded.Put("/admin/support/templates/:id", supportReply, supportHandler.UpdateCannedResponse)
-		guarded.Delete("/admin/support/templates/:id", supportReply, supportHandler.DeleteCannedResponse)
-		guarded.Post("/admin/support/templates/reset-defaults", supportReply, supportHandler.ResetDefaultCannedResponses)
+		// Support & Helpdesk (platform): seluruh /admin/support/* sudah punya
+		// padanan ber-otorisasi di grup adminApi. Pendaftaran di grup "guarded"
+		// dihapus — grup itu mensyaratkan StoreOwnerRequired sehingga staf
+		// platform tanpa toko tertolak 403 "Toko Anda belum terdaftar."
 
 		// CRUD Item Catalog (Legacy Aliases)
 		guardedMutations.Post("/fauna", productHandler.Store)
@@ -415,16 +406,11 @@ func main() {
 			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.Update)
 		guardedMutations.Delete("/articles/:id",
 			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.Destroy)
-		guarded.Get("/admin/comments",
-			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.GetAdminComments)
 		// SECURITY (N-07): moderasi komentar artikel adalah wewenang platform
-		// (content), bukan merchant. Sebelumnya terdaftar di grup "guarded"
-		// yang justru mensyaratkan StoreOwnerRequired — sehingga merchant bisa
-		// membaca seluruh komentar dan menyetujui/menghapusnya. Terbukti runtime.
-		guardedMutations.Post("/admin/comments/:id/approve",
-			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.ApproveComment)
-		guardedMutations.Delete("/admin/comments/:id",
-			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.DeleteComment)
+		// (content), bukan merchant. Rute /admin/comments sudah DIPINDAH ke
+		// grup adminApi (lihat bagian "Content & Broadcast") karena handler-nya
+		// tidak memakai store_id konteks. Sebelumnya di sini sehingga
+		// superadmin tanpa toko tertolak 403 "Toko Anda belum terdaftar."
 
 		// SECURITY (N-07): rute /reports di grup "guarded" tidak memfilter tenant
 		// sama sekali. Terbukti runtime: merchant membaca 26 laporan dari SEMUA
@@ -433,56 +419,31 @@ func main() {
 		// Versi ber-otorisasi sudah ada di adminApi dengan compliance:reports:manage;
 		// rute duplikat ini dihapus, bukan diberi gate ganda.
 
-		// SECURITY (N-06b): alias "backward compatibility" ini menunjuk handler
-		// platform (siaran notifikasi, pencarian lintas-tenant, audit, market
-		// intelligence, safe domains, bot automation) tetapi hanya memakai
-		// AuthRequired. Terbukti runtime: merchant membaca seluruh email user,
-		// seluruh toko, dan data market intelligence platform.
-		// Catatan: /admin/analytics & /admin/categories TIDAK dikunci di sini —
-		// keduanya memang area merchant (lihat komentar "Merchant Analytics").
-		sysManage := middleware.RequirePermission(cfg, "system:admins:manage")
-		contentSend := middleware.RequirePermission(cfg, "content:broadcast:send")
-		auditRead := middleware.RequirePermission(cfg, "audit:logs:read")
-		marketIntel := middleware.RequirePermission(cfg, "market_intel:manage")
-
-		guarded.Get("/notifications/:id", contentSend, notificationHandler.SuperadminGetOne)
-		guarded.Get("/admin/notifications", contentSend, notificationHandler.SuperadminIndex)
-		guarded.Get("/admin/notifications/:id", contentSend, notificationHandler.SuperadminGetOne)
-		guarded.Post("/admin/notifications/broadcast", contentSend, notificationHandler.SuperadminBroadcast)
-		guarded.Delete("/admin/notifications/:id", contentSend, notificationHandler.SuperadminDelete)
-		guarded.Get("/admin/stores/search", sysManage, notificationHandler.SearchStores)
-		guarded.Get("/admin/users/search", sysManage, notificationHandler.SearchUsers)
-		guarded.Get("/stores/search", sysManage, notificationHandler.SearchStores)
-		guarded.Get("/users/search", sysManage, notificationHandler.SearchUsers)
+		// ===================================================================
+		// ARSITEKTUR (Opsi A — pemisahan bidang otorisasi)
+		// Rute /admin/* di bawah ini SUDAH ada di grup adminApi (baris ~489)
+		// dengan AuthRequired + RequireAdmin + RequirePermission per-rute.
+		// Pendaftaran ganda di grup "guarded" (yang mensyaratkan
+		// StoreOwnerRequired) membuat Fiber memakai handler PERTAMA — sehingga
+		// jalur admin platform justru diwajibkan punya toko katalog.
+		// Terbukti runtime: superadmin tanpa toko -> 403 "Toko Anda belum
+		// terdaftar." walau Role sudah punya izin. Duplikat dihapus; satu
+		// sumber kebenaran ada di adminApi.
+		// Dihapus: notifications (5), stores/users search (4), automation (3),
+		// audit-logs (1), market-intelligence (2), safe-domains (5),
+		// support tickets+templates (11) — seluruhnya duplikat.
+		// Dipertahankan di grup ini: /admin/analytics* dan /admin/categories
+		// karena memang memakai store_id konteks merchant (lihat komentar
+		// "Merchant Analytics" di atas).
+		// ===================================================================
 
 		// Store Activity Extension & Superadmin Dormancy Metrics
 		guardedMutations.Post("/stores/extend-activity", handlers.HandleExtendStoreActivity)
 		guardedMutations.Post("/store/extend-activity", handlers.HandleExtendStoreActivity)
 
-		// System Bot & Automation Engine Monitoring & Sandbox
-		guarded.Get("/admin/automation/status", sysManage, notificationHandler.GetAutomationStatus)
-		guarded.Get("/admin/automation/logs", sysManage, notificationHandler.GetAutomationLogs)
-		guarded.Post("/admin/automation/trigger", sysManage, notificationHandler.TriggerAutomationBot)
-		guarded.Get("/automation/status", sysManage, notificationHandler.GetAutomationStatus)
-		guarded.Get("/automation/logs", sysManage, notificationHandler.GetAutomationLogs)
-		guarded.Post("/automation/trigger", sysManage, notificationHandler.TriggerAutomationBot)
-
-		// Enterprise Activity & Audit Logs
+		// Enterprise Activity Logs (scoped ke toko sendiri — tetap di grup merchant)
 		guarded.Get("/activity-logs", activityLogHandler.GetStoreActivityLogs)
 		guarded.Get("/activity-logs/summary", activityLogHandler.GetActivitySummary)
-		guarded.Get("/admin/audit-logs", auditRead, activityLogHandler.GetSuperadminAuditLogs)
-		guarded.Get("/superadmin/dormancy/metrics", auditRead, handlers.HandleGetDormancyMetrics)
-
-		// Market Intelligence & Macro Analytics
-		guarded.Get("/admin/market-intelligence", marketIntel, analyticsHandler.GetMarketIntelligenceSummary)
-		guarded.Get("/admin/market-intelligence/export", marketIntel, analyticsHandler.ExportMarketIntelligenceData)
-
-		// Master Safe Domains
-		guarded.Get("/admin/safe-domains", sysManage, safeDomainHandler.GetAdminSafeDomains)
-		guarded.Post("/admin/safe-domains", sysManage, safeDomainHandler.CreateSafeDomain)
-		guarded.Put("/admin/safe-domains/:id", sysManage, safeDomainHandler.UpdateSafeDomain)
-		guarded.Delete("/admin/safe-domains/:id", sysManage, safeDomainHandler.DeleteSafeDomain)
-		guarded.Post("/admin/safe-domains/reset-defaults", sysManage, safeDomainHandler.ResetDefaultSafeDomains)
 	}
 
 	// 8.1 Dedicated Platform Admin API Group (Granular RBAC Protected)
@@ -531,6 +492,13 @@ func main() {
 		adminApi.Delete("/notifications/:id", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminDelete)
 		adminApi.Get("/stores/search", notificationHandler.SearchStores)
 		adminApi.Get("/users/search", notificationHandler.SearchUsers)
+
+		// Moderasi Komentar Artikel (wewenang platform/content, tidak butuh toko)
+		// Dipindah dari grup "guarded" (StoreOwnerRequired) sesuai OWASP:
+		// jalur admin lintas-tenant harus explicit & separately authorized.
+		adminApi.Get("/comments", middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.GetAdminComments)
+		adminApi.Post("/comments/:id/approve", middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.ApproveComment)
+		adminApi.Delete("/comments/:id", middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.DeleteComment)
 
 		// Monetization, Rekber Syariah & Platform Settings
 		// SECURITY (N-12): settings mengubah konfigurasi platform (monetisasi, iklan,
