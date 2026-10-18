@@ -85,12 +85,15 @@ Respons kini memuat kunci `store` terpisah berisi field storefront saja;
 relasi mentah pada `data` di-nil-kan.
 
 ### Verifikasi pasca-perbaikan
-Anonim `GET /api/products/217` → 200; `data.store` = `null`; kunci `store`
-berisi 21 field storefront (`store_title`, `slug`, `whatsapp_number`,
-`store_theme`, `about_*`, `enable_wa_*`, `created_at`, …). Pemindaian field
-sensitif (`is_blacklisted`, `is_suspended`, `suspension_reason`, `plan`,
-`plan_status`, `storage_used_bytes`, `dormancy_status`, `last_activity_at`,
-`user_id`, `payment_status`) → **tidak ada yang tersisa**.
+Anonim `GET /api/products/217` → 200. Relasi `Store` mentah **tidak lagi terkirim**:
+`models.Product.Store` bertag `json:"store,omitempty"`, sehingga kuncinya hilang
+sepenuhnya dari `data` (bukan `null` — koreksi terhadap versi awal laporan ini, yang
+keliru menulis "`data.store` = `null`"). Respons memuat kunci `store` terpisah berisi
+21 field storefront (`store_title`, `slug`, `whatsapp_number`,`store_theme`,
+`about_*`, `enable_wa_*`, `created_at`, …). Pemindaian field sensitif
+(`is_blacklisted`, `is_suspended`, `suspension_reason`, `plan`, `plan_status`,
+`storage_used_bytes`, `dormancy_status`, `last_activity_at`, `user_id`,
+`payment_status`) → **tidak ada yang tersisa**.
 
 Regresi dicek: `grep` `.store` pada `frontend/desktop` dan `frontend/mobile`
 → 0 pemakaian, jadi storefront tidak rusak. `/api/products`,
@@ -167,6 +170,115 @@ Diperiksa, tidak ditemukan masalah — bukan karena asumsi, tetapi karena diuji:
     `platform_role`.
 11. **Login** — hanya mengembalikan data milik sendiri, tanpa field kredensial.
 
+---
+
+## Cakupan Penyisiran — Angka Sebenarnya
+
+Laporan ini **tidak** mengklaim seluruh permukaan API sudah diuji. Angka diukur
+dengan memetakan setiap `x.Get/Post/Put/Patch/Delete(...)` di
+`cmd/server/main.go` ke prefix grupnya (`api` → `/api`, `guarded`/`authOnly` →
+`/api`, `adminApi` → `/api/admin`), lalu dicocokkan dengan daftar path yang
+benar-benar diprobe runtime:
+
+| Ukuran | Jumlah |
+|--------|--------|
+| Rute terdaftar (dengan prefix) | **168** |
+| Dibuktikan runtime (putaran 1–3) | **32** (19,0 %) |
+| Belum diuji sama sekali | **136** (81,0 %) |
+
+(Registrasi path unik tanpa prefix = 173; angka 168 adalah hasil pemetaan
+prefix grup, dan itulah yang dipakai karena mencerminkan URL sebenarnya.)
+
+Probe runtime adalah satu-satunya metode yang terbukti menemukan kelas temuan
+ini: N-06 lolos dari audit statis, N-07 lolos dari satu putaran audit penuh.
+Karena itu angka "belum diuji" harus dibaca sebagai **permukaan yang belum
+terbukti**, bukan sebagai "dianggap aman".
+
+### Rute berisiko (write/administratif) — hasil penyisiran manual
+
+Sembilan rute yang dinilai paling berisiko dan belum pernah diuji, kini
+seluruhnya lulus uji runtime dua-peran (path ditulis tanpa prefix `/api`;
+`/api/admin/*` ada di grup `adminApi`):
+
+| Rute | merchant | anonim | pengelola | Catatan |
+|------|----------|--------|-----------|---------|
+| `GET /analytics/export` | 200 (toko sendiri) | 401 | 200 (toko sendiri) | terisolasi per `store_id` |
+| `GET /admin/analytics/export` | 200 (toko sendiri) | 401 | 200 | alias; tetap terisolasi |
+| `GET /market-intelligence/export` | 200 | 200 | 200 | **publik by design** — lihat di bawah |
+| `GET /admin/market-intelligence/export` | 200 (publik) | 200 | 200 | idem |
+| `GET /admin/rbac/roles` \| `/matrix` \| `/staff` | 403 | 401 | 200 | `system:admins:manage` |
+| `POST /admin/rbac/staff/assign` | 403 | 401 | — | eskalasi peran diblokir |
+| `POST /stores/update` | 200 (toko sendiri) | 401 | — | tidak ada mass assignment |
+| `POST /stores/delete-master-option` | 200 (toko sendiri) | 401 | — | `store_id = ?` di semua query |
+| `POST /subscription/orders/:id/approve` | 403 | 401 | 200 | `finance:orders:manage` |
+| `DELETE /user/account` | 200 (akun sendiri) | 401 | — | butuh frasa + password |
+
+Catatan penting per rute:
+
+- **`/market-intelligence/export` sengaja publik.** Isi CSV diperiksa baris per
+  baris: hanya agregat (`Total Active Products`, benchmark harga per kategori,
+  conversion rate). `grep` untuk `email`, `@`, `user_id`, `phone`, `whatsapp`,
+  `owner`, nama toko → **0 hasil** dari 1.103 byte keluaran. Sesuai UU PDP/GDPR
+  sebagaimana disertakan di header berkas. Bukan temuan.
+- **`/stores/update`** memakai allowlist 20 field; `plan`, `is_blacklisted`,
+  `is_suspended`, `user_id`, kuota **tidak** dapat ditulis. Perubahan `slug`
+  dicegah menabrak toko lain (`LOWER(slug) = ? AND id != ?`) dan melewati daftar
+  hitam kata cadangan.
+- **`/user/account/delete`** mengambil identitas dari sesi (`Locals("user")`),
+  bukan parameter; tanpa IDOR.
+- **CSRF** terkonfirmasi aktif pada rute mutasi: `POST /api/stores/update` tanpa
+  header `Origin` → `403 CSRF_REJECTED`.
+- Ketiga rute `guarded`/`guardedMutations` di atas semuanya `401` untuk anonim.
+
+### Temuan non-keamanan (dicatat, tidak diperbaiki)
+
+1. **`DeleteMasterOption` melaporkan sukses palsu.** `field` yang tidak dikenal
+   (mis. `{"field":"apa_saja"}`) lolos `switch` tanpa `default`, lalu membalas
+   `200 {"success":true,"message":"Opsi master data berhasil dihapus."}` padahal
+   tidak ada yang dihapus. Bukan celah keamanan — murni kualitas API.
+2. **`/api/admin/rbac/me` terblokir untuk merchant.** Rute ini konseptual
+   *self-service* (mengetahui izin sendiri), tetapi berada di grup `adminApi`
+   (`RequireAdmin`), sehingga merchant → `403`. Tidak berdampak saat ini karena
+   frontend tidak memanggilnya; jika kelak dipakai, sebagai merchant rute ini
+   perlu dipindah keluar `adminApi`.
+3. **`ApproveSubscriptionOrder` tidak menulis activity log.** Hanya menulis log
+   aplikasi (`log.Info`). Aksi keuangan yang mengubah paket toko idealnya
+   meninggalkan jejak audit di `activity_logs` — jalur `RBAC_ACCESS_DENIED` dan
+   `auth.login` sudah tercatat, sedangkan approval tidak.
+
+### Insiden selama penyisiran (sudah dipulihkan)
+
+Saat menguji `/subscription/orders/:id/approve`, probe `POST` dengan pengelola
+**sempat menyetujui order id 1 milik toko 23** (data non-uji, pemilik asli).
+Dampak: `subscription_orders.payment_status` → `paid` + `paid_at` terisi, dan
+`stores.plan` → `pro_starter` + `plan_expires_at` +1 bulan.
+
+Pemulihan dilakukan dengan merekonstruksi nilai asli dari kode, bukan menebak:
+`payment_status = 'pending_verification'` pada sebuah toko **hanya** diproduksi
+oleh jalur registrasi berbayar (`auth_handler.go:691-694`), yang sekaligus
+memaksa `plan = 'free'` dan `plan_expires_at = NULL`; order berbayar pada jalur
+yang sama lahir dengan `payment_status = 'pending'` dan `paid_at = NULL`
+(`auth_handler.go:746-751`). Bukti pendukung: `stores.payment_status` toko 23
+masih `pending_verification` (approval tidak pernah menyentuh field ini), dan
+`stores.updated_at` sama persis dengan timestamp approval saya.
+
+```sql
+UPDATE subscription_orders SET payment_status='pending', paid_at=NULL WHERE id=1;
+UPDATE stores SET plan='free', plan_status='active', plan_expires_at=NULL WHERE id=23;
+```
+
+Terverifikasi setelah pemulihan: order `pending` / `paid_at` kosong; toko
+`free` / `plan_expires_at` kosong / `payment_status` tetap
+`pending_verification`. Tidak ada backup DB tersedia, sehingga pemulihan
+mengandalkan rekonstruksi dari kode — risiko sisa: `stores.updated_at` toko 23
+kini mencerminkan waktu pemulihan, bukan waktu aslinya.
+
+**Pelajaran:** probe tulis berbahaya tidak boleh diarahkan ke ID yang tidak
+dikontrol penuh. ID tersebut diambil dari hasil enumerasi, bukan dari data uji
+yang dibuat sendiri.
+
+---
+
 ## Verifikasi Suite
 
 ```
@@ -193,4 +305,10 @@ Commit: `a240eae` (N-07), `b09d496` (N-08), `d232e2f` (N-09).
    tanpa `ORDER BY`; pada akun multi-toko, toko aktif bisa tidak deterministik.
    Bukan celah eskalasi, tetapi sumber perilaku tak terduga.
 4. **Tidak ada suite uji backend menyeluruh** — verifikasi bertumpu pada
-   build, vet, uji paket terarah, dan probe runtime ad-hoc.
+   build, vet, uji paket terarah, dan probe runtime ad-hoc. Satu verifier ad-hoc
+   yang saya tulis pun awalnya salah (mengasumsikan `data.store = null` dan
+   memakai PNG korup), dan kesalahan itu menutupi hasil yang sebenarnya benar —
+   verifier ad-hoc harus selalu disertai kontrol positif.
+5. **136 dari 168 rute (81 %) belum pernah diprobe runtime.** Ini permukaan
+   yang *belum terbukti*, bukan permukaan yang *terbukti aman*. Lihat bagian
+   "Cakupan Penyisiran — Angka Sebenarnya".
