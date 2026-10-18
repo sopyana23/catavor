@@ -311,6 +311,10 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	}
 
 	detailedInfoBytes, _ := json.Marshal(req.DetailedInfo)
+	// Kontrak atribut per tipe (models.ProductAttributeSchema): key di luar
+	// allow-list dibuang, sehingga mobile & desktop tidak bisa lagi menyimpan
+	// medan yang hanya dikenal salah satu sisi.
+	req.Attributes = models.FilterProductAttributes(pType, req.Attributes)
 	attributesBytes, _ := json.Marshal(req.Attributes)
 
 	product := models.Product{
@@ -643,7 +647,8 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		product.DetailedInfo = datatypes.JSON(b)
 	}
 	if req.Attributes != nil {
-		b, _ := json.Marshal(req.Attributes)
+		// Same contract as Store: unknown keys for this type are dropped.
+		b, _ := json.Marshal(models.FilterProductAttributes(product.ProductType, req.Attributes))
 		product.Attributes = datatypes.JSON(b)
 	}
 

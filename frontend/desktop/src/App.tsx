@@ -6165,8 +6165,8 @@ Terima kasih.`;
     if (!registerForm.google_id) {
       if (!registerForm.password || !registerForm.password.trim()) {
         errors.password = 'Kata Sandi wajib diisi.';
-      } else if (registerForm.password.length < 6) {
-        errors.password = 'Kata Sandi minimal 6 karakter.';
+      } else if (registerForm.password.length < 8) {
+        errors.password = 'Kata Sandi minimal 8 karakter.';
       }
     }
     setFieldErrors(errors);

@@ -34,6 +34,23 @@ func randomSeedPassword() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
+// mustAutoMigrate menjalankan AutoMigrate untuk sekelompok tabel pendukung dan
+// MENCATAT kegagalannya. Sebelumnya error dibuang (`_ = db.AutoMigrate(...)`),
+// sehingga tabel yang gagal dibuat tidak menghasilkan sinyal apa pun: server
+// tetap start sehat lalu meledak 500 saat fitur itu dipakai.
+//
+// Sengaja tidak menghentikan startup: migrasi inti (blok utama) yang bersifat
+// fatal, sedangkan tabel pendukung boleh menyusul lewat migrasi manual. Yang
+// penting kegagalannya TERLIHAT, bukan senyap.
+func mustAutoMigrate(db *gorm.DB, group string, dst ...interface{}) {
+	if err := db.AutoMigrate(dst...); err != nil {
+		log.Error().
+			Err(err).
+			Str("group", group).
+			Msg("auto-migrate tabel pendukung GAGAL — fitur terkait akan error sampai migrasi manual dijalankan")
+	}
+}
+
 func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	dsn := cfg.GetPostgresDSN()
 
@@ -402,14 +419,14 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_attributes_gin ON products USING GIN (attributes);").Error
 
 	// 2.1 Ensure Schema Columns and High-Performance Indexes on reports table
-	_ = db.AutoMigrate(&models.Report{}, &models.BlacklistedSlug{})
+	mustAutoMigrate(db, "reports/blacklisted_slugs", &models.Report{}, &models.BlacklistedSlug{})
 	_ = db.Exec("ALTER TABLE reports ADD COLUMN IF NOT EXISTS item_type VARCHAR(50);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_reports_item_type ON reports(item_type);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_blacklisted_slugs_slug ON blacklisted_slugs(slug);").Error
 	_ = db.Exec("UPDATE reports r SET item_type = p.product_type FROM products p WHERE r.target_type = 'item' AND r.fauna_id = p.id AND (r.item_type IS NULL OR r.item_type = '');").Error
 
 	// 3. Create Support & Help Center Tables, Columns & Indexes
-	_ = db.AutoMigrate(&models.SupportTicket{}, &models.SupportMessage{}, &models.SupportAttachment{}, &models.HelpArticle{}, &models.SupportCannedResponse{})
+	mustAutoMigrate(db, "support", &models.SupportTicket{}, &models.SupportMessage{}, &models.SupportAttachment{}, &models.HelpArticle{}, &models.SupportCannedResponse{})
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;").Error
@@ -449,7 +466,7 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_is_blacklisted ON stores(is_blacklisted);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_reactivation_token ON stores(reactivation_token);").Error
 	// 5. Ensure ActivityLog Table & Indexes
-	_ = db.AutoMigrate(&models.ActivityLog{})
+	mustAutoMigrate(db, "activity_logs", &models.ActivityLog{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_store_created ON activity_logs(store_id, created_at DESC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at DESC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_action ON activity_logs(action);").Error
@@ -467,7 +484,7 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	// tersebut (mis. lewat jalur OAuth yang tidak memverifikasi kepemilikan)
 	// akan menjadi superadmin tanpa penugasan. Penugasan role sekarang hanya
 	// lewat RBAC (POST /api/admin/rbac/staff) yang tercatat dan dapat dicabut.
-	_ = db.AutoMigrate(&models.PlatformRole{}, &models.PlatformPermission{}, &models.PlatformRolePermission{})
+	mustAutoMigrate(db, "platform_rbac", &models.PlatformRole{}, &models.PlatformPermission{}, &models.PlatformRolePermission{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_platform_roles_slug ON platform_roles(slug);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_platform_permissions_key ON platform_permissions(key);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_platform_permissions_group ON platform_permissions(\"group\");").Error
@@ -476,31 +493,31 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	seedDefaultRBAC(db)
 
 	// 7. Auto-Migrate & Seed Master Safe Domains
-	_ = db.AutoMigrate(&models.SafeDomain{})
+	mustAutoMigrate(db, "safe_domains", &models.SafeDomain{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_safe_domains_active ON safe_domains(is_active);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_safe_domains_cat ON safe_domains(category);").Error
 	seedDefaultSafeDomains(db)
 
 	// 7.1 Auto-Migrate & Index Support Canned Responses
-	_ = db.AutoMigrate(&models.SupportCannedResponse{})
+	mustAutoMigrate(db, "support_canned_responses", &models.SupportCannedResponse{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_canned_responses_cat ON support_canned_responses(category);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_canned_responses_active ON support_canned_responses(is_active);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_canned_responses_sort ON support_canned_responses(sort_order);").Error
 
 	// 8. Auto-Migrate Automation Logs (Persistent Job History)
-	_ = db.AutoMigrate(&models.AutomationLog{})
+	mustAutoMigrate(db, "automation_logs", &models.AutomationLog{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_automation_logs_bot_name ON automation_logs(bot_name);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_automation_logs_status ON automation_logs(status);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_automation_logs_created_at ON automation_logs(created_at DESC);").Error
 
 	// 8.1 Auto-Migrate Transactional Outbox Email Queue Jobs
-	_ = db.AutoMigrate(&models.EmailJob{})
+	mustAutoMigrate(db, "email_jobs", &models.EmailJob{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_status_retry ON email_jobs (status, next_retry_at);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_recipient ON email_jobs (recipient_email);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_reference ON email_jobs (reference_id);").Error
 
 	// 8.2 Auto-Migrate Email Verification OTP Table & Indexes
-	_ = db.AutoMigrate(&models.EmailVerificationOTP{})
+	mustAutoMigrate(db, "email_verification_otps", &models.EmailVerificationOTP{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_email_purpose ON email_verification_otps(email, purpose);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_expires_at ON email_verification_otps(expires_at);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_token ON email_verification_otps(token);").Error
@@ -545,7 +562,7 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	}
 
 	// 9. Ensure Notification & NotificationRead Tables, Columns & Indexes
-	_ = db.AutoMigrate(&models.Notification{}, &models.NotificationRead{})
+	mustAutoMigrate(db, "notifications", &models.Notification{}, &models.NotificationRead{})
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_recipients TEXT;").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_plan_code VARCHAR(64);").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_name VARCHAR(255);").Error

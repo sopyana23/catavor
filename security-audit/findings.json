@@ -551,6 +551,71 @@
     "backend/internal/handlers/client_log_handler.go",
     "backend/internal/handlers/helpers_behavior_test.go"
    ]
+  },
+  {
+   "id": "N-45",
+   "title": "Atribut produk dinamis tanpa kontrak: mobile & desktop menyimpan medan berbeda, data user hilang saat edit lintas perangkat",
+   "severity": "high",
+   "status": "fixed",
+   "category": "data-integrity",
+   "component": "backend/internal/models/product_attribute_schema.go, backend/internal/handlers/product_handler.go, frontend/mobile/src/App.tsx, frontend/desktop/src/App.tsx",
+   "description": "products.attributes bertipe JSONB bebas (map[string]interface{}) tanpa skema per product_type. Mobile mengirim 5 medan yang tidak dikenal desktop (growing_media, plant_legality, ship_condition, watering_frequency, light_requirement) dan desktop mengirim 4 medan yang tidak dikenal mobile (lifespan, native_region, portion_size, prep_time). Karena edit dari sisi lain mengirim objek attributes penuh, medan milik sisi lain ter-overwrite menjadi kosong tanpa error apa pun.",
+   "impact": "Kehilangan data senyap pada 7 tipe item; pengguna yang mengisi atribut di ponsel lalu mengedit di desktop kehilangan isian tersebut.",
+   "fix": "Menambahkan models.ProductAttributeSchema sebagai kontrak tunggal (allow-list eksplisit per tipe) plus FilterProductAttributes yang dipanggil di jalur Store dan Update. Key di luar allow-list dibuang, tipe tak dikenal fail-closed.",
+   "verification": "Unit test TestProductAttributeSchemaCoverage (47 atribut, dua arah) + TestFilterProductAttributes dengan kontrol positif. Kontrol negatif: menghapus portion_size/prep_time dari skema membuat test FAIL, dikembalikan -> PASS. Runtime: POST /api/products tipe physical dengan 6 atribut campuran menyimpan hanya brand+material; tipe food menyimpan halal_status/prep_time/portion_size dan membuang brand; PUT /api/products/13 juga menyaring (dikonfirmasi langsung di DB). Data uji dihapus, DB kembali users=1 stores=0 products=0.",
+   "date": "2026-10-18"
+  },
+  {
+   "id": "N-46",
+   "title": "AutoMigrate untuk tabel pendukung membuang error (10 lokasi) - kegagalan skema tidak terlihat",
+   "severity": "high",
+   "status": "fixed",
+   "category": "reliability",
+   "component": "backend/internal/database/db.go",
+   "description": "Sepuluh pemanggilan `_ = db.AutoMigrate(...)` untuk tabel pendukung (reports, blacklisted_slugs, support*, activity_logs, platform_rbac, safe_domains, automation_logs, email_jobs, email_verification_otps, notifications) membuang error. Hanya blok migrasi utama yang memeriksa error. Dengan DB_AUTO_MIGRATE=true (default produksi), tabel yang gagal dibuat tidak menghasilkan sinyal apa pun: server start sehat lalu mengembalikan 500 saat fiturnya dipakai.",
+   "impact": "Kelas bug yang sama dengan N-26 yang sudah diperbaiki; kegagalan skema di produksi sepenuhnya senyap.",
+   "fix": "Menambahkan helper mustAutoMigrate(db, group, ...) yang mencatat kegagalan lewat zerolog dengan field group. Semua 10 pemanggilan dikonversi. Startup sengaja tidak dihentikan agar perilaku tidak berubah, tetapi kegagalan kini tercatat.",
+   "verification": "Unit test TestMustAutoMigrateLogsFailure memaksa kegagalan nyata (koneksi DB ditutup sebelum migrasi) dan membuktikan log error tercatat: {\"level\":\"error\",\"error\":\"sql: database is closed\",\"group\":\"probe_group\",...}. TestMustAutoMigrateSilentOnSuccess memastikan migrasi sah tidak menghasilkan log error dan tabel benar-benar terbentuk. Catatan metodologi: percobaan pertama memakai bentrok tipe kolom sqlite, yang ternyata direkonsiliasi tanpa error (err=nil) sehingga uji awal dinyatakan TIDAK SAH dan diganti.",
+   "date": "2026-10-18"
+  },
+  {
+   "id": "N-47",
+   "title": "Empat kolom memiliki foreign key duplikat; salah satunya tanpa ON DELETE sehingga memblokir penghapusan user",
+   "severity": "medium",
+   "status": "fixed",
+   "category": "database-schema",
+   "component": "backend/migrations/20261018_n45_dedupe_foreign_keys.sql",
+   "description": "stores.user_id, products.store_id, sightings.fauna_id, dan support_tickets.rated_agent_id masing-masing memiliki DUA foreign key ke tabel yang sama, akibat campuran AutoMigrate dan SQL manual (mis. rename faunas -> products) yang tidak pernah dibersihkan. Pada support_tickets.rated_agent_id satu constraint tidak memiliki ON DELETE SET NULL, sehingga aturan yang berlaku bergantung pada constraint mana yang dievaluasi lebih dulu.",
+   "impact": "Biaya perawatan ganda pada setiap INSERT/UPDATE/DELETE, konflik nama saat pg_dump/restore atau migrasi skema, dan risiko penghapusan user gagal karena dinilai memblokir tiket CSAT.",
+   "fix": "Migrasi idempoten menyisakan satu constraint per kolom dengan aturan ON DELETE yang tepat: CASCADE untuk stores.user_id, products.store_id, sightings.fauna_id; ON DELETE SET NULL untuk support_tickets.rated_agent_id. Constraint yang sudah ada ikut diperbaiki definisinya, bukan hanya dilewati.",
+   "verification": "Sebelum: 8 constraint untuk 4 kolom, total FK 29. Sesudah: 0 duplikat, total FK 25 (tepat 4 dibuang). Migrasi dijalankan dua kali tanpa error (idempoten). Integritas diuji: INSERT stores dengan user_id yatim ditolak (violates foreign key constraint). ON DELETE CASCADE diuji runtime: insert user+store+produk lalu DELETE user -> store dan produk ikut terhapus (0 dan 0), transaksi di-ROLLBACK, DB kembali bersih.",
+   "date": "2026-10-18"
+  },
+  {
+   "id": "N-48",
+   "title": "Validasi password frontend lebih longgar dari aturan backend (6 vs 8 karakter)",
+   "severity": "medium",
+   "status": "fixed",
+   "category": "validation-parity",
+   "component": "frontend/mobile/src/App.tsx, frontend/desktop/src/App.tsx",
+   "description": "security.ValidatePassword mewajibkan minimal 8 karakter, tetapi form registrasi di mobile dan desktop hanya memvalidasi minimal 6 karakter. Pengguna yang mendaftar dengan password 6-7 karakter lolos validasi klien lalu ditolak server dengan pesan error yang tidak terkait dengan field mana pun.",
+   "impact": "Kegagalan registrasi yang membingungkan; validasi klien memberi rasa aman palsu.",
+   "fix": "Ambang validasi registrasi di kedua SPA disamakan menjadi 8 karakter, termasuk teks pesan.",
+   "verification": "grep konfirmasi kedua SPA sebelumnya < 6 dan sesudah < 8 dengan pesan 'minimal 8 karakter'. Typecheck `npx tsc -b --noEmit` bersih di mobile dan desktop. Aturan backend dibaca langsung dari internal/security/sanitizer.go:393.",
+   "date": "2026-10-18"
+  },
+  {
+   "id": "N-49",
+   "title": "Validasi OTP ganti password di mobile menerima 4 digit padahal backend hanya menerbitkan 6 digit",
+   "severity": "low",
+   "status": "fixed",
+   "category": "validation-parity",
+   "component": "frontend/mobile/src/App.tsx",
+   "description": "Handler handleSaveBackupPassword di mobile memakai syarat profileOtpCode.trim().length < 4, sedangkan desktop memakai !== 6. OTP yang diterbitkan backend selalu 6 digit (GenerateCryptographicOTP: rand.Int(900000)+100000 diformat %06d), sehingga input 4-5 digit lolos validasi klien namun pasti gagal di server.",
+   "impact": "Pesan error membingungkan pada alur pemulihan akun; tidak ada risiko keamanan karena server tetap menolak.",
+   "fix": "Syarat disamakan menjadi !== 6 dengan pesan 'Kode verifikasi OTP harus berjumlah 6 digit angka'.",
+   "verification": "Pemindaian seluruh pola validasi OTP di kedua SPA: semua titik lain sudah menggunakan !== 6, hanya titik ini yang menyimpang. Format OTP dikonfirmasi dari internal/services/otp_service.go:41-47. Typecheck mobile bersih.",
+   "date": "2026-10-18"
   }
  ],
  "verified_ok": [

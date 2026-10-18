@@ -6173,8 +6173,8 @@ Terima kasih.`;
     if (!registerForm.google_id) {
       if (!registerForm.password || !registerForm.password.trim()) {
         errors.password = 'Kata Sandi wajib diisi.';
-      } else if (registerForm.password.length < 6) {
-        errors.password = 'Kata Sandi minimal 6 karakter.';
+      } else if (registerForm.password.length < 8) {
+        errors.password = 'Kata Sandi minimal 8 karakter.';
       }
     }
     setFieldErrors(errors);
@@ -12746,8 +12746,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         showToast(msg, 'error');
         return;
       }
-      if (profilePasswordMode === 'otp' && (!profileOtpCode || profileOtpCode.trim().length < 4)) {
-        const msg = 'Kode verifikasi OTP wajib diisi (minimal 4 digit).';
+      if (profilePasswordMode === 'otp' && (!profileOtpCode || profileOtpCode.trim().length !== 6)) {
+        const msg = 'Kode verifikasi OTP harus berjumlah 6 digit angka.';
         setBackupPasswordError(msg);
         showToast(msg, 'error');
         return;
