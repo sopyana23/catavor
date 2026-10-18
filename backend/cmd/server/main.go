@@ -82,8 +82,8 @@ func main() {
 	handlers.LoadMasterCategoryCache()
 	handlers.LoadMasterPresetCache()
 	subscriptionHandler := handlers.NewSubscriptionHandler()
-	productHandler := handlers.NewProductHandler(cfg)
-	categoryHandler := handlers.NewCategoryHandler()
+	productHandler := handlers.NewProductHandler(cfg, database.DB)
+	categoryHandler := handlers.NewCategoryHandler(database.DB)
 	articleHandler := handlers.NewArticleHandler()
 	settingHandler := handlers.NewSettingHandler()
 	reportHandler := handlers.NewReportHandler()
@@ -206,8 +206,6 @@ func main() {
 	// 40 POST berturut-turut dari satu IP menaikkan helpful_count 0 -> 40.
 	api.Post("/help/articles/:id/helpful", middleware.PublicSubmissionRateLimiter(), supportHandler.VoteHelpful)
 
-	api.Get("/taxonomy/culinary", productHandler.GetCulinaryTaxonomy)
-	api.Get("/culinary-taxonomy", productHandler.GetCulinaryTaxonomy)
 	api.Get("/settings", settingHandler.Index)
 	api.Get("/policies", settingHandler.GetPolicies)
 	api.Post("/policies/agree", middleware.PublicSubmissionRateLimiter(), settingHandler.RecordAgreement)
@@ -318,7 +316,6 @@ func main() {
 		// Storage & Cloud Object Endpoints (S3 / MinIO / Local)
 		guardedMutations.Post("/storage/upload", storageHandler.Upload)
 		guardedMutations.Delete("/storage/file", storageHandler.DeleteFile)
-		guardedMutations.Post("/upload-image", storageHandler.Upload) // Backward compatibility alias
 
 		// CRUD Modern Product & Category
 		guardedMutations.Post("/products", productHandler.Store)

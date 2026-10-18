@@ -13,12 +13,15 @@ import (
 	"catavor-backend/internal/security"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
-type CategoryHandler struct{}
+type CategoryHandler struct {
+	db *gorm.DB
+}
 
-func NewCategoryHandler() *CategoryHandler {
-	return &CategoryHandler{}
+func NewCategoryHandler(db *gorm.DB) *CategoryHandler {
+	return &CategoryHandler{db: db}
 }
 
 func slugifyCategory(s string) string {
@@ -29,7 +32,7 @@ func slugifyCategory(s string) string {
 }
 
 // InvalidateStoreCategoriesCache purges cached category queries and store profile for a specific store.
-func InvalidateStoreCategoriesCache(storeID uint) {
+func InvalidateStoreCategoriesCache(db *gorm.DB, storeID uint) {
 	if database.IsRedisAvailable() && database.RedisClient != nil && storeID > 0 {
 		ctx := context.Background()
 		pattern := fmt.Sprintf("catavor:store:%d:categories:*", storeID)
@@ -38,14 +41,22 @@ func InvalidateStoreCategoriesCache(storeID uint) {
 			_ = database.RedisClient.Del(ctx, iter.Val()).Err()
 		}
 		var store models.Store
-		if err := database.DB.Select("slug").Where("id = ?", storeID).First(&store).Error; err == nil && store.Slug != "" {
-			_ = database.RedisClient.Del(ctx, fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
+		if db != nil {
+			if err := db.Select("slug").Where("id = ?", storeID).First(&store).Error; err == nil && store.Slug != "" {
+				_ = database.RedisClient.Del(ctx, fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
+			}
 		}
 	}
 }
 
 // Index returns all categories for the authenticated store or requested store slug.
 func (h *CategoryHandler) Index(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var storeID uint
 
 	if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil {
@@ -53,7 +64,7 @@ func (h *CategoryHandler) Index(c *fiber.Ctx) error {
 	} else if slug := c.Params("slug"); slug != "" {
 		cleanSlug := strings.ToLower(strings.TrimSpace(slug))
 		var blacklistedCount int64
-		database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", cleanSlug).Count(&blacklistedCount)
+		h.db.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", cleanSlug).Count(&blacklistedCount)
 		if blacklistedCount > 0 {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success": false,
@@ -62,7 +73,7 @@ func (h *CategoryHandler) Index(c *fiber.Ctx) error {
 			})
 		}
 		var store models.Store
-		if err := database.DB.Where("LOWER(slug) = ?", cleanSlug).First(&store).Error; err != nil || store.DormancyStatus == "banned" || store.DormancyStatus == "purged" || store.IsBlacklisted {
+		if err := h.db.Where("LOWER(slug) = ?", cleanSlug).First(&store).Error; err != nil || store.DormancyStatus == "banned" || store.DormancyStatus == "purged" || store.IsBlacklisted {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success": false,
 				"code":    "STORE_BANNED",
@@ -94,7 +105,7 @@ func (h *CategoryHandler) Index(c *fiber.Ctx) error {
 	}
 
 	var categories []models.Category
-	query := database.DB.Where("store_id = ?", storeID)
+	query := h.db.Where("store_id = ?", storeID)
 
 	if pType != "" {
 		query = query.Where("product_type = ?", pType)
@@ -173,14 +184,14 @@ func (h *CategoryHandler) Store(c *fiber.Ctx) error {
 		IsActive:    true,
 	}
 
-	if err := database.DB.Create(&category).Error; err != nil {
+	if err := h.db.Create(&category).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal menambahkan kategori baru.",
 		})
 	}
 
-	InvalidateStoreCategoriesCache(store.ID)
+	InvalidateStoreCategoriesCache(h.db, store.ID)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -201,7 +212,7 @@ func (h *CategoryHandler) Update(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 	var category models.Category
-	if err := database.DB.Where("id = ? AND store_id = ?", id, store.ID).First(&category).Error; err != nil {
+	if err := h.db.Where("id = ? AND store_id = ?", id, store.ID).First(&category).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Kategori tidak ditemukan.",
@@ -232,14 +243,14 @@ func (h *CategoryHandler) Update(c *fiber.Ctx) error {
 		category.IsActive = *req.IsActive
 	}
 
-	if err := database.DB.Save(&category).Error; err != nil {
+	if err := h.db.Save(&category).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memperbarui kategori.",
 		})
 	}
 
-	InvalidateStoreCategoriesCache(store.ID)
+	InvalidateStoreCategoriesCache(h.db, store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -260,7 +271,7 @@ func (h *CategoryHandler) Destroy(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 	var category models.Category
-	if err := database.DB.Where("id = ? AND store_id = ?", id, store.ID).First(&category).Error; err != nil {
+	if err := h.db.Where("id = ? AND store_id = ?", id, store.ID).First(&category).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Kategori tidak ditemukan.",
@@ -268,16 +279,16 @@ func (h *CategoryHandler) Destroy(c *fiber.Ctx) error {
 	}
 
 	// Detach products linked to this category
-	_ = database.DB.Model(&models.Product{}).Where("category_id = ?", category.ID).Update("category_id", nil).Error
+	_ = h.db.Model(&models.Product{}).Where("category_id = ?", category.ID).Update("category_id", nil).Error
 
-	if err := database.DB.Delete(&category).Error; err != nil {
+	if err := h.db.Delete(&category).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal menghapus kategori.",
 		})
 	}
 
-	InvalidateStoreCategoriesCache(store.ID)
+	InvalidateStoreCategoriesCache(h.db, store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,

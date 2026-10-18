@@ -23,10 +23,11 @@ import (
 
 type ProductHandler struct {
 	cfg *config.Config
+	db  *gorm.DB
 }
 
-func NewProductHandler(cfg *config.Config) *ProductHandler {
-	return &ProductHandler{cfg: cfg}
+func NewProductHandler(cfg *config.Config, db *gorm.DB) *ProductHandler {
+	return &ProductHandler{cfg: cfg, db: db}
 }
 
 type ProductRequest struct {
@@ -60,6 +61,12 @@ type ProductRequest struct {
 
 // Index returns a list of products with optional search, category, and type filters.
 func (h *ProductHandler) Index(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	var storeID uint
 	isMerchantView := false
 
@@ -68,7 +75,7 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 		isMerchantView = true
 	} else if slug := c.Params("slug"); slug != "" {
 		var store models.Store
-		if err := database.DB.Where("LOWER(slug) = ?", strings.ToLower(slug)).First(&store).Error; err != nil {
+		if err := h.db.Where("LOWER(slug) = ?", strings.ToLower(slug)).First(&store).Error; err != nil {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success": false,
 				"message": "Toko tidak ditemukan.",
@@ -77,7 +84,7 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 		storeID = store.ID
 	}
 
-	query := database.DB.Model(&models.Product{}).Preload("Category").Preload("Images").Preload("Variants")
+	query := h.db.Model(&models.Product{}).Preload("Category").Preload("Images").Preload("Variants")
 	if storeID > 0 {
 		query = query.Where("products.store_id = ?", storeID)
 	}
@@ -139,7 +146,7 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var product models.Product
 
-	if err := database.DB.Preload("Category").Preload("Images").Preload("Variants").Preload("Store").First(&product, id).Error; err != nil {
+	if err := h.db.Preload("Category").Preload("Images").Preload("Variants").Preload("Store").First(&product, id).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Produk tidak ditemukan.",
@@ -156,11 +163,11 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 				isAuthorized = true
 			} else if claims.UserID > 0 {
 				var store models.Store
-				if err := database.DB.Where("id = ? AND user_id = ?", product.StoreID, claims.UserID).First(&store).Error; err == nil {
+				if err := h.db.Where("id = ? AND user_id = ?", product.StoreID, claims.UserID).First(&store).Error; err == nil {
 					isAuthorized = true
 				} else {
 					var user models.User
-					if err := database.DB.Select("platform_role").First(&user, claims.UserID).Error; err == nil && user.IsPlatformStaff() {
+					if err := h.db.Select("platform_role").First(&user, claims.UserID).Error; err == nil && user.IsPlatformStaff() {
 						isAuthorized = true
 					}
 				}
@@ -178,7 +185,7 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 
 	// Increment view count only for active items viewed by public
 	if product.IsActive {
-		database.DB.Model(&product).UpdateColumn("view_count", gormExpr("view_count + 1"))
+		h.db.Model(&product).UpdateColumn("view_count", gormExpr("view_count + 1"))
 	}
 
 	// SECURITY (N-08): jangan kirim models.Store mentah ke endpoint publik.
@@ -210,7 +217,7 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	}
 
 	// Dynamic Plan Quota Check
-	if allowed, msg := services.CanAddProduct(database.DB, store.ID); !allowed {
+	if allowed, msg := services.CanAddProduct(h.db, store.ID); !allowed {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": msg,
@@ -298,7 +305,7 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	className := security.SanitizePlainText(req.Class, 100)
 	if categoryID == nil && className != "" {
 		var cat models.Category
-		if err := database.DB.Where("store_id = ? AND LOWER(name) = ?", store.ID, strings.ToLower(className)).First(&cat).Error; err == nil {
+		if err := h.db.Where("store_id = ? AND LOWER(name) = ?", store.ID, strings.ToLower(className)).First(&cat).Error; err == nil {
 			categoryID = &cat.ID
 		} else {
 			slug := strings.ToLower(className)
@@ -313,7 +320,7 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 				SortOrder:   0,
 				IsActive:    true,
 			}
-			if err := database.DB.Create(&newCat).Error; err == nil {
+			if err := h.db.Create(&newCat).Error; err == nil {
 				categoryID = &newCat.ID
 			}
 		}
@@ -383,7 +390,7 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	}
 
 	// ACID Database Transaction: All-or-Nothing (No half-baked / orphaned product records)
-	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Insert product record
 		if err := tx.Create(&product).Error; err != nil {
 			return err
@@ -460,12 +467,12 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	}
 
 	// Reload complete product with relations
-	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
+	h.db.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
 
 	InvalidateStoreProductsCache(store.ID)
-	services.SyncStoreStorageUsed(database.DB, store.ID)
+	services.SyncStoreStorageUsed(h.db, store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
-	go services.BroadcastStoreQuotaSync(database.DB, store.ID)
+	go services.BroadcastStoreQuotaSync(h.db, store.ID)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -486,7 +493,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 	var product models.Product
-	if err := database.DB.Where("id = ? AND store_id = ?", id, store.ID).First(&product).Error; err != nil {
+	if err := h.db.Where("id = ? AND store_id = ?", id, store.ID).First(&product).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Produk tidak ditemukan atau bukan milik toko Anda.",
@@ -502,7 +509,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		oldImagesMap[product.ImageURL] = true
 	}
 	var existingGalleryImgs []models.ProductImage
-	database.DB.Where("product_id = ?", product.ID).Find(&existingGalleryImgs)
+	h.db.Where("product_id = ?", product.ID).Find(&existingGalleryImgs)
 	for _, eg := range existingGalleryImgs {
 		if eg.ImageURL != "" {
 			oldImagesMap[eg.ImageURL] = true
@@ -535,7 +542,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		targetActive = *req.IsActive
 	}
 
-	if allowed, msg := services.CanEditOrReactivateProduct(database.DB, store.ID, product.ID, targetActive); !allowed {
+	if allowed, msg := services.CanEditOrReactivateProduct(h.db, store.ID, product.ID, targetActive); !allowed {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": msg,
@@ -581,7 +588,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			product.CategoryID = req.CategoryID
 		} else {
 			var cat models.Category
-			if err := database.DB.Where("store_id = ? AND LOWER(name) = ?", store.ID, strings.ToLower(className)).First(&cat).Error; err == nil {
+			if err := h.db.Where("store_id = ? AND LOWER(name) = ?", store.ID, strings.ToLower(className)).First(&cat).Error; err == nil {
 				product.CategoryID = &cat.ID
 			} else {
 				slug := strings.ToLower(className)
@@ -596,7 +603,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 					SortOrder:   0,
 					IsActive:    true,
 				}
-				if err := database.DB.Create(&newCat).Error; err == nil {
+				if err := h.db.Create(&newCat).Error; err == nil {
 					product.CategoryID = &newCat.ID
 				}
 			}
@@ -726,7 +733,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	now := time.Now().UTC()
 
 	// ACID Database Transaction: All-or-Nothing (No half-baked / inconsistent state)
-	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Save product record
 		if err := tx.Save(&product).Error; err != nil {
 			return err
@@ -828,9 +835,9 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	for oldImg := range oldImagesMap {
 		if !newImagesMap[oldImg] {
 			var otherProdCount int64
-			database.DB.Model(&models.Product{}).Where("deleted_at IS NULL AND id != ? AND image_url = ?", product.ID, oldImg).Count(&otherProdCount)
+			h.db.Model(&models.Product{}).Where("deleted_at IS NULL AND id != ? AND image_url = ?", product.ID, oldImg).Count(&otherProdCount)
 			var otherGalleryCount int64
-			database.DB.Model(&models.ProductImage{}).
+			h.db.Model(&models.ProductImage{}).
 				Joins("JOIN products ON products.id = product_images.product_id").
 				Where("products.deleted_at IS NULL AND product_images.product_id != ? AND product_images.image_url = ?", product.ID, oldImg).
 				Count(&otherGalleryCount)
@@ -841,7 +848,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	}
 
 	// Always sync store storage bytes and clear quota cache
-	services.SyncStoreStorageUsed(database.DB, store.ID)
+	services.SyncStoreStorageUsed(h.db, store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 
 	// Trigger broadcast alert & report synchronization if product was resubmitted
@@ -865,7 +872,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 				CreatedAt:     now,
 				UpdatedAt:     now,
 			}
-			_ = database.DB.Create(&adminNotif).Error
+			_ = h.db.Create(&adminNotif).Error
 			services.GetNotificationHub().Broadcast(&adminNotif)
 		}(product.ID, product.Name, store.StoreTitle)
 
@@ -886,11 +893,11 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
-		_ = database.DB.Create(&merchantNotif).Error
+		_ = h.db.Create(&merchantNotif).Error
 		services.GetNotificationHub().Broadcast(&merchantNotif)
 	}
 
-	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
+	h.db.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
 
 	respMsg := "Produk berhasil diperbarui."
 	if wasInNeedsFix {
@@ -899,7 +906,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 
 	InvalidateStoreProductsCache(store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
-	go services.BroadcastStoreQuotaSync(database.DB, store.ID)
+	go services.BroadcastStoreQuotaSync(h.db, store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -920,7 +927,7 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 	var product models.Product
-	if err := database.DB.Where("id = ? AND store_id = ?", id, store.ID).First(&product).Error; err != nil {
+	if err := h.db.Where("id = ? AND store_id = ?", id, store.ID).First(&product).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Produk tidak ditemukan atau bukan milik toko Anda.",
@@ -930,7 +937,7 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 	// Rate Limit Anti-Abuse: Maksimal 15 item dihapus per 24 jam per toko
 	const maxDeletionsPer24h = 15
 	var recentDeletionsCount int64
-	database.DB.Unscoped().Model(&models.Product{}).
+	h.db.Unscoped().Model(&models.Product{}).
 		Where("store_id = ? AND deleted_at IS NOT NULL AND deleted_at >= ?", store.ID, time.Now().UTC().Add(-24*time.Hour)).
 		Count(&recentDeletionsCount)
 
@@ -958,7 +965,7 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 	}
 
 	// 1. ACID Database Transaction: Soft Delete Product (Child images & variants retained for 72h retention)
-	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
 		// Soft delete the product row (sets deleted_at = NOW())
 		if err := tx.Delete(&product).Error; err != nil {
 			return err
@@ -1000,9 +1007,9 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 	// 2. Real-time Quota Release:
 	// Soft-deleted product media is preserved on disk for 72-hour cooling-off investigation,
 	// but instantly excluded from merchant active quota calculation!
-	services.SyncStoreStorageUsed(database.DB, store.ID)
+	services.SyncStoreStorageUsed(h.db, store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
-	go services.BroadcastStoreQuotaSync(database.DB, store.ID)
+	go services.BroadcastStoreQuotaSync(h.db, store.ID)
 
 	InvalidateStoreProductsCache(store.ID)
 
@@ -1031,7 +1038,7 @@ func formatRupiahInt(n int) string {
 func (h *ProductHandler) GetRecommendations(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var current models.Product
-	if err := database.DB.First(&current, id).Error; err != nil {
+	if err := h.db.First(&current, id).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Produk tidak ditemukan.",
@@ -1039,7 +1046,7 @@ func (h *ProductHandler) GetRecommendations(c *fiber.Ctx) error {
 	}
 
 	var recs []models.Product
-	database.DB.Where("store_id = ? AND id != ? AND is_active = true", current.StoreID, current.ID).
+	h.db.Where("store_id = ? AND id != ? AND is_active = true", current.StoreID, current.ID).
 		Where("class = ? OR product_type = ?", current.Class, current.ProductType).
 		Order("id DESC").
 		Limit(4).
@@ -1063,7 +1070,7 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 	var product models.Product
-	if err := database.DB.Where("id = ? AND store_id = ?", id, store.ID).First(&product).Error; err != nil {
+	if err := h.db.Where("id = ? AND store_id = ?", id, store.ID).First(&product).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Produk tidak ditemukan.",
@@ -1083,7 +1090,7 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 	product.ResubmittedAt = &now
 	product.ResubmitCount = product.ResubmitCount + 1
 
-	if err := database.DB.Save(&product).Error; err != nil {
+	if err := h.db.Save(&product).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mengajukan peninjauan ulang.",
@@ -1094,10 +1101,10 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 
 	// Update associated reports to 're_review'
 	var itemReports []models.Report
-	database.DB.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports)
+	h.db.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports)
 	for _, r := range itemReports {
 		noteUpdate := strings.TrimSpace(r.AdminNotes + fmt.Sprintf("\n[%s] Merchant telah mengajukan peninjauan ulang produk.", now.Format("02 Jan 2006 15:04 WIB")))
-		database.DB.Model(&r).Updates(map[string]interface{}{
+		h.db.Model(&r).Updates(map[string]interface{}{
 			"status":      "re_review",
 			"admin_notes": noteUpdate,
 			"updated_at":  now,
@@ -1122,7 +1129,7 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
-		_ = database.DB.Create(&adminNotif).Error
+		_ = h.db.Create(&adminNotif).Error
 		services.GetNotificationHub().Broadcast(&adminNotif)
 	}(product.ID, product.Name, store.StoreTitle)
 
@@ -1143,106 +1150,12 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
-	_ = database.DB.Create(&merchantNotif).Error
+	_ = h.db.Create(&merchantNotif).Error
 	services.GetNotificationHub().Broadcast(&merchantNotif)
 
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Produk berhasil diajukan untuk peninjauan ulang oleh tim kepatuhan.",
 		"data":    product,
-	})
-}
-
-// CulinaryTaxonomyItem represents presets for F&B product taxonomy.
-type CulinaryTaxonomyItem struct {
-	CategoryName       string   `json:"category_name"`
-	Description        string   `json:"description"`
-	DefaultStorageTemp string   `json:"default_storage_temp"`
-	DefaultExpiredInfo string   `json:"default_expired_info"`
-	DefaultShipping    string   `json:"default_shipping"`
-	PortionPlaceholder string   `json:"portion_placeholder"`
-	SpecificFields     []string `json:"specific_fields"`
-}
-
-// GetCulinaryTaxonomy returns default taxonomy presets for culinary / food items.
-func (h *ProductHandler) GetCulinaryTaxonomy(c *fiber.Ctx) error {
-	taxonomy := []CulinaryTaxonomyItem{
-		{
-			CategoryName:       "Makanan Siap Santap",
-			Description:        "Makanan matang siap makan (dine-in, takeaway, atau kurir instan).",
-			DefaultStorageTemp: "Hangat / Langsung Santap",
-			DefaultExpiredInfo: "Fresh Daily (Hari Ini)",
-			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
-			PortionPlaceholder: "Contoh: 1 Porsi / Paket Nasi Komplit",
-			SpecificFields:     []string{"portion_size", "spicy_level", "prep_time", "serving_method", "certification"},
-		},
-		{
-			CategoryName:       "Makanan Beku & Olahan (Frozen)",
-			Description:        "Makanan beku atau olahan siap masak (dimsum, bakso, daging marinasi).",
-			DefaultStorageTemp: "Beku (Freezer -18°C)",
-			DefaultExpiredInfo: "3 Bulan di Freezer",
-			DefaultShipping:    "Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)",
-			PortionPlaceholder: "Contoh: Pack 500 gr / Box isi 10 pcs",
-			SpecificFields:     []string{"portion_size", "cooking_guide", "expired_info", "storage_temp", "certification"},
-		},
-		{
-			CategoryName:       "Minuman & Olahan Kopi",
-			Description:        "Minuman segar, kopi botolan, artisan tea, atau jus.",
-			DefaultStorageTemp: "Dingin (Chiller)",
-			DefaultExpiredInfo: "3-7 Hari di Kulkas",
-			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
-			PortionPlaceholder: "Contoh: Botol 250 ml / Literan 1000 ml / Cup 16oz",
-			SpecificFields:     []string{"portion_size", "sugar_ice_options", "storage_temp", "expired_info", "certification"},
-		},
-		{
-			CategoryName:       "Camilan, Snack & Kue Kering",
-			Description:        "Makanan ringan renyah, keripik, cookies, atau camilan kering tahan lama.",
-			DefaultStorageTemp: "Suhu Ruang",
-			DefaultExpiredInfo: "3-6 Bulan (Kemasan Rapat)",
-			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
-			PortionPlaceholder: "Contoh: Pouch 200 gr / Toples 250 gr / Pack 100 gr",
-			SpecificFields:     []string{"portion_size", "spicy_level", "expired_info", "storage_temp", "certification"},
-		},
-		{
-			CategoryName:       "Bakery, Roti & Pastry",
-			Description:        "Roti panggang segar, kue bolu, pastry, donat, atau cake harian.",
-			DefaultStorageTemp: "Suhu Ruang",
-			DefaultExpiredInfo: "3-4 Hari (Suhu Ruang)",
-			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
-			PortionPlaceholder: "Contoh: 1 Loyang (Diameter 20cm) / Box isi 6 pcs / Loaf 400 gr",
-			SpecificFields:     []string{"portion_size", "taste_options", "expired_info", "bake_status", "certification"},
-		},
-		{
-			CategoryName:       "Bumbu & Bahan Masak",
-			Description:        "Bumbu masakan siap pakai, saus botolan, rempah, atau minyak olahan.",
-			DefaultStorageTemp: "Suhu Ruang",
-			DefaultExpiredInfo: "6-12 Bulan",
-			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
-			PortionPlaceholder: "Contoh: Botol 250 gr / Pouch 500 gr / Pack 1 kg",
-			SpecificFields:     []string{"portion_size", "serving_capacity", "expired_info", "storage_temp", "certification"},
-		},
-		{
-			CategoryName:       "Katering & Paket Pesanan",
-			Description:        "Paket pesanan porsi banyak, tumpeng, nasi boks prasmanan, meal prep.",
-			DefaultStorageTemp: "Hangat / Langsung Santap",
-			DefaultExpiredInfo: "Fresh Daily (Hari Acara)",
-			DefaultShipping:    "Pre-Order Khusus (Katering / Acara)",
-			PortionPlaceholder: "Contoh: Minimal 20 Box / Tampah 15 Porsi",
-			SpecificFields:     []string{"min_order", "inclusions", "prep_time", "delivery_service", "certification"},
-		},
-		{
-			CategoryName:       "Lainnya",
-			Description:        "Produk kuliner khusus atau kombinasi lainnya.",
-			DefaultStorageTemp: "Fleksibel",
-			DefaultExpiredInfo: "Sesuai Kemasan",
-			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
-			PortionPlaceholder: "Contoh: 1 Unit / Pack / Box",
-			SpecificFields:     []string{"portion_size", "expired_info", "storage_temp", "certification"},
-		},
-	}
-
-	return c.JSON(fiber.Map{
-		"success": true,
-		"data":    taxonomy,
 	})
 }
