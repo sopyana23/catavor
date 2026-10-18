@@ -374,9 +374,18 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
           if (!active) return;
 
           // PDF.js Security Hardening: Disable eval in worker
+          // N-32: arahkan cmap & font standar ke aset lokal yang ikut di-bundle.
+          // Sebelumnya `cMapPacked: true` diset TANPA `cMapUrl`, sehingga PDF
+          // dokumen CJK / font non-embedded bergantung pada fallback CDN (yang
+          // bisa diblokir, offline, atau lambat) dan memicu warning konsol.
+          // Path absolut dari root (BASE_URL) supaya tetap benar di kedalaman
+          // route mana pun modal ini dibuka.
+          const assetBase = `${import.meta.env.BASE_URL}pdfjs/`;
           const loadingTask = pdfjsLib.getDocument({
             data: new Uint8Array(arrayBuffer),
+            cMapUrl: `${assetBase}cmaps/`,
             cMapPacked: true,
+            standardFontDataUrl: `${assetBase}standard_fonts/`,
             isEvalSupported: false,
           });
 
