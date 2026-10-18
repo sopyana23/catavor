@@ -1,5 +1,5 @@
 {
- "audit_date": "2026-10-16",
+ "audit_date": "2026-10-18",
  "target": "C:\\MyProject\\DFauna",
  "scope": "backend Go (Fiber+GORM) + frontend React TS",
  "read_only": true,
@@ -191,6 +191,33 @@
    "commit": "ac1ae3e",
    "summary": "email_verified dibaca tetapi tidak diperiksa di kedua jalur verifikasi; CASE A menempelkan google_id ke akun mana pun dengan email sama. Penjagaan wajib mensyaratkan akun belum tertaut Google agar 5 akun produksi tidak terkunci.",
    "runtime_proof": "unit test + kontrol negatif; cek data 5 akun lolos"
+  },
+  {
+   "id": "N-15",
+   "severity": "high",
+   "title": "X-Forwarded-For dapat dipalsukan; rate limiter & dedup per-IP dilewati",
+   "location": "backend/internal/config/config.go (TrustedProxies), backend/cmd/server/main.go: fiber.Config, backend/internal/handlers/analytics_handler.go, backend/internal/handlers/report_handler.go",
+   "status": "fixed",
+   "summary": "TrustedProxies di-hardcode mencakup 127.0.0.1/::1 dan seluruh RFC1918 sehingga siapa pun di LAN dianggap proxy terpercaya. Dua handler juga membaca X-Forwarded-For mentah, melewati normalisasi Fiber. Daftar kini konfigurabel via TRUSTED_PROXIES (default loopback) dan kedua handler memakai c.IP().",
+   "runtime_proof": "Dari IP LAN 192.168.1.6: 15 request -> 429; 8 request dengan XFF berputar sebelumnya 200 semua, sesudah perbaikan 429 semua."
+  },
+  {
+   "id": "N-16",
+   "severity": "medium",
+   "title": "POST /api/help/articles/:id/helpful tanpa rate limiter dan tanpa dedup",
+   "location": "backend/cmd/server/main.go (registrasi rute), backend/internal/handlers/support_handler.go: VoteHelpful",
+   "status": "fixed",
+   "summary": "Rute publik menaikkan helpful_count tanpa batas. Ditambahkan PublicSubmissionRateLimiter dan dedup per (IP, artikel) berjendela 24 jam.",
+   "runtime_proof": "40 POST dari satu IP: sebelumnya helpful_count 0->40; sesudah perbaikan 200 x15 lalu 429 x25 dan helpful_count tetap 1."
+  },
+  {
+   "id": "N-17",
+   "severity": "medium",
+   "title": "Enumerasi akun lewat /api/send-register-otp dan forgot-password",
+   "location": "backend/internal/handlers/auth_handler.go: SendRegistrationOTP, ForgotPasswordRequest",
+   "status": "fixed",
+   "summary": "Email terdaftar dibalas 422 'Email sudah terdaftar' sementara email bebas 200; cabang blacklist juga 403 dengan alasan eksplisit. Semua jalur keluar (termasuk honeypot) kini memakai satu respons seragam.",
+   "runtime_proof": "Respons byte-identik 200 untuk email terdaftar dan tidak terdaftar. Uji versi pertama tidak sah (lulus walau jalur dibedakan); diganti dan dibuktikan gagal saat satu jalur dibedakan."
   }
  ],
  "verified_ok": [
@@ -207,8 +234,8 @@
   "OWASP_A03_injection": "pass",
   "OWASP_A01_access_control": "pass",
   "OWASP_A06_vulnerable_components": "fail",
-  "OWASP_A05_misconfig": "partial",
-  "OWASP_A07_auth": "pass (requires Redis in prod)",
+  "OWASP_A05_misconfig": "partial (TRUSTED_PROXIES wajib disetel eksplisit di deployment dengan proxy non-loopback)",
+  "OWASP_A07_auth": "pass",
   "SOC2_ISO27001_phase2": "not_started"
  }
 }

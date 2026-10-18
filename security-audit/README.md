@@ -1,8 +1,8 @@
 # Audit Keamanan — DFauna / Catavor
 
 > **Status: putaran 1–3 selesai.** 12/12 temuan putaran 1 tertutup (H1–L6),
-> 6 temuan putaran 2 tertutup (N-01…N-06), dan 8 temuan putaran 3 tertutup
-> (N-07…N-14). Lihat [audit-putaran-3.md](audit-putaran-3.md) untuk laporan
+> 6 temuan putaran 2 tertutup (N-01…N-06), dan 11 temuan putaran 3 tertutup
+> (N-07…N-17). Lihat [audit-putaran-3.md](audit-putaran-3.md) untuk laporan
 > terbaru — termasuk angka cakupan rute yang sebenarnya.
 
 Riwayat panjang: putaran 1 adalah audit read-only (tanpa perubahan kode).
@@ -12,7 +12,7 @@ Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 
 | File | Isi |
 |---|---|
-| [audit-putaran-3.md](audit-putaran-3.md) | **Laporan terbaru** — N-07…N-14, cakupan rute, sisa risiko |
+| [audit-putaran-3.md](audit-putaran-3.md) | **Laporan terbaru** — N-07…N-17, cakupan rute, sisa risiko |
 | [audit-putaran-2.md](audit-putaran-2.md) | Putaran 2 — N-01…N-06 (JWT secret, path guard, route gating) |
 | [STATUS-AKHIR.md](STATUS-AKHIR.md) | Ringkasan putaran 1 (H1–L6) + cara verifikasi ulang |
 | [security-audit-report.md](security-audit-report.md) | Audit #1 — keamanan aplikasi (OWASP), 2 HIGH / 4 MED / 6 LOW |
@@ -39,7 +39,7 @@ Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 ## Ringkas status
 
 - **Keamanan**: 12/12 temuan putaran 1 tertutup. Putaran 2: N-01…N-06 tertutup.
-  Putaran 3: N-07…N-12 tertutup, semuanya diverifikasi runtime; N-11 dan N-12
+  Putaran 3: N-07…N-17 tertutup, semuanya diverifikasi runtime; N-11, N-12, N-15, N-16, dan N-17
   disertai kontrol negatif.
 - **Cakupan uji**: 34 dari 195 rute (17,4 %) terbukti lewat probe runtime;
   161 rute (82,6 %) **belum** diprobe. Ada 140 handler unik (banyak rute alias). Angka ini adalah permukaan yang belum

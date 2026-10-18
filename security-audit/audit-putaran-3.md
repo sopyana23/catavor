@@ -22,6 +22,9 @@ Baseline commit: `2fb1d9f`.
 | N-12 | Staf `support` dapat mengubah pengaturan platform | TINGGI | TERTUTUP `02a22b8` |
 | N-13 | Paket berbayar aktif tanpa bayar lewat `/api/auth/google` | KRITIS | TERTUTUP `ac1ae3e` |
 | N-14 | `email_verified` Google diabaikan; akun dapat diambil alih | TINGGI | TERTUTUP `ac1ae3e` |
+| N-15 | `X-Forwarded-For` dapat dipalsukan; rate limiter & dedup per-IP bisa dilewati | TINGGI | TERTUTUP |
+| N-16 | `/api/help/articles/:id/helpful` tanpa rate limiter & tanpa dedup (vote tak terbatas) | SEDANG | TERTUTUP |
+| N-17 | `/api/send-register-otp` & forgot-password membocorkan status akun (enumerasi) | SEDANG | TERTUTUP |
 
 Semua perbaikan di atas dibuktikan dengan probe runtime, dan N-11 serta N-12
 disertai **kontrol negatif** (source dikembalikan ke versi rentan, di-build
@@ -616,3 +619,119 @@ memastikan `403` berasal dari perbaikan, bukan dari faktor lain.
   konsisten dengan N-05.
 - Tanpa regresi: staf `support` tetap `200` pada `/admin/support/tickets` dan
   `/admin/rbac/me`.
+
+---
+
+## N-15 — `X-Forwarded-For` dapat dipalsukan (rate limiter per-IP dilewati)
+
+### Akar masalah
+Fiber dikonfigurasi `EnableTrustedProxyCheck: true` dengan `ProxyHeader:
+X-Forwarded-For`, tetapi daftar `TrustedProxies` di-hardcode ke
+`127.0.0.1`, `::1`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`.
+Artinya **seluruh jaringan lokal** dianggap proxy terpercaya, sehingga siapa pun
+di LAN dapat menetapkan IP klien sesuka hati. Diperparah oleh dua handler yang
+membaca header itu sendiri, melewati normalisasi Fiber:
+
+- `internal/handlers/analytics_handler.go` (kunci dedup event)
+- `internal/handlers/report_handler.go` (dedup laporan publik)
+
+### Bukti runtime (sebelum perbaikan)
+`/api/client-logs` dibatasi 15 permintaan/menit per IP. Dari IP LAN
+`192.168.1.6`, setelah kuota habis:
+
+```
+200 ×15 -> 429 429 429        (kuota habis)
+lalu 8 permintaan dengan X-Forwarded-For berputar:
+200 200 200 200 200 200 200 200   <- limiter dilewati total
+```
+
+### Perbaikan
+1. `internal/config/config.go`: `TrustedProxies` menjadi konfigurabel via
+   `TRUSTED_PROXIES`, default **hanya loopback** (`127.0.0.1,::1`) — cukup untuk
+   reverse proxy di host yang sama. Deployment lain wajib menyetel eksplisit.
+2. `cmd/server/main.go`: memakai `cfg.TrustedProxies`, tidak lagi hardcode.
+3. Kedua handler berhenti membaca `c.Get("X-Forwarded-For")` dan memakai
+   `c.IP()` saja agar normalisasi Fiber berlaku.
+
+**Catatan operasional:** bila server diletakkan di belakang Nginx/LB dengan IP
+selain loopback (mis. Docker bridge `172.17.0.1`), setel
+`TRUSTED_PROXIES=<ip proxy>`. Tanpa itu IP klien akan tercatat sebagai IP proxy
+(limiter tetap aman, hanya kurang presisi).
+
+### Bukti runtime (sesudah perbaikan)
+```
+200 ×15 -> 429 429 429        (kuota habis)
+8 permintaan dengan X-Forwarded-For berputar:
+429 429 429 429 429 429 429 429   <- tertutup
+```
+
+---
+
+## N-16 — Vote "helpful" tanpa batas
+
+### Akar masalah
+`POST /api/help/articles/:id/helpful` adalah rute publik tanpa rate limiter dan
+tanpa dedup; setiap permintaan menaikkan `helpful_count` lewat
+`UpdateColumn("helpful_count", gorm.Expr("helpful_count + 1"))`.
+
+### Bukti runtime (sebelum perbaikan)
+40 permintaan berturut-turut dari satu IP tanpa login:
+```
+200 ×40 -> helpful_count 0 -> 40
+```
+
+### Perbaikan
+- `middleware.PublicSubmissionRateLimiter()` pada rute tersebut.
+- `sudahVoteHelpful(ip, articleID)` — dedup per (IP, artikel) dengan jendela
+  24 jam, entri kedaluwarsa dibersihkan saat pemanggilan.
+
+### Bukti runtime (sesudah perbaikan)
+```
+200 ×15 -> 429 ×25
+helpful_count = 1
+```
+
+---
+
+## N-17 — Enumerasi akun lewat OTP pendaftaran & lupa password
+
+### Akar masalah
+`SendRegistrationOTP` membalas `422 "Email sudah terdaftar..."` untuk email yang
+sudah ada dan `200` untuk email bebas — perbedaan ini memungkinkan pemetaan
+akun. Cabang blacklist juga membalas `403` dengan alasan eksplisit, dan
+`ForgotPasswordRequest` memiliki cabang serupa.
+
+### Bukti runtime (sebelum perbaikan)
+```
+send-register-otp (terdaftar) : 422 "Email sudah terdaftar..."
+send-register-otp (bebas)     : 200 "Kode OTP 6-digit telah dikirimkan..."
+```
+
+### Perbaikan
+Satu `responsSeragam` dipakai untuk **semua** jalur keluar — termasuk honeypot
+anti-bot dan jalur sukses — sehingga status akun tidak dapat dibedakan.
+
+### Bukti runtime (sesudah perbaikan)
+```
+terdaftar : 200 {"message":"Jika email tersebut dapat digunakan, ...","success":true}
+bebas     : 200 {"message":"Jika email tersebut dapat digunakan, ...","success":true}
+identik   : YA
+```
+
+### Catatan metodologi (penting)
+Uji N-17 versi pertama **tidak sah**: ia hanya mencari string `responsSeragam`
+di sumber, sehingga tetap LULUS walaupun satu jalur diberi pesan berbeda.
+Kontrol negatif mengungkapnya. Uji diganti agar menghitung jumlah pesan sukses
+unik yang benar-benar dikembalikan, dan kini gagal dengan benar saat satu jalur
+dibedakan:
+
+```
+--- FAIL: TestN18ResponsOTPSeragam
+    pesan sukses OTP harus seragam, ditemukan 2 bentuk
+```
+
+Percobaan kontrol negatif yang menghasilkan `declared and not used` /
+`build failed` juga ditolak sebagai bukti — itu kegagalan kompilasi, bukan
+kegagalan logika.
+
+---

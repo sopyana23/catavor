@@ -31,10 +31,6 @@
   "cls": "PUBLIC",
   "line": 195
  },
- "POST|/api/help/articles/:id/helpful": {
-  "cls": "PUBLIC",
-  "line": 196
- },
  "GET|/api/fauna": {
   "cls": "PUBLIC",
   "line": 199
@@ -63,10 +59,6 @@
   "cls": "PUBLIC",
   "line": 205
  },
- "POST|/api/policies/agree": {
-  "cls": "PUBLIC",
-  "line": 206
- },
  "GET|/api/articles": {
   "cls": "PUBLIC",
   "line": 207
@@ -78,14 +70,6 @@
  "GET|/api/articles/:id/comments": {
   "cls": "PUBLIC",
   "line": 209
- },
- "POST|/api/articles/:id/comments": {
-  "cls": "PUBLIC",
-  "line": 210
- },
- "POST|/api/reports": {
-  "cls": "PUBLIC",
-  "line": 211
  },
  "GET|/api/stores/featured": {
   "cls": "PUBLIC",
@@ -131,14 +115,6 @@
   "cls": "PUBLIC",
   "line": 226
  },
- "POST|/api/analytics/track": {
-  "cls": "PUBLIC",
-  "line": 229
- },
- "POST|/api/client-logs": {
-  "cls": "PUBLIC",
-  "line": 230
- },
  "GET|/api/market-intelligence": {
   "cls": "PUBLIC",
   "line": 233
@@ -155,41 +131,9 @@
   "cls": "PUBLIC",
   "line": 239
  },
- "POST|/api/login": {
-  "cls": "PUBLIC",
-  "line": 242
- },
- "POST|/api/register": {
-  "cls": "PUBLIC",
-  "line": 244
- },
  "POST|/api/auth/google": {
   "cls": "PUBLIC",
   "line": 246
- },
- "POST|/api/send-register-otp": {
-  "cls": "PUBLIC",
-  "line": 248
- },
- "POST|/api/auth/verify-registration-otp": {
-  "cls": "PUBLIC",
-  "line": 249
- },
- "POST|/api/verify-register-otp": {
-  "cls": "PUBLIC",
-  "line": 250
- },
- "POST|/api/auth/forgot-password-request": {
-  "cls": "PUBLIC",
-  "line": 251
- },
- "POST|/api/auth/forgot-password-reset": {
-  "cls": "PUBLIC",
-  "line": 253
- },
- "POST|/api/profile/request-password-otp": {
-  "cls": "PUBLIC",
-  "line": 255
  },
  "GET|/api/check-slug": {
   "cls": "PUBLIC",
