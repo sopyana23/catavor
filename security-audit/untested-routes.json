@@ -215,18 +215,6 @@
   "cls": "ADMIN",
   "line": 349
  },
- "POST|/api/admin/support/tickets/:id/reply": {
-  "cls": "ADMIN",
-  "line": 350
- },
- "PUT|/api/admin/support/tickets/:id/status": {
-  "cls": "ADMIN",
-  "line": 351
- },
- "POST|/api/admin/support/tickets/:id/presence": {
-  "cls": "ADMIN",
-  "line": 352
- },
  "GET|/api/admin/support/tickets/:id/presence": {
   "cls": "ADMIN",
   "line": 353
@@ -234,22 +222,6 @@
  "GET|/api/admin/support/templates": {
   "cls": "ADMIN",
   "line": 354
- },
- "POST|/api/admin/support/templates": {
-  "cls": "ADMIN",
-  "line": 355
- },
- "PUT|/api/admin/support/templates/:id": {
-  "cls": "ADMIN",
-  "line": 356
- },
- "DELETE|/api/admin/support/templates/:id": {
-  "cls": "ADMIN",
-  "line": 357
- },
- "POST|/api/admin/support/templates/reset-defaults": {
-  "cls": "ADMIN",
-  "line": 358
  },
  "POST|/api/fauna": {
   "cls": "MERCHANT(+op)",
@@ -323,14 +295,6 @@
   "cls": "ADMIN",
   "line": 431
  },
- "POST|/api/admin/notifications/broadcast": {
-  "cls": "ADMIN",
-  "line": 432
- },
- "DELETE|/api/admin/notifications/:id": {
-  "cls": "ADMIN",
-  "line": 433
- },
  "GET|/api/admin/stores/search": {
   "cls": "ADMIN",
   "line": 434
@@ -359,10 +323,6 @@
   "cls": "ADMIN",
   "line": 445
  },
- "POST|/api/admin/automation/trigger": {
-  "cls": "ADMIN",
-  "line": 446
- },
  "GET|/api/automation/status": {
   "cls": "ADMIN",
   "line": 447
@@ -370,10 +330,6 @@
  "GET|/api/automation/logs": {
   "cls": "ADMIN",
   "line": 448
- },
- "POST|/api/automation/trigger": {
-  "cls": "ADMIN",
-  "line": 449
  },
  "GET|/api/activity-logs": {
   "cls": "MERCHANT",
@@ -387,38 +343,6 @@
   "cls": "ADMIN",
   "line": 455
  },
- "POST|/api/admin/safe-domains": {
-  "cls": "ADMIN",
-  "line": 463
- },
- "PUT|/api/admin/safe-domains/:id": {
-  "cls": "ADMIN",
-  "line": 464
- },
- "DELETE|/api/admin/safe-domains/:id": {
-  "cls": "ADMIN",
-  "line": 465
- },
- "POST|/api/admin/safe-domains/reset-defaults": {
-  "cls": "ADMIN",
-  "line": 466
- },
- "POST|/api/admin/rbac/matrix": {
-  "cls": "ADMIN",
-  "line": 480
- },
- "POST|/api/admin/rbac/roles": {
-  "cls": "ADMIN",
-  "line": 482
- },
- "POST|/api/admin/rbac/staff": {
-  "cls": "ADMIN",
-  "line": 484
- },
- "POST|/api/admin/rbac/staff/revoke": {
-  "cls": "ADMIN",
-  "line": 486
- },
  "GET|/api/admin/reports": {
   "cls": "ADMIN",
   "line": 489
@@ -426,10 +350,6 @@
  "GET|/api/admin/reports/:id": {
   "cls": "ADMIN",
   "line": 490
- },
- "PUT|/api/admin/reports/:id": {
-  "cls": "ADMIN",
-  "line": 491
  },
  "GET|/api/admin/dormancy/metrics": {
   "cls": "ADMIN",

@@ -946,3 +946,57 @@ notifikasi milik orang lain. Ini sempat terlihat seperti IDOR, tetapi
 pemeriksaan database menunjukkan yang dibuat adalah baris baca **untuk user
 pelaku** — tidak ada data korban yang tersentuh. Status 200 saja tidak cukup
 untuk menyimpulkan kebocoran; efek di database yang menentukan.
+
+---
+
+## Hasil probe rute ADMIN (20 rute tulis)
+
+Diuji dengan tiga peran berbeda agar penolakan bermakna: `content` (user 13),
+`finance` (user 12), dan `qa.merchant` (user 18), masing-masing dengan
+**kontrol positif** pada rute yang sama memakai akun superadmin sah.
+
+| Rute | Peran penyerang | Hasil | Kontrol positif |
+|---|---|---|---|
+| `POST /admin/rbac/staff` | content | **403** | admin 200 |
+| `POST /admin/rbac/roles` | content | **403** | admin 200 |
+| `POST /admin/rbac/matrix` | content | **403** | admin 200 |
+| `POST /admin/rbac/staff/revoke` | content | **403** | admin 200 |
+| `POST /admin/safe-domains`, `reset-defaults` | finance | **403** | admin 200 |
+| `POST /admin/support/templates`, `reset-defaults` | finance | **403** | admin 200 |
+| `PUT /admin/reports/:id` | finance | **403** | admin 200 |
+| `POST /admin/support/tickets/:id/presence` | finance | **403** | admin 200 |
+| `POST /admin/support/tickets/:id/reply` | finance | **403** | admin **201** (tiket 41) |
+| `PUT /admin/support/tickets/:id/status` | finance | **403** | admin **200** (status berubah, dipulihkan) |
+| `POST /admin/automation/trigger` | content, finance | **403**, `automation_logs` tetap 316 | — |
+| `POST /automation/trigger` | merchant | **403** | — |
+
+Tidak ada temuan baru di kelas ADMIN. Pemisahan wewenang antar-peran platform
+berjalan sesuai matriks permission.
+
+### Catatan: `safe_domains` menerima nilai sampah (BUKAN temuan keamanan)
+
+`POST /admin/safe-domains` menerima `*`, `.evil.com`, dan
+`javascript:alert(1)` dengan balasan **201** (yang tersimpan: `*`,
+`.evil.com`, `evil.com`, `javascript` — normalisasi memotong skema, path, dan
+port, jadi perilaku path/port itu benar).
+
+Dugaan awal saya adalah wildcard `*` melumpuhkan peringatan domain tak dikenal
+di `frontend/*/src/utils/urlSecurity.ts`. **Dugaan itu salah, dan sudah saya
+uji:** replikasi `isMasterSafeDomain` di Node menunjukkan
+`host.endsWith('.*')` tidak pernah bernilai true untuk domain nyata, sehingga
+`requiresWarning` tetap `true` untuk `evil-phishing.com`,
+`catavor-login.xyz`, dan `paypal-secure.top` — baik tanpa entri uji, dengan
+entri uji, maupun dengan `*` saja.
+
+Selain itu `safe_domains` **tidak dipakai backend sebagai kontrol keamanan**
+apa pun: satu-satunya konsumennya adalah endpoint baca untuk frontend, dan
+tidak ada pemakaian sebagai whitelist redirect/proxy di `internal/`.
+
+Kesimpulan: yang tersisa hanyalah **validasi input lemah** pada master data
+(entri sampah bisa menumpuk dan tampil di daftar whitelist admin). Ini
+kebersihan data, bukan jalur eskalasi. Entri uji sudah dihapus lewat
+`DELETE /admin/safe-domains/:id` (semuanya 200) dan tabel kembali ke 3 baris
+baseline (`catavor.com`, `localhost`, `catavor.id`).
+
+Dicatat di sini justru karena klaim awalnya menarik tetapi tidak terbukti —
+melaporkannya sebagai celah akan melebih-lebihkan temuan.
