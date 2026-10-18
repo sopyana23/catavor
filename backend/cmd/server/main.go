@@ -92,6 +92,7 @@ func main() {
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
 	notificationHandler := handlers.NewNotificationHandler(database.DB)
 	activityLogHandler := handlers.NewActivityLogHandler(database.DB)
+	healthHandler := handlers.NewHealthHandler(database.DB)
 	rbacHandler := handlers.NewRBACHandler()
 	safeDomainHandler := handlers.NewSafeDomainHandler()
 	spaHandler := handlers.NewSPAHandler(cfg, database.DB)
@@ -188,7 +189,7 @@ func main() {
 
 	// Health probe untuk load balancer / orchestrator (tanpa auth, tanpa detail internal)
 	app.Get("/healthz", handlers.LivenessHandler)
-	app.Get("/readyz", handlers.ReadinessHandler)
+	app.Get("/readyz", healthHandler.Readiness)
 	api := app.Group("/api", middleware.GlobalAPIRateLimiter())
 
 	// Public Modern Product & Category Endpoints

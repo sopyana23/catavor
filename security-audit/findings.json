@@ -683,6 +683,15 @@
    "description": "ApplyMasterPreset punya switch 7+1 case dengan data preset (classes/habitats/statuses/shipping) hardcoded. Tidak bisa diubah tanpa redeploy. Duplikasi pola SoT dengan master_categories (P4).",
    "fix": "Buat tabel master_presets (product_type + 4 JSONB), migrasi N-55 seed 8 baris, cache sync.Once, ApplyMasterPreset baca dari cache DB. Fallback ke 'default' row jika preset type tidak dikenal.",
    "verified": "Runtime: 8 preset (physical/digital/fauna/service/food/property/plant/nonexistent→default) semua success dengan data benar. master_presets=8 rows. go test PASS."
+  },
+  {
+   "id": "N-57",
+   "title": "DI proof-of-concept: HealthHandler refactor + parsePrice helper restoration",
+   "severity": "low",
+   "status": "fixed",
+   "description": "health_handler.go mengakses database.DB global langsung → tidak testable tanpa DB live. Sekaligus: helpers_behavior_test.go TestParsePrice (N-43 regression) broken karena parsePrice function hilang dari codebase.",
+   "fix": "1) Refactor HealthHandler: struct + NewHealthHandler(db *gorm.DB) constructor, Readiness jadi method. 2) Implementasi parsePrice di helpers.go (format ID/EN, ribuan+desimal). 3) Test: TestHealthHandler_NilDB (db=nil → 503), TestHealthHandler_LivenessNoDB (200 tanpa DB), TestParsePrice (17 case N-43).",
+   "verified": "go test handlers PASS (3 test). Runtime: healthz=ok readyz=ready dengan handler baru. Pattern siap diikuti handler lain."
   }
  ],
  "verified_ok": [

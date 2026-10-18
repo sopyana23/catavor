@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
-	"catavor-backend/internal/database"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 // startedAt dipakai untuk melaporkan uptime pada liveness probe.
@@ -27,7 +27,19 @@ func timeoutContext(d time.Duration) (context.Context, context.CancelFunc) {
 // Sengaja tanpa auth (probe tidak bisa login) dan tanpa detail internal
 // (jangan bocorkan versi/DSN ke publik).
 
+// HealthHandler mengenkapsulasi dependensi DB untuk health probe.
+// db diinjeksikan via constructor → testable tanpa global state.
+type HealthHandler struct {
+	db *gorm.DB
+}
+
+// NewHealthHandler membuat HealthHandler dengan DB yang diinjeksikan.
+func NewHealthHandler(db *gorm.DB) *HealthHandler {
+	return &HealthHandler{db: db}
+}
+
 // LivenessHandler mengembalikan 200 selama proses berjalan.
+// Tidak bergantung pada DB — tetap package-level function.
 func LivenessHandler(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"status": "ok",
@@ -35,20 +47,20 @@ func LivenessHandler(c *fiber.Ctx) error {
 	})
 }
 
-// ReadinessHandler memverifikasi dependensi kritis (database).
-func ReadinessHandler(c *fiber.Ctx) error {
+// Readiness memverifikasi dependensi kritis (database).
+// Method pada HealthHandler — menggunakan db yang diinjeksikan.
+func (h *HealthHandler) Readiness(c *fiber.Ctx) error {
 	ctx, cancel := timeoutContext(2 * time.Second)
 	defer cancel()
 
-	db := database.DB
-	if db == nil {
+	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"status": "not_ready",
 			"reason": "database not initialized",
 		})
 	}
 
-	sqlDB, err := db.DB()
+	sqlDB, err := h.db.DB()
 	if err != nil || sqlDB == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"status": "not_ready",
@@ -72,8 +84,8 @@ func ReadinessHandler(c *fiber.Ctx) error {
 func ConfigHandler(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"environment":  cfg.AppEnv,
-			"tls_enabled":  cfg.TLSCertFile != "" && cfg.TLSKeyFile != "",
+			"environment":   cfg.AppEnv,
+			"tls_enabled":   cfg.TLSCertFile != "" && cfg.TLSKeyFile != "",
 			"body_limit_mb": 12,
 		})
 	}
