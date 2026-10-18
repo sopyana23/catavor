@@ -1,8 +1,8 @@
 # Audit Keamanan — DFauna / Catavor
 
 > **Status: putaran 1–3 selesai.** 12/12 temuan putaran 1 tertutup (H1–L6),
-> 6 temuan putaran 2 tertutup (N-01…N-06), dan 11 temuan putaran 3 tertutup
-> (N-07…N-17). Lihat [audit-putaran-3.md](audit-putaran-3.md) untuk laporan
+> 6 temuan putaran 2 tertutup (N-01…N-06), dan 16 temuan putaran 3 tertutup
+> (N-07…N-19). Lihat [audit-putaran-3.md](audit-putaran-3.md) untuk laporan
 > terbaru — termasuk angka cakupan rute yang sebenarnya.
 
 Riwayat panjang: putaran 1 adalah audit read-only (tanpa perubahan kode).
@@ -12,7 +12,7 @@ Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 
 | File | Isi |
 |---|---|
-| [audit-putaran-3.md](audit-putaran-3.md) | **Laporan terbaru** — N-07…N-17, cakupan rute, sisa risiko |
+| [audit-putaran-3.md](audit-putaran-3.md) | **Laporan terbaru** — N-07…N-19, cakupan rute, sisa risiko |
 | [audit-putaran-2.md](audit-putaran-2.md) | Putaran 2 — N-01…N-06 (JWT secret, path guard, route gating) |
 | [STATUS-AKHIR.md](STATUS-AKHIR.md) | Ringkasan putaran 1 (H1–L6) + cara verifikasi ulang |
 | [security-audit-report.md](security-audit-report.md) | Audit #1 — keamanan aplikasi (OWASP), 2 HIGH / 4 MED / 6 LOW |
@@ -25,7 +25,7 @@ Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 | [mitigasi-m1.md](mitigasi-m1.md) | **Mitigasi M1** — token 12 jam + deteksi anomali sesi |
 | [perbaikan-m1-penuh.md](perbaikan-m1-penuh.md) | **M1 penuh** — cookie HttpOnly + CSRF + tiket SSE |
 | [remediation-plan.md](remediation-plan.md) | Urutan fix + patch minimal |
-| [findings.json](findings.json) | Data temuan (machine-readable) — H1–L6 + N-10, N-11, N-12 |
+| [findings.json](findings.json) | Data temuan (machine-readable) — H1–L6 + N-01…N-19 (22 temuan) |
 
 ## Ketahanan sesi panjang (UI/memori/stabilitas)
 
@@ -38,8 +38,8 @@ Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 
 ## Ringkas status
 
-- **Keamanan**: 12/12 temuan putaran 1 tertutup. Putaran 2: N-01…N-06 tertutup.
-  Putaran 3: N-07…N-17 tertutup, semuanya diverifikasi runtime; N-11, N-12, N-15, N-16, dan N-17
+- **Keamanan**: 12/12 temuan putaran 1 tertutup. Putaran 2: N-01…N-06 tertutup. Putaran 3: N-07…N-19 tertutup (4 KRITIS: N-13, N-14, N-18, N-19).
+  Putaran 3: N-07…N-19 tertutup, semuanya diverifikasi runtime; N-11, N-12, N-15, N-16, N-17, N-18, dan N-19
   disertai kontrol negatif.
 - **Cakupan uji**: 34 dari 195 rute (17,4 %) terbukti lewat probe runtime;
   161 rute (82,6 %) **belum** diprobe. Ada 140 handler unik (banyak rute alias). Angka ini adalah permukaan yang belum

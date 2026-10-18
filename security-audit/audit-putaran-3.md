@@ -25,6 +25,8 @@ Baseline commit: `2fb1d9f`.
 | N-15 | `X-Forwarded-For` dapat dipalsukan; rate limiter & dedup per-IP bisa dilewati | TINGGI | TERTUTUP |
 | N-16 | `/api/help/articles/:id/helpful` tanpa rate limiter & tanpa dedup (vote tak terbatas) | SEDANG | TERTUTUP |
 | N-17 | `/api/send-register-otp` & forgot-password membocorkan status akun (enumerasi) | SEDANG | TERTUTUP |
+| N-18 | Merchant bisa menerbitkan/mengubah/menghapus artikel platform & menulis master settings | KRITIS | TERTUTUP |
+| N-19 | Kupon gratis hardcoded (`CATAVOR100`, `GRATISPRO`) mengaktifkan paket berbayar tanpa bayar | KRITIS | TERTUTUP |
 
 Semua perbaikan di atas dibuktikan dengan probe runtime, dan N-11 serta N-12
 disertai **kontrol negatif** (source dikembalikan ke versi rentan, di-build
@@ -735,3 +737,136 @@ Percobaan kontrol negatif yang menghasilkan `declared and not used` /
 kegagalan logika.
 
 ---
+
+---
+
+## N-18 — Merchant dapat mengelola artikel platform & master settings (KRITIS)
+
+**Permukaan.** `guardedMutations` hanya berisi
+`AuthRequired + StoreOwnerRequired + OperationalStoreRequired`. Tidak ada
+pemeriksaan peran platform. Rute `/articles` (POST/PUT/DELETE),
+`/settings`, dan `/settings/policies` terdaftar di grup itu, dan
+`articleHandler.Store/Update/Destroy` sendiri tidak memeriksa peran sama sekali.
+
+**Bukti runtime sebelum perbaikan** (merchant `qa.merchant`, store 25):
+
+| Aksi | Hasil |
+|---|---|
+| `POST /api/articles` | **201** — artikel dibuat di tabel platform |
+| `PUT /api/articles/1` (artikel platform) | **200** — judul berubah menjadi `DIUBAH OLEH MERCHANT` |
+| `DELETE /api/articles/:id` | **200** — artikel terhapus |
+
+Data dikembalikan persis ke baseline setelah uji (hash isi artikel id 1
+kembali ke `6d6793f3…`). `Destroy` membaca `DELETE ... WHERE id = ?` tanpa
+filter kepemilikan, sehingga satu request dapat menghapus konten platform.
+
+**Perbaikan.** Permission yang sudah ada dipasang pada kelima rute:
+`content:articles:manage` untuk artikel dan `system:settings:manage` untuk
+settings. Handler tidak diubah — penjagaan di middleware.
+
+**Bukti runtime sesudah perbaikan.**
+
+| Peran | `POST /articles` | `PUT /articles/1` | `DELETE /articles/1` | `POST /settings` | `POST /settings/policies` |
+|---|---|---|---|---|---|
+| merchant | **403** | **403** | **403** | **403** | **403** |
+| superadmin (kontrol positif) | **201** | — | — | **200** | — |
+
+Kontrol positif membuktikan perbaikan tidak mengunci operator yang sah.
+
+**Catatan.** Pola ini sama dengan N-07 (moderasi komentar) yang sudah
+diperbaiki lebih dulu pada rute `admin/comments/*`; saat itu `/articles` dan
+`/settings` terlewat. Sekarang seluruh kelompok rute konten platform tertutup.
+
+---
+
+## N-19 — Kupon gratis hardcoded memberi paket berbayar tanpa pembayaran (KRITIS)
+
+**Akar masalah.** `internal/services/subscription_service.go`
+`CreateSubscriptionOrder` memeriksa kupon bawaan di dalam kode:
+
+```go
+if cleanCoupon == "CATAVOR100" || cleanCoupon == "GRATISPRO" {
+    discountAmount = originalAmount
+}
+```
+
+Potongan sebesar harga penuh membuat `finalAmount == 0`, lalu blok berikutnya
+menetapkan `paymentStatus = "paid"` dan `paymentMethod = "coupon_free"` —
+paket langsung aktif tanpa transaksi apa pun.
+
+**Bukti runtime sebelum perbaikan.** Merchant mengirim
+`{"plan_code":"pro_business","billing_cycle":"annual","coupon_code":"CATAVOR100"}`:
+
+```
+message   : Transaksi langganan berhasil diproses dan paket Anda telah aktif.
+discount  : 1290000   pay_status: paid   duration: 12 bulan
+stores.id=25 -> plan=pro_business, plan_expires_at=2027-10-18
+```
+
+Nilai paket setahun (Rp1.290.000) hangus dan toko naik ke paket tertinggi
+selama 12 bulan. Baseline dipulihkan (`plan=free`, order probe dihapus).
+
+**Perbaikan.** Seluruh kupon bawaan dihapus dari kode. Kupon kini **hanya**
+dibaca dari setting `master_coupons` yang dikelola admin. Potongan 100% tetap
+mungkin, tetapi harus sengaja dibuat operator — bukan rahasia yang bisa ditebak
+siapa pun yang membaca sumber atau menebak nama kupon.
+
+**Bukti runtime sesudah perbaikan.**
+
+| Uji | Sebelum | Sesudah |
+|---|---|---|
+| `coupon_code=CATAVOR100`, paket tahunan | `paid`, diskon 1.290.000, paket aktif | **`pending`, diskon 0**, toko tetap `free` |
+| `coupon_code=GRATISPRO` | sama | **`pending`, diskon 0** |
+| kupon sah admin (`type: fixed`, 10000) | — | diskon **10000**, status `pending` |
+| kode ngawur (`NGAWUR999`) | — | diskon **0** (kontrol negatif) |
+| kupon sah admin (`type: free`) | — | **`paid`** + paket aktif (fungsionalitas tetap) |
+
+Dua baris terakhir penting: perbaikan tidak mematikan fitur kupon, hanya
+memindahkan sumber kebenarannya ke master data admin.
+
+**Data uji dibersihkan.** `settings` kembali 29 baris (setting
+`master_coupons` uji dihapus), `subscription_orders` kembali 1 baris,
+`stores.id=25` kembali `free/active` tanpa tanggal kedaluwarsa.
+
+---
+
+## Uji regresi & kontrol negatif N-18/N-19
+
+`backend/internal/handlers/privilege_escalation_test.go`:
+
+- `TestN18ArtikelDanSettingsWajibPermission` — memastikan kelima rute tetap
+  dijaga permission yang benar.
+- `TestN19TanpaKuponGratisHardcoded` — memastikan tidak ada kode kupon bawaan
+  dan pembacaan `master_coupons` tidak hilang.
+
+Kontrol negatif dijalankan dengan sengaja merusak logika (bukan stub dan bukan
+error kompilasi):
+
+1. Permission `POST /articles` dilepas → `TestN18` **FAIL** dengan pesan
+   `rute Post "/articles" TIDAK dijaga permission "content:articles:manage"`.
+2. Kupon `CATAVOR100` ditanam kembali → `TestN19` **FAIL** dengan pesan
+   kode kupon masih ditanam.
+3. Keduanya dipulihkan → kedua uji **PASS**, dan `git diff --stat` kembali
+   identik dengan keadaan sebelum kontrol (23 dan 51 baris).
+
+Tanpa langkah ketiga, uji yang lulus di kode benar tidak membuktikan apa pun —
+ini kesalahan yang sama yang pernah terjadi pada uji N-17 versi pertama.
+
+---
+
+## Cakupan probe rute tulis
+
+| Kelas | Rute tulis | Diprobe | Hasil |
+|---|---|---|---|
+| PUBLIC | 15 | 15 | N-15, N-16, N-17 ditemukan & ditutup |
+| MERCHANT tulis | 4 | 4 | aman — isolasi tenant terbukti (403/404) |
+| MERCHANT(+op) | 31 | sebagian | N-18, N-19 ditemukan & ditutup |
+| ADMIN | 20 | belum | — |
+| AUTH-ONLY | 18 | belum | — |
+
+Catatan probe MERCHANT tulis: merchant hanya bisa mengakses tiket miliknya
+sendiri. Dibuktikan dengan pasangan kontrol — tiket miliknya `GET 200`,
+`reply 201`, `mark-read 200`, `rating 200` (setelah status `resolved`),
+sedangkan tiket milik user lain `404` pada keempat rute. Isolasi produk
+lintas-toko juga terbukti: `PUT/DELETE/resubmit-review` produk toko lain
+`404`, sedangkan CRUD produk sendiri `201/200/200`.

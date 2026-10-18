@@ -394,14 +394,27 @@ func main() {
 		guarded.Get("/analytics/export", analyticsHandler.ExportStoreAnalytics)
 
 		// Settings & Policies
-		guardedMutations.Post("/settings", settingHandler.Store)
-		guardedMutations.Post("/settings/policies", settingHandler.UpdatePolicy)
+		// SECURITY (N-18): menulis pengaturan platform adalah wewenang "system",
+		// bukan merchant. Sebelumnya hanya dijaga StoreOwnerRequired sehingga
+		// merchant dapat menulis master settings.
+		guardedMutations.Post("/settings",
+			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
+		guardedMutations.Post("/settings/policies",
+			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
 		guarded.Get("/settings/policy-audit-logs", settingHandler.GetPolicyAuditLogs)
 
 		// Articles & Moderation
-		guardedMutations.Post("/articles", articleHandler.Store)
-		guardedMutations.Put("/articles/:id", articleHandler.Update)
-		guardedMutations.Delete("/articles/:id", articleHandler.Destroy)
+		// SECURITY (N-18): artikel edukasi adalah konten platform. Ketiga rute
+		// tulis sebelumnya tanpa cek peran sama sekali — merchant bisa
+		// menerbitkan, mengubah, dan MENGHAPUS artikel platform (terbukti
+		// runtime: PUT /api/articles/1 -> 200). Handler-nya pun tidak memeriksa
+		// peran, jadi penjagaan harus di middleware.
+		guardedMutations.Post("/articles",
+			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.Store)
+		guardedMutations.Put("/articles/:id",
+			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.Update)
+		guardedMutations.Delete("/articles/:id",
+			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.Destroy)
 		guarded.Get("/admin/comments",
 			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.GetAdminComments)
 		// SECURITY (N-07): moderasi komentar artikel adalah wewenang platform

@@ -53,8 +53,8 @@ func SeedSubscriptionPlans(db *gorm.DB) error {
 			PriceMonthly:       0,
 			PriceAnnual:        0,
 			StorageLimitBytes:  100 * 1024 * 1024, // 100 MB (~350-500 foto HD)
-			MaxItems:           15,                 // 15 items
-			MaxImagesPerItem:   10,                 // Standard 10 photos
+			MaxItems:           15,                // 15 items
+			MaxImagesPerItem:   10,                // Standard 10 photos
 			HasCustomDomain:    false,
 			HasVerifiedBadge:   false,
 			HasPrioritySearch:  false,
@@ -561,32 +561,29 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 	var discountAmount float64
 	cleanCoupon := strings.ToUpper(strings.TrimSpace(req.CouponCode))
 	if cleanCoupon != "" {
-		// Built-in standard coupons
-		if cleanCoupon == "CATAVOR100" || cleanCoupon == "GRATISPRO" {
-			discountAmount = originalAmount
-		} else if cleanCoupon == "DISKON10K" {
-			discountAmount = 10000
-		} else if cleanCoupon == "DISKON50K" {
-			discountAmount = 50000
-		} else {
-			// Check database settings for custom coupons
-			var couponSetting models.Setting
-			if err := db.Where("key = ?", "master_coupons").First(&couponSetting).Error; err == nil && couponSetting.Value != "" {
-				var coupons []struct {
-					Code     string  `json:"code"`
-					Type     string  `json:"type"`
-					Discount float64 `json:"discount"`
-				}
-				if err := json.Unmarshal([]byte(couponSetting.Value), &coupons); err == nil {
-					for _, c := range coupons {
-						if strings.ToUpper(c.Code) == cleanCoupon {
-							if c.Type == "free" {
-								discountAmount = originalAmount
-							} else {
-								discountAmount = c.Discount
-							}
-							break
+		// SECURITY (N-19): kupon diskon 100% yang di-hardcode di sini membuat
+		// siapa pun bisa mengaktifkan paket berbayar (bahkan paket tahunan
+		// termahal) tanpa membayar: finalAmount menjadi 0 lalu payment_status
+		// otomatis "paid" dan paket langsung aktif. Kupon sekarang HANYA
+		// berasal dari master data yang dikelola admin (setting master_coupons),
+		// sehingga potongan 100% tetap mungkin tapi harus sengaja dibuat
+		// operator. Tidak ada lagi kupon bawaan di dalam kode.
+		var couponSetting models.Setting
+		if err := db.Where("key = ?", "master_coupons").First(&couponSetting).Error; err == nil && couponSetting.Value != "" {
+			var coupons []struct {
+				Code     string  `json:"code"`
+				Type     string  `json:"type"`
+				Discount float64 `json:"discount"`
+			}
+			if err := json.Unmarshal([]byte(couponSetting.Value), &coupons); err == nil {
+				for _, c := range coupons {
+					if strings.ToUpper(c.Code) == cleanCoupon {
+						if c.Type == "free" {
+							discountAmount = originalAmount
+						} else {
+							discountAmount = c.Discount
 						}
+						break
 					}
 				}
 			}

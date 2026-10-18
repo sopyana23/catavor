@@ -263,22 +263,6 @@
   "cls": "MERCHANT(+op)",
   "line": 315
  },
- "POST|/api/products": {
-  "cls": "MERCHANT(+op)",
-  "line": 318
- },
- "PUT|/api/products/:id": {
-  "cls": "MERCHANT(+op)",
-  "line": 319
- },
- "POST|/api/products/:id/resubmit-review": {
-  "cls": "MERCHANT(+op)",
-  "line": 320
- },
- "DELETE|/api/products/:id": {
-  "cls": "MERCHANT(+op)",
-  "line": 321
- },
  "GET|/api/admin/categories": {
   "cls": "MERCHANT",
   "line": 323
@@ -287,37 +271,9 @@
   "cls": "MERCHANT(+op)",
   "line": 324
  },
- "PUT|/api/categories/:id": {
-  "cls": "MERCHANT(+op)",
-  "line": 325
- },
- "DELETE|/api/categories/:id": {
-  "cls": "MERCHANT(+op)",
-  "line": 326
- },
  "GET|/api/support/tickets": {
   "cls": "MERCHANT",
   "line": 329
- },
- "GET|/api/support/tickets/:id": {
-  "cls": "MERCHANT",
-  "line": 330
- },
- "POST|/api/support/tickets": {
-  "cls": "MERCHANT",
-  "line": 331
- },
- "POST|/api/support/tickets/:id/reply": {
-  "cls": "MERCHANT",
-  "line": 332
- },
- "POST|/api/support/tickets/:id/mark-read": {
-  "cls": "MERCHANT",
-  "line": 333
- },
- "POST|/api/support/tickets/:id/rating": {
-  "cls": "MERCHANT",
-  "line": 334
  },
  "GET|/api/support/tickets-ping": {
   "cls": "MERCHANT",
@@ -379,29 +335,9 @@
   "cls": "MERCHANT(+op)",
   "line": 363
  },
- "POST|/api/stores/upgrade-plan": {
-  "cls": "MERCHANT(+op)",
-  "line": 367
- },
- "POST|/api/stores/add-master-option": {
-  "cls": "MERCHANT(+op)",
-  "line": 368
- },
- "POST|/api/stores/rename-master-option": {
-  "cls": "MERCHANT(+op)",
-  "line": 369
- },
- "POST|/api/stores/apply-master-preset": {
-  "cls": "MERCHANT(+op)",
-  "line": 371
- },
  "GET|/api/subscription/my-quota": {
   "cls": "MERCHANT",
   "line": 374
- },
- "POST|/api/subscription/upgrade": {
-  "cls": "MERCHANT(+op)",
-  "line": 375
  },
  "POST|/api/subscription/schedule-downgrade": {
   "cls": "MERCHANT(+op)",
@@ -410,14 +346,6 @@
  "POST|/api/subscription/cancel-downgrade": {
   "cls": "MERCHANT(+op)",
   "line": 377
- },
- "POST|/api/subscription/custom-domain": {
-  "cls": "MERCHANT(+op)",
-  "line": 378
- },
- "POST|/api/subscription/order": {
-  "cls": "MERCHANT(+op)",
-  "line": 379
  },
  "GET|/api/subscription/orders": {
   "cls": "MERCHANT",
@@ -439,29 +367,9 @@
   "cls": "MERCHANT",
   "line": 386
  },
- "POST|/api/settings": {
-  "cls": "MERCHANT(+op)",
-  "line": 391
- },
- "POST|/api/settings/policies": {
-  "cls": "MERCHANT(+op)",
-  "line": 392
- },
  "GET|/api/settings/policy-audit-logs": {
   "cls": "MERCHANT",
   "line": 393
- },
- "POST|/api/articles": {
-  "cls": "MERCHANT(+op)",
-  "line": 396
- },
- "PUT|/api/articles/:id": {
-  "cls": "MERCHANT(+op)",
-  "line": 397
- },
- "DELETE|/api/articles/:id": {
-  "cls": "MERCHANT(+op)",
-  "line": 398
  },
  "GET|/api/admin/comments": {
   "cls": "MERCHANT",

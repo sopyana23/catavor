@@ -218,6 +218,24 @@
    "status": "fixed",
    "summary": "Email terdaftar dibalas 422 'Email sudah terdaftar' sementara email bebas 200; cabang blacklist juga 403 dengan alasan eksplisit. Semua jalur keluar (termasuk honeypot) kini memakai satu respons seragam.",
    "runtime_proof": "Respons byte-identik 200 untuk email terdaftar dan tidak terdaftar. Uji versi pertama tidak sah (lulus walau jalur dibedakan); diganti dan dibuktikan gagal saat satu jalur dibedakan."
+  },
+  {
+   "id": "N-18",
+   "severity": "critical",
+   "title": "Merchant dapat menerbitkan, mengubah, dan menghapus artikel platform serta menulis master settings",
+   "location": "backend/cmd/server/main.go rute /articles (POST/PUT/DELETE), /settings, /settings/policies",
+   "status": "fixed",
+   "summary": "Rute tulis artikel dan settings hanya dijaga StoreOwnerRequired; handler Store/Update/Destroy tidak memeriksa peran sama sekali, dan Destroy menghapus berdasarkan id tanpa filter kepemilikan.",
+   "runtime_proof": "Merchant: POST /articles 201, PUT /articles/1 200 (judul platform berubah), DELETE 200. Sesudah perbaikan kelimanya 403 untuk merchant; superadmin tetap 201/200. Data dipulihkan, hash artikel id 1 kembali identik."
+  },
+  {
+   "id": "N-19",
+   "severity": "critical",
+   "title": "Kupon gratis hardcoded mengaktifkan paket berbayar tanpa pembayaran",
+   "location": "backend/internal/services/subscription_service.go: CreateSubscriptionOrder",
+   "status": "fixed",
+   "summary": "Kupon bawaan CATAVOR100/GRATISPRO memberi potongan harga penuh sehingga finalAmount 0 dan payment_status otomatis paid; paket langsung aktif. Kupon kini hanya dari setting master_coupons yang dikelola admin.",
+   "runtime_proof": "Sebelum: order pro_business annual dengan CATAVOR100 -> discount 1290000, status paid, stores.id=25 plan pro_business sampai 2027. Sesudah: discount 0, status pending, toko tetap free; kupon sah admin (fixed 10000 dan type free) tetap berfungsi."
   }
  ],
  "verified_ok": [
