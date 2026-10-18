@@ -890,7 +890,22 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 
 	// CASE A: USER ALREADY EXISTS (LOGIN FLOW)
 	if err == nil {
-		if (user.GoogleID == nil || *user.GoogleID == "") && googleID != "" {
+		// N-14: akun yang emailnya belum diverifikasi tidak boleh diambil alih
+		// lewat Google SSO. Penjagaan hanya berlaku bila akun ini BELUM pernah
+		// ditautkan ke Google (google_id kosong). Akun yang sudah punya
+		// google_id berarti pemiliknya dulu masuk lewat Google dan emailnya
+		// memang terverifikasi di sisi Google — mengunci mereka akan
+		// menutup akses pemilik sah (terbukti 5 akun seperti ini di data
+		// produksi).
+		belumTertautGoogle := user.GoogleID == nil || *user.GoogleID == ""
+		if user.EmailVerifiedAt == nil && belumTertautGoogle {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akun dengan email ini belum diverifikasi. Selesaikan verifikasi email terlebih dahulu, atau masuk menggunakan kata sandi.",
+			})
+		}
+
+		if belumTertautGoogle && googleID != "" {
 			user.GoogleID = &googleID
 			database.DB.Save(&user)
 		}
@@ -1065,31 +1080,17 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		clientTimezone = "Asia/Jakarta"
 	}
 
-	rawPlan := strings.ToLower(strings.TrimSpace(req.Plan))
-	plan := "free"
-	if rawPlan == "pro" || rawPlan == "pro_starter" {
-		plan = "pro_starter"
-	} else if rawPlan == "pro_business" {
-		plan = "pro_business"
-	}
+	// N-13: paket berbayar TIDAK boleh aktif dari parameter request. Semua
+	// registrasi lewat Google wajib mulai dari paket gratis; upgrade hanya
+	// lewat alur berbayar (invoice + verifikasi admin) di Register().
+	// Nilai `req.Plan` sengaja diabaikan di sini.
+	_ = req.Plan
 
-	utcNow := time.Now().UTC()
+	plan := "free"
 	var planExpiresAt *time.Time
 	planStatus := "active"
 	customDomainStatus := "none"
-
-	if plan != "free" {
-		exp := utcNow.AddDate(0, 1, 0)
-		planExpiresAt = &exp
-		if plan == "pro_business" {
-			customDomainStatus = "active"
-		}
-	}
-
 	paymentStatus := "free_active"
-	if plan != "free" {
-		paymentStatus = "paid"
-	}
 
 	// Universal Default Master Data
 	defaultClasses, _ := json.Marshal([]string{"Pakaian & Busana", "Aksesoris & Fashion", "Gadget & Elektronik", "Kebutuhan Rumah Tangga", "Kerajinan Tangan"})
@@ -1149,6 +1150,22 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	})
 }
 
+// claimsEmailVerified menormalkan klaim `email_verified` dari Google.
+// Google mengirim nilai ini sebagai bool (endpoint userinfo) maupun string
+// "true"/"false" (sebagian respons tokeninfo), jadi keduanya harus diterima.
+// Nilai yang tidak dikenali diperlakukan sebagai TIDAK terverifikasi
+// (fail-closed).
+func claimsEmailVerified(v any) bool {
+	switch t := v.(type) {
+	case bool:
+		return t
+	case string:
+		return strings.EqualFold(strings.TrimSpace(t), "true")
+	default:
+		return false
+	}
+}
+
 // verifyGoogleCredential cryptographically validates Google ID Token or Access Token via official Google endpoints
 func verifyGoogleCredential(credentialStr string, expectedClientID string) (email, name, googleID, avatar string, err error) {
 	credentialStr = strings.TrimSpace(credentialStr)
@@ -1176,6 +1193,12 @@ func verifyGoogleCredential(credentialStr string, expectedClientID string) (emai
 			if expectedClientID != "" && gMap.Aud != "" && gMap.Aud != expectedClientID {
 				return "", "", "", "", fmt.Errorf("token Google audience tidak cocok dengan konfigurasi aplikasi")
 			}
+			// N-14: email dari Google wajib sudah terverifikasi. Tanpa cek ini,
+			// alamat email yang belum diverifikasi Google bisa dipakai untuk
+			// mengambil alih akun yang emailnya sama.
+			if !claimsEmailVerified(gMap.EmailVerified) {
+				return "", "", "", "", fmt.Errorf("email Google belum terverifikasi")
+			}
 			return strings.ToLower(strings.TrimSpace(gMap.Email)), gMap.Name, gMap.Sub, gMap.Picture, nil
 		}
 	}
@@ -1199,6 +1222,10 @@ func verifyGoogleCredential(credentialStr string, expectedClientID string) (emai
 				Picture       string `json:"picture"`
 			}
 			if err := json.Unmarshal(uBody, &uMap); err == nil && uMap.Email != "" {
+				// N-14: sama seperti jalur ID token, email wajib terverifikasi.
+				if !claimsEmailVerified(uMap.EmailVerified) {
+					return "", "", "", "", fmt.Errorf("email Google belum terverifikasi")
+				}
 				return strings.ToLower(strings.TrimSpace(uMap.Email)), uMap.Name, uMap.Sub, uMap.Picture, nil
 			}
 		}
