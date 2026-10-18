@@ -251,13 +251,14 @@
    "severity": "medium",
    "title": "Toko dengan slug mengandung merek platform tidak dapat diakses publik (404)",
    "location": "backend/internal/handlers/store_handler.go:114 (IsReservedSlug), dipakai ShowStore & IndexProducts",
-   "status": "open",
+   "status": "fixed",
    "category": "fungsional",
    "summary": "IsReservedSlug() menolak setiap slug yang mengandung varian merek (catavor/catafor/katavor/catafr/...), dan pemeriksaan yang sama dipakai saat MEMBACA toko yang sudah ada, bukan hanya saat registrasi. Akibatnya /api/u/:slug dan /api/u/:slug/products mengembalikan 404 'Toko tidak ditemukan.' untuk toko yang slug-nya mengandung nama merek.",
    "evidence": "Runtime tanpa auth: /api/u/dfauna|adidas|gendolo|shop66698|iop semua 200; /api/u/catavor dan /api/u/catavor-compliance keduanya 404 (ShowStore dan IndexProducts). Toko id=1 slug=catavor plan=pro status=active punya 11 produk aktif yang tidak dapat dibuka publik. check-slug menolak slug ini dengan 'kata kunci sistem yang dicadangkan'.",
    "impact": "Katalog toko milik pemilik platform (11 produk aktif) tidak dapat diakses publik maupun lewat API. Bukan kebocoran data; kebalikannya — kehilangan akses sah.",
-   "fix": "Belum diperbaiki: butuh keputusan produk. Opsi: (a) kecualikan toko brand-owned (id=1 / flag is_brand_owner) dari IsReservedSlug saat pembacaan; (b) terapkan reserved hanya pada saat registrasi/rename, bukan pada lookup. Tidak diubah sepihak karena menyangkut kebijakan penamaan.",
-   "resolution": "Terbuka - menunggu keputusan produk"
+   "fix": "Reserved-slug dicabut dari 4 handler BACA publik (ShowStore, IndexProducts, IndexFauna, CatalogMetrics) karena validasi penamaan adalah aturan write-path, bukan syarat lookup. Reserved-slug TETAP ditegakkan di semua jalur tulis: Register, CreateStore, UpdateStore (rename), dan CheckSlug.",
+   "resolution": "FIXED di 6eb0d20. Bukti runtime (PID 39724): /api/u/catavor-uji, /products, /fauna, /catalog-metrics semuanya 200 (sebelumnya 404) dan body memuat store_title toko tsb (bukan 200 kosong). Kontrol positif: slug normal 200. Kontrol negatif: slug tidak ada 404. Jalur tulis tetap menolak: check-slug catavor-palsu -> available=false, slug bebas -> available=true. Bukti browser: /catavor-demo ter-render 'Toko Demo Catavor', sebelumnya 404. Regresi N-36 (iss/aud palsu 401) dan N-32 (cmap 39443B) tetap PASS. 17 PASS / 0 FAIL. Data uji dihapus, stores=0.",
+   "verified_at": "2026-10-18"
   },
   {
    "id": "N-22",
