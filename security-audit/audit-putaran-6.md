@@ -103,7 +103,7 @@ Aksi yang tercatat: `RBAC_ACCESS_DENIED`, `RBAC_CUSTOM_ROLE_CREATED`, `RBAC_ROLE
 
 | Area | Hasil |
 |---|---|
-| Backend CVE | `govulncheck ./...` → **0 vulnerability reachable** |
+| Backend CVE | **0 vulnerability reachable.** 1 advisory level-module `GO-2026-5932` (`x/crypto/openpgp`, *unmaintained*, `Fixed in: N/A`) **tidak reachable** — kode hanya memakai `x/crypto/bcrypt`, nol import `openpgp` (`go mod why` → *main module does not need package*) |
 | Frontend CVE | `npm audit` → **0 vulnerabilities** (desktop & mobile) |
 | Secret hygiene | `JWT_SECRET` **wajib** di-set, min 32 char, dan **menolak nilai legacy yang bocor di git** (dicocokkan via SHA-256, bukan plaintext). Diuji runtime: kosong → server mati; 6 char → server mati. |
 | XSS | 0 `dangerouslySetInnerHTML`, 0 `innerHTML`, 0 `eval`/`Function` di kedua SPA |

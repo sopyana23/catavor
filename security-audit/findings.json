@@ -433,7 +433,6 @@
   ".env not tracked in git and not in history; gitleaks configured",
   "Security headers set (nosniff, XFO, Referrer-Policy, COOP, Permissions-Policy, HSTS on secure)",
   "CSRF protection aktif (Origin/Referer) — POST origin asing 403, origin sah 200",
-  "govulncheck: 0 vulnerability reachable di backend",
   "npm audit: 0 vulnerabilities di frontend desktop & mobile (setelah N-31)",
   "Error disclosure: safeErrMsg menyaring jejak DB + fallback generik (hanya 2 pemakaian err.Error, salah satunya komentar)",
   "Login lockout per-akun: 5 kegagalan / 15 menit, fail-closed bila Redis mati (production)",
@@ -441,7 +440,9 @@
   "XSS sink: 0 dangerouslySetInnerHTML, 0 innerHTML, 0 eval/Function di kedua SPA",
   "Upload: validasi magic bytes (DetectContentType), path traversal dicegah ResolveInsidePrefix",
   "SSRF: fetch server-side hanya ke URL Google tetap, tidak ada URL dari input user",
-  "SQLi: seluruh Raw/Exec memakai string statis (DDL), tidak ada interpolasi input"
+  "SQLi: seluruh Raw/Exec memakai string statis (DDL), tidak ada interpolasi input",
+  "govulncheck detail: 1 advisory GO-2026-5932 ada di module golang.org/x/crypto (openpgp, unmaintained & unsafe by design, Fixed in: N/A) TAPI tidak reachable — kode hanya memakai x/crypto/bcrypt, nol import openpgp. Bukan celah aktif.",
+  "govulncheck: 0 vulnerability reachable di backend"
  ],
  "standards": {
   "OWASP_A03_injection": "pass",
