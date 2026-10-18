@@ -421,6 +421,17 @@
    "fix": "Helper logAuthEvent() di internal/handlers/auth_audit.go, dipanggil di dua titik kegagalan Login(): reason=unknown_email (tanpa actor; email hanya di Changes) dan reason=bad_password (dengan user_id/actor + attempts + flag locked). Tidak mencatat password, hash, maupun token.",
    "status": "fixed",
    "resolution": "PERBAIKAN DITERAPKAN + VERIFIKASI RUNTIME 20 PASS / 0 FAIL: tiap percobaan login gagal menghasilkan tepat 1 baris AUTH_LOGIN_FAILED (action/category/reason/IP/user_agent benar), user_id terisi untuk akun nyata, password & hash bcrypt terbukti TIDAK tersimpan, login sukses tetap 200 dan tetap tercatat (auth.login), regresi healthz/landing/mobile/401 admin OK. KLARIFIKASI: login SUKSES sudah tercatat sejak sebelumnya di auth_handler.go:394 (kredensial) dan :1013 (Google) -- klaim 'login tidak tercatat' TIDAK berlaku untuk jalur sukses; celah nyata hanya pada percobaan GAGAL. Aksi hapus toko & ubah settings tetap tercatat minim dan dicatat sebagai backlog."
+  },
+  {
+   "id": "N-36",
+   "severity": "medium",
+   "title": "Klaim iss/aud JWT diset saat terbit tetapi TIDAK divalidasi saat verifikasi",
+   "location": "backend/internal/middleware/auth.go:100 (ExtractOptionalClaims) dan :237 (AuthRequired)",
+   "endpoint": "GET /api/auth/me dan seluruh /api/* yang dilindungi AuthRequired",
+   "impact": "jwt.ParseWithClaims dipanggil tanpa opsi WithIssuer/WithAudience, sehingga klaim `iss` dan `aud` yang diset di GenerateTokenWithID hanya kosmetik. Token yang ditandatangani JWT_SECRET yang sama tetapi membawa iss=evil-issuer dan aud=evil-audience diterima HTTP 200, setara token sah. Membuka token confusion bila secret dipakai bersama sistem lain, dan membuat rotasi/migrasi issuer tidak bisa ditegakkan.",
+   "fix": "Diterapkan 2026-10-18 (commit 0d773d6): konstanta JWTIssuer/JWTAudience sebagai satu sumber kebenaran, dipakai saat menerbitkan DAN memverifikasi. Kedua titik verifikasi kini memakai jwt.WithValidMethods([\"HS256\"]), jwt.WithIssuer(JWTIssuer), jwt.WithAudience(JWTAudience).",
+   "status": "fixed",
+   "resolution": "Dibuktikan runtime (server PID 10484): iss=evil-issuer -> 401 (sebelum 200), aud=[evil-audience] -> 401 (sebelum 200), aud=[] -> 401, iss dihapus -> 401, aud dihapus -> 401, iss=catavor-saas-x -> 401. Kontrol positif token sah -> 200 dengan body berisi owner@catavor.local. Regresi: alg=none/token sampah/tanpa token 401; browser login SPA berhasil lalu /api/auth/me, /api/admin/rbac/me, /api/admin/automation/status semua 200 via cookie HttpOnly; N-32 cmap tetap 39443B; healthz/landing/desktop/mobile 200. 18 PASS / 0 FAIL."
   }
  ],
  "verified_ok": [
