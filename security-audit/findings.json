@@ -329,6 +329,21 @@
    "related": [
     "N-26"
    ]
+  },
+  {
+   "id": "N-28",
+   "severity": "medium",
+   "category": "correctness / static asset handling",
+   "title": "Catch-all ServeSPA menyajikan index.html (200) untuk berkas statis yang tidak ada",
+   "status": "fixed",
+   "location": "backend/internal/handlers/spa_handler.go (ServeSPA), catch-all di cmd/server/main.go:535",
+   "evidence": "GET /storage/stores/1/branding/...jpg milik toko yang sudah dihapus -> 200, content-type text/html (isi: index.html SPA), bukan 404.",
+   "impact": "Gambar rusak tanpa error jaringan yang jelas; CDN/proxy dapat meng-cache 'gambar' berisi HTML selama MaxAge 30 hari; pemantauan tidak pernah melihat 404 sehingga berkas hilang tak terdeteksi.",
+   "fix": "isStaticAssetPath() menangkap prefix /storage/, /desktop/, /tablet/, /mobile/ sebelum menyajikan index.html dan mengembalikan 404 JSON.",
+   "verification": "4 path statis tidak ada -> 404 application/json; kontrol positif: 8 aset nyata & 3 halaman SPA tetap 200; 6 path routing klien (/tokosaya, /admin/dashboard, ...) tetap 200 text/html; browser: landing desktop & mobile render penuh, 0 error konsol.",
+   "related": [
+    "N-27"
+   ]
   }
  ],
  "verified_ok": [

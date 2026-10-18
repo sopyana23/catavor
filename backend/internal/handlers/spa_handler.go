@@ -22,6 +22,27 @@ type SPAHandler struct {
 	db  *gorm.DB
 }
 
+// staticAssetPrefixes adalah prefix milik app.Static (bukan rute SPA).
+// N-28: path di bawah prefix ini TIDAK boleh jatuh ke catch-all ServeSPA.
+var staticAssetPrefixes = []string{
+	"/storage/",
+	"/desktop/",
+	"/tablet/",
+	"/mobile/",
+}
+
+// isStaticAssetPath melaporkan apakah path menunjuk berkas statis yang
+// seharusnya dilayani app.Static. Bila berkas tidak ada, pemanggil wajib
+// mengembalikan 404 -- bukan index.html.
+func isStaticAssetPath(path string) bool {
+	for _, p := range staticAssetPrefixes {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
 func NewSPAHandler(cfg *config.Config, db *gorm.DB) *SPAHandler {
 	return &SPAHandler{cfg: cfg, db: db}
 }
@@ -34,6 +55,23 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "API endpoint tidak ditemukan.",
+		})
+	}
+
+	// N-28: Jangan sajikan index.html untuk berkas statis yang tidak ada.
+	//
+	// Sebelumnya rute catch-all ini menelan SEMUA path yang tidak cocok,
+	// termasuk /storage/... . Akibatnya berkas yang sudah tidak ada
+	// (mis. branding toko yang dihapus) dijawab 200 + text/html, sehingga:
+	//   - <img> menerima HTML dan tampil rusak tanpa error jaringan yang jelas;
+	//   - CDN/proxy ikut meng-cache "gambar" berupa HTML selama MaxAge 30 hari;
+	//   - pemantauan tidak pernah melihat 404, sehingga berkas hilang tak terdeteksi.
+	//
+	// Path ini milik app.Static, bukan SPA: berkas tidak ada => 404.
+	if isStaticAssetPath(path) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Berkas tidak ditemukan.",
 		})
 	}
 
