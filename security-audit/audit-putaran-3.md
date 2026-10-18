@@ -191,15 +191,23 @@ benar-benar diprobe runtime:
 | Ukuran | Jumlah |
 |--------|--------|
 | Rute terdaftar (path+method unik, dengan prefix) | **195** |
-| Dibuktikan runtime (putaran 1–3) | **38** (19,5 %) |
-| Belum diuji sama sekali | **157** (80,5 %) |
+| Handler unik (banyak rute adalah alias) | **140** |
+| Dibuktikan runtime (putaran 1–3) | **33** (16,9 %) |
+| Belum diuji sama sekali | **162** (83,1 %) |
 
 Rincian per kelas proteksi: `PUBLIC` 59, `ADMIN` 54, `MERCHANT` 21,
 `MERCHANT(+op)` 33, `AUTH-ONLY` 28. Dari **100 rute yang menulis**
 (non-`GET`): `MERCHANT(+op)` 33, `ADMIN` 24, `PUBLIC` 20, `AUTH-ONLY` 19,
 `MERCHANT` 4.
 
-Catatan metodologi — empat kali angka ini salah dan dikoreksi:
+Dari 230 baris registrasi, hanya **140 handler unik** yang dipakai — 66 handler
+melayani lebih dari satu rute (153 rute berbagi handler). Contoh:
+`storeHandler.CheckSlug` didaftarkan 6 kali, `ExportMarketIntelligenceData` 3
+kali. Artinya menguji satu rute sering sudah mencakup alias-nya, tetapi **bukan**
+sebaliknya: menguji satu alias tidak otomatis membuktikan varian yang punya
+middleware berbeda. Karena itu jumlah rute tetap dipakai sebagai angka cakupan.
+
+Catatan metodologi — lima kali angka ini salah dan dikoreksi:
 
 1. **168** — regex `\.` tidak menangkap semua bentuk registrasi.
 2. **230** — grup bersarang dipetakan keliru.
@@ -210,6 +218,12 @@ Catatan metodologi — empat kali angka ini salah dan dikoreksi:
    dijaga per-route lewat variabel izin (`sysManage`, `auditRead`,
    `marketIntel`, `supportRead`, `supportReply`, `contentSend`). Rute seperti
    itu sempat terhitung `MERCHANT` — jelas salah untuk endpoint admin.
+5. **38 → 33 terbukti** — daftar probe sempat saya tulis dengan nama yang
+   tidak persis ada di router (`/api/auth/verify-email`, `/api/auth/verify-otp`)
+   dan sebagian alias (`/api/login` vs `/api/auth/login`) terhitung dobel.
+   Angka 33 memakai daftar yang sudah dicocokkan baris per baris ke
+   `main.go`; 4 alias yang handler-nya sama dan sudah diprobe tidak dihitung
+   sebagai temuan baru.
  Angka 195 berasal dari pemetaan
 `var := parent.Group("segmen")` + klasifikasi dari middleware asli grup
 (`RequireAdmin` → ADMIN, `StoreOwnerRequired` → MERCHANT,
@@ -343,7 +357,7 @@ terarah, dan probe HTTP runtime ad-hoc.
    yang saya tulis pun awalnya salah (mengasumsikan `data.store = null` dan
    memakai PNG korup), dan kesalahan itu menutupi hasil yang sebenarnya benar —
    verifier ad-hoc harus selalu disertai kontrol positif.
-5. **157 dari 195 rute (80,5 %) belum pernah diprobe runtime.** Ini permukaan
+5. **162 dari 195 rute (83,1 %) belum pernah diprobe runtime.** Ini permukaan
    yang *belum terbukti*, bukan permukaan yang *terbukti aman*. Lihat bagian
    "Cakupan Penyisiran — Angka Sebenarnya".
 
