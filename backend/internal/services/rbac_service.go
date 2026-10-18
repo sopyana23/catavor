@@ -10,6 +10,7 @@ import (
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
@@ -406,6 +407,17 @@ func (s *RBACService) RevokeStaffRole(targetUserID uint, actor *models.User) err
 	targetUser.PlatformRole = "merchant"
 	if err := s.db.Save(&targetUser).Error; err != nil {
 		return err
+	}
+
+	// SECURITY (N-33): pencabutan role wajib langsung mematikan sesi yang sudah
+	// terbit. Tanpa ini, staf yang di-demote tetap memegang JWT valid sampai
+	// kedaluwarsa (24 jam) dan masih bisa memakai endpoint terautentikasi biasa
+	// milik akunnya. Otorisasi RBAC memang sudah membaca role dari DB (jadi
+	// /admin/* langsung 403), tetapi sesi lama tetap harus dibunuh agar
+	// konsisten dengan pencabutan akses.
+	if err := RevokeAllSessionsForUser(s.db, targetUser.ID); err != nil {
+		log.Warn().Err(err).Uint("user_id", targetUser.ID).
+			Msg("gagal mencabut sesi setelah pencabutan role staf")
 	}
 
 	// Record Enterprise Audit Log
