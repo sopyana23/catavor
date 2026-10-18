@@ -384,10 +384,10 @@
    "title": "PDF preview tidak menyediakan standardFontDataUrl/cMapUrl (hardening, bukan degradasi)",
    "location": "frontend/{desktop,mobile}/src/components/DocumentPreviewModal.tsx:379",
    "endpoint": "DocumentPreviewModal",
-   "impact": "cMapPacked=true di-set tetapi cMapUrl/standardFontDataUrl tidak, sehingga PDF.js memunculkan warning 'Ensure that the standardFontDataUrl API parameter is provided' untuk PDF berfont standar non-embedded. Diuji terkontrol: teks tetap terekstrak tanpa parameter tsb ('Invoice 2026'), jadi TIDAK ada degradasi fungsional. Tetap hardening yang layak karena PDF non-Latin/custom-encoding bisa kehilangan glyph.",
-   "fix": "Belum diterapkan: perlu menyalin aset standard_fonts/ dan cmaps/ ke bundel lalu set standardFontDataUrl + cMapUrl.",
-   "status": "open",
-   "resolution": "Ditunda: membutuhkan perubahan pipeline build aset (vite publicDir). Bukan bug fungsional, dibuktikan dengan uji A/B."
+   "impact": "cMapPacked=true di-set tetapi cMapUrl/standardFontDataUrl tidak, sehingga PDF.js tidak bisa memuat CMap untuk PDF ber-encoding CJK (UniJIS/UniGB/UniKS) maupun font standar non-embedded. PDF Latin biasa tetap ter-render, tetapi PDF non-Latin berisiko kehilangan glyph (tofu).",
+   "fix": "Diterapkan 2026-10-18 (commit 0bce344): cmaps/ (169 file) + standard_fonts/ (17 file) disalin dari pdfjs-dist 6.4.299 ke frontend/{desktop,mobile}/public/pdfjs/ agar ikut ter-bundle vite; cMapUrl + standardFontDataUrl diset ke ${import.meta.env.BASE_URL}pdfjs/... sehingga mengikuti base SPA.",
+   "status": "fixed",
+   "resolution": "Dibuktikan runtime di browser: bundle produksi desktop memuat `/desktop/pdfjs/` dan mobile `/mobile/pdfjs/`; preview PDF CJK non-embedded lewat UI Helpdesk membuat PDF.js benar-benar memuat /desktop/pdfjs/cmaps/UniJIS-UTF16-H.bcmap dan Adobe-Japan1-UCS2.bcmap lalu menampilkan '1 Hal'. Aset tersaji 200 byte-utuh (cmap 39443B, LiberationSans 139512B, Foxit 19469B). Data uji (tiket + lampiran + file) dihapus setelah verifikasi."
   },
   {
    "id": "N-33",
