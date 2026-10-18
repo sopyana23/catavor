@@ -1084,3 +1084,65 @@ terkunci antivirus sehingga server harus dimatikan dulu sebelum `rm` berhasil.
 - Semua data uji dibersihkan: kategori 53, fauna 0, produk 107 total / 87
   aktif, `comments` 1 (status & `updated_at` dipulihkan), storage 0 berkas,
   akun 5/13/18 dikembalikan ke hash semula (login password uji → 401).
+
+---
+
+## Hasil probe rute AUTH-ONLY (8) + ADMIN baca (18)
+
+Tiga peran diuji serentak: merchant (user 18), content staff (user 13),
+superadmin (user 19). Setiap 403 diverifikasi ulang dengan kontrol positif
+pada peran yang berhak — tanpa itu, 403 tidak membuktikan apa pun.
+
+### AUTH-ONLY (8) — semua 200 untuk pemilik sesi
+
+| Rute | Hasil |
+|---|---|
+| `GET /auth/verify` | 200 |
+| `GET /notifications`, `/v1/notifications` | 200 (3 notif milik sendiri) |
+| `GET /notifications/stream`, `/v1/notifications/stream` | 200 SSE, isi hanya `event: connected` + `client_id` acak |
+| `GET /user/sessions` | 200 (hanya sesi sendiri) |
+| `GET /user/stores` | 200 (hanya store sendiri) |
+| `GET /user/stores/check-slug` | 200 |
+
+SSE diperiksa isinya, bukan hanya status: **tidak ada data notifikasi** yang
+dikirim pada handshake, hanya `{"status":"connected","client_id":"<uuid>"}`.
+
+### ADMIN baca (18)
+
+| Rute | merchant | content | superadmin |
+|---|---|---|---|
+| `/users/search`, `/admin/users/search` | 403 | 403 | **200** (18 hasil) |
+| `/stores/search` | 403 | 403 | **200** (1 hasil) |
+| `/admin/automation/logs`, `/automation/logs` | 403 | 403 | **200** |
+| `/automation/status` | 403 | 403 | **200** |
+| `/admin/dormancy/metrics`, `/superadmin/dormancy/metrics`, `/admin/superadmin/dormancy/metrics` | 403 | 403 | **200** |
+| `/admin/reports` | 403 | 403 | **200** |
+| `/admin/reports/:id` | 403 | — | **200**; id ngawur → **404** |
+| `/admin/support/templates` | 403 | 403 | **200** |
+| `/admin/support/tickets/:id` | 403 | 403 | **200** |
+| `/admin/support/tickets/:id/presence` | 403 | 403 | **200** |
+| `/admin/notifications` | 403* | — | **200** (15 notif) |
+| `/admin/notifications/:id` | 403 | **200** | **200** |
+
+\* merchant 403 pada `/admin/notifications` sesuai RBAC; `/admin/notifications/:id`
+terbuka untuk content karena gate-nya `content:broadcast:send` — izin yang
+memang dimiliki content staff untuk mengelola broadcast.
+
+### Uji yang sempat menyesatkan
+
+`GET /notifications/:id` memberi **403 untuk notif milik merchant sendiri**
+(`notif_about_25`). Kalau dibaca naif, ini tampak seperti IDOR yang tertutup.
+Setelah membaca `cmd/server/main.go:448`, rute itu ternyata **endpoint panel
+broadcast** (`notificationHandler.SuperadminGetOne`, gate
+`content:broadcast:send`) — bukan endpoint baca notifikasi pengguna. Merchant
+tidak punya izin itu, jadi 403 adalah perilaku benar; endpoint baca notifikasi
+pengguna adalah `GET /notifications` (daftar) dan `POST /notifications/:id/read`
+yang sudah diuji di batch AUTH-ONLY sebelumnya.
+
+### Catatan skema
+
+Tabel `notifications` **tidak punya kolom `user_id`**; targeting memakai
+`target_type`/`target_id`/`target_plan_code`/`target_recipients`, dan notifikasi
+pengguna memakai ID string (`notif_about_25`, `notif_share_25`) sementara
+broadcast memakai `notif_bc_<uuid>`. Pembacaan "per user" dilakukan lewat
+`notification_reads` (kolom `user_id`), bukan lewat kolom di `notifications`.
