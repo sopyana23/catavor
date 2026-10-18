@@ -455,6 +455,17 @@
    "fix": "Diterapkan: float64 wajib bilangan bulat dan bukan NaN/±Inf serta berada dalam jangkauan uint; konversi string memakai penjagaan overflow sebelum akumulasi.",
    "status": "fixed",
    "resolution": "Dibuktikan dengan kontrol negatif: kode LAMA gagal (NaN ok=true id=9223372036854775808, +Inf ok=true, string overflow lolos); kode baru menolak semuanya. Positive control 4294967295 tetap terbaca."
+  },
+  {
+   "id": "N-39",
+   "severity": "medium",
+   "title": "APP_ENV=production tidak memvalidasi ALLOWED_ORIGINS — CORS localhost bisa terbawa ke produksi",
+   "location": "backend/internal/config/config.go (blok validasi production/staging)",
+   "endpoint": "Seluruh endpoint API lintas-origin",
+   "impact": "Validasi produksi hanya menegakkan JWT_SECRET, JWT_EXPIRATION_HOURS, dan DB_SSLMODE. ALLOWED_ORIGINS dibiarkan memakai default 'http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173,http://localhost:3000'. Terbukti runtime: server APP_ENV=production dengan ALLOWED_ORIGINS default TETAP berjalan sampai tahap koneksi database (hanya gagal karena DB lokal menolak TLS). Artinya deployment yang lupa menyesuaikan CORS akan sukses start dengan konfigurasi lokal.",
+   "fix": "Diterapkan: pada APP_ENV production/prod/staging, setiap origin di ALLOWED_ORIGINS diperiksa; alamat lokal (localhost, 127.0.0.1, 0.0.0.0) dan skema selain https:// menggagalkan start.",
+   "status": "fixed",
+   "resolution": "Dibuktikan runtime dengan binary hasil build ulang. A) production + ALLOWED_ORIGINS localhost -> FTL 'ALLOWED_ORIGINS memuat alamat lokal'. B) production + http://catavor.id -> FTL 'wajib memakai https://'. C) positive control production + https://catavor.id -> lolos gerbang config, berhenti di koneksi DB (sesuai harapan). D) mode lokal tanpa perubahan -> start normal, tidak ada FTL. go test ./... seluruh paket ok."
   }
  ],
  "verified_ok": [

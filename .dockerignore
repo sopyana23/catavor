@@ -1,0 +1,67 @@
+# =============================================================================
+# .dockerignore — konteks build harus kecil, bersih, dan TANPA rahasia.
+#
+# Yang di-exclude secara prinsip:
+#   - rahasia: .env, kunci, token
+#   - artefak build lokal: node_modules, *.exe, coverage, dist stale
+#   - data pengguna: unggahan di public/storage
+#   - riwayat & dokumen yang tidak dibutuhkan saat build
+# =============================================================================
+
+# --- Rahasia (JANGAN pernah masuk image) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+**/secrets/
+
+# --- Version control & metadata editor ---
+.git
+.gitignore
+.github/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Artefak lokal & dependency ---
+node_modules/
+**/node_modules/
+*.exe
+*.dll
+*.so
+*.dylib
+backend/catavor-server
+backend/catavor-server-*.exe
+backend/coverage.out
+backend/coverage.html
+**/dist/
+**/.vite/
+
+# --- Data pengguna & runtime ---
+public/storage/
+backend/public/storage/
+uploads/
+*.log
+
+# --- Sumber yang tidak dibutuhkan image ---
+legacy/
+security-audit/
+docs/
+tmp/
+temp/
+scripts/local/
+
+# --- Frontend: hanya yang perlu untuk build ---
+# Aset besar hasil generate tidak dibutuhkan; Vite membangun ulang dari source.
+frontend/*/public/storage/
+
+# --- Test & fixture besar ---
+# File *_test.go SENGAJA tidak di-exclude: go.mod/go.sum diverifikasi saat build
+# dan sebagian helper test berada di paket yang sama. Ukurannya kecil.
+**/testdata/*.bin

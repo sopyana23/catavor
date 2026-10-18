@@ -179,6 +179,32 @@ func LoadConfig() *Config {
 				Msg("DB_SSLMODE=disable tidak diizinkan di production/staging: koneksi database " +
 					"harus terenkripsi. Set DB_SSLMODE=require (atau verify-full bila CA tersedia).")
 		}
+
+		// SECURITY: CORS yang masih mengarah ke localhost di production berarti
+		// frontend produksi tidak akan bisa memanggil API, dan lebih buruk lagi
+		// menunjukkan konfigurasi belum disesuaikan. Gagalkan lebih awal daripada
+		// men-deploy konfigurasi default.
+		for _, origin := range strings.Split(originsRaw, ",") {
+			trimmed := strings.ToLower(strings.TrimSpace(origin))
+			if trimmed == "" {
+				continue
+			}
+			if strings.Contains(trimmed, "localhost") ||
+				strings.Contains(trimmed, "127.0.0.1") ||
+				strings.Contains(trimmed, "0.0.0.0") {
+				log.Fatal().
+					Str("environment", strings.ToUpper(appEnv)).
+					Str("origin", trimmed).
+					Msg("ALLOWED_ORIGINS memuat alamat lokal di production/staging. " +
+						"Set ke domain publik, mis. https://catavor.id.")
+			}
+			if !strings.HasPrefix(trimmed, "https://") {
+				log.Fatal().
+					Str("environment", strings.ToUpper(appEnv)).
+					Str("origin", trimmed).
+					Msg("ALLOWED_ORIGINS di production/staging wajib memakai https://.")
+			}
+		}
 	}
 
 	AppConfig = &Config{
