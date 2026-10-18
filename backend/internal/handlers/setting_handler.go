@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 
@@ -174,8 +175,10 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
-	role := strings.ToLower(strings.TrimSpace(user.PlatformRole))
-	if role == "" || role == "merchant" {
+	// SECURITY (N-12): whitelist eksplisit, bukan blacklist. Sebelumnya hanya
+	// "" dan "merchant" yang ditolak sehingga staf operasional mana pun (mis.
+	// support) bisa mengubah pengaturan platform.
+	if !middleware.IsPlatformStaffRole(user.PlatformRole) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"code":    "FORBIDDEN_ROLE",
@@ -236,8 +239,10 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 		})
 	}
 
-	role := strings.ToLower(strings.TrimSpace(user.PlatformRole))
-	if role == "" || role == "merchant" {
+	// SECURITY (N-12): otorisasi ditegakkan di level route lewat
+	// RequirePermission("system:settings:manage"). Handler tetap menolak
+	// non-staf sebagai lapisan kedua (defense in depth).
+	if !middleware.IsPlatformStaffRole(user.PlatformRole) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"code":    "FORBIDDEN_ROLE",

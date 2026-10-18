@@ -515,9 +515,11 @@ func main() {
 		adminApi.Get("/users/search", notificationHandler.SearchUsers)
 
 		// Monetization, Rekber Syariah & Platform Settings
-		adminApi.Get("/settings", settingHandler.Index)
-		adminApi.Post("/settings", settingHandler.Store)
-		adminApi.Post("/settings/rekber/reset-defaults", settingHandler.ResetRekberDefaults)
+		// SECURITY (N-12): settings mengubah konfigurasi platform (monetisasi, iklan,
+		// kredensial partner) -> wajib izin khusus, bukan sekadar staf platform.
+		adminApi.Get("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Index)
+		adminApi.Post("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
+		adminApi.Post("/settings/rekber/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetRekberDefaults)
 
 		// Master Safe Domains (Ecosystem URL Whitelist)
 		adminApi.Get("/safe-domains", safeDomainHandler.GetAdminSafeDomains)
