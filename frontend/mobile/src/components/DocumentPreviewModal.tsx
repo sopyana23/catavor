@@ -14,7 +14,9 @@ import {
   ScrollText
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+// pdfjs-dist v6 (N-31): worker dikirim sebagai ES module (.mjs). Ekstensi .js
+// sudah dihapus di v6 sehingga import lama gagal di-resolve saat build.
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure PDF.js worker with bundled local asset
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
