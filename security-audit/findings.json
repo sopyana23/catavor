@@ -135,6 +135,42 @@
       "location": ".env",
       "status": "fixed",
       "resolution": "fail closed di production; .env.example kini mencontohkan require"
+    },
+    {
+      "id": "N-10",
+      "severity": "medium",
+      "title": "Ignored return of ValidateAndConsumeToken in password reset flows",
+      "location": "backend/internal/handlers/auth_handler.go:1457,1790",
+      "endpoint": "ForgotPasswordReset, ResetPasswordDirect",
+      "impact": "Expired/reused verification token still allowed password reset. Not an auth bypass: a valid OTP is still required first.",
+      "fix": "Check the bool return; return 422 when the token is invalid. In ResetPasswordDirect, look up the user before consuming the token.",
+      "status": "fixed",
+      "commit": "8c7a78d",
+      "resolution": "grep '_ = .*ValidateAndConsumeToken' -> 0 after fix; runtime reset with fake OTP -> 422"
+    },
+    {
+      "id": "N-11",
+      "severity": "critical",
+      "title": "Registration email verification fully bypassable",
+      "location": "backend/internal/handlers/auth_handler.go:580",
+      "endpoint": "POST /api/auth/register",
+      "impact": "VerifyOTP never called and token consume result discarded; only 'verification_token != \\\"\\\"' was checked. Anyone could create email-verified accounts and stores without receiving any email.",
+      "fix": "Require a successful ValidateAndConsumeToken for purpose 'registration'; reject 422 otherwise.",
+      "status": "fixed",
+      "commit": "8c7a78d",
+      "resolution": "Runtime pre-fix: fabricated token -> 200 (store 26), no token -> 200 (store 27), email_verification_otps count = 0 while email_verified_at set. Post-fix: 422 for both, valid flow 200, replay 422. Negative control on vulnerable build FAILS as required."
+    },
+    {
+      "id": "N-12",
+      "severity": "high",
+      "title": "Platform settings writable by any non-merchant platform staff (blacklist role check)",
+      "location": "backend/internal/handlers/setting_handler.go; backend/cmd/server/main.go:519-521",
+      "endpoint": "GET/POST /api/admin/settings, POST /api/admin/settings/rekber/reset-defaults",
+      "impact": "Handler used a blacklist (role == \\\"\\\" || role == \\\"merchant\\\"), so every staff role outside merchant passed; GET had no authz check at all. Staff 'support' altered monetization/ads/partner settings.",
+      "fix": "Gate the three routes with RequirePermission(\\\"system:settings:manage\\\") (already present in the RBAC matrix, superadmin-only); replace the handler blacklist with the IsPlatformStaffRole whitelist as defense in depth.",
+      "status": "fixed",
+      "commit": "02a22b8",
+      "resolution": "support: 200 -> 403 (negatif control on vulnerable build: 200). superadmin 200, merchant 403. ads_test_mode changed 0->true then restored to 0. No regression on /admin/support/tickets and /admin/rbac/me."
     }
   ],
   "verified_ok": [

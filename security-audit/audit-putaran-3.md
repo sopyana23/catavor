@@ -17,6 +17,14 @@ Baseline commit: `2fb1d9f`.
 | N-07 | Kebocoran lintas-tenant pada laporan & komentar platform | KRITIS | TERTUTUP `a240eae` |
 | N-08 | Data internal toko bocor di endpoint publik `/api/products/:id` | TINGGI | TERTUTUP `b09d496` |
 | N-09 | Merchant bisa mengunggah ke namespace platform (bypass kuota) | TINGGI | TERTUTUP `d232e2f` |
+| N-10 | Hasil konsumsi token verifikasi diabaikan pada alur reset | SEDANG | TERTUTUP `8c7a78d` |
+| N-11 | Verifikasi email registrasi bisa dilewati total | KRITIS | TERTUTUP `8c7a78d` |
+| N-12 | Staf `support` dapat mengubah pengaturan platform | TINGGI | TERTUTUP `02a22b8` |
+
+Semua perbaikan di atas dibuktikan dengan probe runtime, dan N-11 serta N-12
+disertai **kontrol negatif** (source dikembalikan ke versi rentan, di-build
+ulang, dan pembuktian gagal sesuai harapan) — tanpa itu, hasil "PASS" tidak
+membuktikan apa pun.
 
 ---
 
@@ -183,18 +191,26 @@ benar-benar diprobe runtime:
 | Ukuran | Jumlah |
 |--------|--------|
 | Rute terdaftar (path+method unik, dengan prefix) | **195** |
-| Dibuktikan runtime (putaran 1–3) | **32** (16,4 %) |
-| Belum diuji sama sekali | **163** (83,6 %) |
+| Dibuktikan runtime (putaran 1–3) | **38** (19,5 %) |
+| Belum diuji sama sekali | **157** (80,5 %) |
 
-Rincian per kelas proteksi: `PUBLIC` 58, `ADMIN` 47, `MERCHANT(+op)` 33,
-`AUTH-ONLY` 29, `MERCHANT` 28. Sebanyak **19 rute PUBLIC bersifat menulis**
-(`analytics/track`, `client-logs`, `reports`, `policies/agree`,
-`articles/:id/comments`, `help/articles/:id/helpful`, seluruh `auth/*`,
-`forgot-password`, `reset-password`).
+Rincian per kelas proteksi: `PUBLIC` 59, `ADMIN` 54, `MERCHANT` 21,
+`MERCHANT(+op)` 33, `AUTH-ONLY` 28. Dari **100 rute yang menulis**
+(non-`GET`): `MERCHANT(+op)` 33, `ADMIN` 24, `PUBLIC` 20, `AUTH-ONLY` 19,
+`MERCHANT` 4.
 
-Catatan metodologi: hitungan pertama saya (168) salah karena regex `\.` tidak
-menangkap semua bentuk registrasi; hitungan kedua (230) juga salah karena
-memetakan grup bersarang secara keliru. Angka 195 berasal dari pemetaan
+Catatan metodologi — empat kali angka ini salah dan dikoreksi:
+
+1. **168** — regex `\.` tidak menangkap semua bentuk registrasi.
+2. **230** — grup bersarang dipetakan keliru.
+3. **220** — prefix grup tersambung hingga menghasilkan `////api/...`
+   (bug `re.sub` pada penggabungan path).
+4. **ADMIN 47 → 54** — klasifikasi hanya melihat `RequireAdmin` di deklarasi
+   grup, padahal banyak rute `/api/admin/*` berada di grup `guarded` dan
+   dijaga per-route lewat variabel izin (`sysManage`, `auditRead`,
+   `marketIntel`, `supportRead`, `supportReply`, `contentSend`). Rute seperti
+   itu sempat terhitung `MERCHANT` — jelas salah untuk endpoint admin.
+ Angka 195 berasal dari pemetaan
 `var := parent.Group("segmen")` + klasifikasi dari middleware asli grup
 (`RequireAdmin` → ADMIN, `StoreOwnerRequired` → MERCHANT,
 `OperationalStoreRequired` → MERCHANT(+op)). Pemetaan yang salah sempat
@@ -303,7 +319,12 @@ go test ./internal/security/ ./internal/middleware/ ./internal/services/ -count=
   ok catavor-backend/internal/services    1.041s
 ```
 
-Commit: `a240eae` (N-07), `b09d496` (N-08), `d232e2f` (N-09).
+Commit: `a240eae` (N-07), `b09d496` (N-08), `d232e2f` (N-09),
+`8c7a78d` (N-10 + N-11), `02a22b8` (N-12), `934ae29` (gofmt).
+
+Hasil ini **bukan** suite uji menyeluruh: tidak ada test backend yang mencakup
+handler-handler ini. Verifikasi bertumpu pada build, vet, tiga paket uji
+terarah, dan probe HTTP runtime ad-hoc.
 
 ## Sisa Risiko (di luar lingkup perbaikan ini)
 
@@ -322,7 +343,7 @@ Commit: `a240eae` (N-07), `b09d496` (N-08), `d232e2f` (N-09).
    yang saya tulis pun awalnya salah (mengasumsikan `data.store = null` dan
    memakai PNG korup), dan kesalahan itu menutupi hasil yang sebenarnya benar —
    verifier ad-hoc harus selalu disertai kontrol positif.
-5. **163 dari 195 rute (83,6 %) belum pernah diprobe runtime.** Ini permukaan
+5. **157 dari 195 rute (80,5 %) belum pernah diprobe runtime.** Ini permukaan
    yang *belum terbukti*, bukan permukaan yang *terbukti aman*. Lihat bagian
    "Cakupan Penyisiran — Angka Sebenarnya".
 
@@ -330,7 +351,7 @@ Commit: `a240eae` (N-07), `b09d496` (N-08), `d232e2f` (N-09).
 
 ## N-11 (KRITIS) — Verifikasi email bisa dilewati total
 
-**Ditemukan saat menyisir 19 rute PUBLIC yang menulis.**
+**Ditemukan saat menyisir rute PUBLIC yang menulis (20 rute terdaftar).**
 
 `ValidateAndConsumeToken` mengembalikan `bool`, tetapi hasilnya diabaikan di
 tiga lokasi dengan `_ =` (`auth_handler.go`). Akibatnya pemeriksaan token tidak
@@ -381,3 +402,89 @@ hangus hanya karena email tidak terdaftar.
 
 Alur sah tetap berfungsi, sehingga perbaikan tidak mematahkan registrasi.
 
+---
+
+## N-10 (sedang) — Hasil konsumsi token verifikasi diabaikan
+
+**Ditemukan bersamaan dengan N-11** saat menyisir pola `_ =` di seluruh backend.
+
+`ValidateAndConsumeToken` mengembalikan `bool`, tetapi di tiga lokasi hasilnya
+dibuang dengan `_ =`. Pada alur reset password, penyerang tetap memerlukan OTP
+yang benar untuk sampai ke titik ini, sehingga **bukan** bypass autentikasi.
+Dampak sebenarnya: token verifikasi yang sudah kedaluwarsa atau sudah terpakai
+tetap meloloskan reset password.
+
+Dua lokasi berada di alur reset (`ForgotPasswordReset`, `ResetPassword`), satu
+di registrasi (lihat N-11 — di sana dampaknya jauh lebih berat karena OTP tidak
+pernah diverifikasi sama sekali).
+
+Perbaikan (`8c7a78d`, satu commit dengan N-11):
+
+```go
+if !services.GetOTPService().ValidateAndConsumeToken(user.Email, token, "password_reset") {
+    return c.Status(fiber.StatusUnprocessableEntity).JSON(...)
+}
+```
+
+Verifikasi: `grep -rn '_ = .*ValidateAndConsumeToken'` → **0 hasil** setelah
+perbaikan; ketiga pemanggilan kini memakai nilai kembaliannya.
+
+Catatan urutan: pada `ResetPasswordDirect`, konsumsi token semula dilakukan
+**sebelum** lookup user, sehingga token bisa hangus untuk email yang tidak
+terdaftar. Urutan dibalik — user dicari lebih dulu.
+
+---
+
+## N-12 (tinggi) — Staf `support` dapat mengubah pengaturan platform
+
+**Ditemukan saat menyisir 24 rute ADMIN yang menulis.**
+
+`POST /api/admin/settings` dan `POST /api/admin/settings/rekber/reset-defaults`
+memakai **blacklist** peran, bukan whitelist:
+
+```go
+role := strings.ToLower(strings.TrimSpace(user.PlatformRole))
+if role == "" || role == "merchant" {
+    return c.Status(fiber.StatusForbidden)...
+}
+```
+
+Setiap peran staf platform selain `merchant` otomatis lolos — termasuk
+`support`, yang pada matriks RBAC hanya memegang izin tiket. `GET
+/api/admin/settings` bahkan tidak memiliki pemeriksaan otorisasi apa pun di
+handler. Pengaturan ini mencakup monetisasi, iklan, dan kredensial partner.
+
+### Koreksi atas dugaan awal
+
+Saat menyisir, 23 rute ADMIN tampak "tanpa `RequirePermission`". Setelah
+diperiksa lebih teliti, **hanya `settings` yang benar-benar tanpa gate**:
+rute lain didaftarkan **dua kali** di `main.go` (grup `guarded` dan `adminApi`).
+Grup `guarded` memakai `RequirePermission("system:admins:manage")` dan
+didaftarkan lebih dulu sehingga yang berlaku adalah versi ketat — terbukti dari
+`safe-domains` dan `automation` yang tetap `403` untuk staf `support`.
+
+### Bukti runtime
+
+| Peran | `GET /api/admin/settings` | `POST /api/admin/settings` |
+|-------|---------------------------|----------------------------|
+| `support` — sebelum perbaikan | **200** | **200** (nilai berubah) |
+| `support` — sesudah perbaikan | 403 | 403 |
+| `merchant` | 403 | 403 |
+| `superadmin` | 200 | 200 |
+
+Nilai `ads_test_mode` diubah `0` → `true` sebagai bukti tulis, lalu
+dikembalikan ke `0` dan diverifikasi ulang lewat query DB.
+
+Kontrol negatif: source dikembalikan sementara ke versi rentan
+(`git stash`), di-build ulang, dan `support` kembali mendapat `200` —
+memastikan `403` berasal dari perbaikan, bukan dari faktor lain.
+
+### Perbaikan (`02a22b8`)
+
+- Ketiga rute settings memakai `RequirePermission("system:settings:manage")` —
+  izin yang **sudah ada** di matriks RBAC dan hanya dimiliki `superadmin`.
+- `setting_handler.go`: blacklist peran diganti whitelist
+  `middleware.IsPlatformStaffRole` sebagai lapisan kedua (defense in depth),
+  konsisten dengan N-05.
+- Tanpa regresi: staf `support` tetap `200` pada `/admin/support/tickets` dan
+  `/admin/rbac/me`.

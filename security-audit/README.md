@@ -1,14 +1,20 @@
 # Audit Keamanan — DFauna / Catavor
 
-> **Status: 12/12 temuan tertutup.** Lihat [STATUS-AKHIR.md](STATUS-AKHIR.md) untuk ringkasan + cara verifikasi ulang.
+> **Status: putaran 1–3 selesai.** 12/12 temuan putaran 1 tertutup (H1–L6),
+> 6 temuan putaran 2 tertutup (N-01…N-06), dan 6 temuan putaran 3 tertutup
+> (N-07…N-12). Lihat [audit-putaran-3.md](audit-putaran-3.md) untuk laporan
+> terbaru — termasuk angka cakupan rute yang sebenarnya.
 
-Read-only audit. Tidak ada perubahan kode dari proses audit.
+Riwayat panjang: putaran 1 adalah audit read-only (tanpa perubahan kode).
+Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 
 ## Laporan utama
 
 | File | Isi |
 |---|---|
-| [STATUS-AKHIR.md](STATUS-AKHIR.md) | **Ringkasan akhir 12/12 temuan + cara verifikasi ulang** |
+| [audit-putaran-3.md](audit-putaran-3.md) | **Laporan terbaru** — N-07…N-12, cakupan rute, sisa risiko |
+| [audit-putaran-2.md](audit-putaran-2.md) | Putaran 2 — N-01…N-06 (JWT secret, path guard, route gating) |
+| [STATUS-AKHIR.md](STATUS-AKHIR.md) | Ringkasan putaran 1 (H1–L6) + cara verifikasi ulang |
 | [security-audit-report.md](security-audit-report.md) | Audit #1 — keamanan aplikasi (OWASP), 2 HIGH / 4 MED / 6 LOW |
 | [security-audit-report-update.md](security-audit-report-update.md) | **Re-audit** — status temuan lama + permukaan baru commit `0fd2143` |
 | [perbaikan-h1-h2.md](perbaikan-h1-h2.md) | **Eksekusi H1 & H2** — CVE bump + body leak fix (terverifikasi runtime) |
@@ -19,7 +25,7 @@ Read-only audit. Tidak ada perubahan kode dari proses audit.
 | [mitigasi-m1.md](mitigasi-m1.md) | **Mitigasi M1** — token 12 jam + deteksi anomali sesi |
 | [perbaikan-m1-penuh.md](perbaikan-m1-penuh.md) | **M1 penuh** — cookie HttpOnly + CSRF + tiket SSE |
 | [remediation-plan.md](remediation-plan.md) | Urutan fix + patch minimal |
-| [findings.json](findings.json) | Data temuan (machine-readable) |
+| [findings.json](findings.json) | Data temuan (machine-readable) — H1–L6 + N-10, N-11, N-12 |
 
 ## Ketahanan sesi panjang (UI/memori/stabilitas)
 
@@ -32,6 +38,14 @@ Read-only audit. Tidak ada perubahan kode dari proses audit.
 
 ## Ringkas status
 
-- **Keamanan**: 2 HIGH masih terbuka (CVE dependency, kebocoran body request). Prioritas #1.
+- **Keamanan**: 12/12 temuan putaran 1 tertutup. Putaran 2: N-01…N-06 tertutup.
+  Putaran 3: N-07…N-12 tertutup, semuanya diverifikasi runtime; N-11 dan N-12
+  disertai kontrol negatif.
+- **Cakupan uji**: 38 dari 195 rute (19,5 %) terbukti lewat probe runtime;
+  157 rute (80,5 %) **belum** diprobe. Angka ini adalah permukaan yang belum
+  terbukti, bukan yang terbukti aman.
+- **Sisa risiko**: secret JWT lama masih ada di riwayat git publik (nilainya
+  inert); sesi lama tidak berlaku akibat rotasi secret; `git filter-repo`
+  belum dijalankan (keputusan pemilik repo).
 - **Resilience frontend**: Fase 1 selesai + terverifikasi E2E (14 test, 2 device).
 - **Belum dikerjakan**: Fase 2 (cleanup ~40 useEffect), Fase 3 (idle-resync, telemetri, modularisasi), Fase 2 infrastruktur (WAF/TLS/backup).
