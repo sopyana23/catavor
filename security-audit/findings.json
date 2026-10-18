@@ -344,6 +344,83 @@
    "related": [
     "N-27"
    ]
+  },
+  {
+   "id": "N-29",
+   "severity": "high",
+   "title": "Master safe-domains bisa diubah SEMUA staf platform (whitelist anti-phishing tanpa otorisasi)",
+   "location": "backend/cmd/server/main.go:510-515 + 526-531 (duplikat), backend/internal/handlers/safe_domain_handler.go",
+   "endpoint": "GET/POST /api/admin/safe-domains, PUT/DELETE /api/admin/safe-domains/:id, POST /api/admin/safe-domains/reset-defaults",
+   "impact": "safe_domains adalah whitelist domain yang dipakai frontend safeHref: tautan ke domain di daftar ini DIBUKA TANPA peringatan konfirmasi anti-phishing. Rute terdaftar dua kali di adminApi TANPA RequirePermission, hence lolos dengan RequireAdmin saja (semua staf platform). Staf support/content/finance bisa menambahkan domain penyerang lalu mematikan guard redirect untuk seluruh pengguna platform. Dibuktikan runtime: staf platform_role='support' -> POST 201 dan DB mencatat domain 'evil-n29b.example'; setelah perbaikan 4/4 mutasi -> 403.",
+   "fix": "Hapus 5 rute duplikat dan wajibkan RequirePermission(cfg, \"system:settings:manage\") pada seluruh rute safe-domains (izin yang hanya dimiliki Superadmin).",
+   "status": "fixed",
+   "resolution": "Duplikat dihapus, rute tunggal ber-permission system:settings:manage. Verifikasi: support GET/POST/PUT/reset -> 403 (DB tidak bertambah), superadmin -> 200 (fitur utuh). 10 PASS / 0 FAIL."
+  },
+  {
+   "id": "N-30",
+   "severity": "info",
+   "title": "CSRF protection: terpasang dan benar (bukan temuan, hasil verifikasi ulang)",
+   "location": "backend/internal/middleware/security.go:107 (CSRFProtection dipasang via SetupSecurity)",
+   "endpoint": "Seluruh POST/PUT/DELETE /api/*",
+   "impact": "Audit ulang memastikan proteksi CSRF berbasis Origin/Referer benar-benar aktif. Diuji runtime: POST bermutasi dengan Origin asing -> 403, Origin sah -> 200, GET tidak diblokir. Tidak ada celah.",
+   "fix": "Tidak ada tindakan (sudah benar).",
+   "status": "verified-ok",
+   "resolution": "Terpasang di middleware security.go dan terbukti 403 untuk origin asing."
+  },
+  {
+   "id": "N-31",
+   "severity": "high",
+   "title": "pdfjs-dist 3.11.174 rentan arbitrary JS execution saat membuka PDF berbahaya",
+   "location": "frontend/{desktop,mobile}/package.json, frontend/*/src/components/DocumentPreviewModal.tsx",
+   "endpoint": "DocumentPreviewModal (runtime dependency, bukan devDependency)",
+   "impact": "Advisory GHSA-wgrm-67xf-hhpq: pdfjs-dist <=4.7.76 bisa mengeksekusi JavaScript sembarang saat membuka PDF yang dibuat penyerang. Previewer ini dipakai untuk membuka dokumen unggahan merchant/staf, jadi PDF berbahaya berpotensi RCE di origin aplikasi. Mitigasi parsial yang sudah ada: isEvalSupported=false dan CSP ketat (script-src 'self' + hash, tanpa unsafe-inline/eval) — tetapi library tetap harus di-upgrade.",
+   "fix": "Upgrade pdfjs-dist ke 6.4.299 (menghilangkan kanvas/node-pre-gyp/tar), sesuaikan import worker ke build/pdf.worker.min.mjs, lalu npm audit fix.",
+   "status": "fixed",
+   "resolution": "pdfjs-dist 6.4.299 terpasang di desktop & mobile; npm audit keduanya 0 vulnerabilities (sebelumnya 7: 1 critical, 4 high, 2 moderate). Verifikasi fungsional: typecheck PASS, vite build PASS (1 bundel + worker .mjs, MIME text/javascript), harness Node memuat PDF uji -> 1 halaman, viewport 200x200, teks 'HALO' terekstrak, render() tersedia."
+  },
+  {
+   "id": "N-32",
+   "severity": "low",
+   "title": "PDF preview tidak menyediakan standardFontDataUrl/cMapUrl (hardening, bukan degradasi)",
+   "location": "frontend/{desktop,mobile}/src/components/DocumentPreviewModal.tsx:379",
+   "endpoint": "DocumentPreviewModal",
+   "impact": "cMapPacked=true di-set tetapi cMapUrl/standardFontDataUrl tidak, sehingga PDF.js memunculkan warning 'Ensure that the standardFontDataUrl API parameter is provided' untuk PDF berfont standar non-embedded. Diuji terkontrol: teks tetap terekstrak tanpa parameter tsb ('Invoice 2026'), jadi TIDAK ada degradasi fungsional. Tetap hardening yang layak karena PDF non-Latin/custom-encoding bisa kehilangan glyph.",
+   "fix": "Belum diterapkan: perlu menyalin aset standard_fonts/ dan cmaps/ ke bundel lalu set standardFontDataUrl + cMapUrl.",
+   "status": "open",
+   "resolution": "Ditunda: membutuhkan perubahan pipeline build aset (vite publicDir). Bukan bug fungsional, dibuktikan dengan uji A/B."
+  },
+  {
+   "id": "N-33",
+   "severity": "medium",
+   "title": "Pencabutan role staf tidak meng-invalidate sesi yang sudah terbit",
+   "location": "backend/internal/services/rbac_service.go:RevokeStaffRole",
+   "endpoint": "POST /api/admin/rbac/staff/revoke",
+   "impact": "Otorisasi RBAC memang membaca role dari DB sehingga /admin/* langsung 403 setelah demote, TETAPI token JWT lama tetap diterima endpoint terautentikasi biasa sampai kedaluwarsa (24 jam). Dibuktikan runtime: token staf masih 200 di /api/auth/me setelah role dicabut; token_version tidak di-bump. Artinya staf yang dipecat tetap memegang sesi aktif.",
+   "fix": "Panggil RevokeAllSessionsForUser(db, userID) setelah demote: blacklist TokenID tiap sesi, tandai is_revoked, dan bump users.token_version.",
+   "status": "fixed",
+   "resolution": "Diverifikasi lewat jalur nyata: superadmin POST /admin/rbac/staff/revoke -> 200, role jadi merchant, token staf lama -> 401 SESSION_REVOKED (sebelumnya 200). 5 PASS / 0 FAIL."
+  },
+  {
+   "id": "N-34",
+   "severity": "low",
+   "title": "Runtime toolchain tidak di-pin; Node lokal di bawah minimum dependency",
+   "location": ".nvmrc (baru), frontend/{desktop,mobile}/package.json (engines), .github/workflows/security-audit.yml",
+   "endpoint": "Proses build frontend (bukan endpoint runtime)",
+   "impact": "pdfjs-dist 6.4.299 mensyaratkan node >=22.13.0 dan vite 8.1.4 mensyaratkan ^20.19.0 || >=22.12.0, sementara mesin build lokal memakai Node 20.13.1 (di bawah keduanya, memunculkan EBADENGINE). Sebelumnya tidak ada pin versi Node di repo maupun di CI (CI hanya menjalankan gitleaks, tanpa step build), sehingga hasil build bergantung pada mesin siapa yang menjalankannya. Build saat ini tetap sukses, tetapi lingkungan tidak reproducible dan bisa gagal diam-diam pada dependency berikutnya yang menaikkan syarat.",
+   "fix": "Tambahkan engines.node '>=22.13.0' di kedua package.json dan .nvmrc berisi 22.13.0 agar versi terbaca otomatis oleh nvm/CI.",
+   "status": "fixed",
+   "resolution": "Pin ditambahkan; 'npm pkg get engines' mengonfirmasi >=22.13.0 dan npm melaporkan EBADENGINE secara eksplisit untuk Node 20.13.1. Build ulang desktop & mobile exit 0 dengan hash bundel identik (index-CIb2qLus.js / index-y3D47Wht.js, pdf.worker.min-CjEcRF4W.mjs) -> build deterministik. Runtime diverifikasi: kedua SPA render (H1 tampil, #root 1 anak, ErrorBoundary false, 0 console error). Catatan: mesin lokal MASIH Node 20.13.1; upgrade Node disarankan agar peringatan hilang."
+  },
+  {
+   "id": "N-35",
+   "severity": "low",
+   "title": "Audit log platform hanya mencakup 5 aksi RBAC; login & perubahan sensitif tidak tercatat",
+   "location": "backend/internal/services/ (RecordActivity), backend/internal/handlers/auth_handler.go",
+   "endpoint": "POST /api/auth/login, ganti password, hapus toko, ubah settings",
+   "impact": "Aksi yang tercatat di audit log platform hanya RBAC_ACCESS_DENIED, RBAC_CUSTOM_ROLE_CREATED, RBAC_ROLE_PERMISSIONS_UPDATED, RBAC_STAFF_ROLE_ASSIGNED, RBAC_STAFF_ROLE_REVOKED. Login sukses/gagal, perubahan password, penghapusan toko, dan perubahan settings TIDAK masuk audit log governance. Dampak kepatuhan: tidak ada jejak 'siapa mengubah apa' untuk aksi destruktif di luar RBAC. Tidak ada kebocoran kredensial di log (diverifikasi: 0 pemakaian log password/token/secret/otp).",
+   "fix": "Belum diterapkan: tambahkan RecordActivity untuk LOGIN_SUCCESS/LOGIN_FAILED, PASSWORD_CHANGED, STORE_DELETED, SETTINGS_UPDATED.",
+   "status": "open",
+   "resolution": "Mitigasi parsial yang sudah ada: tabel user_sessions merekam IP + User-Agent tiap login (RecordUserSession dipanggil di 5 titik login; terverifikasi 41 baris). Jadi login terlacak secara forensik, hanya tidak masuk log governance."
   }
  ],
  "verified_ok": [
@@ -354,7 +431,17 @@
   "File upload magic-byte + EXIF strip + UUID + 10MB limit",
   "No dangerouslySetInnerHTML / eval / new Function in frontend",
   ".env not tracked in git and not in history; gitleaks configured",
-  "Security headers set (nosniff, XFO, Referrer-Policy, COOP, Permissions-Policy, HSTS on secure)"
+  "Security headers set (nosniff, XFO, Referrer-Policy, COOP, Permissions-Policy, HSTS on secure)",
+  "CSRF protection aktif (Origin/Referer) — POST origin asing 403, origin sah 200",
+  "govulncheck: 0 vulnerability reachable di backend",
+  "npm audit: 0 vulnerabilities di frontend desktop & mobile (setelah N-31)",
+  "Error disclosure: safeErrMsg menyaring jejak DB + fallback generik (hanya 2 pemakaian err.Error, salah satunya komentar)",
+  "Login lockout per-akun: 5 kegagalan / 15 menit, fail-closed bila Redis mati (production)",
+  "Rate limit login per-IP 20/menit; endpoint publik pakai PublicSubmissionRateLimiter",
+  "XSS sink: 0 dangerouslySetInnerHTML, 0 innerHTML, 0 eval/Function di kedua SPA",
+  "Upload: validasi magic bytes (DetectContentType), path traversal dicegah ResolveInsidePrefix",
+  "SSRF: fetch server-side hanya ke URL Google tetap, tidak ada URL dari input user",
+  "SQLi: seluruh Raw/Exec memakai string statis (DDL), tidak ada interpolasi input"
  ],
  "standards": {
   "OWASP_A03_injection": "pass",
