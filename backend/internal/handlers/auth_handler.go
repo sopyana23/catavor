@@ -576,8 +576,22 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 	} else {
 		now := time.Now()
-		if req.GoogleID == "" && req.VerificationToken != "" {
-			_ = services.GetOTPService().ValidateAndConsumeToken(req.Email, req.VerificationToken, "registration")
+		// SECURITY (N-11): registrasi wajib membawa verification_token yang sah.
+		// Sebelumnya hasil ValidateAndConsumeToken diabaikan (`_ =`) dan token
+		// kosong pun diloloskan, sehingga verifikasi email bisa dilewati total.
+		if req.GoogleID == "" {
+			if strings.TrimSpace(req.VerificationToken) == "" {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Verifikasi email wajib diselesaikan sebelum mendaftar.",
+				})
+			}
+			if !services.GetOTPService().ValidateAndConsumeToken(req.Email, req.VerificationToken, "registration") {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Token verifikasi tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.",
+				})
+			}
 		}
 
 		newUser := models.User{
@@ -1439,7 +1453,13 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 						"message": safeErrMsg(err, "Permintaan tidak dapat diproses."),
 					})
 				}
-				_ = services.GetOTPService().ValidateAndConsumeToken(user.Email, token, "password_reset")
+				// SECURITY (N-11): token verifikasi wajib valid & terpakai.
+				if !services.GetOTPService().ValidateAndConsumeToken(user.Email, token, "password_reset") {
+					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+						"success": false,
+						"message": "Token verifikasi tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.",
+					})
+				}
 			} else {
 				if strings.TrimSpace(req.CurrentPassword) == "" {
 					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -1756,14 +1776,21 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 		})
 	}
 
-	// Consume verification token
-	_ = services.GetOTPService().ValidateAndConsumeToken(reqEmail, token, "password_reset")
-
+	// SECURITY (N-11): cek user SEBELUM token dikonsumsi, agar token tidak
+	// hangus hanya karena email tidak terdaftar.
 	var user models.User
 	if err := database.DB.Preload("Store").Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Pengguna tidak ditemukan.",
+		})
+	}
+
+	// Consume verification token — SECURITY (N-11): wajib diperiksa hasilnya.
+	if !services.GetOTPService().ValidateAndConsumeToken(reqEmail, token, "password_reset") {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Token verifikasi tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.",
 		})
 	}
 
