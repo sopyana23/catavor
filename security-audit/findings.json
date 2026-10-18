@@ -656,6 +656,15 @@
    "description": "DefaultMasterCategories di store_handler.go adalah sumber tunggal yang hardcoded. Frontend tidak dapat menemukan kategori default via API. Tiga fungsi helper (append/replace/remove) langsung merujuk map ini.",
    "fix": "Model MasterCategory + migrasi 20261018_n53_master_categories.sql (tabel + seed 55 kategori). Endpoint GET /api/master-categories. Cache DB-backed (sync.Once) dengan fallback ke hardcoded. Semua helper diarahkan ke GetMasterCategories().",
    "verified": "Runtime: endpoint 200, cache dimuat dari DB (55 kategori), 7 product types termasuk plant."
+  },
+  {
+   "id": "N-54",
+   "title": "ApplyMasterPreset tidak punya case 'plant' — preset tanaman jatuh ke default generic",
+   "severity": "medium",
+   "status": "fixed",
+   "description": "Fungsi ApplyMasterPreset di store_handler.go memiliki switch case untuk 6 tipe produk (physical, digital, fauna, service, food, property) tetapi tidak ada case 'plant'. Saat toko menerapkan preset 'plant', jatuh ke default dan mendapat kategori generic ('Kategori Utama', 'Koleksi Populer') alih-alih kategori tanaman spesifik.",
+   "fix": "Tambah case 'plant' dengan classes/habitats/statuses/shipping yang relevan untuk tanaman hias.",
+   "verified": "Runtime: POST /api/stores/apply-master-preset preset=plant mengembalikan classes=['Tanaman Hias Daun','Tanaman Bunga & Anggrek',...]. Regresi physical+food masih benar. Kontrol negatif unknown→default tetap generic."
   }
  ],
  "verified_ok": [

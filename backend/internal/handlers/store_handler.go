@@ -1265,6 +1265,11 @@ func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
 		habitats = []string{"Siap Huni (Ready)", "Indent / Under Construction", "Secondary / Butuh Renovasi"}
 		statuses = []string{"Tersedia (Available)", "Terpesan (Booked / UTJ)", "Terjual / Tersewa (Sold / Rented)"}
 		shipping = []string{"Survey Lokasi / Janji Temu", "Notaris & Serah Terima Kunci", "Konsultasi Legalitas & KPR"}
+	case "plant":
+		classes = []string{"Tanaman Hias Daun", "Tanaman Bunga & Anggrek", "Bibit Buah & Pohon", "Kaktus & Sukulen", "Bonsai & Tanaman Seni", "Tanaman Herbal & Rempah", "Aquascape & Tanaman Air", "Lainnya"}
+		habitats = []string{"Tanaman Outdoor (Full Sun)", "Tanaman Indoor (Low Light)", "Tanaman Semi Shade", "Tanaman Air / Aquascape"}
+		statuses = []string{"Tersedia (Ready Stock)", "Pre-Order (PO)", "Habis (Sold Out)", "Stok Terbatas (Limited)"}
+		shipping = []string{"Bisa Kirim Seluruh Indonesia", "Pulau Jawa Saja", "Ambil Sendiri di Toko", "Kirim dengan Pot & Media"}
 	default:
 		classes = []string{"Kategori Utama", "Koleksi Populer", "Item Unggulan", "Varian Baru", "Promo Spesial"}
 		habitats = []string{"Standar", "Koleksi Terbatas", "Edisi Khusus"}

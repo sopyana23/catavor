@@ -32,8 +32,8 @@
 !/public/storage/stores/.gitkeep
 /public/storage/support/*
 !/public/storage/support/.gitkeep
-/backend/storage/uploads/*
-!/backend/storage/uploads/.gitkeep
+/backend/public/storage/*
+!/backend/public/storage/.gitkeep
 /legacy/laravel/storage/app/public/fauna/*
 !/legacy/laravel/storage/app/public/fauna/.gitkeep
 *.fiber.gz
