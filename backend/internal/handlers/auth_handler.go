@@ -250,6 +250,14 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var user models.User
 	if err := preloadUserStores(database.DB.Preload("Store")).Where("LOWER(email) = ?", cleanedEmail).First(&user).Error; err != nil {
 		_, _ = database.RecordLoginFailure(cleanedEmail)
+		// N-35: login gagal untuk email yang tidak terdaftar. Email TIDAK
+		// dimasukkan sebagai aktor (tidak ada user), hanya ke Changes agar
+		// pola enumerasi/brute force terlihat di audit log.
+		logAuthEvent(c, "AUTH_LOGIN_FAILED", "Login gagal: email tidak terdaftar", nil, map[string]interface{}{
+			"method": "password",
+			"reason": "unknown_email",
+			"email":  cleanedEmail,
+		})
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
 			"message": "Email atau kata sandi yang Anda masukkan salah.",
@@ -258,6 +266,12 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	if !user.CheckPassword(req.Password) {
 		attempts, locked := database.RecordLoginFailure(cleanedEmail)
+		logAuthEvent(c, "AUTH_LOGIN_FAILED", "Login gagal: kata sandi salah", &user, map[string]interface{}{
+			"method":   "password",
+			"reason":   "bad_password",
+			"attempts": attempts,
+			"locked":   locked,
+		})
 		if locked {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"success": false,

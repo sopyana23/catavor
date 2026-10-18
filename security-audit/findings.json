@@ -418,9 +418,9 @@
    "location": "backend/internal/services/ (RecordActivity), backend/internal/handlers/auth_handler.go",
    "endpoint": "POST /api/auth/login, ganti password, hapus toko, ubah settings",
    "impact": "Aksi yang tercatat di audit log platform hanya RBAC_ACCESS_DENIED, RBAC_CUSTOM_ROLE_CREATED, RBAC_ROLE_PERMISSIONS_UPDATED, RBAC_STAFF_ROLE_ASSIGNED, RBAC_STAFF_ROLE_REVOKED. Login sukses/gagal, perubahan password, penghapusan toko, dan perubahan settings TIDAK masuk audit log governance. Dampak kepatuhan: tidak ada jejak 'siapa mengubah apa' untuk aksi destruktif di luar RBAC. Tidak ada kebocoran kredensial di log (diverifikasi: 0 pemakaian log password/token/secret/otp).",
-   "fix": "Belum diterapkan: tambahkan RecordActivity untuk LOGIN_SUCCESS/LOGIN_FAILED, PASSWORD_CHANGED, STORE_DELETED, SETTINGS_UPDATED.",
-   "status": "open",
-   "resolution": "Mitigasi parsial yang sudah ada: tabel user_sessions merekam IP + User-Agent tiap login (RecordUserSession dipanggil di 5 titik login; terverifikasi 41 baris). Jadi login terlacak secara forensik, hanya tidak masuk log governance."
+   "fix": "Helper logAuthEvent() di internal/handlers/auth_audit.go, dipanggil di dua titik kegagalan Login(): reason=unknown_email (tanpa actor; email hanya di Changes) dan reason=bad_password (dengan user_id/actor + attempts + flag locked). Tidak mencatat password, hash, maupun token.",
+   "status": "fixed",
+   "resolution": "PERBAIKAN DITERAPKAN + VERIFIKASI RUNTIME 20 PASS / 0 FAIL: tiap percobaan login gagal menghasilkan tepat 1 baris AUTH_LOGIN_FAILED (action/category/reason/IP/user_agent benar), user_id terisi untuk akun nyata, password & hash bcrypt terbukti TIDAK tersimpan, login sukses tetap 200 dan tetap tercatat (auth.login), regresi healthz/landing/mobile/401 admin OK. KLARIFIKASI: login SUKSES sudah tercatat sejak sebelumnya di auth_handler.go:394 (kredensial) dan :1013 (Google) -- klaim 'login tidak tercatat' TIDAK berlaku untuk jalur sukses; celah nyata hanya pada percobaan GAGAL. Aksi hapus toko & ubah settings tetap tercatat minim dan dicatat sebagai backlog."
   }
  ],
  "verified_ok": [
