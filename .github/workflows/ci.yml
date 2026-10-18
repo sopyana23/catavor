@@ -69,6 +69,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
+          # Catatan: `defaults.run.working-directory` TIDAK berlaku untuk
+          # langkah `uses:`. Path harus relatif ke root repo, kalau tidak
+          # setup-node gagal mencari .nvmrc (bug yang tertangkap CI #1).
           # Samakan dengan .nvmrc dan field "engines" di package.json.
           node-version-file: .nvmrc
           cache: npm
