@@ -20,6 +20,8 @@ Baseline commit: `2fb1d9f`.
 | N-10 | Hasil konsumsi token verifikasi diabaikan pada alur reset | SEDANG | TERTUTUP `8c7a78d` |
 | N-11 | Verifikasi email registrasi bisa dilewati total | KRITIS | TERTUTUP `8c7a78d` |
 | N-12 | Staf `support` dapat mengubah pengaturan platform | TINGGI | TERTUTUP `02a22b8` |
+| N-13 | Paket berbayar aktif tanpa bayar lewat `/api/auth/google` | KRITIS | TERTUTUP `ac1ae3e` |
+| N-14 | `email_verified` Google diabaikan; akun dapat diambil alih | TINGGI | TERTUTUP `ac1ae3e` |
 
 Semua perbaikan di atas dibuktikan dengan probe runtime, dan N-11 serta N-12
 disertai **kontrol negatif** (source dikembalikan ke versi rentan, di-build
@@ -192,8 +194,8 @@ benar-benar diprobe runtime:
 |--------|--------|
 | Rute terdaftar (path+method unik, dengan prefix) | **195** |
 | Handler unik (banyak rute adalah alias) | **140** |
-| Dibuktikan runtime (putaran 1–3) | **33** (16,9 %) |
-| Belum diuji sama sekali | **162** (83,1 %) |
+| Dibuktikan runtime (putaran 1–3) | **34** (17,4 %) |
+| Belum diuji sama sekali | **161** (82,6 %) |
 
 Rincian per kelas proteksi: `PUBLIC` 59, `ADMIN` 54, `MERCHANT` 21,
 `MERCHANT(+op)` 33, `AUTH-ONLY` 28. Dari **100 rute yang menulis**
@@ -320,6 +322,111 @@ kini mencerminkan waktu pemulihan, bukan waktu aslinya.
 dikontrol penuh. ID tersebut diambil dari hasil enumerasi, bukan dari data uji
 yang dibuat sendiri.
 
+
+---
+
+## N-13 (kritis) — Paket berbayar aktif tanpa pembayaran lewat `POST /api/auth/google`
+
+**Lokasi:** `backend/internal/handlers/auth_handler.go`, `GoogleAuth` (CASE B).
+
+**Masalah.** Saat membuat akun baru lewat Google SSO, `GoogleAuth` membaca
+`req.Plan` dari body request lalu langsung menetapkan:
+
+```go
+if rawPlan == "pro" || rawPlan == "pro_starter" { plan = "pro_starter" }
+else if rawPlan == "pro_business"                { plan = "pro_business" }
+...
+if plan != "free" { paymentStatus = "paid" }
+```
+
+Tidak ada perhitungan harga, kupon, invoice, maupun verifikasi admin. Cukup
+kirim `{"credential": "<token Google>", "plan": "pro_business"}` dan toko
+baru lahir dengan `plan='pro_business'`, `payment_status='paid'`,
+`plan_expires_at` +1 bulan, dan `custom_domain_status='active'`.
+
+Sebagai pembanding, `Register()` di berkas yang sama **sudah** punya
+penjagaan eksplisit — komentar aslinya: *"Security Defense Against Free
+Upgrade Exploit"* — yang menetapkan `actualStorePlan = "free"` dan
+`payment_status = "pending_verification"` bila `finalAmount > 0`. Penjagaan
+itu **tidak pernah** dipasang di jalur Google.
+
+**Dampak.** Kehilangan pendapatan langsung: setiap pengguna bisa
+memberi dirinya paket termahal tanpa membayar. Karena jalur ini juga
+membuat toko baru, dampaknya bukan hanya label — fitur berbayar dan
+custom domain ikut aktif.
+
+**Perbaikan.** `req.Plan` diabaikan sepenuhnya di `GoogleAuth`; semua toko
+baru lewat Google mulai dari `plan='free'`, `payment_status='free_active'`.
+Upgrade hanya lewat `Register()` (invoice + verifikasi admin).
+
+**Verifikasi.**
+- Uji `TestGoogleAuthMengabaikanPlanDariRequest` — LULUS pada kode diperbaiki.
+- Kontrol negatif: pada kode rentan uji yang sama GAGAL dengan 4 pesan,
+  termasuk `"GoogleAuth masih menetapkan paket berbayar dari request"`.
+- Runtime: `POST /api/auth/google` dengan token palsu tetap `401`
+  (verifikasi Google tidak dilonggarkan); `/api/login` dan `/api/register`
+  tidak mengalami regresi.
+
+**Catatan kejujuran.** Bukti runtime end-to-end **belum** diperoleh: perlu
+token Google asli, dan saya tidak memilikinya. Klaim celah ini bertumpu pada
+pembacaan kode + uji otomatis dengan kontrol negatif. Untuk menutup celah ini
+secara runtime, perlu satu kali login Google memakai akun uji ber-`plan`
+`pro_business` lalu memeriksa `SELECT plan, payment_status FROM stores`.
+
+---
+
+## N-14 (tinggi) — `email_verified` Google diabaikan; akun bisa diambil alih
+
+**Lokasi:** `verifyGoogleCredential` dan `GoogleAuth` CASE A.
+
+**Masalah.** Struk pembaca token sudah memuat field `EmailVerified any`,
+tetapi nilainya **tidak pernah diperiksa** di kedua jalur verifikasi
+(`tokeninfo` maupun `userinfo`). Alamat email diterima apa adanya.
+
+Di CASE A (akun sudah ada), `google_id` ditempelkan ke akun yang cocok
+berdasarkan email, tanpa melihat apakah akun tersebut sudah lolos
+verifikasi:
+
+```go
+if (user.GoogleID == nil || *user.GoogleID == "") && googleID != "" {
+    user.GoogleID = &googleID
+    database.DB.Save(&user)
+}
+```
+
+**Dampak.** Siapa pun yang bisa membuat identitas Google dengan alamat email
+yang belum terverifikasi dapat masuk ke akun Catavor yang memakai alamat itu.
+Data produksi: **13 dari 18 akun** belum punya `email_verified_at`, sehingga
+permukaan serangannya nyata.
+
+**Perbaikan.**
+1. `claimsEmailVerified` menormalkan klaim `email_verified` (`bool` maupun
+   `string "true"`), **fail-closed** untuk bentuk yang tidak dikenali.
+2. Ditambahkan di kedua jalur verifikasi; email yang belum terverifikasi
+   ditolak sebelum `GoogleAuth` melanjutkan.
+3. CASE A menolak (`403`) penautan Google ke akun yang emailnya belum
+   diverifikasi — **hanya bila akun tersebut belum punya `google_id`**.
+
+**Jebakan yang ditemukan saat verifikasi (penting).** Penjagaan versi pertama
+saya mensyaratkan `EmailVerifiedAt == nil` saja. Itu **salah** dan akan
+mengunci pengguna sah: data produksi berisi **5 akun** dengan `google_id`
+terisi, toko aktif, tetapi `email_verified_at` kosong
+(id 2, 3, 4, 6, 7). Akun-akun ini dulu masuk lewat Google, jadi emailnya
+sudah terverifikasi di sisi Google meski kolom lokalnya belum diisi.
+Syarat `belumTertautGoogle` ditambahkan agar mereka tetap bisa masuk.
+
+**Verifikasi.**
+- `TestClaimsEmailVerified` (10 kasus) — LULUS.
+- `TestPenjagaanN14TidakMengunciAkunTertautGoogle` — LULUS, dan gagal bila
+  syarat `google_id` dihapus (kontrol negatif).
+- Kontrol negatif `claimsEmailVerified` yang selalu `true`: 6 dari 10 kasus
+  GAGAL seperti seharusnya.
+- Cek data: kelima akun Google asli (id 2, 3, 4, 6, 7) berstatus
+  "LOLOS (sudah tertaut)", bukan diblokir.
+
+**Catatan kejujuran.** Sama seperti N-13: belum ada bukti runtime end-to-end
+karena butuh token Google asli.
+
 ---
 
 ## Verifikasi Suite
@@ -357,7 +464,7 @@ terarah, dan probe HTTP runtime ad-hoc.
    yang saya tulis pun awalnya salah (mengasumsikan `data.store = null` dan
    memakai PNG korup), dan kesalahan itu menutupi hasil yang sebenarnya benar —
    verifier ad-hoc harus selalu disertai kontrol positif.
-5. **162 dari 195 rute (83,1 %) belum pernah diprobe runtime.** Ini permukaan
+5. **161 dari 195 rute (82,6 %) belum pernah diprobe runtime.** Ini permukaan
    yang *belum terbukti*, bukan permukaan yang *terbukti aman*. Lihat bagian
    "Cakupan Penyisiran — Angka Sebenarnya".
 

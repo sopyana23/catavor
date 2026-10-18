@@ -1,194 +1,214 @@
 {
-  "audit_date": "2026-10-16",
-  "target": "C:\\MyProject\\DFauna",
-  "scope": "backend Go (Fiber+GORM) + frontend React TS",
-  "read_only": true,
-  "findings": [
+ "audit_date": "2026-10-16",
+ "target": "C:\\MyProject\\DFauna",
+ "scope": "backend Go (Fiber+GORM) + frontend React TS",
+ "read_only": true,
+ "findings": [
+  {
+   "id": "H1",
+   "severity": "high",
+   "title": "err.Error() + raw request body leaked to client",
+   "location": "backend/internal/handlers/auth_handler.go:1555",
+   "endpoint": "SendRegistrationOTP",
+   "impact": "Information disclosure; raw request body echoed to HTTP response",
+   "fix": "Generic message to client, detail to server log only",
+   "status": "fixed",
+   "resolution": "err.Error() tidak lagi dikirim mentah; diverifikasi 0 pola di handlers/middleware"
+  },
+  {
+   "id": "H2",
+   "severity": "high",
+   "title": "Vulnerable dependencies (active CVEs)",
+   "packages": [
     {
-      "id": "H1",
-      "severity": "high",
-      "title": "err.Error() + raw request body leaked to client",
-      "location": "backend/internal/handlers/auth_handler.go:1555",
-      "endpoint": "SendRegistrationOTP",
-      "impact": "Information disclosure; raw request body echoed to HTTP response",
-      "fix": "Generic message to client, detail to server log only",
-      "status": "fixed",
-      "resolution": "err.Error() tidak lagi dikirim mentah; diverifikasi 0 pola di handlers/middleware"
+     "name": "github.com/gofiber/fiber/v2",
+     "version": "v2.52.5",
+     "cve": [
+      "CVE-2025-66630",
+      "CVE-2025-48075"
+     ],
+     "fix_version": "latest 2.52.x"
     },
     {
-      "id": "H2",
-      "severity": "high",
-      "title": "Vulnerable dependencies (active CVEs)",
-      "packages": [
-        {
-          "name": "github.com/gofiber/fiber/v2",
-          "version": "v2.52.5",
-          "cve": [
-            "CVE-2025-66630",
-            "CVE-2025-48075"
-          ],
-          "fix_version": "latest 2.52.x"
-        },
-        {
-          "name": "github.com/golang-jwt/jwt/v5",
-          "version": "v5.2.1",
-          "cve": [
-            "CVE-2025-30204"
-          ],
-          "fix_version": ">=5.2.2"
-        },
-        {
-          "name": "github.com/go-playground/validator/v10",
-          "version": "v10.23.0",
-          "cve": [],
-          "fix_version": "latest"
-        }
-      ],
-      "fix": "go get -u ...; go mod tidy; govulncheck ./...",
-      "status": "fixed",
-      "resolution": "govulncheck Go 1.26.9: 'No vulnerabilities found', 0 affected"
+     "name": "github.com/golang-jwt/jwt/v5",
+     "version": "v5.2.1",
+     "cve": [
+      "CVE-2025-30204"
+     ],
+     "fix_version": ">=5.2.2"
     },
     {
-      "id": "M1",
-      "severity": "medium",
-      "title": "JWT stored in localStorage",
-      "location": "frontend/desktop/src/utils/apiClient.ts:106 (and App.tsx)",
-      "impact": "Single XSS = full account takeover",
-      "status": "fixed",
-      "resolution": "cookie HttpOnly + CSRF + tiket SSE sekali pakai; lihat perbaikan-m1-penuh.md"
-    },
-    {
-      "id": "M2",
-      "severity": "medium",
-      "title": "Weak CSP (unsafe-inline, unsafe-eval in script-src)",
-      "location": "backend/internal/middleware/security.go:37",
-      "impact": "CSP XSS protection largely nullified; wildcard img-src/connect-src",
-      "status": "fixed",
-      "resolution": "CSP pakai SHA-256 hash, tanpa unsafe-eval; lihat perbaikan-m2-csp.md"
-    },
-    {
-      "id": "M3",
-      "severity": "medium",
-      "title": "Security state in-memory (bypass on restart / multi-instance)",
-      "location": "backend/internal/database/redis.go:282-418; middleware/security.go:90,120,137",
-      "impact": "Without Redis: logout blacklist, login lockout, rate limit reset on restart; per-instance counters in multi-replica",
-      "status": "fixed",
-      "resolution": "fail closed di production: startup, blacklist JWT, lockout login"
-    },
-    {
-      "id": "M4",
-      "severity": "medium",
-      "title": "err.Error() leaked to client in many handlers",
-      "location": [
-        "analytics_handler.go:1105,1124,1135",
-        "notification_handler.go:1273-1300",
-        "dormancy_handler.go:105"
-      ],
-      "impact": "Internal error detail disclosure",
-      "status": "fixed",
-      "resolution": "safe_error.go; respons error generik"
-    },
-    {
-      "id": "L1",
-      "severity": "low",
-      "title": "Potential path traversal / ambiguous LIKE lookup",
-      "location": "support_handler.go:2312",
-      "status": "fixed",
-      "resolution": "escape wildcard LIKE; kode auth_handler"
-    },
-    {
-      "id": "L2",
-      "severity": "low",
-      "title": "Regex-based SanitizeRichText (blacklist, bypassable)",
-      "location": "security/sanitizer.go",
-      "status": "fixed",
-      "resolution": "sanitizer allowlist parser (x/net/html), bukan regex blacklist"
-    },
-    {
-      "id": "L3",
-      "severity": "low",
-      "title": "CORS AllowCredentials true (ensure no wildcard origin in prod)",
-      "location": "middleware/security.go:57",
-      "status": "fixed",
-      "resolution": "wildcard origin ditolak, AllowCredentials hanya untuk origin eksplisit"
-    },
-    {
-      "id": "L4",
-      "severity": "low",
-      "title": "Default JWT secret only warns, no fatal in production",
-      "location": "config/config.go:82",
-      "status": "fixed",
-      "resolution": "JWT secret default/panjang<32 -> log.Fatal di production/staging"
-    },
-    {
-      "id": "L5",
-      "severity": "low",
-      "title": "err.Error() in dormancy_handler.go:49",
-      "location": "dormancy_handler.go:49",
-      "status": "fixed",
-      "resolution": "dormancy_handler tidak lagi memakai err.Error()"
-    },
-    {
-      "id": "L6",
-      "severity": "low",
-      "title": "DB_SSLMODE=disable in .env",
-      "location": ".env",
-      "status": "fixed",
-      "resolution": "fail closed di production; .env.example kini mencontohkan require"
-    },
-    {
-      "id": "N-10",
-      "severity": "medium",
-      "title": "Ignored return of ValidateAndConsumeToken in password reset flows",
-      "location": "backend/internal/handlers/auth_handler.go:1457,1790",
-      "endpoint": "ForgotPasswordReset, ResetPasswordDirect",
-      "impact": "Expired/reused verification token still allowed password reset. Not an auth bypass: a valid OTP is still required first.",
-      "fix": "Check the bool return; return 422 when the token is invalid. In ResetPasswordDirect, look up the user before consuming the token.",
-      "status": "fixed",
-      "commit": "8c7a78d",
-      "resolution": "grep '_ = .*ValidateAndConsumeToken' -> 0 after fix; runtime reset with fake OTP -> 422"
-    },
-    {
-      "id": "N-11",
-      "severity": "critical",
-      "title": "Registration email verification fully bypassable",
-      "location": "backend/internal/handlers/auth_handler.go:580",
-      "endpoint": "POST /api/auth/register",
-      "impact": "VerifyOTP never called and token consume result discarded; only 'verification_token != \\\"\\\"' was checked. Anyone could create email-verified accounts and stores without receiving any email.",
-      "fix": "Require a successful ValidateAndConsumeToken for purpose 'registration'; reject 422 otherwise.",
-      "status": "fixed",
-      "commit": "8c7a78d",
-      "resolution": "Runtime pre-fix: fabricated token -> 200 (store 26), no token -> 200 (store 27), email_verification_otps count = 0 while email_verified_at set. Post-fix: 422 for both, valid flow 200, replay 422. Negative control on vulnerable build FAILS as required."
-    },
-    {
-      "id": "N-12",
-      "severity": "high",
-      "title": "Platform settings writable by any non-merchant platform staff (blacklist role check)",
-      "location": "backend/internal/handlers/setting_handler.go; backend/cmd/server/main.go:519-521",
-      "endpoint": "GET/POST /api/admin/settings, POST /api/admin/settings/rekber/reset-defaults",
-      "impact": "Handler used a blacklist (role == \\\"\\\" || role == \\\"merchant\\\"), so every staff role outside merchant passed; GET had no authz check at all. Staff 'support' altered monetization/ads/partner settings.",
-      "fix": "Gate the three routes with RequirePermission(\\\"system:settings:manage\\\") (already present in the RBAC matrix, superadmin-only); replace the handler blacklist with the IsPlatformStaffRole whitelist as defense in depth.",
-      "status": "fixed",
-      "commit": "02a22b8",
-      "resolution": "support: 200 -> 403 (negatif control on vulnerable build: 200). superadmin 200, merchant 403. ads_test_mode changed 0->true then restored to 0. No regression on /admin/support/tickets and /admin/rbac/me."
+     "name": "github.com/go-playground/validator/v10",
+     "version": "v10.23.0",
+     "cve": [],
+     "fix_version": "latest"
     }
-  ],
-  "verified_ok": [
-    "No SQL injection (all GORM parameterized; raw SQL is static DDL/migration only)",
-    "JWT alg pinning + token.Valid + jti blacklist + token-version",
-    "bcrypt cost 12 + 8-72 byte password boundary",
-    "Multi-tenant IDOR checks consistent (StoreOwnerRequired, ownership Where clauses)",
-    "File upload magic-byte + EXIF strip + UUID + 10MB limit",
-    "No dangerouslySetInnerHTML / eval / new Function in frontend",
-    ".env not tracked in git and not in history; gitleaks configured",
-    "Security headers set (nosniff, XFO, Referrer-Policy, COOP, Permissions-Policy, HSTS on secure)"
-  ],
-  "standards": {
-    "OWASP_A03_injection": "pass",
-    "OWASP_A01_access_control": "pass",
-    "OWASP_A06_vulnerable_components": "fail",
-    "OWASP_A05_misconfig": "partial",
-    "OWASP_A07_auth": "pass (requires Redis in prod)",
-    "SOC2_ISO27001_phase2": "not_started"
+   ],
+   "fix": "go get -u ...; go mod tidy; govulncheck ./...",
+   "status": "fixed",
+   "resolution": "govulncheck Go 1.26.9: 'No vulnerabilities found', 0 affected"
+  },
+  {
+   "id": "M1",
+   "severity": "medium",
+   "title": "JWT stored in localStorage",
+   "location": "frontend/desktop/src/utils/apiClient.ts:106 (and App.tsx)",
+   "impact": "Single XSS = full account takeover",
+   "status": "fixed",
+   "resolution": "cookie HttpOnly + CSRF + tiket SSE sekali pakai; lihat perbaikan-m1-penuh.md"
+  },
+  {
+   "id": "M2",
+   "severity": "medium",
+   "title": "Weak CSP (unsafe-inline, unsafe-eval in script-src)",
+   "location": "backend/internal/middleware/security.go:37",
+   "impact": "CSP XSS protection largely nullified; wildcard img-src/connect-src",
+   "status": "fixed",
+   "resolution": "CSP pakai SHA-256 hash, tanpa unsafe-eval; lihat perbaikan-m2-csp.md"
+  },
+  {
+   "id": "M3",
+   "severity": "medium",
+   "title": "Security state in-memory (bypass on restart / multi-instance)",
+   "location": "backend/internal/database/redis.go:282-418; middleware/security.go:90,120,137",
+   "impact": "Without Redis: logout blacklist, login lockout, rate limit reset on restart; per-instance counters in multi-replica",
+   "status": "fixed",
+   "resolution": "fail closed di production: startup, blacklist JWT, lockout login"
+  },
+  {
+   "id": "M4",
+   "severity": "medium",
+   "title": "err.Error() leaked to client in many handlers",
+   "location": [
+    "analytics_handler.go:1105,1124,1135",
+    "notification_handler.go:1273-1300",
+    "dormancy_handler.go:105"
+   ],
+   "impact": "Internal error detail disclosure",
+   "status": "fixed",
+   "resolution": "safe_error.go; respons error generik"
+  },
+  {
+   "id": "L1",
+   "severity": "low",
+   "title": "Potential path traversal / ambiguous LIKE lookup",
+   "location": "support_handler.go:2312",
+   "status": "fixed",
+   "resolution": "escape wildcard LIKE; kode auth_handler"
+  },
+  {
+   "id": "L2",
+   "severity": "low",
+   "title": "Regex-based SanitizeRichText (blacklist, bypassable)",
+   "location": "security/sanitizer.go",
+   "status": "fixed",
+   "resolution": "sanitizer allowlist parser (x/net/html), bukan regex blacklist"
+  },
+  {
+   "id": "L3",
+   "severity": "low",
+   "title": "CORS AllowCredentials true (ensure no wildcard origin in prod)",
+   "location": "middleware/security.go:57",
+   "status": "fixed",
+   "resolution": "wildcard origin ditolak, AllowCredentials hanya untuk origin eksplisit"
+  },
+  {
+   "id": "L4",
+   "severity": "low",
+   "title": "Default JWT secret only warns, no fatal in production",
+   "location": "config/config.go:82",
+   "status": "fixed",
+   "resolution": "JWT secret default/panjang<32 -> log.Fatal di production/staging"
+  },
+  {
+   "id": "L5",
+   "severity": "low",
+   "title": "err.Error() in dormancy_handler.go:49",
+   "location": "dormancy_handler.go:49",
+   "status": "fixed",
+   "resolution": "dormancy_handler tidak lagi memakai err.Error()"
+  },
+  {
+   "id": "L6",
+   "severity": "low",
+   "title": "DB_SSLMODE=disable in .env",
+   "location": ".env",
+   "status": "fixed",
+   "resolution": "fail closed di production; .env.example kini mencontohkan require"
+  },
+  {
+   "id": "N-10",
+   "severity": "medium",
+   "title": "Ignored return of ValidateAndConsumeToken in password reset flows",
+   "location": "backend/internal/handlers/auth_handler.go:1457,1790",
+   "endpoint": "ForgotPasswordReset, ResetPasswordDirect",
+   "impact": "Expired/reused verification token still allowed password reset. Not an auth bypass: a valid OTP is still required first.",
+   "fix": "Check the bool return; return 422 when the token is invalid. In ResetPasswordDirect, look up the user before consuming the token.",
+   "status": "fixed",
+   "commit": "8c7a78d",
+   "resolution": "grep '_ = .*ValidateAndConsumeToken' -> 0 after fix; runtime reset with fake OTP -> 422"
+  },
+  {
+   "id": "N-11",
+   "severity": "critical",
+   "title": "Registration email verification fully bypassable",
+   "location": "backend/internal/handlers/auth_handler.go:580",
+   "endpoint": "POST /api/auth/register",
+   "impact": "VerifyOTP never called and token consume result discarded; only 'verification_token != \\\"\\\"' was checked. Anyone could create email-verified accounts and stores without receiving any email.",
+   "fix": "Require a successful ValidateAndConsumeToken for purpose 'registration'; reject 422 otherwise.",
+   "status": "fixed",
+   "commit": "8c7a78d",
+   "resolution": "Runtime pre-fix: fabricated token -> 200 (store 26), no token -> 200 (store 27), email_verification_otps count = 0 while email_verified_at set. Post-fix: 422 for both, valid flow 200, replay 422. Negative control on vulnerable build FAILS as required."
+  },
+  {
+   "id": "N-12",
+   "severity": "high",
+   "title": "Platform settings writable by any non-merchant platform staff (blacklist role check)",
+   "location": "backend/internal/handlers/setting_handler.go; backend/cmd/server/main.go:519-521",
+   "endpoint": "GET/POST /api/admin/settings, POST /api/admin/settings/rekber/reset-defaults",
+   "impact": "Handler used a blacklist (role == \\\"\\\" || role == \\\"merchant\\\"), so every staff role outside merchant passed; GET had no authz check at all. Staff 'support' altered monetization/ads/partner settings.",
+   "fix": "Gate the three routes with RequirePermission(\\\"system:settings:manage\\\") (already present in the RBAC matrix, superadmin-only); replace the handler blacklist with the IsPlatformStaffRole whitelist as defense in depth.",
+   "status": "fixed",
+   "commit": "02a22b8",
+   "resolution": "support: 200 -> 403 (negatif control on vulnerable build: 200). superadmin 200, merchant 403. ads_test_mode changed 0->true then restored to 0. No regression on /admin/support/tickets and /admin/rbac/me."
+  },
+  {
+   "id": "N-13",
+   "severity": "critical",
+   "title": "Paket berbayar aktif tanpa pembayaran lewat POST /api/auth/google",
+   "location": "backend/internal/handlers/auth_handler.go: GoogleAuth (CASE B)",
+   "status": "fixed",
+   "commit": "ac1ae3e",
+   "summary": "GoogleAuth memakai req.Plan untuk menetapkan plan pro_* dan payment_status paid tanpa harga/invoice/verifikasi admin. Register() sudah punya penjagaan yang sama tetapi tidak dipasang di jalur Google.",
+   "runtime_proof": "belum end-to-end (butuh token Google asli); unit test + kontrol negatif"
+  },
+  {
+   "id": "N-14",
+   "severity": "high",
+   "title": "Klaim email_verified Google diabaikan; akun dapat diambil alih",
+   "location": "backend/internal/handlers/auth_handler.go: verifyGoogleCredential, GoogleAuth (CASE A)",
+   "status": "fixed",
+   "commit": "ac1ae3e",
+   "summary": "email_verified dibaca tetapi tidak diperiksa di kedua jalur verifikasi; CASE A menempelkan google_id ke akun mana pun dengan email sama. Penjagaan wajib mensyaratkan akun belum tertaut Google agar 5 akun produksi tidak terkunci.",
+   "runtime_proof": "unit test + kontrol negatif; cek data 5 akun lolos"
   }
+ ],
+ "verified_ok": [
+  "No SQL injection (all GORM parameterized; raw SQL is static DDL/migration only)",
+  "JWT alg pinning + token.Valid + jti blacklist + token-version",
+  "bcrypt cost 12 + 8-72 byte password boundary",
+  "Multi-tenant IDOR checks consistent (StoreOwnerRequired, ownership Where clauses)",
+  "File upload magic-byte + EXIF strip + UUID + 10MB limit",
+  "No dangerouslySetInnerHTML / eval / new Function in frontend",
+  ".env not tracked in git and not in history; gitleaks configured",
+  "Security headers set (nosniff, XFO, Referrer-Policy, COOP, Permissions-Policy, HSTS on secure)"
+ ],
+ "standards": {
+  "OWASP_A03_injection": "pass",
+  "OWASP_A01_access_control": "pass",
+  "OWASP_A06_vulnerable_components": "fail",
+  "OWASP_A05_misconfig": "partial",
+  "OWASP_A07_auth": "pass (requires Redis in prod)",
+  "SOC2_ISO27001_phase2": "not_started"
+ }
 }
