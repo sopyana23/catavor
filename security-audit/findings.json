@@ -245,6 +245,19 @@
    "status": "fixed",
    "summary": "Approve mengubah order pending menjadi paid dan mengaktifkan paket, tetapi tidak menulis activity_logs dan subscription_orders tidak punya kolom approved_by; hanya zerolog ke stdout. Aksi katalog biasa justru tercatat. Kini ditulis sebagai billing.subscription_approve lengkap dengan pelaku dan approved_by.",
    "runtime_proof": "Sebelum: approve 200, activity_logs ILIKE '%approv%' = 0 baris. Sesudah: tercatat user_id=12, action=billing.subscription_approve, entity_title=INV-SUB-..., changes.approved_by=12. Kontrol negatif: pencatatan dicabut -> approve 200 tetapi baris audit tetap 1->1; patch dipulihkan -> 1->2."
+  },
+  {
+   "id": "N-21",
+   "severity": "medium",
+   "title": "Toko dengan slug mengandung merek platform tidak dapat diakses publik (404)",
+   "location": "backend/internal/handlers/store_handler.go:114 (IsReservedSlug), dipakai ShowStore & IndexProducts",
+   "status": "open",
+   "category": "fungsional",
+   "summary": "IsReservedSlug() menolak setiap slug yang mengandung varian merek (catavor/catafor/katavor/catafr/...), dan pemeriksaan yang sama dipakai saat MEMBACA toko yang sudah ada, bukan hanya saat registrasi. Akibatnya /api/u/:slug dan /api/u/:slug/products mengembalikan 404 'Toko tidak ditemukan.' untuk toko yang slug-nya mengandung nama merek.",
+   "evidence": "Runtime tanpa auth: /api/u/dfauna|adidas|gendolo|shop66698|iop semua 200; /api/u/catavor dan /api/u/catavor-compliance keduanya 404 (ShowStore dan IndexProducts). Toko id=1 slug=catavor plan=pro status=active punya 11 produk aktif yang tidak dapat dibuka publik. check-slug menolak slug ini dengan 'kata kunci sistem yang dicadangkan'.",
+   "impact": "Katalog toko milik pemilik platform (11 produk aktif) tidak dapat diakses publik maupun lewat API. Bukan kebocoran data; kebalikannya — kehilangan akses sah.",
+   "fix": "Belum diperbaiki: butuh keputusan produk. Opsi: (a) kecualikan toko brand-owned (id=1 / flag is_brand_owner) dari IsReservedSlug saat pembacaan; (b) terapkan reserved hanya pada saat registrasi/rename, bukan pada lookup. Tidak diubah sepihak karena menyangkut kebijakan penamaan.",
+   "resolution": "Terbuka - menunggu keputusan produk"
   }
  ],
  "verified_ok": [

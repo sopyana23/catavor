@@ -1146,3 +1146,107 @@ Tabel `notifications` **tidak punya kolom `user_id`**; targeting memakai
 pengguna memakai ID string (`notif_about_25`, `notif_share_25`) sementara
 broadcast memakai `notif_bc_<uuid>`. Pembacaan "per user" dilakukan lewat
 `notification_reads` (kolom `user_id`), bukan lewat kolom di `notifications`.
+
+---
+
+## Hasil probe rute PUBLIC (38) — putaran ini menutup seluruh 195 rute
+
+Semua diuji tanpa autentikasi. Yang mengembalikan data diperiksa **isinya**,
+bukan hanya status code.
+
+### Ringkasan
+
+| Kelompok | Hasil |
+|---|---|
+| `/articles`, `/articles/:id`, `/articles/:id/comments` | 200, isi artikel platform |
+| `/products`, `/fauna` | 200, **87 baris = tepat jumlah produk aktif** |
+| `/products/:id`, `/fauna/:id`, `*/recommendations` | 404 (id uji sudah dihapus — wajar) |
+| `/settings` | 200, 29 key — semuanya memang publik (slot ads, GA measurement id, nomor WA bisnis). **Tidak ada kredensial** |
+| `/policies` | 200 `{}` (kosong) |
+| `/culinary-taxonomy`, `/taxonomy/culinary` | 200, data statis |
+| `/subscription/plans` | 200, katalog harga |
+| `/stores/featured` | 200 |
+| `/market-intelligence`, `/summary` | 200, agregat platform (tanpa PII) |
+| `/public/safe-domains`, `/safe-domains` | 200, 64 byte |
+| `/readyz` | **401** (tidak publik — benar) |
+| `/ads.txt` | 200 |
+| `/auth/google` | **401** tanpa token, **401** token palsu |
+| `check-slug` (6 varian) | 200, membocorkan eksistensi slug — **memang fungsi endpoint ini** |
+| `reactivate` (3 varian) | token palsu → **"Reaktivasi Gagal"**; token sah → **307** |
+
+### Verifikasi anti-kebocoran pada `/products`
+
+87 baris dikembalikan = `COUNT(*) WHERE deleted_at IS NULL` di DB (87).
+Tidak ada `deleted_at` terisi, `is_active` semuanya `true`,
+`moderation_status` semua `none`. Tidak ada kolom `user_id`, `email`,
+`phone`, `address`, atau `password`.
+
+Percobaan memaksa tampilan merchant lewat query
+(`?status=all`, `?status=archived`, `?status=ALL`) **tidak berhasil** — tetap
+87 baris `is_active=true`. `isMerchantView` hanya di-set dari
+`c.Locals("store")` yang dipasang middleware, bukan dari input klien.
+
+### Uji `reactivate` (dengan kontrol positif)
+
+| Input | Hasil |
+|---|---|
+| tanpa token | 400, halaman "Reaktivasi Toko" |
+| `?token=palsu123` | 400, "Reaktivasi Gagal" |
+| `?token=abc` | 400, "Reaktivasi Gagal" |
+| **token sah (64 char) toko 10** | **307**, `dormancy_status` → `active`, token dikosongkan |
+
+Token sah diuji pada toko `catavor-compliance` (id 10), lalu `dormancy_status`
+dan `reactivation_token` dikembalikan persis ke `warning_1` + token 64 char
+semula. Toko 11–14 tidak tersentuh (tetap `warning_1`).
+
+### Uji path traversal pada catch-all `/*`
+
+| Path (dikirim mentah, `--path-as-is`) | Hasil |
+|---|---|
+| `/../../backend/.env` | 200, 4048 byte |
+| `/../../../etc/passwd` | 200, 4048 byte |
+| `/..%2f..%2fbackend%2f.env` | 200, 4048 byte |
+| `/static/../../backend/.env` | 200, 4048 byte |
+| `/storage/../../backend/.env` | 200, 4048 byte |
+| `/%2e%2e/%2e%2e/backend/.env` | 200, 4048 byte |
+
+Semuanya mengembalikan **HTML SPA yang identik (4048 byte)**, bukan isi `.env`.
+`.env` memang ada di disk (2402 byte) dan tidak terekspos. Catch-all hanya
+melayani `index.html`.
+
+---
+
+## N-21 (baru, severity: medium — fungsional, bukan celah)
+
+**Toko dengan nama mengandung merek platform tidak bisa diakses publik.**
+
+`IsReservedSlug()` (`store_handler.go:114`) menganggap setiap slug yang
+mengandung varian merek (`catavor`, `catafor`, `katavor`, `catafr`, …) sebagai
+slug sistem yang dicadangkan, sehingga `ShowStore` dan `IndexProducts`
+mengembalikan **404 "Toko tidak ditemukan."**
+
+Bukti runtime pada data nyata:
+
+| Slug | `/api/u/:slug` | `/api/u/:slug/products` | Produk aktif |
+|---|---|---|---|
+| `dfauna` | 200 | 200 | 11 |
+| `adidas` | 200 | 200 | 12 |
+| `gendolo` | 200 | 200 | 11 |
+| `shop66698` | 200 | 200 | 6 |
+| `iop` | 200 | 200 | 2 |
+| **`catavor`** | **404** | **404** | **11** |
+| **`catavor-compliance`** | **404** | **404** | 0 |
+
+Toko id 1 (`slug=catavor`, `plan=pro`, `status=active`, 11 produk aktif) adalah
+toko milik pemilik platform sendiri dan **katalognya tidak dapat dibuka
+publik**. `check-slug` juga menolak slug ini dengan pesan "Nama pengguna ini
+adalah kata kunci sistem yang dicadangkan".
+
+Akar masalah: proteksi anti-typosquatting dirancang untuk *pendaftaran toko
+baru*, tetapi dipakai juga pada *pembacaan* toko yang sudah ada. Toko lama yang
+sudah memakai slug tersebut menjadi tidak dapat diakses.
+
+**Belum diperbaiki.** Perbaikan menuntut keputusan produk: apakah toko
+brand-owned dikecualikan (mis. `id=1` atau via flag `is_brand_owner`), atau
+aturan reserved hanya berlaku saat registrasi/rename. Tidak boleh diubah
+sepihak karena menyangkut kebijakan penamaan.
