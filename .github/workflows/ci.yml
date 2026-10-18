@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+# Batalkan run lama bila ada push baru di ref yang sama.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (build, vet, test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Verifikasi go.mod konsisten
+        run: go mod verify
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (race detector + coverage)
+        # -race butuh cgo. Runner ubuntu-latest menyediakan gcc, jadi aman
+        # dijalankan di sini (tidak bisa jalan di Windows/MSYS lokal).
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Tampilkan coverage
+        run: go tool cover -func=coverage.out | tail -20
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.out
+          retention-days: 14
+
+  frontend:
+    name: Frontend (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [ desktop, mobile ]
+    defaults:
+      run:
+        working-directory: frontend/${{ matrix.app }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Samakan dengan .nvmrc dan field "engines" di package.json.
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/${{ matrix.app }}/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        # WAJIB `-b`. tsconfig.json di kedua SPA hanya berisi "references",
+        # jadi `tsc --noEmit` tanpa -b tidak memeriksa satu file pun dan
+        # selalu lolos (bug nyata: 4 error pdfjs lolos lewat cara ini).
+        run: npx tsc -b --noEmit
+
+      - name: Build
+        run: npm run build
+
+  security:
+    name: Security (secrets, vulns, deps)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Govulncheck
+        working-directory: backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: npm audit (desktop)
+        working-directory: frontend/desktop
+        # --omit=dev: hanya dependency produksi yang jadi blocker.
+        # Kerentanan di devDependency dilaporkan tapi tidak menggagalkan build.
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (mobile)
+        working-directory: frontend/mobile
+        run: npm audit --omit=dev --audit-level=high
+
+  # Satu job penentu untuk branch protection: wajib lulus semua di atas.
+  ci-ok:
+    name: CI OK
+    runs-on: ubuntu-latest
+    needs: [ backend, frontend, security ]
+    if: always()
+    steps:
+      - name: Cek hasil semua job
+        run: |
+          if [ "${{ needs.backend.result }}" != "success" ] || \
+             [ "${{ needs.frontend.result }}" != "success" ] || \
+             [ "${{ needs.security.result }}" != "success" ]; then
+            echo "Salah satu job gagal:"
+            echo "  backend  = ${{ needs.backend.result }}"
+            echo "  frontend = ${{ needs.frontend.result }}"
+            echo "  security = ${{ needs.security.result }}"
+            exit 1
+          fi
+          echo "Semua job lulus."

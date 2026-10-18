@@ -81,3 +81,6 @@ blob_storage/
 code.lock
 languagepacks.json
 machineid
+
+# Coverage dari go test
+backend/coverage.out

@@ -79,8 +79,11 @@ const PdfPageCanvas: React.FC<PdfPageProps> = ({ pdfDoc, pageNum, scale }) => {
           } catch (_) {}
         }
 
+        // pdfjs 6: `canvas` wajib ada di RenderParameters (menggantikan
+        // `canvasContext` yang kini warisan). Transform dipakai untuk
+        // menyesuaikan device pixel ratio agar hasil tidak buram.
         const renderContext = {
-          canvasContext: context,
+          canvas: canvasRef.current,
           transform: [pixelRatio, 0, 0, pixelRatio, 0, 0],
           viewport: viewport,
         };
@@ -305,7 +308,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
       if (prevDocKeyRef.current !== null) {
         setPdfDoc((prev) => {
           if (prev) {
-            try { prev.destroy(); } catch (_) {}
+            // PDFDocumentProxy di pdfjs 6 tidak punya destroy(); cleanup()
+            // melepas sumber daya font/stream tanpa membunuh worker bersama.
+            try { prev.cleanup(); } catch (_) {}
           }
           return null;
         });
@@ -382,12 +387,13 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
             cMapUrl: `${assetBase}cmaps/`,
             cMapPacked: true,
             standardFontDataUrl: `${assetBase}standard_fonts/`,
-            isEvalSupported: false,
           });
 
           const loadedPdf = await loadingTask.promise;
           if (!active) {
-            try { loadedPdf.destroy(); } catch (_) {}
+            // Batalkan lewat loadingTask: `destroy()` tidak lagi tersedia
+            // pada PDFDocumentProxy di pdfjs 6.
+            try { await loadingTask.destroy(); } catch (_) {}
             return;
           }
 
