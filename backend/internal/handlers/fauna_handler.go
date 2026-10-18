@@ -478,6 +478,23 @@ func (h *FaunaHandler) autoUpdateStoreMaster(store *models.Store, productType, c
 	}
 }
 
+// parsePrice mengurai harga dari payload JSON (angka atau string) menjadi float64.
+//
+// BUG (N-43): versi sebelumnya menghapus SEMUA titik dan koma:
+//
+//	strings.ReplaceAll(strings.ReplaceAll(v, ".", ""), ",", "")
+//
+// Akibatnya "150000.50" menjadi "15000050" — harga melonjak 100x, dan
+// "1500,50" juga menjadi "150050". Pemisah ribuan dan desimal diperlakukan
+// sama. Sekarang aturannya eksplisit:
+//
+//   - titik dipakai sebagai pemisah ribuan HANYA jika polanya cocok
+//     (mis. "1.500.000" atau "1.500"), dan tidak diikuti 1-2 digit setelah
+//     titik terakhir yang menandakan desimal;
+//   - koma dianggap pemisah desimal bila muncul sekali di akhir ("1500,50").
+//
+// Nilai yang tidak dapat diurai menghasilkan 0 (perilaku lama dipertahankan,
+// pemanggil memperlakukannya sebagai "tanpa harga").
 func parsePrice(val interface{}) float64 {
 	switch v := val.(type) {
 	case float64:
@@ -488,16 +505,82 @@ func parsePrice(val interface{}) float64 {
 		return float64(v)
 	case int64:
 		return float64(v)
-	case string:
-		cleanStr := strings.ReplaceAll(strings.ReplaceAll(v, ".", ""), ",", "")
-		cleanStr = strings.TrimSpace(cleanStr)
-		f, _ := strconv.ParseFloat(cleanStr, 64)
+	case json.Number:
+		f, err := v.Float64()
+		if err != nil {
+			return 0
+		}
 		return f
+	case string:
+		return parsePriceString(v)
 	default:
 		return 0
 	}
 }
 
+// parsePriceString menormalkan pemisah ribuan/desimal lalu mengurai angka.
+func parsePriceString(s string) float64 {
+	clean := strings.TrimSpace(s)
+	if clean == "" {
+		return 0
+	}
+	// Buang awalan mata uang & spasi non-digit di tepi (mis. "Rp 150.000").
+	clean = strings.TrimSpace(strings.TrimLeft(clean, "Rp$€£ "))
+	clean = strings.ReplaceAll(clean, " ", "")
+
+	lastDot := strings.LastIndex(clean, ".")
+	lastComma := strings.LastIndex(clean, ",")
+
+	switch {
+	case lastDot >= 0 && lastComma >= 0:
+		// Keduanya ada: yang terakhir adalah pemisah desimal.
+		if lastComma > lastDot {
+			// Format Indonesia/Eropa: 1.500.000,50
+			clean = strings.ReplaceAll(clean, ".", "")
+			clean = strings.Replace(clean, ",", ".", 1)
+		} else {
+			// Format Inggris: 1,500,000.50
+			clean = strings.ReplaceAll(clean, ",", "")
+		}
+	case lastDot >= 0:
+		// Hanya titik: ribuan bila berkelompok tiga digit, selain itu desimal.
+		if isThousandsSeparated(clean, ".") {
+			clean = strings.ReplaceAll(clean, ".", "")
+		}
+	case lastComma >= 0:
+		// Hanya koma: desimal bila muncul sekali dan diikuti <=2 digit.
+		if strings.Count(clean, ",") == 1 && len(clean)-lastComma-1 <= 2 {
+			clean = strings.Replace(clean, ",", ".", 1)
+		} else {
+			clean = strings.ReplaceAll(clean, ",", "")
+		}
+	}
+
+	f, err := strconv.ParseFloat(clean, 64)
+	if err != nil {
+		return 0
+	}
+	return f
+}
+
+// isThousandsSeparated melaporkan apakah string memakai sep sebagai pemisah
+// ribuan yang sah: setiap kelompok setelah pemisah pertama tepat 3 digit.
+// "1.500.000" -> true, "150000.50" -> false, "1.500" -> true.
+func isThousandsSeparated(s, sep string) bool {
+	parts := strings.Split(s, sep)
+	if len(parts) < 2 {
+		return false
+	}
+	if len(parts[0]) < 1 || len(parts[0]) > 3 {
+		return false
+	}
+	for _, p := range parts[1:] {
+		if len(p) != 3 {
+			return false
+		}
+	}
+	return true
+}
 
 func (h *FaunaHandler) GetCulinaryTaxonomy(c *fiber.Ctx) error {
 	taxonomy := []CulinaryTaxonomyItem{

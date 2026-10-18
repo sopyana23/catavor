@@ -466,6 +466,91 @@
    "fix": "Diterapkan: pada APP_ENV production/prod/staging, setiap origin di ALLOWED_ORIGINS diperiksa; alamat lokal (localhost, 127.0.0.1, 0.0.0.0) dan skema selain https:// menggagalkan start.",
    "status": "fixed",
    "resolution": "Dibuktikan runtime dengan binary hasil build ulang. A) production + ALLOWED_ORIGINS localhost -> FTL 'ALLOWED_ORIGINS memuat alamat lokal'. B) production + http://catavor.id -> FTL 'wajib memakai https://'. C) positive control production + https://catavor.id -> lolos gerbang config, berhenti di koneksi DB (sesuai harapan). D) mode lokal tanpa perubahan -> start normal, tidak ada FTL. go test ./... seluruh paket ok."
+  },
+  {
+   "id": "N-40",
+   "severity": "high",
+   "area": "storage",
+   "title": "LocalStorageService.Delete/DeletePrefix menghapus file di luar storage root",
+   "status": "fixed",
+   "found": "2026-10-18",
+   "round": 7,
+   "detail": "Delete memakai filepath.Join(s.localRoot, key) + os.Remove tanpa normalisasi/verifikasi; DeletePrefix memakai os.RemoveAll. Key berisi '..' menghapus file atau direktori di luar root. Terbukti dengan file korban di luar root yang benar-benar terhapus.",
+   "impact": "Penghapusan data sewenang-wenang di filesystem proses bila key berbahaya mencapai lapisan storage. Handler HTTP saat ini sudah memvalidasi (N-03), jadi bukan jalur serangan aktif — tetapi lapisan storage bergantung pada kesopanan pemanggil, dan jalur otomatis (dormancy/retention memakai extractStorageKeyFromURL) meneruskan key apa adanya.",
+   "fix": "Tambah resolveSafeKey(): tolak key kosong, path absolut, dan skema drive; normalisasi + EvalSymlinks; verifikasi filepath.Rel tidak keluar root. Delete dan DeletePrefix wajib memakainya. DeletePrefix juga menolak RemoveAll pada root storage itu sendiri.",
+   "evidence": "8 test di internal/storage/storage_delete_test.go (4 serangan + 4 kontrol positif). Kontrol negatif: implementasi lama GAGAL TestDelete_BlocksEscapeFromRoot ('REGRESI: file di luar root ikut terhapus'), implementasi baru LULUS. Runtime: DELETE /api/storage/file key '../../backend/.env' -> 403; file sah toko sendiri -> 200; file tenant lain -> 403 dan utuh.",
+   "files": [
+    "backend/internal/storage/storage.go",
+    "backend/internal/storage/storage_delete_test.go"
+   ]
+  },
+  {
+   "id": "N-41",
+   "severity": "medium",
+   "area": "rbac",
+   "title": "GetUserPermissions memakai daftar hitam role, meloloskan role sampah",
+   "status": "fixed",
+   "found": "2026-10-18",
+   "round": 7,
+   "detail": "HasPermission sudah memakai whitelist models.IsPlatformStaff (perbaikan N-25), tetapi GetUserPermissions masih memakai logika lama: hanya menolak \"\" dan \"merchant\". Role sampah seperti 'superadminx' dianggap staf dan menembus cache permission — termasuk wildcard '*'.",
+   "impact": "Endpoint yang menampilkan permission efektif (mis. /api/admin/rbac/me) dapat melaporkan wildcard ke akun dengan platform_role tidak sah. Tidak langsung memberi akses karena HasPermission tetap menolak, tetapi menciptakan ketidaksesuaian antara yang dilaporkan dan yang ditegakkan (fail-open di lapisan pelaporan).",
+   "fix": "GetUserPermissions memakai models.IsPlatformStaff() dan models.NormalizePlatformRole(), sama seperti HasPermission.",
+   "evidence": "4 test di internal/services/rbac_authz_test.go. Kontrol negatif: kode lama GAGAL ('role sampah \"superadminx\" seharusnya tidak punya permission, dapat [*]'), kode baru LULUS. Runtime: /api/admin/rbac/me superadmin tetap 19 permission, matriks RBAC utuh.",
+   "files": [
+    "backend/internal/services/rbac_service.go",
+    "backend/internal/services/rbac_authz_test.go"
+   ]
+  },
+  {
+   "id": "N-42",
+   "severity": "low",
+   "area": "crypto",
+   "title": "generateSecureToken mengabaikan error crypto/rand (risiko token nol)",
+   "status": "fixed",
+   "found": "2026-10-18",
+   "round": 7,
+   "detail": "generateSecureToken memakai '_, _ = rand.Read(bytes)'. Bila rand.Read gagal, buffer tetap nol dan fungsi mengembalikan 64 karakter '0' yang identik untuk semua pemanggilan. Token dipakai untuk link reaktivasi toko.",
+   "impact": "Bila kegagalan crypto/rand terjadi, semua link reaktivasi memakai token yang sama dan dapat diprediksi sehingga siapa pun bisa mengaktifkan kembali toko dorman.",
+   "fix": "Periksa error rand.Read; kembalikan string kosong dan catat log agar pemanggil membatalkan penerbitan link (fail-closed).",
+   "evidence": "TestGenerateSecureToken: 500 sampel, panjang 64 hex, tidak ada duplikat, tidak seluruhnya nol. go build + go test ./... hijau.",
+   "files": [
+    "backend/internal/services/dormancy_service.go",
+    "backend/internal/services/helpers_behavior_test.go"
+   ]
+  },
+  {
+   "id": "N-43",
+   "severity": "low",
+   "area": "pricing",
+   "title": "parsePrice membuang semua titik/koma sehingga harga desimal melonjak 100x",
+   "status": "fixed",
+   "found": "2026-10-18",
+   "round": 8,
+   "detail": "fauna_handler.parsePrice menghapus SEMUA titik dan koma sebelum ParseFloat: strings.ReplaceAll(ReplaceAll(v,\".\",\"\"),\",\",\"\"). Akibatnya '150000.50' -> '15000050' (100x lipat), '1500,50' -> '150050', '12.5' -> 125. Pemisah ribuan dan desimal diperlakukan identik. Ditemukan lewat test perilaku fungsi murni.",
+   "impact": "PENTING — dampak nyata terbatas: faunaHandler TIDAK dirutekan di cmd/server/main.go. Rute POST /api/fauna diarahkan ke productHandler.Store, dan ProductRequest.Price bertipe float64 sehingga harga string ditolak 400 sebelum parsePrice dipanggil. Jadi ini bug pada kode yang saat ini tidak dapat dijangkau dari HTTP. Namun fungsi tetap diperbaiki karena (a) kode mati bisa diaktifkan kembali tanpa disadari, dan (b) perilaku salah yang terbukti harus diperbaiki, bukan dibiarkan.",
+   "fix": "parsePriceString(): aturan pemisah eksplisit — titik sebagai ribuan hanya bila berpola kelompok 3 digit, koma sebagai desimal bila muncul sekali diikuti <=2 digit, dukungan format ID (1.500.000,50) dan EN (1,500,000.50), serta awalan 'Rp'. Tambah dukungan json.Number. Nilai tak terurai tetap 0.",
+   "evidence": "TestParsePrice (19 kasus) di internal/handlers/helpers_behavior_test.go. Kontrol negatif: logika lama GAGAL 6 kasus (termasuk 'REGRESI N-43: parsePrice(\"150000.50\") mengembalikan 1.500005e+07'); logika baru LULUS semua. Runtime: POST /api/fauna price 150000.5 (angka) -> 201, DB menyimpan 150000.50; price sebagai string \"150000.50\" -> 400 karena ProductRequest.Price float64.",
+   "files": [
+    "backend/internal/handlers/fauna_handler.go",
+    "backend/internal/handlers/helpers_behavior_test.go"
+   ]
+  },
+  {
+   "id": "N-44",
+   "severity": "low",
+   "area": "handlers",
+   "title": "clipClientLog panik bila max <= 0",
+   "status": "fixed",
+   "found": "2026-10-18",
+   "round": 8,
+   "detail": "clipClientLog melakukan s[:max] tanpa memeriksa max. Nilai max negatif memicu panic 'slice bounds out of range'.",
+   "impact": "Tidak dapat dipicu dari HTTP saat ini: seluruh pemanggil memakai konstanta positif (2000/8000/300/40/80). Dicatat sebagai cacat ketahanan (defensive programming), bukan kerentanan aktif.",
+   "fix": "Kembalikan \\\"\\\" bila max <= 0 sebelum slicing.",
+   "evidence": "TestClipClientLog memanggil clipClientLog(\"x\", -5) dan tidak lagi panik; pemotongan normal tetap menandai '…[dipotong]'.",
+   "files": [
+    "backend/internal/handlers/client_log_handler.go",
+    "backend/internal/handlers/helpers_behavior_test.go"
+   ]
   }
  ],
  "verified_ok": [

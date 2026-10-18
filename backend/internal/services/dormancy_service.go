@@ -496,13 +496,13 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 
 // RunModerationEscalationCycle evaluates all stores suspended due to moderation violations.
 // Standard Industry Pattern (Grace Period -> Auto Ban -> Safe Media Purge):
-// 1. Grace Period Escalation (30 Days): If a store is suspended for 'moderation_violation' for > 30 days
-//    and no active support ticket (appeal) exists, the bot automatically escalates the status to 'banned',
-//    sets dormancy_banned_at = now, marks is_blacklisted = true, logs an enterprise ActivityLog,
-//    records an AutomationTracker entry, and dispatches a permanent ban notification.
-// 2. Safe Media Purge (90 Days Banned): For stores permanently banned > 90 days, physical media files
-//    are purged from storage to conserve server resources, but the store and user database rows are
-//    PERMANENTLY preserved as tombstone blacklist records to prevent re-registration (Sybil resistance).
+//  1. Grace Period Escalation (30 Days): If a store is suspended for 'moderation_violation' for > 30 days
+//     and no active support ticket (appeal) exists, the bot automatically escalates the status to 'banned',
+//     sets dormancy_banned_at = now, marks is_blacklisted = true, logs an enterprise ActivityLog,
+//     records an AutomationTracker entry, and dispatches a permanent ban notification.
+//  2. Safe Media Purge (90 Days Banned): For stores permanently banned > 90 days, physical media files
+//     are purged from storage to conserve server resources, but the store and user database rows are
+//     PERMANENTLY preserved as tombstone blacklist records to prevent re-registration (Sybil resistance).
 func RunModerationEscalationCycle(db *gorm.DB, strg storage.StorageService) {
 	if db == nil {
 		return
@@ -854,10 +854,21 @@ func createInAppDormancyNotification(db *gorm.DB, storeID uint, userID uint, tit
 	_ = db.Create(&notif).Error
 }
 
+// generateSecureToken menghasilkan token acak 32 byte (64 karakter hex).
+//
+// SECURITY (N-42): error dari crypto/rand TIDAK boleh diabaikan. Jika rand.Read
+// gagal, buffer tetap berisi nol sehingga fungsi akan mengembalikan token
+// "000...0" yang dapat diprediksi dan identik untuk semua pemanggilan — token
+// itu dipakai untuk link reaktivasi toko. Sekarang kegagalan mengembalikan ""
+// (fail-closed) agar pemanggil membatalkan penerbitan link, bukan menerbitkan
+// token lemah secara diam-diam.
 func generateSecureToken() string {
-	bytes := make([]byte, 32)
-	_, _ = rand.Read(bytes)
-	return hex.EncodeToString(bytes)
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		log.Error().Err(err).Msg("generateSecureToken: crypto/rand gagal")
+		return ""
+	}
+	return hex.EncodeToString(b)
 }
 
 func extractStorageKeyFromURL(rawURL string) string {

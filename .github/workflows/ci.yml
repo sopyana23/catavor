@@ -45,6 +45,38 @@ jobs:
       - name: Tampilkan coverage
         run: go tool cover -func=coverage.out | tail -20
 
+      - name: Ambang batas coverage modul kritis
+        # Ambang PER PAKET, bukan angka global. Angka global menyesatkan karena
+        # handlers/services masih rendah dan akan menyembunyikan penurunan di
+        # modul keamanan. Setiap ambang disetel sedikit di bawah nilai nyata
+        # saat ini agar build tidak merah tanpa alasan, tetapi cukup ketat
+        # untuk menangkap regresi (test yang terhapus/dinonaktifkan).
+        #
+        #   security  90.2%  -> ambang 85
+        #   models    31.4%  -> ambang 28
+        #   storage   26.1%  -> ambang 22
+        #   services   2.5%  -> ambang 2
+        #   handlers   1.4%  -> ambang 1
+        run: |
+          set -euo pipefail
+          check() {
+            pkg="$1"; min="$2"
+            got=$(go test -cover "./$pkg/..." 2>/dev/null | grep -o 'coverage: [0-9.]*%' | head -1 | tr -dc '0-9.')
+            if [ -z "$got" ]; then
+              echo "::error::tidak bisa mengukur coverage paket $pkg"
+              exit 1
+            fi
+            echo "$pkg: ${got}% (minimum ${min}%)"
+            awk -v g="$got" -v m="$min" -v p="$pkg" 'BEGIN {
+              if (g+0 < m+0) { printf "::error::coverage %s turun ke %s%%, di bawah minimum %s%%\n", p, g, m; exit 1 }
+            }'
+          }
+          check internal/security 85
+          check internal/models   28
+          check internal/storage  22
+          check internal/services  2
+          check internal/handlers  1
+
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:

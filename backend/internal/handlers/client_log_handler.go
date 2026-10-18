@@ -31,6 +31,12 @@ const (
 
 func clipClientLog(s string, max int) string {
 	s = strings.TrimSpace(s)
+	// Defensif: `max` negatif membuat s[:max] panik dan menjatuhkan handler.
+	// Saat ini semua pemanggil memakai konstanta positif sehingga tidak dapat
+	// dipicu dari HTTP, tetapi fungsi pembatas tidak boleh bisa memicu panic.
+	if max <= 0 {
+		return ""
+	}
 	if len(s) <= max {
 		return s
 	}

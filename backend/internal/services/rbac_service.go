@@ -119,10 +119,15 @@ func (s *RBACService) GetUserPermissions(user *models.User) []string {
 		return []string{}
 	}
 
-	roleSlug := strings.ToLower(strings.TrimSpace(user.PlatformRole))
-	if roleSlug == "" || roleSlug == "merchant" {
+	// SECURITY (N-41): pakai sumber kebenaran yang sama dengan HasPermission.
+	// Sebelumnya fungsi ini memakai daftar hitam ("" dan "merchant"), sehingga
+	// role sampah seperti "superadminx" dianggap staf dan bisa menembus cache
+	// (termasuk wildcard "*"). Sekarang whitelist eksplisit — fail-closed.
+	if !user.IsPlatformStaff() {
 		return []string{}
 	}
+
+	roleSlug := models.NormalizePlatformRole(user.PlatformRole)
 
 	if roleSlug == "superadmin" {
 		var allPerms []models.PlatformPermission

@@ -61,9 +61,52 @@ func (s *LocalStorageService) Upload(ctx context.Context, key string, r io.Reade
 	return s.GetURL(cleanKey), nil
 }
 
+// resolveSafeKey menormalkan key klien dan memastikan hasilnya tetap di dalam
+// localRoot. Mengembalikan (path absolut, true) bila aman.
+//
+// SECURITY (N-40): sebelumnya Delete/DeletePrefix memakai filepath.Join tanpa
+// pemeriksaan, sehingga key seperti "../../x" menghapus file di luar root.
+// Pemanggil saat ini (storage_handler.go) sudah memvalidasi lewat
+// ResolveInsidePrefix, tetapi lapisan storage tidak boleh bergantung pada
+// kesopanan pemanggil — satu jalur baru yang lupa memvalidasi cukup untuk
+// menghapus data di luar storage.
+func (s *LocalStorageService) resolveSafeKey(key string) (string, bool) {
+	cleanKey := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(key)), "/")
+	if cleanKey == "" {
+		return "", false
+	}
+	// Tolak path absolut dan skema drive (C:\...) sebelum digabung.
+	if filepath.IsAbs(cleanKey) || strings.Contains(cleanKey, ":") {
+		return "", false
+	}
+
+	absRoot, err := filepath.Abs(s.localRoot)
+	if err != nil {
+		return "", false
+	}
+	candidate := filepath.Join(absRoot, filepath.FromSlash(cleanKey))
+
+	// EvalSymlinks bila ada, agar symlink keluar root ikut tertangkap.
+	resolved := candidate
+	if rp, err := filepath.EvalSymlinks(candidate); err == nil {
+		resolved = rp
+	}
+
+	rel, err := filepath.Rel(absRoot, resolved)
+	if err != nil {
+		return "", false
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+		return "", false
+	}
+	return resolved, true
+}
+
 func (s *LocalStorageService) Delete(ctx context.Context, key string) error {
-	cleanKey := strings.TrimLeft(filepath.ToSlash(key), "/")
-	targetPath := filepath.Join(s.localRoot, filepath.FromSlash(cleanKey))
+	targetPath, ok := s.resolveSafeKey(key)
+	if !ok {
+		return fmt.Errorf("refusing to delete outside storage root: %q", key)
+	}
 	if err := os.Remove(targetPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete local file: %w", err)
 	}
@@ -71,8 +114,18 @@ func (s *LocalStorageService) Delete(ctx context.Context, key string) error {
 }
 
 func (s *LocalStorageService) DeletePrefix(ctx context.Context, prefix string) error {
-	cleanPrefix := strings.TrimLeft(filepath.ToSlash(prefix), "/")
-	targetDir := filepath.Join(s.localRoot, filepath.FromSlash(cleanPrefix))
+	targetDir, ok := s.resolveSafeKey(prefix)
+	if !ok {
+		return fmt.Errorf("refusing to delete prefix outside storage root: %q", prefix)
+	}
+	// Jangan pernah RemoveAll pada root storage itu sendiri.
+	absRoot, err := filepath.Abs(s.localRoot)
+	if err != nil {
+		return fmt.Errorf("invalid storage root: %w", err)
+	}
+	if filepath.Clean(targetDir) == filepath.Clean(absRoot) {
+		return fmt.Errorf("refusing to delete storage root itself")
+	}
 	if err := os.RemoveAll(targetDir); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete local prefix directory: %w", err)
 	}
