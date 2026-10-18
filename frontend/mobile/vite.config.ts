@@ -8,6 +8,10 @@ export default defineConfig({
   base: '/mobile/',
   build: {
     outDir: '../../public/mobile',
-    emptyOutDir: false
+    // Kosongkan outDir tiap build. Sebelumnya `false`, sehingga bundel lama
+    // menumpuk (5 JS desktop / 3 mobile, hanya 1 yang dirujuk index.html) --
+    // repo membengkak dan aset usang ikut ter-deploy. Aman: file statis di
+    // frontend/mobile/public/ ikut disalin ulang tiap build.
+    emptyOutDir: true
   }
 })
