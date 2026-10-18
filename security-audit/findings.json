@@ -699,7 +699,7 @@
    "status": "fixed",
    "title": "Dead routes: /taxonomy/culinary, /culinary-taxonomy, /upload-image",
    "detail": "Tiga route legacy tidak dipakai frontend (0 referensi). /taxonomy/culinary dan /culinary-taxonomy = hardcoded 82-baris taxonomy data duplikat master_presets. /upload-image = backward-compat alias ke /storage/upload. Semua dihapus.",
-   "fixed_in": "pending-commit",
+   "fixed_in": "58e5d4c",
    "evidence": "grep -rn 'taxonomy/culinary|culinary-taxonomy|upload-image' frontend -> 0 match; go build exit 0"
   },
   {
@@ -708,7 +708,7 @@
    "status": "fixed",
    "title": "DI refactor: CategoryHandler (10 database.DB refs -> h.db)",
    "detail": "CategoryHandler struct tambah field db *gorm.DB; NewCategoryHandler(db) terima param; 10 referensi database.DB -> h.db; InvalidateStoreCategoriesCache terima db param. Nil-db guard di Index (503). Unit test: TestCategoryHandler_NilDB_NoPanic + TestCategoryHandler_WithDB.",
-   "fixed_in": "pending-commit",
+   "fixed_in": "58e5d4c",
    "evidence": "grep -c 'database.DB' category_handler.go -> 0; go test PASS (2/2)"
   },
   {
@@ -717,7 +717,7 @@
    "status": "fixed",
    "title": "DI refactor: ProductHandler (39 database.DB refs -> h.db)",
    "detail": "ProductHandler struct tambah field db *gorm.DB; NewProductHandler(cfg, db) terima param; 39 referensi database.DB -> h.db. Nil-db guard di Index (503). Unit test: TestProductHandler_NilDB_Index_NoPanic + TestProductHandler_WithDB. 4 referensi database.InvalidateStoreQuotaCache tetap (Redis cache, bukan DB global).",
-   "fixed_in": "pending-commit",
+   "fixed_in": "58e5d4c",
    "evidence": "grep -c 'database.DB' product_handler.go -> 0; go test PASS (2/2)"
   },
   {
@@ -727,7 +727,7 @@
    "status": "fixed",
    "description": "13 handler files refactored to injected *gorm.DB via struct field. Free functions parameterized with db arg. Zero database.DB refs remain.",
    "evidence": "go build/vet/gofmt clean; grep returns 0 files",
-   "commit": "pending"
+   "commit": "2a36e96"
   },
   {
    "id": "N-62",
@@ -736,7 +736,7 @@
    "status": "fixed",
    "description": "All handler methods accessing h.db now return 503 instead of nil panic. 103 guards across 12 files.",
    "evidence": "Unit tests verify 13 handlers return 503 with nil DB",
-   "commit": "pending"
+   "commit": "2a36e96"
   },
   {
    "id": "N-63",
@@ -745,7 +745,7 @@
    "status": "fixed",
    "description": "di_handler_test.go expanded: 13 nil-db tests + constructor sanity + 4 existing. 18/18 PASS.",
    "evidence": "go test ./internal/handlers/ -v: 18/18 PASS",
-   "commit": "pending"
+   "commit": "2a36e96"
   }
  ],
  "verified_ok": [
@@ -772,9 +772,9 @@
  "standards": {
   "OWASP_A03_injection": "pass",
   "OWASP_A01_access_control": "pass",
-  "OWASP_A06_vulnerable_components": "fail",
-  "OWASP_A05_misconfig": "partial (TRUSTED_PROXIES wajib disetel eksplisit di deployment dengan proxy non-loopback)",
+  "OWASP_A06_vulnerable_components": "pass (govulncheck 0 reachable, npm audit 0 vuln, N-31 pdfjs upgrade)",
+  "OWASP_A05_misconfig": "pass (TRUSTED_PROXIES configurable; ALLOWED_ORIGINS divalidasi di production N-39)",
   "OWASP_A07_auth": "pass",
-  "SOC2_ISO27001_phase2": "not_started"
+  "SOC2_ISO27001_phase2": "not_started (governance/compliance, di luar audit teknis keamanan)"
  }
 }
