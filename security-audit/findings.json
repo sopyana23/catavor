@@ -270,6 +270,26 @@
    "impact": "Pengguna dengan lebih dari satu toko bisa mendarat di toko yang salah, termasuk toko suspended/blacklisted. Token dan konteks request menunjuk toko berbeda, berisiko operasi tulis masuk ke toko yang tidak dipilih pengguna.",
    "fix": "func preloadUserStores(q *gorm.DB) *gorm.DB { return q.Preload(\"Stores\", func(db *gorm.DB) *gorm.DB { return db.Order(\"is_blacklisted ASC, is_suspended ASC, id ASC\") }) } — dipakai di ketiga Preload(\"Stores\").",
    "resolution": "Terverifikasi runtime; kontrol negatif mereproduksi bug; hash owner dipulihkan dan password probe ditolak 401."
+  },
+  {
+   "id": "N-23",
+   "severity": "high",
+   "title": "Route admin platform terdaftar di grup merchant (StoreOwnerRequired) — staf tanpa toko tertolak 403, dan duplikasi route menutupi versi yang benar",
+   "location": "backend/cmd/server/main.go:314 (guarded), :354-364, :418-427, :448-456, :458-481, :486-491; backend/internal/middleware/auth.go:355 StoreOwnerRequired",
+   "status": "fixed",
+   "summary": "28 route /admin/* (notifications, users/stores search, automation, audit-logs, market-intelligence, safe-domains, support tickets+templates) terdaftar DUA KALI: di grup adminApi (AuthRequired+RequireAdmin, benar) dan di grup guarded (mensyaratkan StoreOwnerRequired, salah). Fiber memakai handler terdaftar pertama, sehingga versi merchant yang menang. Akibatnya superadmin/staf platform yang tidak punya toko katalog tertolak 403 \"Toko Anda belum terdaftar.\" padahal Role sudah memegang izin. Jalur admin platform juga tidak terpisah dari middleware tenant, melanggar prinsip OWASP 'cross-tenant administrative path harus explicit, separately authorized, dan auditable'.",
+   "evidence": "Runtime sebelum: seluruh 16 endpoint admin -> 403 \"Toko Anda belum terdaftar.\" dengan DB stores=0. Sesudah: 16/16 -> 200; merchant dengan toko -> 403 di 6 endpoint admin (kontrol positif); route merchant /admin/analytics & /admin/categories tetap 200 untuk merchant, tetap menolak staf tanpa toko. Alias non-/admin (/users/search, /stores/search, /automation/*) kini 404 dan terbukti tidak dipakai frontend (hanya /api/admin/*).",
+   "fix": "Hapus 28 route duplikat dari grup guarded; pindahkan /admin/comments (3 route) ke adminApi; sisakan hanya /admin/categories & /admin/analytics* di grup merchant karena memang memakai store_id konteks. Satu sumber kebenaran: adminApi."
+  },
+  {
+   "id": "N-24",
+   "severity": "medium",
+   "title": "Middleware tenant menyuntikkan store acak ke konteks staf platform (hardcode slug 'catavor' + fallback toko id terkecil)",
+   "location": "backend/internal/middleware/auth.go:443-450 (sebelum perbaikan)",
+   "status": "fixed",
+   "summary": "StoreOwnerRequired, bila user tidak punya toko, mencari toko ber-slug 'catavor' (nama platform, hardcode) lalu bila gagal memakai toko dengan id terkecil, dan memasangnya sebagai konteks store request. Staf platform jadi memperoleh tenant sembarang — bukan miliknya — sehingga query ber-scope store_id bisa membaca data tenant lain. Selain itu slug 'catavor' adalah nama platform yang dilarang dipakai toko mana pun.",
+   "evidence": "grep hardcode: auth.go:446 WHERE LOWER(slug) = 'catavor'. Setelah perbaikan blok tersebut dihapus total; staf tanpa toko diloloskan tanpa konteks store (c.Next()), handler yang butuh store_id tetap menolak sendiri (terbukti: /admin/analytics -> 403, /admin/categories -> 400 untuk staf tanpa toko).",
+   "fix": "Hapus fallback toko pengganti. Staf platform tanpa toko diloloskan tanpa store context; merchant tanpa toko tetap 403 STORE_NOT_REGISTERED."
   }
  ],
  "verified_ok": [
