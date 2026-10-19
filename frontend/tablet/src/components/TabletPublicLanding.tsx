@@ -387,24 +387,21 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             type="button"
             onClick={() => setShowFloatingMenu(!showFloatingMenu)}
             style={{
-              minHeight: '40px',
-              padding: isMiniTablet ? '0 0.85rem' : '0 1rem',
+              width: '40px',
+              height: '40px',
               borderRadius: '0.65rem',
               border: showFloatingMenu ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
               backgroundColor: showFloatingMenu ? 'rgba(30, 58, 138, 0.08)' : 'var(--bg-deep)',
               color: showFloatingMenu ? 'var(--primary)' : 'var(--text-primary)',
-              fontSize: '0.82rem',
-              fontWeight: 700,
               cursor: 'pointer',
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
-              gap: '0.45rem',
+              justifyContent: 'center',
               transition: 'all 0.15s ease'
             }}
-            title={showFloatingMenu ? 'Sembunyikan Navigasi Menu' : 'Tampilkan Navigasi Menu'}
+            title={showFloatingMenu ? 'Tutup Menu Navigasi' : 'Buka Menu Navigasi'}
           >
-            {showFloatingMenu ? <X size={16} /> : <Menu size={16} />}
-            <span>{showFloatingMenu ? 'Tutup Navigasi' : 'Navigasi Seksi'}</span>
+            {showFloatingMenu ? <X size={18} /> : <Menu size={18} />}
           </button>
 
           {currentUser ? (
@@ -473,7 +470,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             padding: isMiniTablet ? '0.65rem 1.25rem' : '0.7rem 2.25rem',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            justifyContent: isMiniTablet ? 'flex-start' : 'space-between',
             gap: '0.85rem',
             boxSizing: 'border-box',
             width: '100%',
@@ -522,7 +519,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch',
-              padding: '0.2rem 0.5rem',
+              padding: '0.2rem 0.25rem',
               flex: 1,
               minWidth: 0
             }}
@@ -575,29 +572,6 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               );
             })}
           </div>
-
-          {/* Quick Direct Close Button inside the Floating Bar */}
-          <button
-            type="button"
-            onClick={() => setShowFloatingMenu(false)}
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '0.55rem',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'var(--bg-deep)',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              transition: 'all 0.15s ease'
-            }}
-            title="Tutup Navigasi Mengambang"
-          >
-            <X size={15} />
-          </button>
         </nav>
       )}
 
