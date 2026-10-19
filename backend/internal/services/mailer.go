@@ -66,6 +66,48 @@ func GetMailConfig() MailConfig {
 	}
 }
 
+// sanitizeHeaderValue menetralkan nilai yang akan ditulis ke header SMTP.
+// CR, LF, dan NUL adalah vektor header injection (mis. "\r\nBcc: korban@...").
+// Karakter kontrol lain dan whitespace berlebih dirapikan menjadi satu spasi
+// agar nilai tetap terbaca, bukan dibuang.
+func sanitizeHeaderValue(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	lastSpace := false
+	for _, r := range s {
+		switch {
+		case r == 0:
+			// NUL dibuang tanpa pengganti.
+			continue
+		case r < 32 || r == 127:
+			if b.Len() > 0 && !lastSpace {
+				b.WriteByte(' ')
+				lastSpace = true
+			}
+		default:
+			b.WriteRune(r)
+			lastSpace = r == ' '
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// buildEmailMessage menyusun pesan SMTP lengkap (header + body). Dipisah dari
+// SendHTMLEmail agar penyusunan header bisa diuji tanpa server SMTP.
+func buildEmailMessage(cfg MailConfig, toEmail, subject, fromName, htmlBody string) []byte {
+	if fromName == "" {
+		fromName = cfg.FromName
+	}
+	headerFrom := fmt.Sprintf("%s <%s>", sanitizeHeaderValue(fromName), sanitizeHeaderValue(cfg.From))
+
+	return []byte(fmt.Sprintf("From: %s\r\n"+
+		"To: %s\r\n"+
+		"Subject: %s\r\n"+
+		"MIME-Version: 1.0\r\n"+
+		"Content-Type: text/html; charset=UTF-8\r\n\r\n"+
+		"%s", headerFrom, sanitizeHeaderValue(toEmail), sanitizeHeaderValue(subject), htmlBody))
+}
+
 // SendHTMLEmail sends an HTML email via SMTP if configured, or gracefully logs if unconfigured.
 func SendHTMLEmail(toEmail, subject, fromName, htmlBody string) error {
 	toEmail = strings.TrimSpace(toEmail)
@@ -79,23 +121,13 @@ func SendHTMLEmail(toEmail, subject, fromName, htmlBody string) error {
 		return nil
 	}
 
-	if fromName == "" {
-		fromName = cfg.FromName
-	}
-
 	addr := fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
 	var auth smtp.Auth
 	if cfg.User != "" && cfg.Password != "" {
 		auth = smtp.PlainAuth("", cfg.User, cfg.Password, cfg.Host)
 	}
 
-	headerFrom := fmt.Sprintf("%s <%s>", fromName, cfg.From)
-	msg := []byte(fmt.Sprintf("From: %s\r\n"+
-		"To: %s\r\n"+
-		"Subject: %s\r\n"+
-		"MIME-Version: 1.0\r\n"+
-		"Content-Type: text/html; charset=UTF-8\r\n\r\n"+
-		"%s", headerFrom, toEmail, subject, htmlBody))
+	msg := buildEmailMessage(cfg, toEmail, subject, fromName, htmlBody)
 
 	err := smtp.SendMail(addr, auth, cfg.From, []string{toEmail}, msg)
 	if err != nil {
