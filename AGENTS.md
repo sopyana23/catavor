@@ -122,6 +122,24 @@ Detail lengkap diatur pada [.agents/rules/01_agent_operational_guardrails.md](fi
 4. **Disagree and Commit yang Sehat**:
    - Jika pengguna tetap memilih pendekatannya setelah dipaparkan risikonya, agen mematuhi keputusan tersebut (*commit*) sambil memasang jaring pengaman defensif (*defensive coding*) terbaik.
 
+---
+
+## 10. Defensive Engineering, Resilience & Fault Tolerance Standards (MANDATORY)
+Detail lengkap diatur pada [.agents/rules/03_clean_code_and_architecture.md](file:///c:/MyProject/DFauna/.agents/rules/03_clean_code_and_architecture.md):
+1. **Multi-Layer Rollback**:
+   - Database: Seluruh operasi multi-tabel wajib dalam transaksi atomik dengan defer rollback.
+   - Storage Fisik: Kegagalan simpan database setelah upload file wajib otomatis menghapus berkas fisik di disk (`os.Remove`).
+   - Frontend: Optimistic UI update wajib memiliki mekanisme rollback state otomatis jika request API gagal.
+2. **Graceful Degradation (Anti White Screen of Death)**:
+   - Frontend wajib membungkus modul/tab dengan `ErrorBoundary` agar kegagalan sub-komponen tidak membuat seluruh halaman menjadi layar putih kosong.
+   - Backend wajib membungkus background task/goroutine dengan `defer recover()` agar tidak mematikan server secara fatal.
+3. **Structured Observability**:
+   - Dilarang keras meninggalkan `fmt.Println` di Go atau `console.log` acak di frontend produksi.
+   - Wajib gunakan structured logger dengan level semantik (`INFO`, `WARN`, `ERROR`) dan context terukur (`store_id`, `user_id`, `action`, `error`).
+4. **Idempotensi & Concurrency Safety**:
+   - Tombol submit/bayar wajib otomatis disable saat loading (`isSubmitting`), debounced, dan dikunci secara unik di backend untuk mencegah transaksi/pesanan duplikat.
+
+
 
 
 
