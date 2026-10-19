@@ -49,3 +49,32 @@ When any Modal, Bottom Sheet, Drawer, or Dialog is open (in Desktop or Mobile):
 - Merchant media files are isolated under `public/storage/stores/<storeID>/`.
 - Deleting an entity or removing photos must hard-delete physical files from disk (`os.Remove` of file and `.fiber.gz`) if not referenced by other active records.
 - `storage_used_bytes` must be recalculated or synchronized immediately upon file addition/deletion.
+
+---
+
+## 5. Database Architecture, Normalization & Clean Code Standards (MANDATORY)
+Detail lengkap diatur pada [.agents/rules/database_and_clean_code_standards.md](file:///c:/MyProject/DFauna/.agents/rules/database_and_clean_code_standards.md):
+1. **Audit Normalisasi (1NF, 2NF, 3NF)**:
+   - Nilai atomik (1NF), eliminasi dependensi parsial (2NF) dan dependensi transitif (3NF).
+   - **Controlled Denormalization**: Pada entitas transaksi (orders, invoices, ledger), simpan snapshot harga & nama item saat transaksi agar tidak terpengaruh perubahan master data.
+2. **Integritas Relasional & Constraints**:
+   - Foreign Keys wajib terindeks, NOT NULL dengan default terukur, Unique Constraint di level database (bukan sekadar `if exists` di aplikasi).
+   - Tipe data uang/finansial dilarang `FLOAT`/`DOUBLE` (wajib integer terkecil atau decimal presisi), timestamp wajib format UTC di database.
+3. **Clean Code & Modularitas**:
+   - Terapkan *Single Responsibility Principle* (fungsi ringkas & terisolasi).
+   - Penamaan semantik yang mencerminkan domain bisnis.
+   - Bersihkan *dead code* (dilarang meninggalkan baris kode usang di-comment out).
+
+---
+
+## 6. Premium UI, Anti-AI Aesthetics & Iconography Standards (MANDATORY)
+Detail lengkap diatur pada [.agents/rules/premium_ui_and_anti_ai_standards.md](file:///c:/MyProject/DFauna/.agents/rules/premium_ui_and_anti_ai_standards.md):
+1. **HARAM Menggunakan Emoji di Antarmuka Bisnis**:
+   - Dilarang keras memakai karakter emoji (🚀, 🔥, ✨, 💡, 📦, dll.) di judul card, tombol aksi, atau status badge.
+   - Wajib gunakan **Icon Library Vektor Profesional** (Lucide React / Heroicons / clean SVG) dengan stroke konsisten (1.5–1.75px) dan palet monokrom / neutral-muted.
+2. **Anti-AI Slop & Gradien Murahan**:
+   - Dilarang memakai gradien ungu-neon/cyan/magenta khas template AI generik, card glow berlebihan, atau sudut membulat ekstrem (*anti-bubble*).
+3. **Standar Desain Enterprise & Elegan**:
+   - Gunakan palet terkalibrasi (Slate, Zinc, Neutral gray, aksen brand tenang dan solid).
+   - Tipografi terstruktur, spacing bernapas (*breathing room*), status badge bernuansa pastel halus, micro-interactions 150–200ms taktis, dan skeleton loading elegan.
+
