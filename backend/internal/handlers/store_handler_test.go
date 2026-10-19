@@ -54,9 +54,47 @@ func TestIsReservedSlug(t *testing.T) {
 	}
 
 	// String kosong / spasi saja tidak boleh dianggap slug sah.
-	for _, s := range []string{"", "   ", "\t", "\n"} {
+	for _, s := range []string{"", "   ", "	", "\n"} {
 		if !IsReservedSlug(s) {
 			t.Errorf("IsReservedSlug(%q) = false, want true (kosong ditolak)", s)
+		}
+	}
+}
+
+// TestIsReservedSlug_SetelahCleanSlug menguji rantai yang BENAR-BENAR dipakai
+// handler: cleanSlug() dulu, baru IsReservedSlug(). Test di atas memanggil
+// IsReservedSlug dengan slug mentah, sehingga tidak pernah menangkap kasus
+// "@" yang sudah dinormalisasi menjadi "-" oleh cleanSlug.
+//
+// Regresi di sini berarti merchant bisa mendaftarkan slug yang terbaca sebagai
+// merek platform di URL (impersonasi visual), mis. "c-tavor".
+func TestIsReservedSlug_SetelahCleanSlug(t *testing.T) {
+	reserved := []string{
+		// pemisah disisipkan di tengah merek → vokal hilang setelah "-" dibuang
+		"c@tavor", "cat@vor", "c@t@vor", "c@tav0r", "k@tavor", "cata@or",
+		"c-tavor", "cat-vor", "c-t-vor", "c-a-t-a-v-o-r", "k@t@v0r",
+		// bentuk yang sudah tertangkap sebelum perbaikan (jaga agar tetap tertangkap)
+		"catavor", "c@t@v0r", "catav0r", "c4t4v0r", "mycatavor", "catavor-x",
+		"cata_vor", "c.at.a.v.o.r",
+	}
+	for _, s := range reserved {
+		got := IsReservedSlug(cleanSlug(s))
+		if !got {
+			t.Errorf("IsReservedSlug(cleanSlug(%q)) = false (clean=%q), want true", s, cleanSlug(s))
+		}
+	}
+
+	// Penjaga false positive: kata sah yang kebetulan mirip huruf merek TIDAK
+	// boleh ikut terblokir. Batas selisih 2 karakter di isBrandSubsequence
+	// yang mencegahnya.
+	allowed := []string{
+		"cutover", "cavort", "captor", "castor", "creator", "carnivore",
+		"toko-burung", "faunashop", "kandangku", "petlover", "birdhouse",
+		"cakrawala", "catering", "katalog", "vitamin", "avocado",
+	}
+	for _, s := range allowed {
+		if IsReservedSlug(cleanSlug(s)) {
+			t.Errorf("IsReservedSlug(cleanSlug(%q)) = true (clean=%q), want false — false positive", s, cleanSlug(s))
 		}
 	}
 }

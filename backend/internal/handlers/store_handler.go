@@ -124,34 +124,65 @@ func IsReservedSlug(slug string) bool {
 		return true
 	}
 
-	// 1. Check normalized leetspeak, punctuation removal, and character replacements
-	replacer := strings.NewReplacer(
-		"-", "", "_", "", ".", "", " ", "", "/", "",
-		"0", "o", "1", "i", "3", "e", "4", "a", "5", "s", "8", "b", "@", "a", "$", "s",
-	)
-	normalized := replacer.Replace(clean)
+	normalized := slugCompactor.Replace(clean)
 
-	// Direct similarity checks with platform brand variations
-	brandVariations := []string{
-		"catavor", "catafor", "katavor", "katafor",
-		"catabor", "katabor", "cataphor", "kataphor",
-		"catavr", "katafr", "catafr", "katavr",
-	}
-
+	// 1. Varian merek yang muncul utuh di dalam slug (mis. "mycatavor").
 	for _, b := range brandVariations {
 		if strings.Contains(normalized, b) {
 			return true
 		}
 	}
 
-	// 2. Pattern match: check if clean slug starts or ends with brand keywords
+	// 2. Awalan/akhiran merek pada slug mentah.
 	for _, b := range brandVariations {
 		if strings.HasPrefix(clean, b) || strings.HasSuffix(clean, b) {
 			return true
 		}
 	}
 
+	// 3. SECURITY (N-21b): huruf vokal yang DIHILANGKAN.
+	// cleanSlug mengubah "@" menjadi "-", lalu normalisasi membuang "-",
+	// sehingga "c@tavor" menjadi "ctavor" dan lolos dari pemeriksaan di atas
+	// (bukan substring merek). Penyerang cukup menyisipkan pemisah di tengah
+	// merek untuk mendapat slug yang terbaca seperti merek di URL.
+	// Aturan: slug dianggap mirip merek bila ia SUBSEQUENCE merek dengan
+	// maksimal 2 karakter hilang. Batas 2 mencegah kata sah seperti
+	// "cutover"/"cavort" ikut terblokir.
+	for _, b := range brandVariations {
+		if isBrandSubsequence(normalized, b) {
+			return true
+		}
+	}
+
 	return false
+}
+
+// slugCompactor membuang pemisah dan menyeragamkan leetspeak.
+var slugCompactor = strings.NewReplacer(
+	"-", "", "_", "", ".", "", " ", "", "/", "",
+	"0", "o", "1", "i", "3", "e", "4", "a", "5", "s", "8", "b", "@", "a", "$", "s",
+)
+
+// brandVariations adalah ejaan merek platform yang dicadangkan.
+var brandVariations = []string{
+	"catavor", "catafor", "katavor", "katafor",
+	"catabor", "katabor", "cataphor", "kataphor",
+	"catavr", "katafr", "catafr", "katavr",
+}
+
+// isBrandSubsequence melaporkan apakah candidate adalah subsequence brand
+// dengan selisih panjang paling banyak 2 karakter.
+func isBrandSubsequence(candidate, brand string) bool {
+	if candidate == "" || len(candidate) > len(brand) || len(brand)-len(candidate) > 2 {
+		return false
+	}
+	i := 0
+	for j := 0; j < len(brand) && i < len(candidate); j++ {
+		if brand[j] == candidate[i] {
+			i++
+		}
+	}
+	return i == len(candidate)
 }
 
 // SECURITY/LOGIC (N-21): reserved-slug adalah aturan PENAMAAN, bukan syarat lookup.
