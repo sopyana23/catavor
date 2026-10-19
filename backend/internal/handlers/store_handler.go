@@ -1938,7 +1938,17 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	user := c.Locals("user").(*models.User)
+	// ROBUSTNESS: rute ini selalu berada di belakang middleware auth, tetapi
+	// type-assert tanpa guard membuat handler panic (bukan 401) bila Locals
+	// kosong — mis. salah pasang rute atau urutan middleware berubah.
+	actorVal := c.Locals("user")
+	user, ok := actorVal.(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Sesi tidak valid. Silakan masuk kembali.",
+		})
+	}
 	storeIDStr := c.Params("id")
 	storeID, err := strconv.ParseUint(storeIDStr, 10, 32)
 	if err != nil || storeID == 0 {
