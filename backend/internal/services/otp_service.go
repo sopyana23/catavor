@@ -174,10 +174,12 @@ func (s *OTPService) generateAndSendOTP(email string, recipientName string, purp
 </body>
 </html>`, subject, recipientName, introText, otpCode, time.Now().Year())
 
-	// 6. Send the Email via SMTP Service (Gracefully logs if SMTP is not configured)
-	go func() {
+	// 6. Send the Email via SMTP Service (Gracefully logs if SMTP is not configured).
+	// Tetap async, tetapi recover dipasang di dalam goroutine: panic di
+	// goroutine fire-and-forget tidak tercakup recover middleware Fiber.
+	go runBackground("OTPService.SendEmail", func() {
 		_ = SendHTMLEmail(cleanedEmail, subject, "Catavor Security", htmlBody)
-	}()
+	})
 
 	log.Info().Str("email", cleanedEmail).Str("purpose", purpose).Msg("OTP generated and email dispatched")
 	return otpCode, nil
@@ -250,7 +252,19 @@ func (s *OTPService) ValidateAndConsumeToken(email string, token string, purpose
 		return false
 	}
 
-	// Consume token so it cannot be reused
-	_ = s.db.Delete(&record)
-	return true
+	// Consume token so it cannot be reused.
+	//
+	// Delete dijadikan satu statement dengan syarat validasinya: SELECT lalu
+	// DELETE terpisah membuka TOCTOU, sehingga dua request bersamaan dengan
+	// token yang sama bisa sama-sama lolos. RowsAffected yang menentukan hasil.
+	res := s.db.Where("email = ? AND token = ? AND purpose = ? AND expires_at > ?",
+		cleanedEmail, cleanedToken, purpose, time.Now()).
+		Delete(&models.EmailVerificationOTP{})
+
+	if res.Error != nil {
+		log.Error().Err(res.Error).Str("email", cleanedEmail).Msg("gagal mengonsumsi token verifikasi")
+		return false
+	}
+
+	return res.RowsAffected > 0
 }
