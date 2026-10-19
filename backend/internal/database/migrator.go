@@ -100,6 +100,20 @@ func RunMigrations(db *gorm.DB) error {
 		known[a.Version] = a.Checksum
 	}
 
+	// Berkas yang tercatat tetapi tidak lagi ada di binary (mis. diganti nama
+	// karena isinya tidak bisa diperbaiki di tempat). Bukan error, tetapi harus
+	// terlihat: riwayat migrasi tidak boleh hilang diam-diam.
+	present := make(map[string]struct{}, len(files))
+	for _, f := range files {
+		present[f.version] = struct{}{}
+	}
+	for _, a := range applied {
+		if _, ok := present[a.Version]; !ok {
+			log.Warn().Str("migrasi", a.Version).
+				Msg("tercatat di schema_migrations tetapi berkasnya tidak ada di binary (diganti nama?)")
+		}
+	}
+
 	if len(known) == 0 {
 		// Baseline HANYA sah untuk instalasi lama: skema sudah dibentuk
 		// AutoMigrate sebelum migrasi SQL dikelola. Patokannya tidak bisa

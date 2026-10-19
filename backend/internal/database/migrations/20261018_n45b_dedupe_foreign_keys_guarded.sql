@@ -19,6 +19,15 @@
 --   Constraint di sini tidak dideklarasikan di model Go (dibuat AutoMigrate
 --   sebagai FK default), sehingga AutoMigrate TIDAK akan membuatnya kembali
 --   setelah dibuang.
+--
+-- RIWAYAT BERKAS (N-45 -> N-45b)
+--   Berkas ini sebelumnya bernama 20261018_n45_dedupe_foreign_keys.sql dan
+--   TIDAK dijaga. Pada instalasi baru (AutoMigrate tidak lagi membuat tabel
+--   `sightings`) berkas itu gagal dan server tidak pernah boot. Karena berkas
+--   yang sudah diterapkan tidak boleh diubah isinya (checksum dijaga), berkas
+--   diganti nama menjadi N-45b. Database lama yang sudah mencatat N-45 akan
+--   menjalankan N-45b sekali lagi — aman, karena seluruh pernyataannya
+--   idempoten (DROP ... IF EXISTS + ADD ulang).
 -- =====================================================================
 
 BEGIN;
@@ -46,13 +55,26 @@ ALTER TABLE products
 
 -- 3. sightings.fauna_id -> products(id)
 --    Simpan varian ON DELETE CASCADE: laporan perjumpaan mengikuti itemnya.
-ALTER TABLE sightings DROP CONSTRAINT IF EXISTS fk_faunas_sightings;
--- Pastikan definisinya BENAR. Constraint yang sudah ada tanpa aturan
--- ON DELETE juga harus diperbaiki, bukan hanya dilewati.
-ALTER TABLE sightings DROP CONSTRAINT IF EXISTS fk_products_sightings;
-ALTER TABLE sightings
-    ADD CONSTRAINT fk_products_sightings
-    FOREIGN KEY (fauna_id) REFERENCES products(id) ON DELETE CASCADE;
+--
+--    PENTING: tabel `sightings` adalah warisan dan TIDAK dibuat AutoMigrate
+--    lagi (model-nya sudah dihapus). Pada instalasi BARU tabel itu tidak
+--    pernah ada, sehingga ALTER TABLE langsung gagal dan seluruh boot
+--    server berhenti. Karena itu blok ini dijaga: hanya dijalankan bila
+--    tabelnya benar-benar ada (instalasi lama).
+DO $$
+BEGIN
+    IF to_regclass('public.sightings') IS NULL THEN
+        RAISE NOTICE 'n45b: tabel sightings tidak ada, blok 3 dilewati';
+        RETURN;
+    END IF;
+
+    ALTER TABLE sightings DROP CONSTRAINT IF EXISTS fk_faunas_sightings;
+    ALTER TABLE sightings DROP CONSTRAINT IF EXISTS fk_products_sightings;
+    ALTER TABLE sightings
+        ADD CONSTRAINT fk_products_sightings
+        FOREIGN KEY (fauna_id) REFERENCES products(id) ON DELETE CASCADE;
+END
+$$;
 
 -- 4. support_tickets.rated_agent_id -> users(id)
 --    Simpan varian ON DELETE SET NULL (penilai tiket adalah metadata CSAT;

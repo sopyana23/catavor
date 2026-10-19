@@ -40,11 +40,16 @@ func prepareEmptySchema(t *testing.T, db *gorm.DB) {
 		}
 		// Tabel minimum yang dirujuk migrasi. Strukturnya tidak perlu lengkap,
 		// tetapi kolom yang dirujuk constraint WAJIB ada.
+		//
+		// JANGAN menambahkan tabel yang tidak lagi dibuat AutoMigrate.
+		// Tabel `sightings` dulu ditambahkan di sini dan itu MENYEMBUNYIKAN bug
+		// nyata: pada instalasi baru tabel itu tidak pernah ada, sehingga
+		// migrasi N-45 gagal dan server tidak bisa boot sama sekali. Uji ini
+		// harus mencerminkan apa yang benar-benar dibuat AutoMigrate.
 		stmts := []string{
 			`CREATE TABLE users (id BIGSERIAL PRIMARY KEY)`,
 			`CREATE TABLE stores (id BIGSERIAL PRIMARY KEY, user_id BIGINT)`,
 			`CREATE TABLE products (id BIGSERIAL PRIMARY KEY, store_id BIGINT)`,
-			`CREATE TABLE sightings (id BIGSERIAL PRIMARY KEY, fauna_id BIGINT, product_id BIGINT)`,
 			`CREATE TABLE support_tickets (id BIGSERIAL PRIMARY KEY, rated_agent_id BIGINT)`,
 		}
 		for _, s := range stmts {
