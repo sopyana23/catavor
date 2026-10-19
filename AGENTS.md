@@ -78,3 +78,23 @@ Detail lengkap diatur pada [.agents/rules/premium_ui_and_anti_ai_standards.md](f
    - Gunakan palet terkalibrasi (Slate, Zinc, Neutral gray, aksen brand tenang dan solid).
    - Tipografi terstruktur, spacing bernapas (*breathing room*), status badge bernuansa pastel halus, micro-interactions 150–200ms taktis, dan skeleton loading elegan.
 
+---
+
+## 7. Dual-Frontend Parity & Form-Factor Native UI/UX Standards (MANDATORY)
+Setiap permintaan fitur baru, pembaruan UI, atau perbaikan tampilan yang tidak secara eksplisit menyebutkan satu perangkat tertentu **WAJIB diimplementasikan serentak dan otomatis di KEDUA codebase**: [frontend/desktop](file:///c:/MyProject/DFauna/frontend/desktop) dan [frontend/mobile](file:///c:/MyProject/DFauna/frontend/mobile).
+
+1. **Desktop Native (Breakpoint ≥ 1024px)**:
+   - **Haram Stretched Mobile**: Dilarang melebarkan layout form/tombol 1 kolom mobile ke layar monitor (>600px) atau sekadar menaruh wrapper sempit `max-w-md mx-auto` di dashboard desktop yang membuang 70% luas monitor.
+   - Manfaatkan multi-kolom grid, sidebar navigasi tetap/collapsible, dan **Data Table Komprehensif** (kolom sorting, bulk action, inline actions, bukan tumpukan kartu mobile).
+   - Dialog overlay wajib berupa **Centered Modal Box** proporsional dengan tombol aksi di pojok kanan bawah.
+2. **Mobile Native (Breakpoint < 768px)**:
+   - **Ergonomi Sentuh & Thumb Zone**: Touch target minimal 44x44px. Tombol aksi utama (CTA / Checkout / Save) wajib mudah dijangkau ibu jari (*Sticky Bottom Action Bar*).
+   - Layout **Single-Column Vertical Flow**. Tabel data kompleks wajib diubah menjadi format **Card List** rapi dengan badge status.
+   - Dialog overlay wajib menggunakan **Bottom Sheet** yang meluncur dari bawah (bukan modal kecil melayang di tengah layar yang rawan tertutup keyboard virtual).
+3. **Tablet Adaptive Bridge (Breakpoint 768px – 1023px)**:
+   - Gunakan layout adaptif yang memanfaatkan lebar menengah: Pola **Master-Detail Split View** (daftar di kiri 35-40%, detail preview di kanan 60-65%), grid 2–3 kolom seimbang, atau sidebar yang menciut menjadi icon-only rail.
+4. **Mandat Verifikasi Kompilasi Ganda (*Dual-Build Verification*)**:
+   - Agen **DILARANG MENGKLAIM SELESAI** jika fitur baru hanya dibuat di salah satu versi (Desktop saja atau Mobile saja).
+   - Wajib memvalidasi kedua frontend sebelum menyatakan tugas tuntas: `npm run build` pada `frontend/desktop` DAN `npm run build` pada `frontend/mobile` (keduanya wajib 0 error).
+
+
