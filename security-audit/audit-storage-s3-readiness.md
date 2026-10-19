@@ -272,3 +272,30 @@ Rekomendasi saya: **P0 dulu, lalu P1 no. 4–9, baru pilih jalan A atau B.** Mel
 - **Sudah standar S3?** Belum. Fondasinya benar (key hierarkis, driver terabstraksi, UUID, partisi waktu), tapi ada 5 blocker yang membuat migrasi hari ini akan memutus fitur dan meninggalkan file yatim. Perlu ±9 perubahan terarah sebelum "gampang".
 - **Sudah aman?** Jalur **tulis** sudah baik — validasi magic byte, re-encode, otorisasi per tenant, RBAC platform, kuota. Jalur **baca** belum ada: satu route statis tanpa auth melayani seluruh storage, termasuk bukti bayar dan lampiran tiket. Itu satu temuan kritis yang harus ditutup sebelum produksi.
 - **Cukup?** Tidak cukup, tapi tidak perlu dibongkar. Yang perlu ditambah adalah **pemisahan public/private** dan **operasi baca lewat driver**. Sisanya perbaikan kecil.
+
+---
+
+## 8. Status perbaikan — P0 (2026-10-19)
+
+P0 dieksekusi dan diverifikasi runtime. Ini menutup temuan, **bukan** berarti sistem terbukti aman secara keseluruhan — P1 masih terbuka.
+
+| Temuan | Status | Bukti runtime |
+| --- | --- | --- |
+| ST-01 route statis tanpa auth melayani berkas privat | **Tertutup** | `GET /storage/support/...` → 404 · `/storage/private/...` → 404 · `/storage/billing/...` → 404 · lampiran tanpa sesi → 401 |
+| ST-02 root statis salah resolve (aset branding 404) | **Tertutup** | URL branding yang dulu 404 → `200 image/jpeg 24571B`; render di browser (avatar toko, naturalWidth 64) |
+| ST-03 `storage_key` tidak ditulis untuk lampiran | **Tertutup (lampiran)** | Respons upload mengembalikan `storage_key`; baris `support_attachments` menyimpan key, `file_url` kosong |
+| ST-04 baca berkas tanpa abstraksi driver | **Sebagian** | Lampiran support kini lewat endpoint ber-RBAC + `Content-Disposition` + `Cache-Control: private, no-store`; `Get()`/`Presign()` masih P1 |
+| ST-05 `extractStorageKeyFromURL` cari `/uploads/` | **Terbuka** | P1 |
+| ST-06 `os.RemoveAll` hardcoded | **Terbuka** | P1 |
+| ST-07 `S3_USE_PATH_STYLE` tidak tersambung | **Tertutup** | `minio.Options{BucketLookup: minio.BucketLookupPath}` |
+
+Bukti tambahan:
+
+- Upload `category=support` → key `private/support/tickets/2026/10/<uuid>.jpg`, `url: ""`.
+- Upload `category=branding` → key `stores/47/branding/...`, URL publik `http://localhost:8000/storage/...` → 200.
+- Tiket uji dibuat lewat API, lampiran id 5: tanpa sesi **401**, dengan sesi **200 `image/jpeg` `inline`**, `?download=1` → **`attachment; filename="p0probe.png"`**.
+- `go build ./...` bersih, `go vet ./...` bersih, `go test -count=1` pada config/storage/handlers/services semuanya `ok`.
+- Playwright E2E: **24 passed, 6 skipped, 0 failed**.
+- Artefak uji dibersihkan: `support_tickets=0`, `support_messages=0`, `support_attachments=0`, `storage_used_bytes` store 47 dikembalikan ke 0, file uji dihapus.
+
+Catatan: `file_type` hasil re-encode PNG masih tercatat `image/jpeg` (perilaku lama re-encoder, bukan regresi P0).
