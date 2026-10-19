@@ -81,22 +81,55 @@ Detail lengkap diatur pada [.agents/rules/04_ui_ux_and_device_standards.md](file
 
 ---
 
-## 7. Dual-Frontend Parity & Form-Factor Native UI/UX Standards (MANDATORY)
-Setiap permintaan fitur baru, pembaruan UI, atau perbaikan tampilan yang tidak secara eksplisit menyebutkan satu perangkat tertentu **WAJIB diimplementasikan serentak dan otomatis di KEDUA codebase**: [frontend/desktop](file:///c:/MyProject/DFauna/frontend/desktop) dan [frontend/mobile](file:///c:/MyProject/DFauna/frontend/mobile).
+## 7. Tri-Frontend Architecture & Form-Factor Native Parity (MANDATORY)
+Platform Catavor dibangun dengan arsitektur **Tiga Frontend Mandiri** yang masing-masing memiliki direktori terisolasi di bawah `frontend/`:
+1. [frontend/desktop](file:///c:/MyProject/DFauna/frontend/desktop) $\rightarrow$ Antarmuka **Desktop Native** (Breakpoint $\ge$ 1024px, output `public/desktop`).
+2. [frontend/tablet](file:///c:/MyProject/DFauna/frontend/tablet) $\rightarrow$ Antarmuka **Tablet Native** (Breakpoint 768px – 1023px, output `public/tablet`).
+3. [frontend/mobile](file:///c:/MyProject/DFauna/frontend/mobile) $\rightarrow$ Antarmuka **Mobile Native** (Breakpoint < 768px, output `public/mobile`).
 
-1. **Desktop Native (Breakpoint ≥ 1024px)**:
-   - **Haram Stretched Mobile**: Dilarang melebarkan layout form/tombol 1 kolom mobile ke layar monitor (>600px) atau sekadar menaruh wrapper sempit `max-w-md mx-auto` di dashboard desktop yang membuang 70% luas monitor.
-   - Manfaatkan multi-kolom grid, sidebar navigasi tetap/collapsible, dan **Data Table Komprehensif** (kolom sorting, bulk action, inline actions, bukan tumpukan kartu mobile).
-   - Dialog overlay wajib berupa **Centered Modal Box** proporsional dengan tombol aksi di pojok kanan bawah.
-2. **Mobile Native (Breakpoint < 768px)**:
-   - **Ergonomi Sentuh & Thumb Zone**: Touch target minimal 44x44px. Tombol aksi utama (CTA / Checkout / Save) wajib mudah dijangkau ibu jari (*Sticky Bottom Action Bar*).
-   - Layout **Single-Column Vertical Flow**. Tabel data kompleks wajib diubah menjadi format **Card List** rapi dengan badge status.
-   - Dialog overlay wajib menggunakan **Bottom Sheet** yang meluncur dari bawah (bukan modal kecil melayang di tengah layar yang rawan tertutup keyboard virtual).
-3. **Tablet Adaptive Bridge (Breakpoint 768px – 1023px)**:
-   - Gunakan layout adaptif yang memanfaatkan lebar menengah: Pola **Master-Detail Split View** (daftar di kiri 35-40%, detail preview di kanan 60-65%), grid 2–3 kolom seimbang, atau sidebar yang menciut menjadi icon-only rail.
-4. **Mandat Verifikasi Kompilasi Ganda (*Dual-Build Verification*)**:
-   - Agen **DILARANG MENGKLAIM SELESAI** jika fitur baru hanya dibuat di salah satu versi (Desktop saja atau Mobile saja).
-   - Wajib memvalidasi kedua frontend sebelum menyatakan tugas tuntas: `npm run build` pada `frontend/desktop` DAN `npm run build` pada `frontend/mobile` (keduanya wajib 0 error).
+### A. Prinsip Identitas Visual & Ergonomi Khas Masing-Masing Form-Factor
+Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewakili karakternya sendiri, **bukan sekadar styling responsif hasil ciutan layar**:
+1. **Desktop Native (Breakpoint $\ge$ 1024px)**:
+   - **Haram Stretched Mobile**: Dilarang melebarkan form/tombol 1 kolom ke layar lebar (>600px).
+   - Manfaatkan multi-kolom grid, Executive Sidebar (260-280px) + Top Command Bar, dan **Comprehensive Data Table** (sorting kolom, bulk batch actions, filter inline).
+   - Dialog overlay berupa **Centered Modal Box** proporsional dengan tombol aksi di kanan bawah.
+2. **Tablet Native (Breakpoint 768px – 1023px)**:
+   - Didesain khusus untuk interaksi sentuh + stylus / keyboard folio (rasio 4:3 / 16:10).
+   - Navigasi menggunakan **Adaptive Icon-Rail (70–80px)** atau collapsible drawer ramah jangkauan jempol di tepi layar (*Thumb Resting Zone*).
+   - Mengutamakan pola **Master-Detail Split View** (daftar ringkas di kiri 35–40%, panel inspeksi detail di kanan 60–65%) agar pengelola tidak bolak-balik modal/halaman.
+   - Dialog overlay menggunakan **Side Sheet** yang meluncur dari kanan atau Centered Medium Panel.
+3. **Mobile Native (Breakpoint < 768px)**:
+   - Ergonomi sentuh satu tangan (single-hand portrait, touch target minimal 44x44px).
+   - Layout **Single-Column Vertical Flow**, data kompleks disajikan dalam format **Card List** rapi.
+   - Dialog overlay wajib menggunakan **Bottom Sheet** yang meluncur dari dasar layar, aksi utama diakses via *Sticky Bottom Action Bar*.
+
+### B. Single Source of Truth & Database Consistency (MANDATORY)
+- **Tabel & API yang Sama**: Seluruh transaksi, operasi data, pembacaan, dan penulisan dari ketiga device **wajib menggunakan endpoint API Go yang sama dan tersimpan ke tabel PostgreSQL yang sama**. Tidak boleh ada skema database terpisah antar-device.
+- **Mobile sebagai Acuan Mutlak (*Golden Reference*)**: Fitur-fitur, alur logika, permission, dan validasi yang ada di versi mobile menjadi acuan mutlak.
+- **Larangan Menyenggol Kode Mobile (*Mobile Codebase Freeze*)**: Saat mengembangkan atau memutakhirkan tampilan desktop atau tablet, agen **DILARANG KERAS MENGUBAH ATAU MENYENGGOL CODEBASE `frontend/mobile`** yang sudah stabil dan sesuai, kecuali jika pengguna secara eksplisit meminta perbaikan khusus mobile.
+
+### C. Server-Side Data Presentation & Form-Factor Specific Pagination Standard
+Seluruh penampilan data daftar (katalog, transaksi, tiket, audit log, pengguna) wajib menggunakan mekanisme **Server-Side Data Fetching** yang efisien, dengan gaya paginasi khas yang disesuaikan dengan ergonomi masing-masing device:
+1. **Desktop Native Pagination**:
+   - **Enterprise Comprehensive Data Table Pagination Bar**:
+     - Dropdown baris per halaman: `10`, `25`, `50`, `100` entri.
+     - Ringkasan data aktual: *"Menampilkan X – Y dari Z data"*.
+     - Tombol navigasi nomor halaman bernomor (`[1] [2] [3] ... [N]`), tombol `Awal`, `Sebelumnya`, `Selanjutnya`, `Akhir`.
+     - Input langsung lompat ke halaman (*Quick Jump to Page*).
+2. **Tablet Native Pagination**:
+   - **Touch-Segmented Page Bar & Master-Detail Floating Pager**:
+     - Menggunakan tombol segmented pill yang ramah sentuhan (touch target $\ge$ 44px) di bagian bawah panel Master List (`< Hal 1/8 >` atau touch-friendly pager pills).
+     - Saat berada di mode Master-Detail Split View, navigasi paginasi hanya memperbarui panel daftar item di kiri tanpa melakukan reload total pada panel detail di kanan (*isolated pane pagination*).
+     - Quick page jumper drawer untuk berpindah halaman secara cepat.
+3. **Mobile Native Pagination**:
+   - **Vertical Flow Paging (Infinite Scroll / Load More / Compact Bar)**:
+     - Menggunakan "Muat Lebih Banyak" (*Load More Button*) dengan progress counter, atau infinite scroll dengan skeleton loader halus, atau Compact 1-Line Prev-Next Bar di area bawah layar untuk menghemat ruang vertikal layar sempit.
+
+### D. Mandat Verifikasi Tiga Kompilasi (*Tri-Build Verification*)
+Agen **DILARANG MENGKLAIM SELESAI** jika fitur baru tidak diverifikasi di ketiga codebase. Sebelum menyatakan tugas tuntas, jalankan pengujian build:
+- `npm run build` pada [frontend/desktop](file:///c:/MyProject/DFauna/frontend/desktop) $\rightarrow$ Wajib 0 error.
+- `npm run build` pada [frontend/tablet](file:///c:/MyProject/DFauna/frontend/tablet) $\rightarrow$ Wajib 0 error.
+- `npm run build` pada [frontend/mobile](file:///c:/MyProject/DFauna/frontend/mobile) $\rightarrow$ Wajib 0 error.
 
 ---
 

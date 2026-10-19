@@ -1,5 +1,5 @@
 Write-Host "==============================================" -ForegroundColor Green
-Write-Host "Building Catavor (Desktop & Mobile Frontends)" -ForegroundColor Green
+Write-Host "Building Catavor (Desktop, Tablet & Mobile Frontends)" -ForegroundColor Green
 Write-Host "==============================================" -ForegroundColor Green
 
 Write-Host ""

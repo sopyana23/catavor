@@ -88,6 +88,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
+import { PlatformAdminShell } from './PlatformAdminShell';
 import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
@@ -3936,28 +3937,50 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   ]);
 
   return (
-    <div
-      className={`catavor-platform-portal ${isDark ? 'portal-dark' : 'portal-light'}`}
-      data-portal-theme={isDark ? 'dark' : 'light'}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1.15rem',
-        width: '100%',
-        backgroundColor: theme.bg,
-        color: theme.textPrimary,
-        padding: (activeView === 'support' && selectedTicket)
-          ? `0.5rem 0.85rem calc(${selectedTicket.status === 'closed' ? '70px' : (ticketReplyAttachments.length > 0 ? '245px' : '180px')} + env(safe-area-inset-bottom, 0px)) 0.85rem`
-          : (activeView === 'reports' && moderationModalReport)
-            ? '0.5rem 0.85rem 1.25rem 0.85rem'
-            : isSubPage
-              ? '0.5rem 0.85rem 2rem 0.85rem'
-              : '0.5rem 0.85rem 5.5rem 0.85rem',
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        minHeight: '100vh',
-        boxSizing: 'border-box'
+    <PlatformAdminShell
+      currentUser={currentUser}
+      roleSlug={roleSlug}
+      roleBadge={roleBadge}
+      activeView={activeView}
+      onSwitchView={handleSwitchView}
+      canAccessRBAC={canAccessRBAC}
+      canAccessCompliance={canAccessCompliance}
+      canAccessSupport={canAccessSupport}
+      canAccessFinance={canAccessFinance}
+      canAccessMonetization={canAccessMonetization}
+      canAccessBroadcast={canAccessBroadcast}
+      canAccessAutomation={canAccessAutomation}
+      canAccessAudit={canAccessAudit}
+      canAccessMasterData={canAccessMasterData}
+      pendingReportsCount={pendingReportsCount}
+      urgentTicketsCount={urgentTicketsCount}
+      actionRequiredTicketsCount={actionRequiredTicketsCount}
+      pendingOrdersCount={pendingOrdersCount}
+      isDark={isDark}
+      toggleTheme={toggleTheme}
+      onLogout={onLogout}
+      onRefresh={() => {
+        loadData();
+        showToast('Data platform berhasil diperbarui', 'success');
       }}
+      isRefreshing={loading}
     >
+      <div
+        className={`catavor-platform-portal ${isDark ? 'portal-dark' : 'portal-light'}`}
+        data-portal-theme={isDark ? 'dark' : 'light'}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.25rem',
+          width: '100%',
+          backgroundColor: 'transparent',
+          color: theme.textPrimary,
+          padding: 0,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          minHeight: 'auto',
+          boxSizing: 'border-box'
+        }}
+      >
       {/* Toast Notification */}
       {toastMsg && (
         <div style={{
@@ -3992,7 +4015,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {/* 1. EXECUTIVE MASTER HEADER (When on Dashboard Menu)                       */}
       {/* ========================================================================= */}
-      {activeView === 'dashboard' && (
+      {activeView === 'dashboard' && false && (
         <div style={{
           position: 'sticky',
           top: 0,
@@ -4110,11 +4133,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* Right Side: Contextual Options Menu & Primary Action */}
           {headerConfig.showMenu && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-              {headerConfig.primaryAction && (
+              {Boolean(headerConfig.primaryAction) && (
                 <button
                   type="button"
-                  onClick={headerConfig.primaryAction.onClick}
-                  title={headerConfig.primaryAction.title}
+                  onClick={() => headerConfig.primaryAction?.onClick?.()}
+                  title={headerConfig.primaryAction?.title || ''}
                   style={{
                     width: '34px',
                     height: '34px',
@@ -4129,7 +4152,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  {headerConfig.primaryAction.icon}
+                  {headerConfig.primaryAction?.icon}
                 </button>
               )}
               <button
@@ -4174,27 +4197,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           activeView === 'audit' ? `${auditLogs.length} Log Aktivitas` :
           currentItem?.subtitle || '';
 
+        if (!isSubPage) return null;
+
         return (
           <div style={{
             position: 'sticky',
             top: 0,
             zIndex: 999,
             boxSizing: 'border-box',
-            width: 'calc(100% + 1.7rem)',
-            maxWidth: 'calc(100% + 1.7rem)',
-            marginLeft: '-0.85rem',
-            marginRight: '-0.85rem',
-            marginTop: '-0.5rem',
-            marginBottom: '0.65rem',
-            borderRadius: 0,
+            width: '100%',
+            marginBottom: '0.85rem',
+            borderRadius: '0.85rem',
             backgroundColor: isDark 
               ? 'rgba(15, 23, 42, 0.95)' 
               : 'rgba(255, 255, 255, 0.95)',
-            borderTop: 'none',
-            borderLeft: 'none',
-            borderRight: 'none',
-            borderBottom: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
-            padding: '0.65rem 0.85rem',
+            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
+            padding: '0.65rem 1rem',
             boxShadow: isDark 
               ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' 
               : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
@@ -14416,7 +14434,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {/* 4. PERSISTENT EXECUTIVE FOOTER NAVIGATION (Only on Main 4 Platform Tabs)  */}
       {/* ========================================================================= */}
-      {!isSubPage && (
+      {!isSubPage && false && (
         <nav style={{
           position: 'fixed',
           bottom: 0,
@@ -16167,6 +16185,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           <ArrowUp size={20} strokeWidth={2.5} />
         </button>
       )}
-    </div>
+      </div>
+    </PlatformAdminShell>
   );
 };

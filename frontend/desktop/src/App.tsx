@@ -5373,7 +5373,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       }
       setActivityLoading(true);
       const slug = storeSlug || getStoreSlug() || '';
-      const isSuperadmin = adminUser?.email === 'admin@catavor.com';
+      const isSuperadmin = isSuperAdmin(adminUser);
       const endpoint = isSuperadmin ? '/api/admin/audit-logs' : '/api/activity-logs';
       
       const queryParams = new URLSearchParams({
@@ -14304,15 +14304,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const isPlatformAdminPath = !isCatalogChooserRoute(currentPath) && (currentPath === '/admin' || (currentPath.startsWith('/admin/') && !isCatalogChooserRoute(currentPath)) || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/'));
   if (token && isPlatformAdmin(adminUser) && isPlatformAdminPath) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: '#f8fafc', padding: '2rem 1.5rem 5rem 1.5rem', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
-          <PlatformRolePortal
-            token={token || ''}
-            currentUser={adminUser}
-            onLogout={handleLogout}
-          />
-        </div>
-      </div>
+      <PlatformRolePortal
+        token={token || ''}
+        currentUser={adminUser}
+        onLogout={handleLogout}
+      />
     );
   }
 
@@ -20914,13 +20910,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
              ======================================================== */
           token && isPlatformAdmin(adminUser) ? (
             /* DEDICATED PLATFORM CENTRAL MANAGEMENT CONSOLE */
-            <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1.5rem 5rem 1.5rem', width: '100%' }}>
-              <PlatformRolePortal
-                token={token || ''}
-                currentUser={adminUser}
-                onLogout={handleLogout}
-              />
-            </div>
+            <PlatformRolePortal
+              token={token || ''}
+              currentUser={adminUser}
+              onLogout={handleLogout}
+            />
           ) : token && !isStoreOwner ? (
             /* 403 FORBIDDEN ACCESS CARD FOR OTHER STORE OWNER */
             <div className="glass-panel animate-fade-in" style={{ maxWidth: '520px', margin: '4rem auto', padding: '2.5rem', textAlign: 'center' }}>
@@ -24149,7 +24143,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     <div style={{ minHeight: '38px', display: 'flex', alignItems: 'center' }}>
                       <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                         <strong style={{ color: 'var(--text-primary)', marginRight: '0.35rem' }}>
-                          {profileSubTab === 'info' ? 'Profil Pengelola Katalog:' : profileSubTab === 'security' ? 'Keamanan & Sesi Perangkat:' : profileSubTab === 'danger' ? 'Penutupan Akun & Katalog:' : (adminUser?.email === 'admin@catavor.com' ? 'System-Wide Audit Trail (Superadmin):' : 'Riwayat Aktivitas & Log Audit:')}
+                          {profileSubTab === 'info' ? 'Profil Pengelola Katalog:' : profileSubTab === 'security' ? 'Keamanan & Sesi Perangkat:' : profileSubTab === 'danger' ? 'Penutupan Akun & Katalog:' : (isSuperAdmin(adminUser) ? 'System-Wide Audit Trail (Superadmin):' : 'Riwayat Aktivitas & Log Audit:')}
                         </strong>
                         {profileSubTab === 'info' 
                           ? 'Kelola identitas akun pengelola katalog Anda dan perbarui nama profil tampilan.' 
@@ -24157,7 +24151,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             ? 'Pantau semua perangkat komputer dan smartphone yang sedang aktif terhubung ke akun Anda.'
                             : profileSubTab === 'danger'
                               ? 'Opsi lanjutan untuk menghapus profil katalog aktif atau mengajukan penutupan akun pengguna permanen.'
-                              : (adminUser?.email === 'admin@catavor.com' 
+                              : (isSuperAdmin(adminUser) 
                                   ? 'Audit trail seluruh aksi administratif, penertiban katalog, broadcast notifikasi, dan perubahan kebijakan lintas platform.' 
                                   : 'Riwayat aktivitas katalog, perubahan harga, password, serta login Anda')}
                       </p>
@@ -24996,7 +24990,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             { key: 'catalog', label: 'Item Katalog' },
                             { key: 'store', label: 'Profil & Identitas' },
                             { key: 'billing', label: 'Paket & Langganan' },
-                            ...(adminUser?.email === 'admin@catavor.com' ? [
+                            ...(isSuperAdmin(adminUser) ? [
                               { key: 'superadmin', label: 'Aksi Superadmin' },
                               { key: 'moderation', label: 'Moderasi' },
                             ] : [])
@@ -25032,7 +25026,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                         {/* Search Toolbar & Refresh */}
                         <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                          {adminUser?.email === 'admin@catavor.com' && (
+                          {isSuperAdmin(adminUser) && (
                             <select
                               className="form-input"
                               value={activityRoleFilter}
