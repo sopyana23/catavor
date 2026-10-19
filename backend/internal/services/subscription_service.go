@@ -339,15 +339,34 @@ func CanEditOrReactivateProduct(db *gorm.DB, storeID uint, productID uint, willB
 	return true, ""
 }
 
+// getPlanByCodeStrict memuat paket berdasarkan kode tanpa fallback.
+//
+// GetPlanByCode sengaja fallback ke paket free agar kuota toko lama tetap bisa
+// dihitung. Untuk transaksi (upgrade/downgrade) fallback itu berbahaya: kode
+// paket yang salah ketik akan diterima diam-diam dan toko terikat ke kode yang
+// tidak ada, sementara kuotanya diam-diam memakai kuota paket free.
+func getPlanByCodeStrict(db *gorm.DB, code string) (*models.SubscriptionPlan, error) {
+	code = strings.ToLower(strings.TrimSpace(code))
+	if code == "" {
+		return nil, fmt.Errorf("kode paket langganan kosong")
+	}
+	var plan models.SubscriptionPlan
+	if err := db.Where("code = ?", code).First(&plan).Error; err != nil {
+		return nil, fmt.Errorf("paket langganan '%s' tidak ditemukan", code)
+	}
+	return &plan, nil
+}
+
 // UpgradeStorePlan handles instant upgrade or renewal of a store subscription.
 func UpgradeStorePlan(db *gorm.DB, storeID uint, targetPlanCode string, durationMonths int) (*StoreQuotaInfo, error) {
 	if durationMonths <= 0 {
 		durationMonths = 1
 	}
 
-	plan, err := GetPlanByCode(db, targetPlanCode)
+	targetPlanCode = strings.ToLower(strings.TrimSpace(targetPlanCode))
+	plan, err := getPlanByCodeStrict(db, targetPlanCode)
 	if err != nil {
-		return nil, fmt.Errorf("paket langganan '%s' tidak ditemukan", targetPlanCode)
+		return nil, err
 	}
 
 	var store models.Store
@@ -409,9 +428,9 @@ func UpgradeStorePlan(db *gorm.DB, storeID uint, targetPlanCode string, duration
 
 // ScheduleStoreDowngrade sets a scheduled downgrade for the end of the current billing cycle.
 func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*StoreQuotaInfo, error) {
-	_, err := GetPlanByCode(db, targetPlanCode)
-	if err != nil {
-		return nil, fmt.Errorf("paket target '%s' tidak valid", targetPlanCode)
+	targetPlanCode = strings.ToLower(strings.TrimSpace(targetPlanCode))
+	if _, err := getPlanByCodeStrict(db, targetPlanCode); err != nil {
+		return nil, fmt.Errorf("paket target '%s' tidak valid: %w", targetPlanCode, err)
 	}
 
 	var store models.Store
