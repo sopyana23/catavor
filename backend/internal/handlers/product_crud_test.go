@@ -320,5 +320,3 @@ func TestProductDestroy_SQLite(t *testing.T) {
 }
 
 // PART4
-
-

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -257,14 +258,36 @@ func TestSupportReplyTicket_SQLite(t *testing.T) {
 // ServeAttachment — IDOR lampiran + path traversal
 // ---------------------------------------------------------------------------
 
-func TestSupportServeAttachment_SQLite(t *testing.T) {
-	// Bukan t.TempDir(): fasthttp menahan handle berkas yang sudah dikirim,
-	// sehingga RemoveAll saat cleanup gagal di Windows. Bersihkan manual.
-	root, err := os.MkdirTemp("", "catavor-attachment-")
-	if err != nil {
-		t.Fatalf("mkdir temp: %v", err)
+// c.SendFile menahan handle berkas sampai proses tes keluar, jadi direktori
+// tidak bisa dihapus saat cleanup di Windows (RemoveAll gagal walau di-retry).
+// Karena itu direktori dibuat sekali per proses dan sisa proses sebelumnya
+// disapu di awal — saat itu handle-nya sudah pasti lepas.
+var (
+	attachmentRootOnce sync.Once
+	attachmentRootDir  string
+)
+
+func attachmentRoot(t *testing.T) string {
+	t.Helper()
+	attachmentRootOnce.Do(func() {
+		stale, _ := filepath.Glob(filepath.Join(os.TempDir(), "catavor-attachment-*"))
+		for _, d := range stale {
+			_ = os.RemoveAll(d)
+		}
+		dir, err := os.MkdirTemp("", "catavor-attachment-")
+		if err != nil {
+			t.Fatalf("mkdir temp: %v", err)
+		}
+		attachmentRootDir = dir
+	})
+	if attachmentRootDir == "" {
+		t.Fatal("direktori lampiran gagal dibuat")
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	return attachmentRootDir
+}
+
+func TestSupportServeAttachment_SQLite(t *testing.T) {
+	root := attachmentRoot(t)
 	cfg := testCfg()
 	cfg.StorageLocalRoot = root
 
