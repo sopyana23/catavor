@@ -11,9 +11,35 @@ import (
 	"gorm.io/gorm"
 )
 
+// runBackground menjalankan tugas latar belakang tanpa membiarkan panic
+// mematikan proses.
+//
+// Goroutine fire-and-forget tidak tercakup recover middleware Fiber: satu
+// panic di sini akan menghentikan seluruh server. RecordUserSession dipanggil
+// sebagai `go services.RecordUserSession(...)` dari beberapa jalur login, jadi
+// kegagalan di dalamnya (mis. database.DB belum siap) harus ditelan, bukan
+// menjatuhkan proses.
+func runBackground(task string, fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error().Interface("panic", r).Str("task", task).Msg("tugas latar belakang panik dan dihentikan")
+		}
+	}()
+	fn()
+}
+
 // RecordUserSession creates an active user session record for device tracking.
 func RecordUserSession(userID uint, tokenID string, expiresAt time.Time, ip string, userAgent string) {
 	if userID == 0 || tokenID == "" {
+		return
+	}
+	runBackground("RecordUserSession", func() {
+		recordUserSession(userID, tokenID, expiresAt, ip, userAgent)
+	})
+}
+
+func recordUserSession(userID uint, tokenID string, expiresAt time.Time, ip string, userAgent string) {
+	if database.DB == nil {
 		return
 	}
 
@@ -43,10 +69,16 @@ func RecordUserSession(userID uint, tokenID string, expiresAt time.Time, ip stri
 
 // TouchUserSession updates last_active_at for an active session (throttled to avoid heavy write load).
 func TouchUserSession(tokenID string, ip string) {
-	if tokenID == "" {
+	if tokenID == "" || database.DB == nil {
 		return
 	}
 
+	runBackground("TouchUserSession", func() {
+		touchUserSession(tokenID, ip)
+	})
+}
+
+func touchUserSession(tokenID string, ip string) {
 	// Update if last_active_at is older than 5 minutes
 	now := time.Now()
 	threshold := now.Add(-5 * time.Minute)
