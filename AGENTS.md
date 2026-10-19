@@ -53,7 +53,7 @@ When any Modal, Bottom Sheet, Drawer, or Dialog is open (in Desktop or Mobile):
 ---
 
 ## 5. Database Architecture, Normalization & Clean Code Standards (MANDATORY)
-Detail lengkap diatur pada [.agents/rules/database_and_clean_code_standards.md](file:///c:/MyProject/DFauna/.agents/rules/database_and_clean_code_standards.md):
+Detail lengkap diatur pada [.agents/rules/02_database_architecture.md](file:///c:/MyProject/DFauna/.agents/rules/02_database_architecture.md) dan [.agents/rules/03_clean_code_and_architecture.md](file:///c:/MyProject/DFauna/.agents/rules/03_clean_code_and_architecture.md):
 1. **Audit Normalisasi (1NF, 2NF, 3NF)**:
    - Nilai atomik (1NF), eliminasi dependensi parsial (2NF) dan dependensi transitif (3NF).
    - **Controlled Denormalization**: Pada entitas transaksi (orders, invoices, ledger), simpan snapshot harga & nama item saat transaksi agar tidak terpengaruh perubahan master data.
@@ -68,7 +68,7 @@ Detail lengkap diatur pada [.agents/rules/database_and_clean_code_standards.md](
 ---
 
 ## 6. Premium UI, Anti-AI Aesthetics & Iconography Standards (MANDATORY)
-Detail lengkap diatur pada [.agents/rules/premium_ui_and_anti_ai_standards.md](file:///c:/MyProject/DFauna/.agents/rules/premium_ui_and_anti_ai_standards.md):
+Detail lengkap diatur pada [.agents/rules/04_ui_ux_and_device_standards.md](file:///c:/MyProject/DFauna/.agents/rules/04_ui_ux_and_device_standards.md):
 1. **HARAM Menggunakan Emoji di Antarmuka Bisnis**:
    - Dilarang keras memakai karakter emoji (🚀, 🔥, ✨, 💡, 📦, dll.) di judul card, tombol aksi, atau status badge.
    - Wajib gunakan **Icon Library Vektor Profesional** (Lucide React / Heroicons / clean SVG) dengan stroke konsisten (1.5–1.75px) dan palet monokrom / neutral-muted.
@@ -77,6 +77,7 @@ Detail lengkap diatur pada [.agents/rules/premium_ui_and_anti_ai_standards.md](f
 3. **Standar Desain Enterprise & Elegan**:
    - Gunakan palet terkalibrasi (Slate, Zinc, Neutral gray, aksen brand tenang dan solid).
    - Tipografi terstruktur, spacing bernapas (*breathing room*), status badge bernuansa pastel halus, micro-interactions 150–200ms taktis, dan skeleton loading elegan.
+
 
 ---
 
