@@ -98,4 +98,16 @@ Setiap permintaan fitur baru, pembaruan UI, atau perbaikan tampilan yang tidak s
    - Agen **DILARANG MENGKLAIM SELESAI** jika fitur baru hanya dibuat di salah satu versi (Desktop saja atau Mobile saja).
    - Wajib memvalidasi kedua frontend sebelum menyatakan tugas tuntas: `npm run build` pada `frontend/desktop` DAN `npm run build` pada `frontend/mobile` (keduanya wajib 0 error).
 
+---
+
+## 8. Anti-Looping & 2-Strike Circuit-Breaker Standard (MANDATORY)
+Detail lengkap diatur pada [.agents/rules/01_agent_operational_guardrails.md](file:///c:/MyProject/DFauna/.agents/rules/01_agent_operational_guardrails.md):
+1. **Pemutus Arus Maksimal 2x Percobaan**:
+   - Jika perbaikan terhadap suatu bug/fitur gagal 2 kali berturut-turut: **HARD STOP**. Agen dilarang menulis percobaan ke-3 secara membabi-buta.
+2. **Larangan Ping-Pong Debugging**:
+   - Dilarang keras mengulang atau menyajikan kembali pendekatan yang pernah gagal/ditolak (A $\rightarrow$ B $\rightarrow$ A).
+3. **Kejujuran Intelektual & Diagnosis Faktual**:
+   - Agen wajib jujur mengakui titik buntu atau keterbatasan bukti, memaparkan fakta log riil, dan meminta konfirmasi via `ask_question` sebelum melanjutkan alih-alih menebak kode.
+
+
 
