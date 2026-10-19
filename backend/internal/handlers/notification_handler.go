@@ -289,6 +289,56 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	})
 }
 
+// notificationVisibleTo memeriksa apakah notifikasi benar-benar ditujukan
+// untuk konteks toko/pengguna pemanggil.
+//
+// Tanpa pemeriksaan ini endpoint tandai-baca/dismiss menerima ID sembarang:
+// penyerang bisa menulis baris notification_reads tanpa batas (ID karangan)
+// atau menandai notifikasi milik toko lain sebagai sudah dibaca. Predikat di
+// sini sengaja mencerminkan filter GetNotifications agar read receipt hanya
+// dibuat untuk notifikasi yang memang terlihat oleh pemanggil.
+func (h *NotificationHandler) notificationVisibleTo(storeID, userID uint, storeCreatedAt time.Time, notifID string) bool {
+	if storeID == 0 && userID == 0 {
+		return false
+	}
+
+	now := time.Now().UTC()
+	thirtyDaysAgo := now.Add(-30 * 24 * time.Hour)
+
+	q := h.DB.Model(&models.Notification{}).
+		Where("notifications.id = ?", notifID).
+		Where("(notifications.expires_at IS NULL OR notifications.expires_at > ?)", now).
+		Where("notifications.created_at >= ?", thirtyDaysAgo)
+
+	if storeID > 0 {
+		storeCutoff := storeCreatedAt.Add(-2 * time.Minute)
+		if storeCutoff.Before(thirtyDaysAgo) {
+			storeCutoff = thirtyDaysAgo
+		}
+		q = q.Where(`(
+			(notifications.target_type = 'single_store' AND notifications.target_id = ?)
+			OR (notifications.target_type = 'specific' AND notifications.target_recipients LIKE ?)
+			OR (notifications.target_type = 'all' AND notifications.created_at >= ?)
+			OR (notifications.target_type = 'plan' AND notifications.created_at >= ?)
+			OR (notifications.target_type = 'single_user' AND notifications.target_id = ? AND notifications.created_at >= ?)
+		)`, storeID, fmt.Sprintf(`%%"id":%d%%`, storeID), storeCutoff, storeCutoff, userID, storeCutoff)
+	} else {
+		q = q.Where(`(
+			notifications.target_type = 'all'
+			OR (notifications.target_type = 'single_user' AND notifications.target_id = ?)
+			OR (notifications.target_type = 'single_store' AND notifications.target_id IN (SELECT id FROM stores WHERE user_id = ?))
+			OR (notifications.target_type = 'specific' AND notifications.target_recipients LIKE ?)
+		)`, userID, userID, fmt.Sprintf(`%%"id":%d%%`, userID))
+	}
+
+	var count int64
+	if err := q.Count(&count).Error; err != nil {
+		log.Error().Err(err).Str("notification_id", notifID).Msg("gagal memeriksa visibilitas notifikasi")
+		return false
+	}
+	return count > 0
+}
+
 // MarkAsRead marks a specific notification as read for the store.
 func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 	notifID := c.Params("id")
@@ -301,7 +351,15 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 	if user != nil {
 		userID = user.ID
 	}
-	storeID, _, _, _, _ := h.resolveStoreContext(c, user)
+	storeID, _, storeCreatedAt, _, _ := h.resolveStoreContext(c, user)
+
+	if userID == 0 && storeID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Sesi tidak valid."})
+	}
+
+	if !h.notificationVisibleTo(storeID, userID, storeCreatedAt, notifID) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Notifikasi tidak ditemukan"})
+	}
 
 	now := time.Now().UTC()
 
@@ -422,7 +480,15 @@ func (h *NotificationHandler) Dismiss(c *fiber.Ctx) error {
 	if user != nil {
 		userID = user.ID
 	}
-	storeID, _, _, _, _ := h.resolveStoreContext(c, user)
+	storeID, _, storeCreatedAt, _, _ := h.resolveStoreContext(c, user)
+
+	if userID == 0 && storeID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Sesi tidak valid."})
+	}
+
+	if !h.notificationVisibleTo(storeID, userID, storeCreatedAt, notifID) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Notifikasi tidak ditemukan"})
+	}
 
 	now := time.Now().UTC()
 
