@@ -40,6 +40,11 @@ type Config struct {
 	StorageDir         string
 	StorageDriver      string
 	StorageLocalRoot   string
+	// StoragePrivateRoot menampung object privat (bukti bayar, lampiran tiket
+	// bantuan). Direktori ini SENGAJA berada di luar pohon yang dilayani
+	// route statis /storage sehingga tidak mungkin bocor lewat HTTP tanpa
+	// otorisasi. Key privat selalu berawalan "private/".
+	StoragePrivateRoot string
 	StoragePublicURL   string
 	S3Endpoint         string
 	S3Region           string
@@ -81,6 +86,7 @@ func LoadConfig() *Config {
 
 	storageDir := resolveDir("STORAGE_DIR", "public/storage")
 	storageLocalRoot := resolveDir("STORAGE_LOCAL_ROOT", storageDir)
+	storagePrivateRoot := resolveDir("STORAGE_PRIVATE_ROOT", "storage/private")
 	appURL := getEnv("APP_URL", "http://localhost:"+port)
 	storagePublicURL := getEnv("STORAGE_PUBLIC_URL", appURL+"/storage")
 
@@ -230,6 +236,7 @@ func LoadConfig() *Config {
 		StorageDir:         storageDir,
 		StorageDriver:      getEnv("STORAGE_DRIVER", "local"),
 		StorageLocalRoot:   storageLocalRoot,
+		StoragePrivateRoot: storagePrivateRoot,
 		StoragePublicURL:   strings.TrimRight(storagePublicURL, "/"),
 		S3Endpoint:         getEnv("S3_ENDPOINT", "http://localhost:9000"),
 		S3Region:           getEnv("S3_REGION", "us-east-1"),
@@ -256,26 +263,116 @@ func (c *Config) GetPostgresDSN() string {
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode)
 }
 
+// projectRoot mengembalikan direktori yang memuat go.mod — acuan resolusi path
+// relatif.
+//
+// Sebelumnya resolusi bergantung pada cwd proses, sehingga hasilnya berbeda
+// antara "go run dari backend/" dan binary yang dijalankan dari root project.
+// Perbedaan itulah yang menyebabkan bug 404 aset storage: direktori KOSONG
+// backend/public/storage menang atas public/storage yang berisi 226 berkas.
+func projectRoot() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+// hasAnyEntry melaporkan apakah direktori berisi data nyata.
+//
+// Entri tersembunyi/placeholder (.gitkeep, .DS_Store, dst) SENGAJA diabaikan:
+// direktori yang hanya berisi .gitkeep adalah direktori kosong secara
+// fungsional. Tanpa pengecualian ini, backend/public/storage yang hanya punya
+// .gitkeep tetap dianggap "berisi" dan terus menutupi public/storage yang
+// memuat data upload sebenarnya — akar bug 404 aset.
+func hasAnyEntry(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// resolveDir menentukan direktori absolut untuk key konfigurasi.
+//
+// Urutan pencarian: relatif terhadap project root, lalu relatif terhadap cwd,
+// lalu nilai fallback. Direktori yang ADA tetapi KOSONG hanya dipakai sebagai
+// upaya terakhir: direktori kosong tidak boleh menutupi direktori lain yang
+// benar-benar berisi berkas (akar bug 404 aset storage).
 func resolveDir(key, fallbackPath string) string {
 	raw := getEnv(key, fallbackPath)
-	candidates := []string{
-		raw,
-		strings.TrimPrefix(raw, "../"),
-		filepath.Join(".", strings.TrimPrefix(raw, "../")),
-		filepath.Join("..", raw),
-		fallbackPath,
-		filepath.Join("..", fallbackPath),
+	root := projectRoot()
+
+	var candidates []string
+	add := func(base, p string) {
+		if p == "" {
+			return
+		}
+		if filepath.IsAbs(p) {
+			candidates = append(candidates, p)
+			return
+		}
+		if base != "" {
+			candidates = append(candidates, filepath.Join(base, p))
+		}
+		// Relatif terhadap cwd proses (cadangan bila go.mod tidak ditemukan).
+		candidates = append(candidates, p)
 	}
 
+	add(root, raw)
+	add(root, strings.TrimPrefix(raw, "../"))
+	// Path relatif terhadap root project lewat satu level ke atas: kasus
+	// STORAGE_LOCAL_ROOT=public/storage sementara berkas sebenarnya berada di
+	// <project>/public/storage, bukan <project>/backend/public/storage.
+	if !filepath.IsAbs(raw) {
+		add(root, filepath.Join("..", raw))
+	}
+
+	seen := map[string]bool{}
+	emptyDir := ""
 	for _, cand := range candidates {
-		if fi, err := os.Stat(cand); err == nil && fi.IsDir() {
-			abs, err := filepath.Abs(cand)
-			if err == nil {
-				return abs
-			}
-			return cand
+		abs, err := filepath.Abs(cand)
+		if err != nil {
+			continue
+		}
+		abs = filepath.Clean(abs)
+		if seen[abs] {
+			continue
+		}
+		seen[abs] = true
+
+		fi, err := os.Stat(abs)
+		if err != nil || !fi.IsDir() {
+			continue
+		}
+		if hasAnyEntry(abs) {
+			return abs
+		}
+		if emptyDir == "" {
+			emptyDir = abs
 		}
 	}
+
+	if emptyDir != "" {
+		return emptyDir
+	}
+	// Tidak ada kandidat yang ada di disk: kembalikan nilai konfigurasi apa
+	// adanya (bisa relatif) agar pemanggil yang membuat direktorinya.
 	return raw
 }
 

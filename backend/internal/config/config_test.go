@@ -67,6 +67,32 @@ func TestResolveDir(t *testing.T) {
 	})
 }
 
+// TestHasAnyEntry_IgnoresPlaceholders adalah regresi bug 404 aset storage:
+// direktori yang hanya berisi .gitkeep sebelumnya dianggap "berisi", sehingga
+// backend/public/storage (kosong) menutupi public/storage yang memuat 226
+// berkas asli. Placeholder tidak boleh dihitung sebagai konten.
+func TestHasAnyEntry_IgnoresPlaceholders(t *testing.T) {
+	dir := t.TempDir()
+
+	if hasAnyEntry(dir) {
+		t.Error("direktori kosong seharusnya dianggap kosong")
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, ".gitkeep"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if hasAnyEntry(dir) {
+		t.Error("direktori yang hanya berisi .gitkeep seharusnya dianggap kosong")
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "berkas-nyata.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !hasAnyEntry(dir) {
+		t.Error("direktori berisi berkas nyata seharusnya dianggap berisi")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // GetPostgresDSN
 // ---------------------------------------------------------------------------

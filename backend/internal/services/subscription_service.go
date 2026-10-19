@@ -754,6 +754,20 @@ func GetStorageRootAbs() (string, bool) {
 	return abs, true
 }
 
+// GetStoragePrivateRootAbs mengembalikan direktori absolut untuk object privat
+// (namespace key "private/"). Direktori ini sengaja berada di luar pohon yang
+// dilayani route statis /storage.
+func GetStoragePrivateRootAbs() (string, bool) {
+	if config.AppConfig == nil || config.AppConfig.StoragePrivateRoot == "" {
+		return "", false
+	}
+	abs, err := filepath.Abs(config.AppConfig.StoragePrivateRoot)
+	if err != nil {
+		return "", false
+	}
+	return abs, true
+}
+
 // GetStorageRoot returns the absolute directory for local storage
 func GetStorageRoot() string {
 	if config.AppConfig != nil && config.AppConfig.StorageLocalRoot != "" {

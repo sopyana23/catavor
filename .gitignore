@@ -32,6 +32,9 @@
 !/public/storage/stores/.gitkeep
 /public/storage/support/*
 !/public/storage/support/.gitkeep
+# Berkas privat (bukti bayar, lampiran tiket) — TIDAK boleh ada di pohon publik
+/backend/storage/private/*
+!/backend/storage/private/.gitkeep
 /backend/public/storage/*
 !/backend/public/storage/.gitkeep
 /legacy/laravel/storage/app/public/fauna/*

@@ -298,6 +298,14 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		objectKey = fmt.Sprintf("general/%s/%d/%02d/%s%s", category, now.Year(), now.Month(), uniqueID, ext)
 	}
 
+	// SECURITY (ST-01): bukti pembayaran dan lampiran tiket bantuan adalah
+	// berkas privat. Key-nya dipetakan ke namespace "private/" sehingga
+	// (a) tidak pernah mendapat URL publik dari GetURL, dan (b) tidak pernah
+	// berada di pohon direktori yang dilayani route statis /storage.
+	if category == "support" || category == "billing" {
+		objectKey = storage.PrivateKeyPrefix + objectKey
+	}
+
 	// 7. Store via Abstracted Storage Service (Local / S3 / MinIO)
 	fileURL, err := h.storage.Upload(c.Context(), objectKey, buf, uploadSize, contentType)
 	if err != nil {
@@ -320,6 +328,11 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success":        true,
 		"key":            objectKey,
+		// storage_key adalah nama field yang dipakai klien untuk meneruskan
+		// key ke pembuatan record (mis. lampiran tiket bantuan). Untuk objek
+		// privat, url kosong dan HANYA key ini yang dapat dipakai untuk
+		// mengambil berkas lewat endpoint ber-otorisasi.
+		"storage_key":    objectKey,
 		"url":            fileURL,
 		"file_name":      origFileName,
 		"file_size":      file.Size,
@@ -348,6 +361,15 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 
 	cleanKey := strings.TrimLeft(filepath.ToSlash(payload.Key), "/")
 
+	// Key privat hidup di root terpisah dan berawalan "private/". Namespace itu
+	// dilepas dulu supaya pemeriksaan kepemilikan tetap dihitung pada path
+	// "stores/{id}/..." yang sebenarnya.
+	isPrivate := storage.IsPrivateKey(cleanKey)
+	ownerScopedKey := cleanKey
+	if isPrivate {
+		ownerScopedKey = strings.TrimPrefix(cleanKey, storage.PrivateKeyPrefix)
+	}
+
 	// Anti-IDOR Ownership Verification:
 	// A store can only delete objects prefixed with "stores/{store_id}/"
 	store, ok := c.Locals("store").(*models.Store)
@@ -369,9 +391,19 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 			"message": "Konfigurasi penyimpanan tidak valid.",
 		})
 	}
+	if isPrivate {
+		if privateRoot, ok := services.GetStoragePrivateRootAbs(); ok {
+			absRoot = privateRoot
+		} else {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Konfigurasi penyimpanan privat tidak valid.",
+			})
+		}
+	}
 
 	expectedPrefix := fmt.Sprintf("stores/%d", store.ID)
-	targetPath, ok := services.ResolveInsidePrefix(absRoot, cleanKey, expectedPrefix)
+	targetPath, ok := services.ResolveInsidePrefix(absRoot, ownerScopedKey, expectedPrefix)
 	if !ok {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -388,6 +420,9 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		})
 	}
 	cleanKey = filepath.ToSlash(relKey)
+	if isPrivate {
+		cleanKey = storage.PrivateKeyPrefix + cleanKey
+	}
 	_ = os.Remove(targetPath + ".fiber.gz")
 
 	if err := h.storage.Delete(c.Context(), cleanKey); err != nil {

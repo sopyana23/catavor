@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -163,8 +164,30 @@ func main() {
 	}()
 
 	// 7. Static Asset Directories with Hardened Security Headers
+	// SECURITY (ST-01): route statis /storage hanya boleh menyajikan aset
+	// publik. Bukti pembayaran dan lampiran tiket bantuan adalah berkas privat
+	// yang hidup di StoragePrivateRoot dan hanya dapat diakses lewat endpoint
+	// ber-otorisasi (GET /api/support/attachments/:id).
+	//
+	// Guard ini adalah lapisan kedua: berkas lama yang masih tertinggal di
+	// pohon publik (hasil upload sebelum perbaikan ini) tetap tidak akan
+	// pernah tersaji ke publik, sehingga migrasi tidak harus selesai lebih
+	// dulu sebelum kebocoran tertutup.
+	app.Use("/storage", func(c *fiber.Ctx) error {
+		rel := strings.ToLower(strings.TrimLeft(strings.TrimPrefix(c.Path(), "/storage"), "/"))
+		for _, prefix := range []string{"private/", "support/", "billing/"} {
+			if strings.HasPrefix(rel, prefix) {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
+			}
+		}
+		return c.Next()
+	})
 	app.Static("/storage", cfg.StorageLocalRoot, fiber.Static{
-		Compress:  true,
+		// Compress dimatikan: Fiber menulis cache .fiber.gz DI DALAM direktori
+		// sumber, sehingga storage root terkotori berkas turunan yang bukan
+		// objek asli (dan akan ikut tersinkron ke S3). Gambar/PDF tidak
+		// untung dari kompresi on-the-fly.
+		Compress:  false,
 		ByteRange: true,
 		MaxAge:    86400 * 30, // 30 days caching
 		Browse:    false,      // Disable directory browsing

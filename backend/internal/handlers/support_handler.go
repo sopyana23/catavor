@@ -562,17 +562,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	// Save attachments
 	if len(req.Attachments) > 0 {
 		for _, att := range req.Attachments {
-			cleanURL := security.SanitizeURL(att.FileURL)
-			if cleanURL != "" {
-				attachment := models.SupportAttachment{
-					MessageID:  msg.ID,
-					FileURL:    cleanURL,
-					StorageKey: security.SanitizePlainText(att.StorageKey, 500),
-					FileName:   security.SanitizePlainText(att.FileName, 255),
-					FileSize:   att.FileSize,
-					FileType:   security.SanitizePlainText(att.FileType, 100),
-					CreatedAt:  now,
-				}
+			if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
 				h.db.Create(&attachment)
 			}
 		}
@@ -698,17 +688,7 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 	// Save attachments
 	if len(req.Attachments) > 0 {
 		for _, att := range req.Attachments {
-			cleanURL := security.SanitizeURL(att.FileURL)
-			if cleanURL != "" {
-				attachment := models.SupportAttachment{
-					MessageID:  msg.ID,
-					FileURL:    cleanURL,
-					StorageKey: security.SanitizePlainText(att.StorageKey, 500),
-					FileName:   security.SanitizePlainText(att.FileName, 255),
-					FileSize:   att.FileSize,
-					FileType:   security.SanitizePlainText(att.FileType, 100),
-					CreatedAt:  now,
-				}
+			if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
 				h.db.Create(&attachment)
 			}
 		}
@@ -1100,17 +1080,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 	// Save attachments
 	if len(req.Attachments) > 0 {
 		for _, att := range req.Attachments {
-			cleanURL := security.SanitizeURL(att.FileURL)
-			if cleanURL != "" {
-				attachment := models.SupportAttachment{
-					MessageID:  msg.ID,
-					FileURL:    cleanURL,
-					StorageKey: security.SanitizePlainText(att.StorageKey, 500),
-					FileName:   security.SanitizePlainText(att.FileName, 255),
-					FileSize:   att.FileSize,
-					FileType:   security.SanitizePlainText(att.FileType, 100),
-					CreatedAt:  now,
-				}
+			if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
 				h.db.Create(&attachment)
 			}
 		}
@@ -2424,13 +2394,15 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	}
 
 	// 4. Resolve Local File Path on Server
-	// SECURITY (L1): semua path WAJIB tetap di dalam StorageLocalRoot.
+	// SECURITY (L1 + ST-01): semua path WAJIB tetap di dalam root yang sesuai.
 	// Tanpa ini, StorageKey/FileURL berisi "../" bisa membaca berkas di luar root
 	// (path traversal). resolveInsideRoot menolak hasil yang keluar dari root.
+	// Key privat ("private/...") dipetakan ke StoragePrivateRoot; key lama
+	// (publik) tetap dipetakan ke StorageLocalRoot agar data historis terbaca.
 	cleanKey := strings.TrimLeft(filepath.ToSlash(attachment.StorageKey), "/")
 	var filePath string
 	if cleanKey != "" {
-		if candidate, ok := resolveInsideRoot(h.cfg.StorageLocalRoot, cleanKey); ok && isRegularFile(candidate) {
+		if candidate, ok := h.resolveAttachmentPath(cleanKey); ok {
 			filePath = candidate
 		}
 	}
@@ -2440,7 +2412,7 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 		if u, err := url.Parse(attachment.FileURL); err == nil {
 			urlPath := strings.TrimPrefix(u.Path, "/storage/")
 			urlPath = strings.TrimPrefix(urlPath, "storage/")
-			if candidate, ok := resolveInsideRoot(h.cfg.StorageLocalRoot, urlPath); ok && isRegularFile(candidate) {
+			if candidate, ok := h.resolveAttachmentPath(urlPath); ok {
 				filePath = candidate
 			}
 		}
@@ -2468,9 +2440,15 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	}
 
 	isDownload := c.Query("download") == "1" || strings.EqualFold(c.Query("download"), "true")
-	dispositionType := "inline"
-	if isDownload {
-		dispositionType = "attachment"
+
+	// SECURITY (ST-08): berkas non-gambar TIDAK boleh dirender inline oleh
+	// browser. Render inline same-origin memungkinkan dokumen (khususnya PDF)
+	// tampil seolah berasal dari domain Catavor — bahan phishing yang meyakinkan
+	// — dan memaksa parser PDF berjalan di origin aplikasi. Gambar tetap inline
+	// agar preview lampiran berfungsi.
+	dispositionType := "attachment"
+	if !isDownload && strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		dispositionType = "inline"
 	}
 
 	// Sanitize fileName for Content-Disposition header
@@ -2478,9 +2456,82 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	c.Set("Content-Type", contentType)
 	c.Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, dispositionType, safeFileName))
 	c.Set("X-Content-Type-Options", "nosniff")
-	c.Set("Cache-Control", "private, no-transform, max-age=3600")
+	// SECURITY (ST-01): lampiran tiket bersifat privat per-pengguna. Cache
+	// bersama (proxy, cache disk browser) tidak boleh menyimpannya.
+	c.Set("Cache-Control", "private, no-store")
+	c.Set("Pragma", "no-cache")
 
 	return c.SendFile(filePath)
+}
+
+// resolveAttachmentPath memetakan storage key lampiran ke path fisik di disk.
+//
+// Key privat ("private/...") hanya dicari di StoragePrivateRoot — direktori
+// yang tidak dilayani route statis mana pun. Key lama (publik, tanpa prefix)
+// tetap dicari di StorageLocalRoot supaya lampiran historis tetap terbaca.
+func (h *SupportHandler) resolveAttachmentPath(key string) (string, bool) {
+	cleanKey := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(key)), "/")
+	if cleanKey == "" || h.cfg == nil {
+		return "", false
+	}
+
+	if storage.IsPrivateKey(cleanKey) {
+		relKey := strings.TrimPrefix(cleanKey, storage.PrivateKeyPrefix)
+		if candidate, ok := resolveInsideRoot(h.cfg.StoragePrivateRoot, relKey); ok && isRegularFile(candidate) {
+			return candidate, true
+		}
+		return "", false
+	}
+
+	if candidate, ok := resolveInsideRoot(h.cfg.StorageLocalRoot, cleanKey); ok && isRegularFile(candidate) {
+		return candidate, true
+	}
+	return "", false
+}
+
+// buildSupportAttachment menyusun record lampiran dari payload klien.
+//
+// SECURITY (ST-01): berkas privat tidak lagi punya URL publik, sehingga
+// FileURL bisa kosong sementara storage_key terisi. Lampiran sah tidak boleh
+// dibuang hanya karena URL-nya kosong — itu akan menghilangkan dokumen
+// pengguna secara diam-diam.
+func (h *SupportHandler) buildSupportAttachment(msgID uint, att AttachmentPayload, now time.Time) (models.SupportAttachment, bool) {
+	cleanURL := security.SanitizeURL(att.FileURL)
+	storageKey := storageKeyFromInput(att.StorageKey, cleanURL)
+
+	if cleanURL == "" && storageKey == "" {
+		return models.SupportAttachment{}, false
+	}
+
+	return models.SupportAttachment{
+		MessageID:  msgID,
+		FileURL:    cleanURL,
+		StorageKey: storageKey,
+		FileName:   security.SanitizePlainText(att.FileName, 255),
+		FileSize:   att.FileSize,
+		FileType:   security.SanitizePlainText(att.FileType, 100),
+		CreatedAt:  now,
+	}, true
+}
+
+// storageKeyFromInput menentukan storage key lampiran. Klien boleh mengirim
+// storage_key eksplisit; bila tidak, key diturunkan dari path FileURL
+// (".../storage/<key>") supaya lampiran lama tetap dapat dipetakan ke berkas
+// fisiknya oleh ServeAttachment.
+func storageKeyFromInput(rawKey, cleanURL string) string {
+	if k := security.SanitizePlainText(rawKey, 500); k != "" {
+		return strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(k)), "/")
+	}
+	if cleanURL == "" {
+		return ""
+	}
+	u, err := url.Parse(cleanURL)
+	if err != nil {
+		return ""
+	}
+	p := strings.TrimLeft(u.Path, "/")
+	p = strings.TrimPrefix(p, "storage/")
+	return security.SanitizePlainText(p, 500)
 }
 
 func isRegularFile(path string) bool {

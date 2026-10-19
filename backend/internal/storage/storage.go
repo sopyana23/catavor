@@ -25,23 +25,67 @@ type StorageService interface {
 	GetDriverName() string
 }
 
+// PrivateKeyPrefix menandai object yang tidak boleh disajikan sebagai aset
+// publik (bukti pembayaran, lampiran tiket bantuan).
+//
+// SECURITY (ST-01): sebelumnya seluruh isi storage root dilayani satu route
+// statis tanpa autentikasi, sehingga berkas privat dapat diunduh siapa pun
+// yang mengetahui URL-nya. Sekarang key privat selalu berawalan "private/"
+// dan dipetakan ke root terpisah yang tidak pernah dilayani route statis.
+//
+// Pola yang sama tetap benar saat pindah ke S3: prefix "private/" berada di
+// bucket yang sama, tetapi bucket policy hanya mengizinkan pembacaan anonim
+// pada prefix di luar "private/".
+const PrivateKeyPrefix = "private/"
+
+// IsPrivateKey melaporkan apakah key termasuk namespace privat.
+func IsPrivateKey(key string) bool {
+	clean := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(key)), "/")
+	return strings.HasPrefix(clean, PrivateKeyPrefix)
+}
+
 // LocalStorageService implements StorageService using local filesystem with S3-mirroring key structure.
 type LocalStorageService struct {
 	localRoot     string
+	privateRoot   string
 	publicBaseURL string
 }
 
 func NewLocalStorageService(cfg *config.Config) *LocalStorageService {
 	_ = os.MkdirAll(cfg.StorageLocalRoot, 0755)
+	// Root privat memakai 0700: hanya proses aplikasi yang boleh membacanya.
+	_ = os.MkdirAll(cfg.StoragePrivateRoot, 0700)
 	return &LocalStorageService{
 		localRoot:     cfg.StorageLocalRoot,
+		privateRoot:   cfg.StoragePrivateRoot,
 		publicBaseURL: strings.TrimRight(cfg.StoragePublicURL, "/"),
 	}
 }
 
+// targetFor memetakan key ke (root disk, key relatif terhadap root, privat).
+// Key privat membuang prefix "private/" saat dipetakan ke disk agar struktur
+// direktori privat identik dengan struktur key publik.
+func (s *LocalStorageService) targetFor(key string) (string, string, bool) {
+	cleanKey := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(key)), "/")
+	if IsPrivateKey(cleanKey) {
+		return s.privateRoot, strings.TrimPrefix(cleanKey, PrivateKeyPrefix), true
+	}
+	return s.localRoot, cleanKey, false
+}
+
 func (s *LocalStorageService) Upload(ctx context.Context, key string, r io.Reader, size int64, contentType string) (string, error) {
-	cleanKey := strings.TrimLeft(filepath.ToSlash(key), "/")
-	targetPath := filepath.Join(s.localRoot, filepath.FromSlash(cleanKey))
+	root, relKey, _ := s.targetFor(key)
+	cleanKey := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(relKey)), "/")
+	if cleanKey == "" || root == "" {
+		return "", fmt.Errorf("refusing to upload with empty storage key: %q", key)
+	}
+	// Tolak path absolut, skema drive, dan traversal sebelum menyentuh disk.
+	if filepath.IsAbs(cleanKey) || strings.Contains(cleanKey, ":") ||
+		cleanKey == ".." || strings.HasPrefix(cleanKey, "../") || strings.Contains(cleanKey, "/../") {
+		return "", fmt.Errorf("invalid storage key: %q", key)
+	}
+
+	targetPath := filepath.Join(root, filepath.FromSlash(cleanKey))
 
 	// Ensure subdirectories exist
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
@@ -58,11 +102,13 @@ func (s *LocalStorageService) Upload(ctx context.Context, key string, r io.Reade
 		return "", fmt.Errorf("failed to write file content: %w", err)
 	}
 
-	return s.GetURL(cleanKey), nil
+	// GetURL memakai key asli agar deteksi namespace privat tetap benar.
+	return s.GetURL(key), nil
 }
 
 // resolveSafeKey menormalkan key klien dan memastikan hasilnya tetap di dalam
-// localRoot. Mengembalikan (path absolut, true) bila aman.
+// root yang sesuai (publik atau privat). Mengembalikan (path absolut, true)
+// bila aman.
 //
 // SECURITY (N-40): sebelumnya Delete/DeletePrefix memakai filepath.Join tanpa
 // pemeriksaan, sehingga key seperti "../../x" menghapus file di luar root.
@@ -71,8 +117,9 @@ func (s *LocalStorageService) Upload(ctx context.Context, key string, r io.Reade
 // kesopanan pemanggil — satu jalur baru yang lupa memvalidasi cukup untuk
 // menghapus data di luar storage.
 func (s *LocalStorageService) resolveSafeKey(key string) (string, bool) {
-	cleanKey := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(key)), "/")
-	if cleanKey == "" {
+	root, relKey, _ := s.targetFor(key)
+	cleanKey := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(relKey)), "/")
+	if cleanKey == "" || root == "" {
 		return "", false
 	}
 	// Tolak path absolut dan skema drive (C:\...) sebelum digabung.
@@ -80,7 +127,7 @@ func (s *LocalStorageService) resolveSafeKey(key string) (string, bool) {
 		return "", false
 	}
 
-	absRoot, err := filepath.Abs(s.localRoot)
+	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return "", false
 	}
@@ -119,7 +166,8 @@ func (s *LocalStorageService) DeletePrefix(ctx context.Context, prefix string) e
 		return fmt.Errorf("refusing to delete prefix outside storage root: %q", prefix)
 	}
 	// Jangan pernah RemoveAll pada root storage itu sendiri.
-	absRoot, err := filepath.Abs(s.localRoot)
+	root, _, _ := s.targetFor(prefix)
+	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return fmt.Errorf("invalid storage root: %w", err)
 	}
@@ -134,6 +182,11 @@ func (s *LocalStorageService) DeletePrefix(ctx context.Context, prefix string) e
 
 func (s *LocalStorageService) GetURL(key string) string {
 	cleanKey := strings.TrimLeft(filepath.ToSlash(key), "/")
+	// Object privat tidak punya URL publik. Konsumen wajib menyajikannya
+	// lewat endpoint ber-otorisasi (mis. GET /api/support/attachments/:id).
+	if IsPrivateKey(cleanKey) {
+		return ""
+	}
 	return fmt.Sprintf("%s/%s", s.publicBaseURL, cleanKey)
 }
 
@@ -158,10 +211,20 @@ func NewS3StorageService(cfg *config.Config) (*S3StorageService, error) {
 		}
 	}
 
+	// ST-07: S3_USE_PATH_STYLE harus sampai ke SDK, bukan hanya dipakai saat
+	// menyusun URL publik. Tanpa BucketLookup eksplisit, minio-go memakai
+	// resolusi DNS virtual-host (bucket.endpoint) yang GAGAL pada MinIO,
+	// Cloudflare R2, dan sebagian besar S3-compatible on-prem.
+	lookup := minio.BucketLookupAuto
+	if cfg.S3UsePathStyle {
+		lookup = minio.BucketLookupPath
+	}
+
 	client, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.S3AccessKeyID, cfg.S3SecretAccessKey, ""),
-		Secure: cfg.S3SSL,
-		Region: cfg.S3Region,
+		Creds:        credentials.NewStaticV4(cfg.S3AccessKeyID, cfg.S3SecretAccessKey, ""),
+		Secure:       cfg.S3SSL,
+		Region:       cfg.S3Region,
+		BucketLookup: lookup,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize S3 client: %w", err)
@@ -266,6 +329,11 @@ func (s *S3StorageService) DeletePrefix(ctx context.Context, prefix string) erro
 
 func (s *S3StorageService) GetURL(key string) string {
 	cleanKey := strings.TrimLeft(filepath.ToSlash(key), "/")
+	// Object privat tidak punya URL publik (lihat PrivateKeyPrefix). Bucket
+	// policy S3 wajib menolak pembacaan anonim pada prefix "private/".
+	if IsPrivateKey(cleanKey) {
+		return ""
+	}
 	return fmt.Sprintf("%s/%s", s.publicBaseURL, cleanKey)
 }
 
