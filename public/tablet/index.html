@@ -5,6 +5,25 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Catavor Tablet - Platform Katalog Digital</title>
+    <!-- Tri-Frontend Form-Factor Viewport Guard -->
+    <script>
+      (function() {
+        try {
+          var search = window.location.search || '';
+          if (search.indexOf('view=') !== -1) return;
+          var w = window.innerWidth || document.documentElement.clientWidth || screen.width;
+          if (w >= 1024) {
+            var url = new URL(window.location.href);
+            url.searchParams.set('view', 'desktop');
+            window.location.replace(url.toString());
+          } else if (w < 768) {
+            var url = new URL(window.location.href);
+            url.searchParams.set('view', 'mobile');
+            window.location.replace(url.toString());
+          }
+        } catch (e) {}
+      })();
+    </script>
     <!-- Google Identity Services Client SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Google OAuth Popup Interceptor & Communication Bridge -->
@@ -70,8 +89,8 @@
         }
       })();
     </script>
-    <script type="module" crossorigin src="/tablet/assets/index-Dns8rail.js"></script>
-    <link rel="stylesheet" crossorigin href="/tablet/assets/index-Cd6ZJAvV.css">
+    <script type="module" crossorigin src="/tablet/assets/index-D6B2I5Xj.js"></script>
+    <link rel="stylesheet" crossorigin href="/tablet/assets/index-uQuLMceO.css">
   </head>
   <body>
     <div id="root"></div>

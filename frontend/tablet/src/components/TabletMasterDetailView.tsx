@@ -22,6 +22,21 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
   selectedId,
   onClearSelection
 }) => {
+  const [isNarrowTablet, setIsNarrowTablet] = React.useState(() => {
+    return typeof window !== 'undefined' ? window.innerWidth < 920 : false;
+  });
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsNarrowTablet(window.innerWidth < 920);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const showMaster = !isNarrowTablet || !selectedId;
+  const showDetail = !isNarrowTablet || Boolean(selectedId);
+
   return (
     <div style={{
       display: 'flex',
@@ -51,16 +66,21 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '38px',
+                gap: '0.35rem',
+                padding: isNarrowTablet ? '0.45rem 0.85rem' : '0',
+                width: isNarrowTablet ? 'auto' : '38px',
                 height: '38px',
                 borderRadius: '0.5rem',
                 border: '1px solid var(--border-light)',
-                backgroundColor: 'transparent',
+                backgroundColor: isNarrowTablet ? 'var(--bg-deep)' : 'transparent',
                 color: 'var(--text-primary)',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.82rem'
               }}
             >
               <ArrowLeft size={18} />
+              {isNarrowTablet && <span>Kembali ke Daftar</span>}
             </button>
           )}
           <div>
@@ -90,30 +110,34 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
         height: '100%',
         overflow: 'hidden'
       }}>
-        {/* Left Pane: Master List (38% width, scrollable, with pagination at bottom) */}
-        <div style={{
-          width: '38%',
-          minWidth: '320px',
-          maxWidth: '420px',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRight: '1px solid var(--border-light)',
-          backgroundColor: 'var(--bg-deep)',
-          overflow: 'hidden'
-        }}>
-          {masterPane}
-        </div>
+        {/* Left Pane: Master List */}
+        {showMaster && (
+          <div style={{
+            width: isNarrowTablet ? '100%' : '38%',
+            minWidth: isNarrowTablet ? '100%' : '320px',
+            maxWidth: isNarrowTablet ? '100%' : '420px',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRight: isNarrowTablet ? 'none' : '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-deep)',
+            overflow: 'hidden'
+          }}>
+            {masterPane}
+          </div>
+        )}
 
-        {/* Right Pane: Detail View (62% width, rich inspector panel) */}
-        <div style={{
-          flex: 1,
-          height: '100%',
-          overflowY: 'auto',
-          backgroundColor: 'var(--bg-card)',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
+        {/* Right Pane: Detail View */}
+        {showDetail && (
+          <div style={{
+            flex: 1,
+            width: isNarrowTablet ? '100%' : 'auto',
+            height: '100%',
+            overflowY: 'auto',
+            backgroundColor: 'var(--bg-card)',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
           {detailPane ? (
             detailPane
           ) : (
@@ -149,7 +173,8 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
               </p>
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

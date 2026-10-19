@@ -24,8 +24,8 @@ export interface TabletRailNavProps {
   onSwitchView: (view: string) => void;
   currentUser: any;
   roleBadge: string;
-  isDark: boolean;
-  toggleTheme: () => void;
+  isDark?: boolean;
+  toggleTheme?: () => void;
   onLogout: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
@@ -39,7 +39,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
   onSwitchView,
   currentUser,
   roleBadge,
-  isDark,
+  isDark = false,
   toggleTheme,
   onLogout,
   onRefresh,
@@ -249,28 +249,30 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={toggleTheme}
-          title={isDark ? 'Beralih ke Terang' : 'Beralih ke Gelap'}
-          style={{
-            width: '100%',
-            height: '42px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            padding: isExpanded ? '0 0.85rem' : '0',
-            justifyContent: isExpanded ? 'flex-start' : 'center',
-            borderRadius: '0.65rem',
-            border: '1px solid var(--border-light)',
-            backgroundColor: 'transparent',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer'
-          }}
-        >
-          {isDark ? <Sun size={18} style={{ flexShrink: 0 }} /> : <Moon size={18} style={{ flexShrink: 0 }} />}
-          {isExpanded && <span>{isDark ? 'Mode Terang' : 'Mode Gelap'}</span>}
-        </button>
+        {toggleTheme && (
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={isDark ? 'Beralih ke Terang' : 'Beralih ke Gelap'}
+            style={{
+              width: '100%',
+              height: '42px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: isExpanded ? '0 0.85rem' : '0',
+              justifyContent: isExpanded ? 'flex-start' : 'center',
+              borderRadius: '0.65rem',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'transparent',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer'
+            }}
+          >
+            {isDark ? <Sun size={18} style={{ flexShrink: 0 }} /> : <Moon size={18} style={{ flexShrink: 0 }} />}
+            {isExpanded && <span>{isDark ? 'Mode Terang' : 'Mode Gelap'}</span>}
+          </button>
+        )}
 
         <button
           type="button"

@@ -1,20 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Users,
+  Lock,
+  Mail,
   Store,
-  CreditCard,
-  AlertOctagon,
-  LifeBuoy,
-  History,
-  CheckCircle,
-  Clock,
-  Send,
-  Building,
-  RefreshCw,
-  Search,
-  ExternalLink,
-  Ban
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
+import { TabletPublicLanding } from './components/TabletPublicLanding';
+import { TabletStoreCatalog } from './components/TabletStoreCatalog';
+import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletRailNav } from './components/TabletRailNav';
 import { TabletMasterDetailView } from './components/TabletMasterDetailView';
 import { TabletSegmentedPagination } from './components/TabletSegmentedPagination';
@@ -31,801 +25,587 @@ export const App: React.FC = () => {
     }
   });
 
-  const [activeView, setActiveView] = useState<string>('dashboard');
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    return localStorage.getItem('catavor_theme') !== 'light';
+  const [storeTheme, setStoreTheme] = useState<string>(() => {
+    return localStorage.getItem('catavor_theme') || 'navy';
   });
 
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Dashboard KPI data
-  const [stats, setStats] = useState<any>({
-    totalUsers: 0,
-    totalStores: 0,
-    totalProducts: 0,
-    totalOrders: 0,
-    openTickets: 0,
-    pendingReports: 0,
-    revenueThisMonth: 0
+  // Routing State
+  const [currentPath, setCurrentPath] = useState<string>(() => {
+    return typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '/';
   });
 
-  // Support Tickets State (Server-Side)
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
-  const [ticketPage, setTicketPage] = useState(1);
-  const [ticketTotalPages, setTicketTotalPages] = useState(1);
-  const [ticketTotalRecords, setTicketTotalRecords] = useState(0);
-  const [ticketSearch, setTicketSearch] = useState('');
-  const [ticketReplyText, setTicketReplyText] = useState('');
+  // Active Store Slug
+  const [activeSlug, setActiveSlug] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const reserved = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops'];
+    if (parts.length > 0 && !reserved.includes(parts[0].toLowerCase())) {
+      return parts[0].toLowerCase();
+    }
+    return null;
+  });
 
-  // Stores State (Server-Side)
-  const [stores, setStores] = useState<any[]>([]);
-  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
-  const [storePage, setStorePage] = useState(1);
-  const [storeTotalPages, setStoreTotalPages] = useState(1);
-  const [storeTotalRecords, setStoreTotalRecords] = useState(0);
+  // Login Form State
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Compliance Reports State (Server-Side)
-  const [reports, setReports] = useState<any[]>([]);
-  const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
-  const [reportPage, setReportPage] = useState(1);
-  const [reportTotalPages, setReportTotalPages] = useState(1);
-  const [reportTotalRecords, setReportTotalRecords] = useState(0);
+  // Platform Admin State
+  const [platformView, setPlatformView] = useState<string>('dashboard');
 
-  // Finance Transactions State (Server-Side)
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [selectedTxId, setSelectedTxId] = useState<number | null>(null);
-  const [txPage, setTxPage] = useState(1);
-  const [txTotalPages, setTxTotalPages] = useState(1);
-  const [txTotalRecords, setTxTotalRecords] = useState(0);
-
-  // Theme synchronization
+  // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    localStorage.setItem('catavor_theme', isDark ? 'dark' : 'light');
-  }, [isDark]);
+    const resolvedTheme = storeTheme || 'navy';
+    document.documentElement.setAttribute('data-theme', resolvedTheme);
+    document.body.setAttribute('data-theme', resolvedTheme);
+    localStorage.setItem('catavor_theme', resolvedTheme);
+  }, [storeTheme]);
 
-  const toggleTheme = () => setIsDark(prev => !prev);
+  // Handle URL change
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.toLowerCase();
+      setCurrentPath(path);
+      const parts = path.split('/').filter(Boolean);
+      const reserved = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops'];
+      if (parts.length > 0 && !reserved.includes(parts[0])) {
+        setActiveSlug(parts[0]);
+      } else {
+        setActiveSlug(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path.toLowerCase());
+    const parts = path.split('/').filter(Boolean);
+    const reserved = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops'];
+    if (parts.length > 0 && !reserved.includes(parts[0].toLowerCase())) {
+      setActiveSlug(parts[0].toLowerCase());
+    } else {
+      setActiveSlug(null);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
-    window.location.href = '/login';
+    setToken(null);
+    setCurrentUser(null);
+    navigateTo('/');
   };
 
-  // Safe Headers Helper
-  const getAuthHeaders = useCallback(() => ({
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  }), [token]);
-
-  // Fetch Dashboard Stats
-  const fetchDashboardStats = useCallback(async () => {
-    if (!token) return;
+  // Perform Login
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError(null);
     try {
-      const res = await fetch('/api/admin/dashboard-stats', { headers: getAuthHeaders() });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.data) setStats(json.data);
-      }
-    } catch {
-      // fallback safe
-    }
-  }, [token, getAuthHeaders]);
-
-  // Fetch Support Tickets (Server-Side Paginated)
-  const fetchTickets = useCallback(async (page: number, search: string = '') => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const query = new URLSearchParams({
-        page: String(page),
-        limit: '10',
-        search: search
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword })
       });
-      const res = await fetch(`/api/admin/support/tickets?${query.toString()}`, { headers: getAuthHeaders() });
-      if (res.ok) {
-        const json = await res.json();
-        const list = json.data || json.tickets || [];
-        setTickets(list);
-        setTicketPage(page);
-        setTicketTotalPages(json.totalPages || json.total_pages || Math.ceil((json.total || list.length) / 10) || 1);
-        setTicketTotalRecords(json.total || list.length);
-        if (list.length > 0 && !selectedTicketId) {
-          setSelectedTicketId(list[0].id);
-        }
+      const json = await res.json();
+      if (res.ok && json.token) {
+        localStorage.setItem('catavor_token', json.token);
+        localStorage.setItem('catavor_user', JSON.stringify(json.user || {}));
+        setToken(json.token);
+        setCurrentUser(json.user);
+        setLoginEmail('');
+        setLoginPassword('');
+        navigateTo('/admin');
+      } else {
+        setLoginError(json.message || 'Email atau password tidak sesuai.');
       }
     } catch {
-      // safe fallback
+      setLoginError('Gagal menghubungi server. Periksa koneksi internet Anda.');
     } finally {
-      setLoading(false);
+      setLoginLoading(false);
     }
-  }, [token, selectedTicketId, getAuthHeaders]);
-
-  // Fetch Stores (Server-Side Paginated)
-  const fetchStores = useCallback(async (page: number) => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const query = new URLSearchParams({ page: String(page), limit: '10' });
-      const res = await fetch(`/api/admin/stores?${query.toString()}`, { headers: getAuthHeaders() });
-      if (res.ok) {
-        const json = await res.json();
-        const list = json.data || json.stores || [];
-        setStores(list);
-        setStorePage(page);
-        setStoreTotalPages(json.totalPages || Math.ceil((json.total || list.length) / 10) || 1);
-        setStoreTotalRecords(json.total || list.length);
-        if (list.length > 0 && !selectedStoreId) {
-          setSelectedStoreId(list[0].id);
-        }
-      }
-    } catch {
-      // safe fallback
-    } finally {
-      setLoading(false);
-    }
-  }, [token, selectedStoreId, getAuthHeaders]);
-
-  // Master Refresh
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    if (activeView === 'dashboard') await fetchDashboardStats();
-    if (activeView === 'support') await fetchTickets(ticketPage, ticketSearch);
-    if (activeView === 'stores') await fetchStores(storePage);
-    setTimeout(() => setRefreshing(false), 300);
   };
 
+  // Google OAuth SSO Handler
+  const processGoogleUserPayload = async (googleUser: { email?: string; name?: string; google_id?: string; avatar?: string; token?: string; credential?: string }) => {
+    setLoginLoading(true);
+    setLoginError(null);
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: googleUser.email || '',
+          name: googleUser.name || '',
+          google_id: googleUser.google_id || '',
+          avatar: googleUser.avatar || '',
+          token: googleUser.token || '',
+          credential: googleUser.credential || '',
+          store_slug: activeSlug || ''
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.token) {
+        localStorage.setItem('catavor_token', data.token);
+        if (data.user) {
+          localStorage.setItem('catavor_user', JSON.stringify(data.user));
+          setCurrentUser(data.user);
+        }
+        setToken(data.token);
+        if (data.active_store?.store_theme || data.user?.store_theme) {
+          setStoreTheme(data.active_store?.store_theme || data.user?.store_theme);
+        }
+        navigateTo('/admin');
+      } else {
+        setLoginError(data.message || 'Otentikasi Google gagal diproses.');
+      }
+    } catch {
+      setLoginError('Terjadi kesalahan saat otentikasi Google SSO.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleOAuthToken = async (accessToken: string) => {
+    try {
+      const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (userInfoRes.ok) {
+        const googleUser = await userInfoRes.json();
+        if (googleUser && googleUser.email) {
+          processGoogleUserPayload({
+            email: googleUser.email,
+            name: googleUser.name,
+            google_id: googleUser.sub,
+            avatar: googleUser.picture,
+            token: accessToken
+          });
+          return;
+        }
+      }
+    } catch (_) {}
+    processGoogleUserPayload({ token: accessToken });
+  };
+
+  const handleGoogleSSO = () => {
+    const googleClientId = (window as any).GOOGLE_CLIENT_ID || '847403664953-ef7k9h5n99mtlnbdpr4a6300dt83efk5.apps.googleusercontent.com';
+
+    // 1. Google Identity Services GSI SDK
+    if ((window as any).google?.accounts?.oauth2) {
+      try {
+        const client = (window as any).google.accounts.oauth2.initTokenClient({
+          client_id: googleClientId,
+          scope: 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse.access_token) {
+              handleOAuthToken(tokenResponse.access_token);
+            }
+          }
+        });
+        client.requestAccessToken();
+        return;
+      } catch (err) {
+        console.warn('GSI init error, switching to OAuth popup:', err);
+      }
+    }
+
+    // 2. Real Google OAuth 2.0 Popup Window
+    const redirectUri = encodeURIComponent(window.location.origin);
+    const scope = encodeURIComponent('email profile openid');
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+    const width = 520;
+    const height = 640;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    const popup = window.open(authUrl, 'google_oauth_popup', `width=${width},height=${height},left=${left},top=${top}`);
+
+    if (popup) {
+      const checkPopup = setInterval(() => {
+        try {
+          if (!popup || popup.closed) {
+            clearInterval(checkPopup);
+            return;
+          }
+          let currentHref = '';
+          try { currentHref = popup.location?.href || ''; } catch (_) {}
+          if (currentHref && currentHref.includes('access_token=')) {
+            const hash = popup.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get('access_token');
+            try { popup.close(); } catch (_) {}
+            clearInterval(checkPopup);
+            if (accessToken) {
+              handleOAuthToken(accessToken);
+            }
+          }
+        } catch (_) {}
+      }, 500);
+    }
+  };
+
+  // Google OAuth Cross-Window Listener
   useEffect(() => {
-    if (activeView === 'dashboard') fetchDashboardStats();
-    if (activeView === 'support') fetchTickets(1, ticketSearch);
-    if (activeView === 'stores') fetchStores(1);
-  }, [activeView, fetchDashboardStats, fetchTickets, fetchStores, ticketSearch]);
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
+        const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        if (accessToken) handleOAuthToken(accessToken);
+      }
+    };
+    window.addEventListener('message', handleAuthMessage);
 
-  const selectedTicket = tickets.find(t => t.id === selectedTicketId);
-  const selectedStore = stores.find(s => s.id === selectedStoreId);
+    let bc: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        bc = new BroadcastChannel('catavor_oauth_channel');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
+            const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get('access_token');
+            if (accessToken) handleOAuthToken(accessToken);
+          }
+        };
+      } catch (_) {}
+    }
 
-  // If user is not platform admin, render minimal fallback or redirect
-  if (!isPlatformAdmin(currentUser)) {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'catavor_oauth_broadcast' && e.newValue) {
+        try {
+          const payload = JSON.parse(e.newValue);
+          if (payload?.hash) {
+            const hash = payload.hash.replace(/^#/, '');
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get('access_token');
+            if (accessToken) handleOAuthToken(accessToken);
+          }
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('message', handleAuthMessage);
+      window.removeEventListener('storage', handleStorage);
+      if (bc) bc.close();
+    };
+  }, []);
+  const isLoginRoute = currentPath === '/login';
+  const isAdminRoute = currentPath === '/admin' || currentPath.endsWith('/admin') || currentPath.startsWith('/platform');
+
+  // 1. PUBLIC STORE CATALOG ROUTE (e.g. /:slug and not admin)
+  if (activeSlug && !isAdminRoute) {
+    return (
+      <TabletStoreCatalog
+        slug={activeSlug}
+        onBackToExplore={() => navigateTo('/')}
+      />
+    );
+  }
+
+  // 2. UNATHENTICATED LOGIN VIEW FOR TABLET
+  if (isLoginRoute || (isAdminRoute && !token)) {
     return (
       <div style={{
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '2rem',
         backgroundColor: 'var(--bg-deep)',
         color: 'var(--text-primary)',
-        fontFamily: 'var(--font-body)'
+        padding: '2rem'
       }}>
         <div style={{
+          width: '100%',
           maxWidth: '460px',
-          padding: '2.5rem',
-          borderRadius: '1rem',
           backgroundColor: 'var(--bg-card)',
+          borderRadius: '1.25rem',
           border: '1px solid var(--border-light)',
-          textAlign: 'center'
+          padding: '2.5rem',
+          boxShadow: 'var(--shadow-premium)'
         }}>
-          <div style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '50%',
-            backgroundColor: 'rgba(239, 68, 68, 0.12)',
-            color: '#ef4444',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: '1rem'
-          }}>
-            <Ban size={28} />
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '1rem',
+              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#10b981',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1rem'
+            }}>
+              <Lock size={28} />
+            </div>
+            <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+              Masuk Konsol Tablet
+            </h1>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
+              Kelola katalog toko Anda atau akses konsol operasional
+            </p>
           </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>
-            Akses Terbatas Tablet Console
-          </h2>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 1.5rem 0' }}>
-            Portal ini dikhususkan bagi Pengelola Platform Catavor (Super Admin, Satwa & Kepatuhan, CS, Finance).
-          </p>
-          <button
-            type="button"
-            onClick={() => window.location.href = '/login'}
-            style={{
-              padding: '0.75rem 1.5rem',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--primary)',
-              color: '#ffffff',
-              border: 'none',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            Masuk dengan Akun Pengelola
-          </button>
+
+          {loginError && (
+            <div style={{
+              padding: '0.75rem 1rem',
+              borderRadius: '0.5rem',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#ef4444',
+              fontSize: '0.85rem',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <AlertCircle size={16} />
+              {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+            <button
+              type="button"
+              onClick={handleGoogleSSO}
+              disabled={loginLoading}
+              style={{
+                minHeight: '48px',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)',
+                color: 'var(--text-primary)',
+                fontSize: '0.92rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.75rem',
+                cursor: loginLoading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              Masuk dengan Akun Google
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0.25rem 0' }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>atau email & sandi</span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                Alamat Email
+              </label>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)'
+              }}>
+                <Mail size={18} color="var(--text-muted)" />
+                <input
+                  type="email"
+                  required
+                  placeholder="admin@email.com"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.92rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                Kata Sandi
+              </label>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)'
+              }}>
+                <Lock size={18} color="var(--text-muted)" />
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.92rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+              style={{
+                minHeight: '48px',
+                padding: '0.75rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--primary)',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                cursor: loginLoading ? 'not-allowed' : 'pointer',
+                marginTop: '0.5rem'
+              }}
+            >
+              {loginLoading ? 'Memproses...' : 'Masuk ke Konsol'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigateTo('/')}
+              style={{
+                minHeight: '40px',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                border: 'none',
+                fontSize: '0.85rem',
+                cursor: 'pointer'
+              }}
+            >
+              &larr; Kembali ke Halaman Utama
+            </button>
+          </form>
         </div>
       </div>
     );
   }
 
-  const roleInfo = getRoleBadge(currentUser?.platform_role || 'superadmin');
-
-  return (
-    <div style={{
-      display: 'flex',
-      width: '100vw',
-      height: '100vh',
-      overflow: 'hidden',
-      backgroundColor: 'var(--bg-deep)',
-      color: 'var(--text-primary)'
-    }}>
-      {/* 1. Dedicated Tablet Navigation Rail (74px) */}
-      <TabletRailNav
-        activeView={activeView}
-        onSwitchView={setActiveView}
-        currentUser={currentUser}
-        roleBadge={roleInfo.label}
-        isDark={isDark}
-        toggleTheme={toggleTheme}
-        onLogout={handleLogout}
-        onRefresh={handleRefresh}
-        isRefreshing={refreshing}
-        urgentTicketsCount={stats.openTickets}
-        pendingReportsCount={stats.pendingReports}
-      />
-
-      {/* 2. Main Content Workspace */}
-      <main style={{
-        flex: 1,
-        height: '100vh',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-        {/* Top Header Command Bar */}
-        <header style={{
-          height: '64px',
+  // 3. AUTHENTICATED ADMIN ROUTES:
+  if (isAdminRoute && token) {
+    // A. PLATFORM ROLE PORTAL (Superadmin, Compliance, CS, Finance)
+    const isPlatformRoute = currentPath.startsWith('/platform') || currentPath.startsWith('/ops');
+    if (isPlatformAdmin(currentUser) && isPlatformRoute) {
+      const roleInfo = getRoleBadge(currentUser?.platform_role || 'superadmin');
+      return (
+        <div style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 1.5rem',
-          backgroundColor: 'var(--bg-card)',
-          borderBottom: '1px solid var(--border-light)',
-          flexShrink: 0
+          width: '100vw',
+          height: '100vh',
+          overflow: 'hidden',
+          backgroundColor: 'var(--bg-deep)',
+          color: 'var(--text-primary)'
         }}>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Tablet Executive Console &bull; {roleInfo.label}
-            </div>
-            <h1 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-              {activeView === 'dashboard' ? 'Ringkasan Platform' :
-               activeView === 'support' ? 'Tiket Bantuan & CS' :
-               activeView === 'stores' ? 'Direktori & Dormansi Toko' :
-               activeView === 'reports' ? 'Kepatuhan & Laporan' :
-               activeView === 'finance' ? 'Keuangan & Platform Billing' :
-               activeView === 'audit' ? 'System Audit Trail' : 'Pengaturan Platform'}
-            </h1>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              padding: '0.35rem 0.75rem',
-              borderRadius: '999px',
-              backgroundColor: roleInfo.bg,
-              border: `1px solid ${roleInfo.border}`,
-              color: roleInfo.color,
-              fontSize: '0.75rem',
-              fontWeight: 700
-            }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: roleInfo.color }} />
-              {roleInfo.label}
-            </span>
-
-            <div style={{
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              color: 'var(--text-secondary)'
-            }}>
-              {currentUser?.email}
-            </div>
-          </div>
-        </header>
-
-        {/* View Router */}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          {/* A. DASHBOARD VIEW: 2-3 Column KPI Grid for Tablet */}
-          {activeView === 'dashboard' && (
-            <div style={{
-              height: 'calc(100vh - 64px)',
-              overflowY: 'auto',
-              padding: '1.5rem',
+          <TabletRailNav
+            activeView={platformView}
+            onSwitchView={setPlatformView}
+            currentUser={currentUser}
+            roleBadge={roleInfo.label}
+            onLogout={handleLogout}
+          />
+          <main style={{ flex: 1, height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <header style={{
+              height: '64px',
+              padding: '0 1.5rem',
               display: 'flex',
-              flexDirection: 'column',
-              gap: '1.5rem'
-            }}>
-              {/* KPI Strip */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '1rem'
-              }}>
-                <div style={{
-                  padding: '1.25rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981', marginBottom: '0.5rem' }}>
-                    <Store size={20} />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Total Toko Terdaftar</span>
-                  </div>
-                  <div style={{ fontSize: '1.85rem', fontWeight: 800 }}>{stats.totalStores || 0}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Termasuk toko aktif & dorman</div>
-                </div>
-
-                <div style={{
-                  padding: '1.25rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f59e0b', marginBottom: '0.5rem' }}>
-                    <LifeBuoy size={20} />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Tiket Butuh Tindakan</span>
-                  </div>
-                  <div style={{ fontSize: '1.85rem', fontWeight: 800 }}>{stats.openTickets || 0}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Menunggu respons tim CS</div>
-                </div>
-
-                <div style={{
-                  padding: '1.25rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#38bdf8', marginBottom: '0.5rem' }}>
-                    <CreditCard size={20} />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Omset Rekber Bulan Ini</span>
-                  </div>
-                  <div style={{ fontSize: '1.85rem', fontWeight: 800 }}>
-                    Rp {Number(stats.revenueThisMonth || 0).toLocaleString('id-ID')}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Transaksi escrow aman</div>
-                </div>
-              </div>
-
-              {/* Tablet Quick Action Panels */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '1.25rem'
-              }}>
-                <div style={{
-                  padding: '1.5rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)'
-                }}>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.75rem' }}>
-                    Manajemen Cepat Tiket CS
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '1rem' }}>
-                    Gunakan antarmuka Master-Detail split-view khusus tablet untuk membalas keluhan pengguna tanpa kehilangan konteks.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveView('support')}
-                    style={{
-                      padding: '0.65rem 1.25rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                      border: '1px solid rgba(16, 185, 129, 0.35)',
-                      color: '#10b981',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontSize: '0.88rem'
-                    }}
-                  >
-                    Buka Helpdesk Tablet &rarr;
-                  </button>
-                </div>
-
-                <div style={{
-                  padding: '1.5rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)'
-                }}>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.75rem' }}>
-                    Pengawasan Direktori Toko
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '1rem' }}>
-                    Pantau toko yang aktif, terverifikasi, atau dorman melalui panel inspeksi sentuh yang ergonomis.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveView('stores')}
-                    style={{
-                      padding: '0.65rem 1.25rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                      border: '1px solid rgba(56, 189, 248, 0.35)',
-                      color: '#38bdf8',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontSize: '0.88rem'
-                    }}
-                  >
-                    Buka Direktori Toko &rarr;
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* B. SUPPORT TICKETS: NATIVE TABLET MASTER-DETAIL SPLIT VIEW */}
-          {activeView === 'support' && (
-            <TabletMasterDetailView
-              title="Tiket Bantuan Helpdesk"
-              subtitle={`${ticketTotalRecords} tiket terdaftar`}
-              headerAction={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.4rem 0.75rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
-                  }}>
-                    <Search size={16} color="var(--text-muted)" />
-                    <input
-                      type="text"
-                      placeholder="Cari subjek / nomor tiket..."
-                      value={ticketSearch}
-                      onChange={(e) => setTicketSearch(e.target.value)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.85rem',
-                        outline: 'none',
-                        width: '180px'
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => fetchTickets(ticketPage, ticketSearch)}
-                    disabled={loading}
-                    style={{
-                      padding: '0.45rem 0.75rem',
-                      borderRadius: '0.5rem',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'transparent',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      fontSize: '0.82rem'
-                    }}
-                  >
-                    <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                    Refresh
-                  </button>
-                </div>
-              }
-              selectedId={selectedTicketId}
-              onClearSelection={() => setSelectedTicketId(null)}
-              masterPane={
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  {/* Master List Records */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-                    {tickets.length === 0 ? (
-                      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        Tidak ada tiket yang ditemukan
-                      </div>
-                    ) : (
-                      tickets.map(ticket => {
-                        const isSelected = ticket.id === selectedTicketId;
-                        return (
-                          <div
-                            key={ticket.id}
-                            onClick={() => setSelectedTicketId(ticket.id)}
-                            style={{
-                              padding: '0.85rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-card)',
-                              border: isSelected ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-light)',
-                              marginBottom: '0.5rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>
-                                #{ticket.ticket_number || `TKT-${ticket.id}`}
-                              </span>
-                              <span style={{
-                                fontSize: '0.68rem',
-                                padding: '0.15rem 0.45rem',
-                                borderRadius: '999px',
-                                backgroundColor: ticket.status === 'closed' ? 'rgba(148, 163, 184, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                                color: ticket.status === 'closed' ? '#94a3b8' : '#f59e0b',
-                                fontWeight: 700
-                              }}>
-                                {ticket.status ? ticket.status.toUpperCase() : 'OPEN'}
-                              </span>
-                            </div>
-                            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {ticket.subject || 'Pertanyaan Pengguna'}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Pengirim: {ticket.user_name || ticket.user_email || 'Pengguna'}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  {/* Tablet Segmented Pager (Touch Target >= 44px) */}
-                  <TabletSegmentedPagination
-                    currentPage={ticketPage}
-                    totalPages={ticketTotalPages}
-                    totalRecords={ticketTotalRecords}
-                    onPageChange={(p) => fetchTickets(p, ticketSearch)}
-                    isLoading={loading}
-                  />
-                </div>
-              }
-              detailPane={
-                selectedTicket ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '1.25rem' }}>
-                    {/* Header Detail */}
-                    <div style={{
-                      paddingBottom: '1rem',
-                      borderBottom: '1px solid var(--border-light)',
-                      marginBottom: '1rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#10b981' }}>
-                          #{selectedTicket.ticket_number || `TKT-${selectedTicket.id}`}
-                        </span>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <span style={{
-                            padding: '0.25rem 0.65rem',
-                            borderRadius: '999px',
-                            backgroundColor: selectedTicket.priority === 'urgent' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(56, 189, 248, 0.15)',
-                            color: selectedTicket.priority === 'urgent' ? '#ef4444' : '#38bdf8',
-                            fontSize: '0.75rem',
-                            fontWeight: 700
-                          }}>
-                            {selectedTicket.priority ? selectedTicket.priority.toUpperCase() : 'NORMAL'}
-                          </span>
-                        </div>
-                      </div>
-                      <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                        {selectedTicket.subject}
-                      </h2>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                        Oleh: <strong>{selectedTicket.user_name || selectedTicket.user_email}</strong> &bull; Dibuat: {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleString('id-ID') : '-'}
-                      </div>
-                    </div>
-
-                    {/* Ticket Content Body */}
-                    <div style={{
-                      flex: 1,
-                      overflowY: 'auto',
-                      backgroundColor: 'var(--bg-deep)',
-                      padding: '1.25rem',
-                      borderRadius: '0.75rem',
-                      border: '1px solid var(--border-light)',
-                      marginBottom: '1rem',
-                      lineHeight: 1.6,
-                      fontSize: '0.92rem'
-                    }}>
-                      {selectedTicket.description || 'Tidak ada deskripsi rinci.'}
-                    </div>
-
-                    {/* Quick Reply Box */}
-                    <div style={{
-                      padding: '1rem',
-                      borderRadius: '0.75rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)'
-                    }}>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                        Tulis Tanggapan Resmi Support
-                      </div>
-                      <textarea
-                        rows={3}
-                        value={ticketReplyText}
-                        onChange={(e) => setTicketReplyText(e.target.value)}
-                        placeholder="Ketik solusi atau arahan untuk pengguna ini..."
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-card)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none',
-                          resize: 'none',
-                          marginBottom: '0.75rem'
-                        }}
-                      />
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!ticketReplyText.trim()) return;
-                            alert('Tanggapan berhasil dikirim (simulasi demo).');
-                            setTicketReplyText('');
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            padding: '0.65rem 1.25rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: 'var(--primary)',
-                            color: '#ffffff',
-                            border: 'none',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            fontSize: '0.88rem'
-                          }}
-                        >
-                          <Send size={16} />
-                          Kirim Tanggapan
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : null
-              }
-            />
-          )}
-
-          {/* C. STORES DIRECTORY: NATIVE TABLET MASTER-DETAIL SPLIT VIEW */}
-          {activeView === 'stores' && (
-            <TabletMasterDetailView
-              title="Direktori & Status Toko"
-              subtitle={`${storeTotalRecords} toko terdaftar`}
-              selectedId={selectedStoreId}
-              onClearSelection={() => setSelectedStoreId(null)}
-              masterPane={
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-                    {stores.length === 0 ? (
-                      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        Tidak ada toko ditemukan
-                      </div>
-                    ) : (
-                      stores.map(store => {
-                        const isSelected = store.id === selectedStoreId;
-                        return (
-                          <div
-                            key={store.id}
-                            onClick={() => setSelectedStoreId(store.id)}
-                            style={{
-                              padding: '0.85rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.12)' : 'var(--bg-card)',
-                              border: isSelected ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid var(--border-light)',
-                              marginBottom: '0.5rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                {store.name || `Toko #${store.id}`}
-                              </span>
-                              <span style={{
-                                fontSize: '0.68rem',
-                                padding: '0.15rem 0.45rem',
-                                borderRadius: '999px',
-                                backgroundColor: store.is_suspended ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                                color: store.is_suspended ? '#ef4444' : '#10b981',
-                                fontWeight: 700
-                              }}>
-                                {store.is_suspended ? 'SUSPENDED' : 'ACTIVE'}
-                              </span>
-                            </div>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                              Slug: /{store.slug}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                  <TabletSegmentedPagination
-                    currentPage={storePage}
-                    totalPages={storeTotalPages}
-                    totalRecords={storeTotalRecords}
-                    onPageChange={(p) => fetchStores(p)}
-                    isLoading={loading}
-                  />
-                </div>
-              }
-              detailPane={
-                selectedStore ? (
-                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-                      <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                        {selectedStore.name}
-                      </h2>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        URL Toko: <strong>catavor.com/{selectedStore.slug}</strong>
-                      </div>
-                    </div>
-
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(2, 1fr)',
-                      gap: '1rem'
-                    }}>
-                      <div style={{ padding: '1rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status Operasional</div>
-                        <div style={{ fontSize: '1.05rem', fontWeight: 700, marginTop: '0.25rem' }}>
-                          {selectedStore.is_suspended ? 'Ditangguhkan (Suspended)' : 'Aktif Beroperasi'}
-                        </div>
-                      </div>
-                      <div style={{ padding: '1rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Paket Langganan</div>
-                        <div style={{ fontSize: '1.05rem', fontWeight: 700, marginTop: '0.25rem' }}>
-                          {selectedStore.plan || 'Free Tier'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null
-              }
-            />
-          )}
-
-          {/* D. OTHER PLACEHOLDER VIEWS */}
-          {['reports', 'finance', 'staff', 'broadcast', 'automation', 'monetization', 'master-data', 'audit'].includes(activeView) && (
-            <div style={{
-              padding: '2.5rem',
-              display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              height: 'calc(100vh - 64px)',
-              textAlign: 'center'
+              justifyContent: 'space-between',
+              backgroundColor: 'var(--bg-card)',
+              borderBottom: '1px solid var(--border-light)'
             }}>
-              <div style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                color: '#10b981',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '1rem'
-              }}>
-                <CheckCircle size={32} />
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Tablet Executive Console &bull; {roleInfo.label}
+                </div>
+                <h1 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Konsol Operasional Platform
+                </h1>
               </div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>
-                Modul {activeView.toUpperCase()} Terintegrasi
-              </h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', maxWidth: '420px', lineHeight: 1.5 }}>
-                Modul tablet ini terhubung langsung ke backend Go dan tabel PostgreSQL yang sama dengan versi desktop & mobile.
-              </p>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                {currentUser?.email}
+              </div>
+            </header>
+            <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+              <div style={{
+                padding: '2.5rem',
+                borderRadius: '1rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                textAlign: 'center',
+                maxWidth: '640px',
+                margin: '0 auto'
+              }}>
+                <ShieldCheck size={48} color="#10b981" style={{ marginBottom: '1rem' }} />
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+                  Konsol Pengelola Platform Terhubung
+                </h2>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  Akses operasional resmi untuk pemantauan sistem, kepatuhan, tiket bantuan CS, dan rekber keuangan platform.
+                </p>
+              </div>
             </div>
-          )}
+          </main>
         </div>
-      </main>
-    </div>
+      );
+    }
+
+    // B. MERCHANT ADMIN DASHBOARD FOR TABLET
+    const userStoreSlug = (currentUser as any)?.store_slug || activeSlug || 'my-store';
+    return (
+      <TabletMerchantAdmin
+        token={token}
+        currentUser={currentUser}
+        storeSlug={userStoreSlug}
+        onLogout={handleLogout}
+        onViewPublicCatalog={() => navigateTo(`/${userStoreSlug}`)}
+        onThemeChange={(newTheme) => setStoreTheme(newTheme)}
+      />
+    );
+  }
+
+  // 4. PUBLIC LANDING PAGE ROUTE FOR TABLET (Default)
+  return (
+    <TabletPublicLanding
+      onSelectStore={(slug) => navigateTo(`/${slug}`)}
+      onOpenLogin={() => navigateTo('/login')}
+      currentUser={currentUser}
+    />
   );
 };
 

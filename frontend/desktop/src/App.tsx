@@ -22254,13 +22254,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  flexWrap: 'wrap',
                   gap: '1.25rem',
                   marginBottom: '1.5rem',
                   boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08), 0 0 16px var(--primary-glow)',
                   backdropFilter: 'blur(10px)',
                   position: 'relative'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flex: '1 1 320px', minWidth: '260px' }}>
                     <div style={{
                       width: '44px',
                       height: '44px',
@@ -22278,7 +22279,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                     <div>
                       <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.95rem', fontWeight: 800, marginBottom: '0.2rem' }}>
-                        ✨ Selamat Datang di Catavor! Lengkapi Informasi Katalog Anda
+                        Selamat Datang di Catavor! Lengkapi Informasi Katalog Anda
                       </strong>
                       <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.45 }}>
                         Agar katalog digital Anda terlihat lebih profesional dan terpercaya bagi pengunjung, mari lengkapi informasi Halaman Tentang Kami (Lokasi / Alamat, Jam Operasional, dan Profil Komitmen Layanan).
@@ -22286,7 +22287,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0, marginLeft: 'auto' }}>
                     <button
                       type="button"
                       className="btn-primary"

@@ -94,10 +94,19 @@ Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewaki
    - Manfaatkan multi-kolom grid, Executive Sidebar (260-280px) + Top Command Bar, dan **Comprehensive Data Table** (sorting kolom, bulk batch actions, filter inline).
    - Dialog overlay berupa **Centered Modal Box** proporsional dengan tombol aksi di kanan bawah.
 2. **Tablet Native (Breakpoint 768px – 1023px)**:
-   - Didesain khusus untuk interaksi sentuh + stylus / keyboard folio (rasio 4:3 / 16:10).
-   - Navigasi menggunakan **Adaptive Icon-Rail (70–80px)** atau collapsible drawer ramah jangkauan jempol di tepi layar (*Thumb Resting Zone*).
-   - Mengutamakan pola **Master-Detail Split View** (daftar ringkas di kiri 35–40%, panel inspeksi detail di kanan 60–65%) agar pengelola tidak bolak-balik modal/halaman.
-   - Dialog overlay menggunakan **Side Sheet** yang meluncur dari kanan atau Centered Medium Panel.
+   - **Haram Squeezed Desktop & Desktop Clutter**: Dilarang keras memaksakan sidebar desktop lebar (260–280px) atau top command bar padat desktop ke layar tablet 768px–1023px, yang menyebabkan layout terhimpit (*squeezed*), kata-kata pada banner/judul terpotong 1-2 kata per baris (*broken single-word wraps*), atau komponen bertumpuk merusak tampilan. Tablet **BUKAN** desktop yang diresponsifkan atau diciutkan (*anti-squeezed desktop*). Komponen-komponen sekunder atau widget berat desktop yang berlebihan wajib dieliminasi agar tampilan tablet bernapas lega.
+   - **Prinsip Adaptasi Dual-Form-Factor Tablet (Tablet Mini vs Tablet Lebar)**:
+     - *Tablet Mini (768px – 879px, misal iPad Mini, Portrait)*:
+       - Menggunakan ergonomi Mobile sebagai referensi adaptasi keterbatasan visual.
+       - Informasi disajikan lebih ringkas & padat tanpa mengurangi esensi kelengkapan data/fitur.
+       - Dilarang memaksakan grid 3-kolom kartu (misal pricing / alur) yang memicu tumpang tindih atau teks patah 1-2 kata per baris. Wajib gunakan **Interactive Segmented Tab Switcher** (pindah kartu via 1 tap jempol), kartu list 1-kolom lapang, drawer menu toggle, dan horizontal scrollable pills.
+     - *Tablet Lebar (≥ 880px – 1023px, misal iPad Pro, Landscape)*:
+       - Menggunakan ergonomi Desktop sebagai referensi penyajian multi-kolom yang luas.
+       - Navigasi bar horizontal lengkap, grid 2–3 kolom simetris, dan 3 kartu pricing berdampingan simultan dengan *breathing room* yang proporsional.
+       - Wajib mengutamakan pola **Master-Detail Split View** (daftar ringkas di kiri 35–40%, panel inspeksi detail di kanan 60–65%) agar pengelola/pengunjung tidak bolak-balik modal/halaman.
+   - **Navigasi Tepi Ringkas**: Wajib menggunakan **Adaptive Icon-Rail (70–76px)** atau collapsible drawer ramah jangkauan jempol di tepi layar (*Thumb Resting Zone*), bukan sidebar desktop 260px.
+   - **Dialog & Overlays**: Dialog overlay menggunakan **Side Sheet** yang meluncur dari kanan atau Centered Medium Panel.
+   - **Touch Targets**: Minimal 44x44px untuk seluruh area tombol, input, dan kontrol sentuh/stylus.
 3. **Mobile Native (Breakpoint < 768px)**:
    - Ergonomi sentuh satu tangan (single-hand portrait, touch target minimal 44x44px).
    - Layout **Single-Column Vertical Flow**, data kompleks disajikan dalam format **Card List** rapi.
