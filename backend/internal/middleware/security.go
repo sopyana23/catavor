@@ -64,7 +64,12 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 	})
 
 	// 4. Strict CORS Middleware
-	allowedOrigins := strings.Join(cfg.AllowedOrigins, ", ")
+	// configuredOrigins = yang benar-benar diisi operator (sebelum fallback),
+	// supaya keputusan AllowCredentials di bawah menilai konfigurasi asli.
+	// Versi sebelumnya membandingkan allowedOrigins setelah fallback, sehingga
+	// cabang "kosong di non-local" tidak pernah tercapai (dead code).
+	configuredOrigins := strings.Join(cfg.AllowedOrigins, ", ")
+	allowedOrigins := configuredOrigins
 	if allowedOrigins == "" || cfg.AppEnv == "local" {
 		allowedOrigins = "http://localhost:8000, http://127.0.0.1:8000, http://localhost:5173, http://localhost:3000, http://127.0.0.1:5173"
 	}
@@ -81,13 +86,13 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 	// tapi kalau lolos ke proxy bisa jadi celah. Di non-local, wildcard dilarang
 	// keras dan AllowCredentials hanya aktif bila origin eksplisit (bukan "*").
 	allowCredentials := true
-	if cfg.AppEnv != "local" && strings.Contains(allowedOrigins, "*") {
+	if cfg.AppEnv != "local" && strings.Contains(configuredOrigins, "*") {
 		log.Fatal().
-			Str("allowed_origins", allowedOrigins).
+			Str("allowed_origins", configuredOrigins).
 			Msg("ALLOWED_ORIGINS tidak boleh memakai wildcard ('*') di non-local saat AllowCredentials aktif. " +
 				"Sebutkan origin secara eksplisit (mis. https://app.example.com).")
 	}
-	if cfg.AppEnv != "local" && allowedOrigins == "" {
+	if cfg.AppEnv != "local" && configuredOrigins == "" {
 		// Tidak ada origin eksplisit -> matikan credentials agar tidak ada
 		// kombinasi berbahaya (cookie/Authorization lintas origin).
 		allowCredentials = false

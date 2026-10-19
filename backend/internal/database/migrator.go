@@ -78,14 +78,21 @@ func loadMigrations() ([]migrationFile, error) {
 //     dibentuk AutoMigrate), seluruh migrasi yang ada dibaseline tanpa dijalankan,
 //     lalu dicatat sebagai sudah diterapkan.
 func RunMigrations(db *gorm.DB) error {
-	if err := db.AutoMigrate(&schemaMigration{}); err != nil {
-		return fmt.Errorf("membuat tabel schema_migrations: %w", err)
-	}
-
 	files, err := loadMigrations()
 	if err != nil {
 		return err
 	}
+	return runMigrations(db, files)
+}
+
+// runMigrations adalah inti runner tanpa ketergantungan pada berkas tertanam,
+// sehingga daftar migrasi bisa disuntikkan oleh uji (SQLite in-memory) dan
+// logika pencatatan version/checksum terbukti dijalankan, bukan hanya dibaca.
+func runMigrations(db *gorm.DB, files []migrationFile) error {
+	if err := db.AutoMigrate(&schemaMigration{}); err != nil {
+		return fmt.Errorf("membuat tabel schema_migrations: %w", err)
+	}
+
 	if len(files) == 0 {
 		log.Warn().Msg("tidak ada berkas migrasi SQL yang ditanam ke binary")
 		return nil
@@ -180,13 +187,10 @@ func applyMigration(db *gorm.DB, f migrationFile) error {
 // Instalasi baru selalu kosong pada titik migrasi dijalankan, karena
 // RunMigrations dipanggil sebelum seeding.
 func isLegacyInstallation(db *gorm.DB) (bool, error) {
-	var tableExists bool
-	err := db.Raw(`SELECT EXISTS (SELECT 1 FROM information_schema.tables
-		WHERE table_schema = 'public' AND table_name = 'users')`).Scan(&tableExists).Error
-	if err != nil {
-		return false, fmt.Errorf("memeriksa tabel users: %w", err)
-	}
-	if !tableExists {
+	// Pakai Migrator().HasTable agar dialek-agnostik: query information_schema
+	// hanya sah di PostgreSQL sehingga jalur ini tidak bisa diuji tanpa DB
+	// nyata, dan itu membuat guard baseline tidak pernah terverifikasi.
+	if !db.Migrator().HasTable("users") {
 		return false, nil
 	}
 
