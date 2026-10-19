@@ -457,5 +457,3 @@ func ResetLoginFailures(email string) {
 		_ = RedisClient.Del(ctx, "auth:fail:"+cleaned).Err()
 	}
 }
-
-
