@@ -230,13 +230,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   // Real-time Scrollspy Tracking for Sticky Section Navigation
   useEffect(() => {
     const handleScroll = () => {
-      const scrollPos = window.scrollY + 140; // 68px header + ~52px floating nav + buffer
+      const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      const scrollPos = currentScroll + 160; // 68px header + ~52px floating nav + 40px buffer
       const sectionIds = ['direktori-toko', 'format-katalog', 'keunggulan', 'rekber-syariah', 'paket-harga', 'faq'];
 
       for (let i = sectionIds.length - 1; i >= 0; i--) {
         const el = document.getElementById(sectionIds[i]);
         if (el) {
-          const top = el.offsetTop;
+          const top = el.getBoundingClientRect().top + currentScroll;
           if (scrollPos >= top) {
             setActiveSection(sectionIds[i]);
             break;
@@ -273,14 +274,39 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
     e.preventDefault();
     const target = document.getElementById(sectionId);
     if (target) {
-      const headerOffset = 132; // 68px header + 52px floating bar + 12px padding
-      const elementPosition = target.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: 'smooth'
-      });
+      // 1. Native scrollIntoView smoothly positions element respecting scrollMarginTop
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      // 2. Dual fallback to ensure absolute window/documentElement scrolling
+      const headerOffset = 135; // 68px header + ~52px floating bar + 15px breathing room
+      const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      const elementTop = target.getBoundingClientRect().top + currentScroll;
+      const targetPosition = Math.max(0, elementTop - headerOffset);
+
+      if (typeof window.scrollTo === 'function') {
+        try {
+          window.scrollTo({
+            top: targetPosition,
+            behavior: 'smooth'
+          });
+        } catch (_) {
+          window.scrollTo(0, targetPosition);
+        }
+      }
+
+      if (document.documentElement && typeof document.documentElement.scrollTo === 'function') {
+        try {
+          document.documentElement.scrollTo({
+            top: targetPosition,
+            behavior: 'smooth'
+          });
+        } catch (_) {}
+      }
+
       setActiveSection(sectionId);
+      try {
+        window.history.pushState(null, '', `#${sectionId}`);
+      } catch (_) {}
     }
   };
 
@@ -699,6 +725,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           </button>
           <a
             href="#format-katalog"
+            onClick={(e) => handleScrollTo(e, 'format-katalog')}
             style={{
               minHeight: '46px',
               padding: '0 1.35rem',
@@ -726,7 +753,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        scrollMarginTop: '135px'
       }}>
         <div style={{
           backgroundColor: 'var(--bg-card)',
@@ -937,7 +965,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        scrollMarginTop: '135px'
       }}>
         <div style={{ textAlign: 'center', marginBottom: isMiniTablet ? '1.5rem' : '2rem' }}>
           <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1227,7 +1256,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        scrollMarginTop: '135px'
       }}>
         <div style={{ textAlign: 'center', marginBottom: isMiniTablet ? '1.5rem' : '2rem' }}>
           <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1363,7 +1393,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        scrollMarginTop: '135px'
       }}>
         <div style={{
           backgroundColor: 'var(--bg-card)',
@@ -1531,7 +1562,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        scrollMarginTop: '135px'
       }}>
         <div style={{ textAlign: 'center', marginBottom: isMiniTablet ? '1.5rem' : '2rem' }}>
           <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1984,7 +2016,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        scrollMarginTop: '135px'
       }}>
         <div style={{ textAlign: 'center', marginBottom: isMiniTablet ? '1.5rem' : '2rem' }}>
           <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
