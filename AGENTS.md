@@ -90,9 +90,22 @@ Platform Catavor dibangun dengan arsitektur **Tiga Frontend Mandiri** yang masin
 ### A. Prinsip Identitas Visual & Ergonomi Khas Masing-Masing Form-Factor
 Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewakili karakternya sendiri, **bukan sekadar styling responsif hasil ciutan layar**:
 1. **Desktop Native (Breakpoint $\ge$ 1024px)**:
-   - **Haram Stretched Mobile**: Dilarang melebarkan form/tombol 1 kolom ke layar lebar (>600px).
-   - Manfaatkan multi-kolom grid, Executive Sidebar (260-280px) + Top Command Bar, dan **Comprehensive Data Table** (sorting kolom, bulk batch actions, filter inline).
-   - Dialog overlay berupa **Centered Modal Box** proporsional dengan tombol aksi di kanan bawah.
+   - **Haram Stretched Mobile & Haram Runaway Ultra-Wide**:
+     - Dilarang melebarkan form/tombol 1 kolom ke layar lebar (>600px).
+     - Wajib memasang pembatas kontainer terukur (`max-w-7xl` / `1440px`–`1600px` dengan auto margin) agar pada monitor ultra-wide (2K / 4K / resolusi tinggi), elemen tidak membentang tak terbatas (*anti-runaway width*) yang memaksa pengguna menoleh ekstrem dari ujung kiri ke ujung kanan.
+   - **Prinsip Adaptasi Spektrum Lebar Layar Desktop**:
+     - *Desktop Standar / Compact Laptop (1024px – 1365px, misal Laptop 13"-14", 1280x800, 1366x768)*:
+       - Sidebar adaptif ramping (240px–260px) agar area konten utama tidak terhimpit (*anti-squeeze*).
+       - Grid 2 hingga 3 kolom simetris (misal katalog produk 3 kolom, kartu ringkasan metrik 3 kolom).
+       - Data table dengan scrolling horizontal halus atau kolom sekunder diringkas/collapsible agar tabel tidak terpotong kaku.
+       - Dialog overlay berupa modal proporsional (`max-w-2xl` s/d `max-w-3xl`).
+     - *Desktop Lebar & Ultra-Wide Monitor ($\ge$ 1366px – 1920px+)*:
+       - Ruang kerja penuh: Executive Sidebar (260–280px) + Top Command Bar + Dedicated Inspector Panel (panel detail samping jika diperlukan).
+       - Grid 4 kolom lapang untuk etalase katalog atau kartu metrik analitik.
+       - Comprehensive Data Table lengkap dengan seluruh kolom aksi & metadata terlihat tanpa scrolling horizontal.
+       - Dialog modal box berukuran besar (`max-w-4xl` s/d `max-w-5xl`) dengan multi-kolom form input terstruktur di dalamnya.
+   - **Lebar Tombol Proporsional**: Tombol aksi utama dilarang ditarik selebar layar (*no full-width button on wide screen*). Wajib memiliki ukuran intrinsik (`w-auto`, padding proporsional).
+   - **Dialog Centered Modal Box**: Dialog overlay berupa modal di tengah layar dengan tombol aksi di kanan bawah, bukan bottom sheet.
 2. **Tablet Native (Breakpoint 768px – 1023px)**:
    - **Haram Squeezed Desktop & Desktop Clutter**: Dilarang keras memaksakan sidebar desktop lebar (260–280px) atau top command bar padat desktop ke layar tablet 768px–1023px, yang menyebabkan layout terhimpit (*squeezed*), kata-kata pada banner/judul terpotong 1-2 kata per baris (*broken single-word wraps*), atau komponen bertumpuk merusak tampilan. Tablet **BUKAN** desktop yang diresponsifkan atau diciutkan (*anti-squeezed desktop*). Komponen-komponen sekunder atau widget berat desktop yang berlebihan wajib dieliminasi agar tampilan tablet bernapas lega.
    - **Prinsip Adaptasi Dual-Form-Factor Tablet (Tablet Mini vs Tablet Lebar)**:
@@ -108,9 +121,21 @@ Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewaki
    - **Dialog & Overlays**: Dialog overlay menggunakan **Side Sheet** yang meluncur dari kanan atau Centered Medium Panel.
    - **Touch Targets**: Minimal 44x44px untuk seluruh area tombol, input, dan kontrol sentuh/stylus.
 3. **Mobile Native (Breakpoint < 768px)**:
-   - Ergonomi sentuh satu tangan (single-hand portrait, touch target minimal 44x44px).
-   - Layout **Single-Column Vertical Flow**, data kompleks disajikan dalam format **Card List** rapi.
-   - Dialog overlay wajib menggunakan **Bottom Sheet** yang meluncur dari dasar layar, aksi utama diakses via *Sticky Bottom Action Bar*.
+   - **Thumb Zone & Ergonomi Sentuh**: Seluruh target sentuh minimal 44x44px. Tombol aksi utama ditempatkan pada *Sticky Bottom Action Bar*.
+   - **Prinsip Adaptasi Spektrum Lebar Layar Mobile**:
+     - *Mobile Compact / Layar Sempit (< 380px, misal iPhone SE, resolusi 320px – 375px)*:
+       - Layout **Ultra Single-Column** murni tanpa memaksakan grid 2 kolom.
+       - Tipografi adaptif: font judul diperkecil proporsional (misal 20–22px, bukan 28px) untuk mencegah pemotongan kata ganjil (*anti broken single-word wraps*).
+       - Padding horizontal ramping (12px) untuk memaksimalkan area baca dan sentuh tanpa terbuang margin.
+       - Tombol aksi pada bottom bar ditata secara vertikal terfokus atau 1 tombol utama dominan + tombol sekunder ikonik ringkas untuk mencegah tombol saling tindih (*anti-button overlap*).
+       - Badge dan status disajikan dalam label ringkas tanpa deskripsi panjang.
+     - *Mobile Standar / Layar Lebar & Tinggi (380px – 767px, misal iPhone Pro Max, Samsung Galaxy Plus/Ultra)*:
+       - Ruang horizontal lebih fleksibel: dapat menampung grid 2-kolom ringkas (seperti etalase kartu produk 2-kolom yang proporsional).
+       - Padding horizontal standar yang nyaman dan bernapas (16px – 20px).
+       - Sticky bottom bar dapat menampung tombol aksi ganda horizontal berdampingan (misal `Hubungi WhatsApp` 45% + `Pesan Sekarang` 55%).
+       - Filter dan kategori disajikan dalam deretan horizontal scrollable pills dengan indikator geser yang halus.
+   - **Layout Single-Column Vertical Flow**: Data kompleks disajikan dalam format **Card List** rapi dengan badge status yang jelas.
+   - **Dialog Overlay Bottom Sheet**: Seluruh formulir pop-up, filter, atau konfirmasi tindakan wajib menggunakan **Bottom Sheet** yang meluncur dari dasar layar.
 
 ### B. Single Source of Truth & Database Consistency (MANDATORY)
 - **Tabel & API yang Sama**: Seluruh transaksi, operasi data, pembacaan, dan penulisan dari ketiga device **wajib menggunakan endpoint API Go yang sama dan tersimpan ke tabel PostgreSQL yang sama**. Tidak boleh ada skema database terpisah antar-device.
