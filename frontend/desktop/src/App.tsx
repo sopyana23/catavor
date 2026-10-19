@@ -8178,11 +8178,24 @@ Terima kasih.`;
   // In-App Document (PDF) Preview & Direct Download States (Desktop)
   const [docPreview, setDocPreview] = useState<DocumentPreviewData | null>(null);
 
+  // URL tampilan lampiran tiket bantuan.
+  //
+  // Lampiran tiket bersifat privat: berkasnya tidak lagi punya URL publik dan
+  // hanya dapat diambil lewat endpoint ber-otorisasi. Cookie sesi ikut terkirim
+  // otomatis karena same-origin, sehingga <img>/<iframe> tetap bekerja tanpa
+  // perlu menambahkan header Authorization manual. Record lama yang masih
+  // menyimpan file_url publik tetap didukung sebagai fallback.
+  const supportAttachmentSrc = (att: any): string => {
+    if (!att) return '';
+    if (att.id) return `/api/support/attachments/${att.id}`;
+    return att.file_url || '';
+  };
+
   const openDocumentPreview = (att: any) => {
     setDocPreview({
       isOpen: true,
       id: att.id,
-      url: att.file_url,
+      url: supportAttachmentSrc(att),
       fileName: att.file_name || 'Dokumen.pdf',
       fileSize: att.file_size,
       fileType: att.file_type || 'application/pdf'
@@ -21664,7 +21677,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                                     backgroundColor: 'var(--bg-deep)'
                                                   }}
                                                 >
-                                                  <img src={att.file_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                  <img src={supportAttachmentSrc(att)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                 </div>
                                               );
                                             })}
@@ -21701,7 +21714,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       {isPDF ? (
                                         <FileText size={22} color="#ef4444" />
                                       ) : (
-                                        <img src={att.file_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        <img src={supportAttachmentSrc(att)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                       )}
                                       <button
                                         type="button"
@@ -28382,7 +28395,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                               title="Klik untuk memperbesar gambar"
                                             >
                                               <img
-                                                src={att.file_url}
+                                                src={supportAttachmentSrc(att)}
                                                 alt={att.file_name || 'Lampiran Berkas'}
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.25s ease' }}
                                                 onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
@@ -28456,7 +28469,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       {isPDF ? (
                                         <FileText size={24} color="#ef4444" />
                                       ) : (
-                                        <img src={att.file_url} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        <img src={supportAttachmentSrc(att)} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                       )}
                                       <button
                                         type="button"
@@ -29134,7 +29147,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     {isPDF ? (
                                       <FileText size={32} color="#ef4444" />
                                     ) : (
-                                      <img src={att.file_url} alt="Lampiran Berkas" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      <img src={supportAttachmentSrc(att)} alt="Lampiran Berkas" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     )}
                                     <button
                                       type="button"
@@ -31661,7 +31674,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 <button
                   type="button"
                   title="Download Foto Lampiran"
-                  onClick={() => handleDownloadAttachmentImage(currentImg.file_url, currentImg.file_name)}
+                  onClick={() => handleDownloadAttachmentImage(supportAttachmentSrc(currentImg), currentImg.file_name)}
                   style={{
                     padding: '0.45rem 0.95rem',
                     borderRadius: '0.55rem',
@@ -31681,7 +31694,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 </button>
 
                 <a
-                  href={currentImg.file_url}
+                  href={supportAttachmentSrc(currentImg)}
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Buka File Asli di Tab Baru"
@@ -31908,7 +31921,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 }}
               >
                 <img
-                  src={currentImg.file_url}
+                  src={supportAttachmentSrc(currentImg)}
                   alt={currentImg.file_name || 'Lampiran Berkas'}
                   draggable={false}
                   style={{
@@ -32026,7 +32039,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         flexShrink: 0
                       }}
                     >
-                      <img src={att.file_url} alt={`Thumb ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={supportAttachmentSrc(att)} alt={`Thumb ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </button>
                   ))}
                 </div>

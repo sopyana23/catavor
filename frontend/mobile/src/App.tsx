@@ -8088,11 +8088,24 @@ Terima kasih.`;
   // In-App Document (PDF) Preview & Direct Download States (Best Practice)
   const [docPreview, setDocPreview] = useState<DocumentPreviewData | null>(null);
 
+  // URL tampilan lampiran tiket bantuan.
+  //
+  // Lampiran tiket bersifat privat: berkasnya tidak lagi punya URL publik dan
+  // hanya dapat diambil lewat endpoint ber-otorisasi. Cookie sesi ikut terkirim
+  // otomatis karena same-origin, sehingga <img>/<iframe> tetap bekerja tanpa
+  // perlu menambahkan header Authorization manual. Record lama yang masih
+  // menyimpan file_url publik tetap didukung sebagai fallback.
+  const supportAttachmentSrc = (att: any): string => {
+    if (!att) return '';
+    if (att.id) return `/api/support/attachments/${att.id}`;
+    return att.file_url || '';
+  };
+
   const openDocumentPreview = (att: any) => {
     setDocPreview({
       isOpen: true,
       id: att.id,
-      url: att.file_url,
+      url: supportAttachmentSrc(att),
       fileName: att.file_name || 'Dokumen.pdf',
       fileSize: att.file_size,
       fileType: att.file_type || 'application/pdf'
@@ -29588,7 +29601,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                             title="Klik untuk memperbesar gambar"
                                           >
                                             <img
-                                              src={att.file_url}
+                                              src={supportAttachmentSrc(att)}
                                               alt={att.file_name || 'Screenshot'}
                                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                             />
@@ -29653,7 +29666,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     {isPDF ? (
                                       <FileText size={22} color="#ef4444" />
                                     ) : (
-                                      <img src={att.file_url} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      <img src={supportAttachmentSrc(att)} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     )}
                                     <button
                                       type="button"
@@ -30352,7 +30365,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   {isPDF ? (
                                     <FileText size={28} color="#ef4444" />
                                   ) : (
-                                    <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <img src={supportAttachmentSrc(att)} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                   )}
                                   <button
                                     type="button"
@@ -31703,7 +31716,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 <button
                   type="button"
                   title="Download Foto"
-                  onClick={() => handleDownloadAttachmentImage(currentImg.file_url, currentImg.file_name)}
+                  onClick={() => handleDownloadAttachmentImage(supportAttachmentSrc(currentImg), currentImg.file_name)}
                   style={{
                     width: '36px',
                     height: '36px',
@@ -31722,7 +31735,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 </button>
 
                 <a
-                  href={currentImg.file_url}
+                  href={supportAttachmentSrc(currentImg)}
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Buka File Asli di Tab Baru"
@@ -31944,7 +31957,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 }}
               >
                 <img
-                  src={currentImg.file_url}
+                  src={supportAttachmentSrc(currentImg)}
                   alt={currentImg.file_name || 'Screenshot'}
                   draggable={false}
                   style={{
@@ -32062,7 +32075,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         flexShrink: 0
                       }}
                     >
-                      <img src={att.file_url} alt={`Thumb ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={supportAttachmentSrc(att)} alt={`Thumb ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </button>
                   ))}
                 </div>
