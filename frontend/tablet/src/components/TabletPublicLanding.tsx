@@ -28,7 +28,8 @@ import {
   Phone,
   HelpCircle,
   Menu,
-  X
+  X,
+  Compass
 } from 'lucide-react';
 
 export const CATALOG_TYPES_INFO = [
@@ -157,7 +158,59 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   const [selectedPlanTab, setSelectedPlanTab] = useState<'free' | 'pro_starter' | 'pro_business'>('pro_starter');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [loading, setLoading] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<string>('direktori-toko');
+  const pillRailRef = React.useRef<HTMLDivElement>(null);
+
+  const SECTION_NAV_ITEMS = [
+    {
+      id: 'direktori-toko',
+      label: 'Direktori Toko',
+      shortLabel: 'Direktori',
+      icon: StoreIcon,
+      badge: 'Katalog',
+      subtitle: '5 Toko Aktif'
+    },
+    {
+      id: 'format-katalog',
+      label: '7 Format Spesifik',
+      shortLabel: '7 Format',
+      icon: Layers,
+      badge: 'Industri',
+      subtitle: 'Multi-Format'
+    },
+    {
+      id: 'keunggulan',
+      label: 'Keunggulan',
+      shortLabel: 'Keunggulan',
+      icon: Sparkles,
+      badge: 'Fitur',
+      subtitle: '0% Komisi'
+    },
+    {
+      id: 'rekber-syariah',
+      label: 'Rekber Syariah',
+      shortLabel: 'Rekber Aman',
+      icon: ShieldCheck,
+      badge: 'Escrow',
+      subtitle: '100% Bebas Riba'
+    },
+    {
+      id: 'paket-harga',
+      label: 'Pilihan Paket',
+      shortLabel: 'Pilihan Paket',
+      icon: Scale,
+      badge: 'Biaya',
+      subtitle: 'Gratis & Pro'
+    },
+    {
+      id: 'faq',
+      label: 'Tanya Jawab',
+      shortLabel: 'Bantuan',
+      icon: HelpCircle,
+      badge: 'FAQ',
+      subtitle: 'Pusat Bantuan'
+    }
+  ];
 
   // Dynamic Tablet Width State: Mini (<880px) vs Large (>=880px)
   const [isMiniTablet, setIsMiniTablet] = useState<boolean>(() => {
@@ -172,6 +225,54 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Real-time Scrollspy Tracking for Sticky Section Navigation
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPos = window.scrollY + 140; // 68px header + ~52px floating nav + buffer
+      const sectionIds = ['direktori-toko', 'format-katalog', 'keunggulan', 'rekber-syariah', 'paket-harga', 'faq'];
+
+      for (let i = sectionIds.length - 1; i >= 0; i--) {
+        const el = document.getElementById(sectionIds[i]);
+        if (el) {
+          const top = el.offsetTop;
+          if (scrollPos >= top) {
+            setActiveSection(sectionIds[i]);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll active pill into view on Tablet Mini
+  useEffect(() => {
+    if (pillRailRef.current && isMiniTablet) {
+      const activeEl = pillRailRef.current.querySelector('[data-active="true"]') as HTMLElement;
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [activeSection, isMiniTablet]);
+
+  const handleScrollTo = (e: React.MouseEvent, sectionId: string) => {
+    e.preventDefault();
+    const target = document.getElementById(sectionId);
+    if (target) {
+      const headerOffset = 132; // 68px header + 52px floating bar + 12px padding
+      const elementPosition = target.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+      setActiveSection(sectionId);
+    }
+  };
 
   const industries = [
     { id: 'all', label: 'Semua' },
@@ -270,61 +371,15 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           </div>
         </div>
 
-        {/* Center Links (Shown on Large Tablet, Collapsed into Quick Dropdown on Mini Tablet) */}
-        {!isMiniTablet ? (
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            <a href="#direktori-toko" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '0.84rem', fontWeight: 600 }}>
-              Direktori
-            </a>
-            <a href="#format-katalog" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '0.84rem', fontWeight: 600 }}>
-              7 Format
-            </a>
-            <a href="#keunggulan" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '0.84rem', fontWeight: 600 }}>
-              Keunggulan
-            </a>
-            <a href="#rekber-syariah" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '0.84rem', fontWeight: 600 }}>
-              Rekber Aman
-            </a>
-            <a href="#paket-harga" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '0.84rem', fontWeight: 600 }}>
-              Paket
-            </a>
-            <a href="#faq" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '0.84rem', fontWeight: 600 }}>
-              Bantuan
-            </a>
-          </nav>
-        ) : null}
-
         {/* Action Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {isMiniTablet && (
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '0.55rem',
-                border: '1px solid var(--border-light)',
-                backgroundColor: 'var(--bg-deep)',
-                color: 'var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-              title="Menu Navigasi"
-            >
-              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
-          )}
-
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           {currentUser ? (
             <button
               type="button"
               onClick={() => window.location.href = '/admin?view=tablet'}
               style={{
                 minHeight: '40px',
-                padding: '0 1rem',
+                padding: '0 1.15rem',
                 borderRadius: '0.6rem',
                 backgroundColor: 'var(--primary)',
                 color: '#ffffff',
@@ -339,7 +394,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               }}
             >
               <StoreIcon size={15} />
-              <span>Dashboard</span>
+              <span>Dashboard Toko</span>
             </button>
           ) : (
             <button
@@ -347,7 +402,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               onClick={onOpenLogin}
               style={{
                 minHeight: '40px',
-                padding: '0 1rem',
+                padding: '0 1.15rem',
                 borderRadius: '0.6rem',
                 backgroundColor: 'var(--primary)',
                 color: '#ffffff',
@@ -362,51 +417,130 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               }}
             >
               <LogIn size={15} />
-              <span>Masuk / Buat</span>
+              <span>Masuk / Buat Katalog</span>
             </button>
           )}
         </div>
       </header>
 
-      {/* Mini Tablet Collapsible Navigation Bar */}
-      {isMiniTablet && mobileMenuOpen && (
-        <div style={{
+      {/* 2. FLOATING STICKY SUB-NAVIGATION BAR (Ikut Mengambang Seperti Header & Lebih Informatif) */}
+      <nav
+        aria-label="Navigasi Seksi Halaman"
+        style={{
+          position: 'sticky',
+          top: '68px',
+          zIndex: 45,
           backgroundColor: 'var(--bg-card)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           borderBottom: '1px solid var(--border-light)',
-          padding: '0.75rem 1.25rem',
+          boxShadow: '0 4px 18px rgba(0, 0, 0, 0.04)',
+          padding: isMiniTablet ? '0.55rem 1rem' : '0.6rem 2rem',
           display: 'flex',
-          flexWrap: 'wrap',
-          gap: '0.5rem',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.06)'
-        }}>
-          {[
-            { href: '#direktori-toko', label: 'Direktori Toko' },
-            { href: '#format-katalog', label: '7 Format' },
-            { href: '#keunggulan', label: 'Keunggulan' },
-            { href: '#rekber-syariah', label: 'Rekber Syariah' },
-            { href: '#paket-harga', label: 'Pilihan Paket' },
-            { href: '#faq', label: 'Tanya Jawab' }
-          ].map((item, idx) => (
-            <a
-              key={idx}
-              href={item.href}
-              onClick={() => setMobileMenuOpen(false)}
-              style={{
-                padding: '0.35rem 0.75rem',
-                borderRadius: '999px',
-                backgroundColor: 'var(--bg-deep)',
-                border: '1px solid var(--border-light)',
-                color: 'var(--text-primary)',
-                textDecoration: 'none',
-                fontSize: '0.78rem',
-                fontWeight: 600
-              }}
-            >
-              {item.label}
-            </a>
-          ))}
+          alignItems: 'center',
+          justifyContent: isMiniTablet ? 'flex-start' : 'space-between',
+          gap: '0.85rem',
+          boxSizing: 'border-box',
+          width: '100%',
+          transition: 'box-shadow 0.2s ease'
+        }}
+      >
+        {/* On Tablet Lebar: Contextual Status Information */}
+        {!isMiniTablet && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexShrink: 0 }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.25rem 0.65rem',
+              borderRadius: '999px',
+              backgroundColor: 'rgba(30, 58, 138, 0.08)',
+              color: 'var(--primary)',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              border: '1px solid var(--border-light)'
+            }}>
+              <Compass size={13} />
+              <span>JELAJAHI</span>
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              Melihat:{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>
+                {SECTION_NAV_ITEMS.find(s => s.id === activeSection)?.label || 'Direktori Toko'}
+              </strong>
+              <span style={{ margin: '0 0.4rem', opacity: 0.5 }}>•</span>
+              <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                {SECTION_NAV_ITEMS.find(s => s.id === activeSection)?.subtitle || 'Etalase'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Scrollable Pill Container (Supports smooth thumb swipe on mini tablet) */}
+        <div
+          ref={pillRailRef}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
+            padding: '0.15rem 0',
+            width: isMiniTablet ? '100%' : 'auto',
+            flexShrink: 0
+          }}
+        >
+          {SECTION_NAV_ITEMS.map((item) => {
+            const isActive = activeSection === item.id;
+            const Icon = item.icon;
+            return (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                data-active={isActive ? 'true' : 'false'}
+                onClick={(e) => handleScrollTo(e, item.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: isMiniTablet ? '0.42rem 0.8rem' : '0.45rem 0.9rem',
+                  borderRadius: '999px',
+                  backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
+                  color: isActive ? '#ffffff' : 'var(--text-primary)',
+                  border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                  textDecoration: 'none',
+                  fontSize: isMiniTablet ? '0.76rem' : '0.8rem',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  transition: 'all 0.18s ease',
+                  boxShadow: isActive ? '0 2px 10px var(--primary-glow)' : 'none',
+                  flexShrink: 0
+                }}
+              >
+                <Icon size={14} color={isActive ? '#ffffff' : 'var(--primary)'} />
+                <span>{item.label}</span>
+                {isActive && (
+                  <span style={{
+                    fontSize: '0.64rem',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '999px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    letterSpacing: '0.02em',
+                    marginLeft: '0.15rem'
+                  }}>
+                    {item.badge}
+                  </span>
+                )}
+              </a>
+            );
+          })}
         </div>
-      )}
+      </nav>
 
       {/* 2. TABLET HERO SECTION (Scaled for Mini vs Large) */}
       <section style={{
