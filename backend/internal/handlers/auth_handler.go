@@ -1492,7 +1492,13 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	user := c.Locals("user").(*models.User)
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
 
 	var req UpdateProfileRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -2049,7 +2055,13 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	user := c.Locals("user").(*models.User)
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
 
 	var req DeleteAccountRequest
 	if err := c.BodyParser(&req); err != nil {

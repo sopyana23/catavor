@@ -30,7 +30,13 @@ func (h *SessionHandler) GetSessions(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	user := c.Locals("user").(*models.User)
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
 	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
 
 	var currentTokenID string
@@ -81,7 +87,13 @@ func (h *SessionHandler) RevokeSession(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	user := c.Locals("user").(*models.User)
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
 	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
 
 	sessionIDStr := c.Params("id")
@@ -132,7 +144,13 @@ func (h *SessionHandler) RevokeOtherSessions(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	user := c.Locals("user").(*models.User)
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
 	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
 
 	if claims == nil || claims.ID == "" {

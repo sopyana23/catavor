@@ -1625,7 +1625,13 @@ func (h *StoreHandler) GetMyStores(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	user := c.Locals("user").(*models.User)
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
 	var stores []models.Store
 	if err := h.db.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).Order("id asc").Find(&stores).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -1695,7 +1701,13 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	user := c.Locals("user").(*models.User)
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
 
 	var req CreateStoreRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -1853,7 +1865,13 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	user := c.Locals("user").(*models.User)
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
 
 	var req SwitchStoreRequest
 	if err := c.BodyParser(&req); err != nil {
