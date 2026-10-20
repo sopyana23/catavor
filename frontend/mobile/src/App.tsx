@@ -6998,15 +6998,21 @@ Terima kasih.`;
     }
   };
 
-  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown' | 'stores' | 'create_store' | 'discard_confirm' | 'archive_confirm') => {
-    if (!isSheetDragging) return;
+  type BottomSheetType = 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown' | 'stores' | 'create_store' | 'discard_confirm' | 'archive_confirm';
+  const [closingSheet, setClosingSheet] = useState<BottomSheetType | null>(null);
+
+  const closeSheetWithAnimation = (type: BottomSheetType) => {
+    setClosingSheet(type);
     setIsSheetDragging(false);
-    if (sheetDragY > 75) {
+    setTimeout(() => {
       if (type === 'archive_confirm') setArchiveConfirmModal(null);
       if (type === 'discard_confirm') setShowDiscardConfirmSheet(false);
       if (type === 'category') setShowCategorySheet(false);
       if (type === 'sort') setShowSortSheet(false);
-      if (type === 'filter') setShowFilterSheet(false);
+      if (type === 'filter') {
+        setShowFilterSheet(false);
+        setShowAdminFilterSheet(false);
+      }
       if (type === 'action_menu') setActionMenuData(null);
       if (type === 'report') setReportModalData(null);
       if (type === 'rekber_explainer') setShowRekberExplainerModal(false);
@@ -7017,6 +7023,17 @@ Terima kasih.`;
         setShowPurchaseOptions(false);
         setShowMarketplacesSubMenu(false);
       }
+      setClosingSheet(null);
+      setSheetDragY(0);
+    }, 240);
+  };
+
+  const handleSheetDragEnd = (type: BottomSheetType) => {
+    if (!isSheetDragging) return;
+    setIsSheetDragging(false);
+    if (sheetDragY > 70) {
+      closeSheetWithAnimation(type);
+      return;
     }
     setSheetDragY(0);
   };
@@ -18885,15 +18902,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
             return (
               <div 
-                className="bottom-sheet-backdrop" 
+                className={`bottom-sheet-backdrop ${closingSheet === 'purchase_options' ? 'is-closing' : ''}`} 
                 style={{ zIndex: 10000 }}
-                onClick={() => {
-                  setShowPurchaseOptions(false);
-                  setShowMarketplacesSubMenu(false);
-                }}
+                onClick={() => closeSheetWithAnimation('purchase_options')}
               >
                 <div 
-                  className="bottom-sheet-content" 
+                  className={`bottom-sheet-content ${closingSheet === 'purchase_options' ? 'is-closing' : ''}`} 
                   onClick={(e) => e.stopPropagation()}
                   style={{ 
                     transform: `translateY(${Math.max(0, sheetDragY)}px)`,
@@ -32399,11 +32413,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       {/* LUXURY UNIFIED ADVANCED FILTER BOTTOM SHEET (Industry Standard: Filter Lanjutan & Urutan) */}
       {showFilterSheet && (
         <div 
-          className="bottom-sheet-backdrop" 
-          onClick={() => setShowFilterSheet(false)}
+          className={`bottom-sheet-backdrop ${closingSheet === 'filter' ? 'is-closing' : ''}`} 
+          onClick={() => closeSheetWithAnimation('filter')}
         >
           <div 
-            className="bottom-sheet-content filter-modal-content" 
+            className={`bottom-sheet-content filter-modal-content ${closingSheet === 'filter' ? 'is-closing' : ''}`} 
             onClick={(e) => e.stopPropagation()}
             style={{
               transform: `translateY(${Math.max(0, sheetDragY)}px)`,
@@ -32589,7 +32603,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               <button
                 type="button"
                 className="btn-primary"
-                onClick={() => setShowFilterSheet(false)}
+                onClick={() => closeSheetWithAnimation('filter')}
                 style={{ flex: 2, padding: '0.75rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem' }}
               >
                 Terapkan ({filteredFaunas.length} Item)
@@ -32602,11 +32616,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       {/* ADMIN INVENTORY ADVANCED FILTER BOTTOM SHEET (Same Concept as Public Filter Sheet) */}
       {showAdminFilterSheet && (
         <div 
-          className="bottom-sheet-backdrop" 
-          onClick={() => setShowAdminFilterSheet(false)}
+          className={`bottom-sheet-backdrop ${closingSheet === 'filter' ? 'is-closing' : ''}`} 
+          onClick={() => closeSheetWithAnimation('filter')}
         >
           <div 
-            className="bottom-sheet-content filter-modal-content" 
+            className={`bottom-sheet-content filter-modal-content ${closingSheet === 'filter' ? 'is-closing' : ''}`} 
             onClick={(e) => e.stopPropagation()}
             style={{
               transform: `translateY(${Math.max(0, sheetDragY)}px)`,
@@ -32899,7 +32913,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               <button
                 type="button"
                 className="btn-primary"
-                onClick={() => setShowAdminFilterSheet(false)}
+                onClick={() => closeSheetWithAnimation('filter')}
                 style={{ flex: 2, padding: '0.75rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem' }}
               >
                 Terapkan ({filteredAdminItems.length} Item)

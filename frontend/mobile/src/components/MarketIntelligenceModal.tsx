@@ -12,7 +12,6 @@ import {
   Layers,
   Sparkles,
   RefreshCw,
-  X,
   FileSpreadsheet,
   AlertCircle
 } from 'lucide-react';
@@ -73,11 +72,50 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
   onClose,
   apiBase = ''
 }) => {
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const dragStartY = React.useRef(0);
+
+  const closeWithAnimation = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      setDragY(0);
+      onClose();
+    }, 280);
+  };
+
   useModalBackHandler({
     isOpen,
-    onClose,
+    onClose: closeWithAnimation,
     modalId: 'market-intel-modal-mobile'
   });
+
+  const handleDragStart = (clientY: number) => {
+    dragStartY.current = clientY;
+    setIsDragging(true);
+  };
+
+  const handleDragMove = (clientY: number) => {
+    if (!isDragging) return;
+    const delta = clientY - dragStartY.current;
+    if (delta > 0) {
+      setDragY(delta);
+    } else {
+      setDragY(delta * 0.15);
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    if (dragY > 70) {
+      closeWithAnimation();
+    } else {
+      setDragY(0);
+    }
+  };
 
   const [data, setData] = useState<MarketIntelligenceData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -137,40 +175,80 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
         WebkitBackdropFilter: 'blur(10px)',
         zIndex: 12000,
         display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
+        padding: 0,
         boxSizing: 'border-box'
       }}
-      onClick={onClose}
+      onClick={closeWithAnimation}
     >
       <div
-        className="glass-panel animate-fade-in"
+        className="glass-panel"
         style={{
           width: '100%',
           maxWidth: '680px',
           maxHeight: '90vh',
           backgroundColor: 'var(--bg-card)',
-          borderRadius: '1.25rem',
+          borderTopLeftRadius: '1.5rem',
+          borderTopRightRadius: '1.5rem',
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
           border: '1px solid var(--border-light)',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
+          borderBottom: 'none',
+          boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.45)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          transform: isClosing ? 'translateY(100%)' : `translateY(${Math.max(0, dragY)}px)`,
+          transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
         onClick={e => e.stopPropagation()}
       >
+        {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+        <div
+          onMouseDown={e => handleDragStart(e.clientY)}
+          onMouseMove={e => handleDragMove(e.clientY)}
+          onMouseUp={handleDragEnd}
+          onTouchStart={e => handleDragStart(e.touches[0].clientY)}
+          onTouchMove={e => handleDragMove(e.touches[0].clientY)}
+          onTouchEnd={handleDragEnd}
+          style={{
+            padding: '0.65rem 0 0.35rem',
+            display: 'flex',
+            justifyContent: 'center',
+            cursor: 'grab',
+            touchAction: 'none'
+          }}
+        >
+          <div
+            style={{
+              width: '42px',
+              height: '4px',
+              backgroundColor: 'var(--border-light)',
+              borderRadius: '9999px'
+            }}
+          />
+        </div>
+
         {/* Header Bar */}
         <div
+          onMouseDown={e => handleDragStart(e.clientY)}
+          onMouseMove={e => handleDragMove(e.clientY)}
+          onMouseUp={handleDragEnd}
+          onTouchStart={e => handleDragStart(e.touches[0].clientY)}
+          onTouchMove={e => handleDragMove(e.touches[0].clientY)}
+          onTouchEnd={handleDragEnd}
           style={{
-            padding: '1.1rem 1.25rem',
+            padding: '0.85rem 1.25rem',
             borderBottom: '1px solid var(--border-light)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '0.75rem',
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)'
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)',
+            touchAction: 'none'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -213,24 +291,6 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
               </span>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              padding: '0.35rem',
-              borderRadius: '0.4rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <X size={20} />
-          </button>
         </div>
 
         {/* Modal Scrollable Content */}
@@ -387,27 +447,42 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '0.75rem',
+            gap: '0.65rem',
             backgroundColor: 'var(--bg-deep)'
           }}
         >
-          <button
-            type="button"
-            onClick={fetchMarketIntel}
-            disabled={loading}
-            className="btn-secondary"
-            style={{
-              padding: '0.45rem 0.85rem',
-              fontSize: '0.75rem',
-              borderRadius: '0.5rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem'
-            }}
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            <span>Muat Ulang</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={closeWithAnimation}
+              className="btn-secondary"
+              style={{
+                padding: '0.45rem 0.85rem',
+                fontSize: '0.75rem',
+                borderRadius: '0.5rem',
+                fontWeight: 700
+              }}
+            >
+              Tutup
+            </button>
+            <button
+              type="button"
+              onClick={fetchMarketIntel}
+              disabled={loading}
+              className="btn-secondary"
+              style={{
+                padding: '0.45rem 0.85rem',
+                fontSize: '0.75rem',
+                borderRadius: '0.5rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+              <span>Muat Ulang</span>
+            </button>
+          </div>
 
           <button
             type="button"

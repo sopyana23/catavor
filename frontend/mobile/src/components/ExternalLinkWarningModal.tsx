@@ -5,11 +5,11 @@ import {
   ExternalLink,
   Copy,
   Check,
-  X,
   Globe,
   AlertTriangle
 } from 'lucide-react';
 import { cleanDomainString, addUserTrustedDomain } from '../utils/urlSecurity';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface ExternalLinkWarningModalProps {
   url: string | null;
@@ -28,16 +28,61 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
   const [dontRemind, setDontRemind] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const dragStartY = React.useRef(0);
+
+  const closeWithAnimation = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      setDragY(0);
+      onClose();
+    }, 280);
+  };
+
+  useModalBackHandler({
+    isOpen: Boolean(url),
+    onClose: closeWithAnimation,
+    modalId: 'external-link-warning-modal-mobile'
+  });
+
+  const handleDragStart = (clientY: number) => {
+    dragStartY.current = clientY;
+    setIsDragging(true);
+  };
+
+  const handleDragMove = (clientY: number) => {
+    if (!isDragging) return;
+    const delta = clientY - dragStartY.current;
+    if (delta > 0) {
+      setDragY(delta);
+    } else {
+      setDragY(delta * 0.15);
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    if (dragY > 70) {
+      closeWithAnimation();
+    } else {
+      setDragY(0);
+    }
+  };
+
   useEffect(() => {
     if (!url) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        closeWithAnimation();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [url, onClose]);
+  }, [url]);
 
   if (!url) return null;
 
@@ -65,7 +110,7 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
     if (onProceed) {
       onProceed(url);
     }
-    onClose();
+    closeWithAnimation();
   };
 
   return createPortal(
@@ -81,61 +126,77 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
         WebkitBackdropFilter: 'blur(8px)',
         zIndex: 9999999,
         display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.25rem',
-        animation: 'fadeIn 0.2s ease-out'
+        padding: 0
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onClose();
+        closeWithAnimation();
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '460px',
+          maxWidth: '560px',
           width: '100%',
           backgroundColor: theme?.surface || 'var(--bg-card, #0f172a)',
           backgroundImage: theme?.cardGradient || 'var(--card-bg-gradient, none)',
-          borderRadius: '1.25rem',
+          borderTopLeftRadius: '1.5rem',
+          borderTopRightRadius: '1.5rem',
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
           border: `1px solid ${theme?.border || 'var(--border-light, rgba(255, 255, 255, 0.12))'}`,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
-          padding: '1.4rem',
+          borderBottom: 'none',
+          boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.45)',
+          padding: '0.85rem 1.4rem 1.4rem',
           display: 'flex',
           flexDirection: 'column',
           gap: '1.1rem',
           position: 'relative',
-          color: 'var(--text-primary, #ffffff)'
+          color: 'var(--text-primary, #ffffff)',
+          transform: isClosing ? 'translateY(100%)' : `translateY(${Math.max(0, dragY)}px)`,
+          transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+          boxSizing: 'border-box'
         }}
       >
-        {/* Close Top-Right Button */}
-        <button
-          type="button"
-          onClick={onClose}
+        {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+        <div
+          onMouseDown={e => handleDragStart(e.clientY)}
+          onMouseMove={e => handleDragMove(e.clientY)}
+          onMouseUp={handleDragEnd}
+          onTouchStart={e => handleDragStart(e.touches[0].clientY)}
+          onTouchMove={e => handleDragMove(e.touches[0].clientY)}
+          onTouchEnd={handleDragEnd}
           style={{
-            position: 'absolute',
-            top: '1.1rem',
-            right: '1.1rem',
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--bg-deep, rgba(255, 255, 255, 0.06))',
-            border: '1px solid var(--border-light, transparent)',
-            color: 'var(--text-muted, #94a3b8)',
+            padding: '0 0 0.5rem',
             display: 'flex',
-            alignItems: 'center',
             justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease'
+            cursor: 'grab',
+            touchAction: 'none'
           }}
-          title="Tutup Dialog"
         >
-          <X size={16} />
-        </button>
+          <div
+            style={{
+              width: '42px',
+              height: '4px',
+              backgroundColor: theme?.border || 'var(--border-light, rgba(255, 255, 255, 0.2))',
+              borderRadius: '9999px'
+            }}
+          />
+        </div>
 
         {/* Modal Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        <div
+          onMouseDown={e => handleDragStart(e.clientY)}
+          onMouseMove={e => handleDragMove(e.clientY)}
+          onMouseUp={handleDragEnd}
+          onTouchStart={e => handleDragStart(e.touches[0].clientY)}
+          onTouchMove={e => handleDragMove(e.touches[0].clientY)}
+          onTouchEnd={handleDragEnd}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', touchAction: 'none' }}
+        >
           <div style={{
             width: '44px',
             height: '44px',
@@ -287,7 +348,7 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '0.65rem', marginTop: '0.2rem' }}>
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeWithAnimation}
             style={{
               padding: '0.68rem 1rem',
               borderRadius: '0.75rem',

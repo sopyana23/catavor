@@ -455,8 +455,49 @@
   transition: transform 0.2s ease;
 }
 
-/* Luxury Bottom Sheet Drawer */
-.bottom-sheet-backdrop {
+/* Luxury Bottom Sheet Drawer - Fluid Physics Entrance & Exit */
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdropFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sheetSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sheetSlideDown {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0.85;
+  }
+}
+
+.bottom-sheet-backdrop,
+.mobile-bottom-sheet-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.72);
@@ -466,23 +507,37 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: backdropFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity;
 }
 
-.bottom-sheet-content {
+.bottom-sheet-backdrop.is-closing,
+.mobile-bottom-sheet-backdrop.is-closing {
+  animation: backdropFadeOut 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  pointer-events: none;
+}
+
+.bottom-sheet-content,
+.mobile-bottom-sheet-content {
   background: var(--bg-card);
   border-top: 1px solid var(--border-light);
   border-top-left-radius: 1.5rem;
   border-top-right-radius: 1.5rem;
   padding: 0.65rem 1.15rem max(1.5rem, env(safe-area-inset-bottom));
-  max-height: 84vh;
+  max-height: 86vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.6);
-  animation: sheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: sheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   box-sizing: border-box;
   width: 100%;
   overflow: hidden;
+  will-change: transform;
+}
+
+.bottom-sheet-content.is-closing,
+.mobile-bottom-sheet-content.is-closing {
+  animation: sheetSlideDown 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
 .bottom-sheet-handle-bar {
