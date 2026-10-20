@@ -192,9 +192,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Tablet Responsive Container & Proportional Scaling (Mini 768px -> Wide 960px -> High-Res/iPad Pro 1032px+) */
+/* Tablet Responsive Container & Proportional Scaling (768px -> 960px -> 1032px+) */
 :root {
-  --tablet-container-max: 960px;
+  --tablet-container-max: 920px;
 }
 
 html {
@@ -202,33 +202,17 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Standard to Wide Tablet (880px to 999px, e.g. 960x1440 Surface Pro) */
+/* Wide Tablet (880px to 999px, e.g. 960x1440 Surface Pro) */
 @media screen and (min-width: 880px) {
   :root {
-    --tablet-container-max: min(1080px, 94vw);
-  }
-  html {
-    font-size: 17.5px;
+    --tablet-container-max: 940px;
   }
 }
 
-/* High-Res & Large Tablet Portrait (1000px to 1179px, e.g. iPad Pro 11"/12.9"/13", 1032x1376) */
+/* High-Res Tablet (>= 1000px, e.g. iPad Pro 1032x1376) */
 @media screen and (min-width: 1000px) {
   :root {
-    --tablet-container-max: min(1160px, 94vw);
-  }
-  html {
-    font-size: 18.5px;
-  }
-}
-
-/* Ultra-Wide Tablet Landscape (>= 1180px) */
-@media screen and (min-width: 1180px) {
-  :root {
-    --tablet-container-max: min(1220px, 92vw);
-  }
-  html {
-    font-size: 19px;
+    --tablet-container-max: 980px;
   }
 }
 
