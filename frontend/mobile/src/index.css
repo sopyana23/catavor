@@ -670,7 +670,7 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   transform: translateX(-2px) !important;
 }
 
-/* Mobile Discard Confirmation Bottom Sheet */
+/* Standard Mobile Bottom Sheet Fluid Animation & Touch Helpers */
 @keyframes slideUpSheet {
   from {
     transform: translateY(100%);
@@ -682,8 +682,26 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   }
 }
 
-.discard-sheet-content {
+.discard-sheet-content,
+.mobile-bottom-sheet-content {
   animation: slideUpSheet 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.bottom-sheet-handle-bar {
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bottom-sheet-handle-bar:active {
+  cursor: grabbing;
+}
+
+.bottom-sheet-scroll-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 

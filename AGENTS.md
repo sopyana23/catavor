@@ -68,7 +68,7 @@ Detail lengkap diatur pada [.agents/rules/02_database_architecture.md](file:///c
 ---
 
 ## 6. Premium UI, Anti-AI Aesthetics & Iconography Standards (MANDATORY)
-Detail lengkap diatur pada [.agents/rules/04_ui_ux_and_device_standards.md](file:///c:/MyProject/DFauna/.agents/rules/04_ui_ux_and_device_standards.md):
+Detail lengkap diatur pada [.agents/rules/04_ui_ux_and_anti_ai_standards.md](file:///c:/MyProject/DFauna/.agents/rules/04_ui_ux_and_anti_ai_standards.md):
 1. **HARAM Menggunakan Emoji di Antarmuka Bisnis**:
    - Dilarang keras memakai karakter emoji (🚀, 🔥, ✨, 💡, 📦, dll.) di judul card, tombol aksi, atau status badge.
    - Wajib gunakan **Icon Library Vektor Profesional** (Lucide React / Heroicons / clean SVG) dengan stroke konsisten (1.5–1.75px) dan palet monokrom / neutral-muted.
@@ -82,7 +82,7 @@ Detail lengkap diatur pada [.agents/rules/04_ui_ux_and_device_standards.md](file
 ---
 
 ## 7. Tri-Frontend Architecture & Form-Factor Native Parity (MANDATORY)
-Platform Catavor dibangun dengan arsitektur **Tiga Frontend Mandiri** yang masing-masing memiliki direktori terisolasi di bawah `frontend/`:
+Platform Catavor dibangun dengan arsitektur **Tiga Frontend Mandiri** yang masing-masing memiliki direktori terisolasi di bawah `frontend/`. Detail lengkap arsitektur form-factor diatur pada [.agents/rules/05_device_form_factor_standards.md](file:///c:/MyProject/DFauna/.agents/rules/05_device_form_factor_standards.md) dan standar modal mulus mobile diatur pada [.agents/rules/06_mobile_modal_and_gesture_standards.md](file:///c:/MyProject/DFauna/.agents/rules/06_mobile_modal_and_gesture_standards.md):
 1. [frontend/desktop](file:///c:/MyProject/DFauna/frontend/desktop) $\rightarrow$ Antarmuka **Desktop Native** (Breakpoint $\ge$ 1024px, output `public/desktop`).
 2. [frontend/tablet](file:///c:/MyProject/DFauna/frontend/tablet) $\rightarrow$ Antarmuka **Tablet Native** (Breakpoint 768px – 1023px, output `public/tablet`).
 3. [frontend/mobile](file:///c:/MyProject/DFauna/frontend/mobile) $\rightarrow$ Antarmuka **Mobile Native** (Breakpoint < 768px, output `public/mobile`).
@@ -139,14 +139,22 @@ Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewaki
    - **Haram Native Select / Dropdown Kaku di Mobile (Wajib Filter & Option Picker Bottom Sheet)**:
      - Dilarang keras memakai HTML `<select>` kaku atau dropdown sempit desktop pada form-factor mobile.
      - Seluruh tombol atau field yang memunculkan dropdown pilihan multi-opsi **WAJIB** membuka **Modal / Bottom Sheet khas mobile**.
-   - **Standar Wajib Interaksi & Header Modal Mobile (MANDATORY)**:
-     - **Wajib Interactive Drag Handle (Drag Gesture Ke Atas / Ke Bawah untuk Menutup)**: Di bagian paling atas modal wajib terpasang drag handle bar interaktif (`bottom-sheet-handle-bar` / drag pill) yang mendukung gesture sentuh (*touch*) dan *mouse drag* ke atas/ke bawah (khususnya drag-down $\ge 70\text{px}$) untuk menutup (*dismiss*) modal secara halus dan responsif dengan animasi `translateY`.
+   - **Standar Wajib Interaksi & Fisika Mulus Modal Mobile (MANDATORY)**:
+     - **Fisika Drag Bebas Kaku (Anti-Stiff Motion)**:
+       - Saat drag aktif (`isDragging === true`): properti `transition` wajib `none` agar posisi sheet menempel langsung mengikuti jempol 1:1 tanpa jeda (60/120 FPS).
+       - Saat dilepas (`isDragging === false`): aktifkan kurva pegas alami Apple-style `transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)`. Dilarang memakai transisi linier kaku atau transisi lambat (>400ms).
+       - Resistansi Karet (*Rubber-Banding*): saat ditarik ke atas melebihi batas ($delta < 0$), berikan peredam elastis `delta * 0.15` s/d `0.20`, bukan dipotong kaku di 0.
+       - Ambang Batas Penutupan Responsif: drag-down $\ge 70\text{px}$ memicu penutupan sheet meluncur mulus ke bawah penuh sebelum unmount.
+     - **Isolasi Sentuhan (Touch Action Isolation)**:
+       - Drag handle bar dan header modal wajib memiliki `touchAction: 'none'` untuk mencegah konflik dengan gesture pull-to-refresh browser.
+       - Area body modal wajib memiliki `overflowY: 'auto'`, `-webkit-overflow-scrolling: 'touch'`, dan `overscrollBehavior: 'contain'` agar scroll konten tidak tembus menggeser halaman belakang.
      - **Haram Tombol Close / 'X' di Header Modal Mobile**: Dilarang keras menaruh tombol close ("✕" atau tombol X) di header modal/bottom sheet mobile. Header harus bersih (*clean*), hanya memuat ikon vektor profesional (Lucide) dan judul/keterangan. Penutupan modal di mobile native hanya mengandalkan:
        1. Gesture drag-down pada drag handle bar atau header modal,
        2. Tap pada backdrop overlay (di luar area modal sheet),
        3. Intersepsi tombol hardware/browser back (`useModalBackHandler`),
        4. Tombol aksi yang jelas di footer jika ada (misal: "Batal", "Tutup", "Reset", "Terapkan").
      - **Pilihan Opsi Ramah Sentuhan**: Pilihan opsi disajikan dalam touch pills / buttons (touch target $\ge 44\text{px}$) dengan indikator centang (`Check`) dan highlight warna aksen.
+
 
 ### B. Single Source of Truth & Database Consistency (MANDATORY)
 - **Tabel & API yang Sama**: Seluruh transaksi, operasi data, pembacaan, dan penulisan dari ketiga device **wajib menggunakan endpoint API Go yang sama dan tersimpan ke tabel PostgreSQL yang sama**. Tidak boleh ada skema database terpisah antar-device.
