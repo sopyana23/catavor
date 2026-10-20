@@ -188,7 +188,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
                 {isExpanded && <span>{item.label}</span>}
 
                 {/* Badge Indicator */}
-                {item.badge !== null && (
+                {Boolean(item.badge && item.badge > 0) && (
                   <span style={{
                     position: isExpanded ? 'static' : 'absolute',
                     top: isExpanded ? 'auto' : '6px',
