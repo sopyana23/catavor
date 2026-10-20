@@ -59,6 +59,7 @@ export interface AdminStoresStats {
 interface TabletPlatformStoresViewProps {
   token: string;
   onNavigateToTab?: (tab: string) => void;
+  hideHeader?: boolean;
 }
 
 const formatBytes = (bytes: number): string => {
@@ -89,7 +90,8 @@ const formatCurrency = (val: number): string => {
 };
 
 export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> = ({
-  token
+  token,
+  hideHeader = false
 }) => {
   // Sub-tab: strictly separated Active Profiles vs Banned/Suspended Profiles
   const [subTab, setSubTab] = useState<'active' | 'banned'>('active');
@@ -238,69 +240,71 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* 1. Tablet Header & KPI Bar */}
-      <div
-        style={{
-          padding: '1.25rem 1.5rem',
-          backgroundColor: 'var(--bg-card)',
-          borderBottom: '1px solid var(--border-light)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          flexShrink: 0
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-            <Store size={20} color="#10b981" />
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-              Direktori Profil Toko
-            </h2>
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Daftar profil katalog terdaftar dan tata kelola akun kepatuhan.
-          </div>
-        </div>
-
-        {/* Status Counters */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div
-            style={{
-              padding: '0.45rem 0.85rem',
-              borderRadius: '0.6rem',
-              backgroundColor: 'rgba(16, 185, 129, 0.12)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <CheckCircle2 size={16} color="#10b981" />
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#10b981' }}>
-              {stats.total_active} Aktif
+      {/* 1. Tablet Header & KPI Bar - Only rendered when not embedded with a parent header */}
+      {!hideHeader && (
+        <div
+          style={{
+            padding: '1.25rem 1.5rem',
+            backgroundColor: 'var(--bg-card)',
+            borderBottom: '1px solid var(--border-light)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '1rem',
+            flexShrink: 0
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+              <Store size={20} color="#10b981" />
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                Direktori Profil Toko
+              </h2>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Daftar profil katalog terdaftar dan tata kelola akun kepatuhan.
             </div>
           </div>
 
-          <div
-            style={{
-              padding: '0.45rem 0.85rem',
-              borderRadius: '0.6rem',
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <ShieldAlert size={16} color="#ef4444" />
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ef4444' }}>
-              {stats.total_banned} Banned
+          {/* Status Counters */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                padding: '0.45rem 0.85rem',
+                borderRadius: '0.6rem',
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <CheckCircle2 size={16} color="#10b981" />
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#10b981' }}>
+                {stats.total_active} Aktif
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '0.45rem 0.85rem',
+                borderRadius: '0.6rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <ShieldAlert size={16} color="#ef4444" />
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ef4444' }}>
+                {stats.total_banned} Banned
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 2. Sub-Tab Segmented Switcher & Search Bar */}
       <div

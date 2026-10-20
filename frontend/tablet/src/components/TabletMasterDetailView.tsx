@@ -4,6 +4,7 @@ import { ArrowLeft, ClipboardList } from 'lucide-react';
 export interface TabletMasterDetailViewProps {
   title: string;
   subtitle?: string;
+  hideHeaderTitle?: boolean;
   headerAction?: ReactNode;
   masterPane: ReactNode;
   detailPane: ReactNode | null;
@@ -15,6 +16,7 @@ export interface TabletMasterDetailViewProps {
 export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
   title,
   subtitle,
+  hideHeaderTitle = false,
   headerAction,
   masterPane,
   detailPane,
@@ -47,60 +49,64 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
       backgroundColor: 'var(--bg-deep)'
     }}>
       {/* Top Tablet Sub-Header Toolbar */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0.75rem 1.25rem',
-        backgroundColor: 'var(--bg-card)',
-        borderBottom: '1px solid var(--border-light)',
-        flexShrink: 0
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {selectedId && onClearSelection && (
-            <button
-              type="button"
-              onClick={onClearSelection}
-              aria-label="Kembali ke daftar"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.35rem',
-                padding: isNarrowTablet ? '0.45rem 0.85rem' : '0',
-                width: isNarrowTablet ? 'auto' : '38px',
-                height: '38px',
-                borderRadius: '0.5rem',
-                border: '1px solid var(--border-light)',
-                backgroundColor: isNarrowTablet ? 'var(--bg-deep)' : 'transparent',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                fontWeight: 600,
-                fontSize: '0.82rem'
-              }}
-            >
-              <ArrowLeft size={18} />
-              {isNarrowTablet && <span>Kembali ke Daftar</span>}
-            </button>
-          )}
-          <div>
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-              {title}
-            </h2>
-            {subtitle && (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
-                {subtitle}
-              </p>
+      {(!hideHeaderTitle || (selectedId && onClearSelection) || headerAction) && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: hideHeaderTitle ? '0.5rem 1.25rem' : '0.75rem 1.25rem',
+          backgroundColor: 'var(--bg-card)',
+          borderBottom: '1px solid var(--border-light)',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {selectedId && onClearSelection && (
+              <button
+                type="button"
+                onClick={onClearSelection}
+                aria-label="Kembali ke daftar"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: isNarrowTablet ? '0.45rem 0.85rem' : '0',
+                  width: isNarrowTablet ? 'auto' : '38px',
+                  height: '38px',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: isNarrowTablet ? 'var(--bg-deep)' : 'transparent',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.82rem'
+                }}
+              >
+                <ArrowLeft size={18} />
+                {isNarrowTablet && <span>Kembali ke Daftar</span>}
+              </button>
+            )}
+            {!hideHeaderTitle && (
+              <div>
+                <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                  {title}
+                </h2>
+                {subtitle && (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
+                    {subtitle}
+                  </p>
+                )}
+              </div>
             )}
           </div>
-        </div>
 
-        {headerAction && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {headerAction}
-          </div>
-        )}
-      </div>
+          {headerAction && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {headerAction}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Two-Pane Master-Detail Content */}
       <div style={{

@@ -857,6 +857,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             <TabletPlatformStoresView
               token={token}
               onNavigateToTab={setActiveView}
+              hideHeader={true}
             />
           )}
 
@@ -865,6 +866,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             <TabletMasterDetailView
               title="Kepatuhan & Laporan Masuk"
               subtitle={`${reports.length} laporan dalam antrean`}
+              hideHeaderTitle={true}
               selectedId={selectedReportId}
               onClearSelection={() => setSelectedReportId(null)}
               headerAction={
@@ -1074,6 +1076,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             <TabletMasterDetailView
               title="Helpdesk Tiket Bantuan CS"
               subtitle={`${tickets.length} total tiket percakapan`}
+              hideHeaderTitle={true}
               selectedId={selectedTicketId}
               onClearSelection={() => {
                 setSelectedTicketId(null);
@@ -1277,6 +1280,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             <TabletMasterDetailView
               title="Billing Langganan Pro"
               subtitle={`${orders.length} order transaksi`}
+              hideHeaderTitle={true}
               selectedId={selectedOrderId}
               onClearSelection={() => setSelectedOrderId(null)}
               masterPane={
@@ -1520,10 +1524,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           {activeView === 'broadcast' && (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <Radio size={40} color="#ec4899" style={{ marginBottom: '0.75rem' }} />
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
-                Siaran Broadcast Notifikasi
-              </h3>
-              <p style={{ fontSize: '0.85rem', maxWidth: '480px', margin: '0 auto 1.5rem auto' }}>
+              <p style={{ fontSize: '0.88rem', maxWidth: '480px', margin: '0 auto 1.5rem auto' }}>
                 Kirim pengumuman resmi ke seluruh merchant secara serentak melalui push notifikasi dan dashboard.
               </p>
             </div>
@@ -1543,9 +1544,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   justifyContent: 'space-between'
                 }}>
                   <div>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>
-                      Mesin Otomatisasi & Bot Daemon
-                    </h3>
+                    <div style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 0.25rem 0', color: 'var(--text-primary)' }}>
+                      Status Bot Daemon & Background Sentinel
+                    </div>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
                       Sentinel dormansi katalog, rotasi token, dan audit berkala
                     </p>
@@ -1581,9 +1582,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   backgroundColor: 'var(--bg-card)',
                   border: '1px solid var(--border-light)'
                 }}>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 1rem 0' }}>
-                    Log Forensik Aktivitas Sistem ({auditLogs.length})
-                  </h3>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                    Riwayat Rekaman Audit Forensik ({auditLogs.length})
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {auditLogs.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
@@ -1626,9 +1627,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           {['monetization', 'master-data'].includes(activeView) && (
             <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <Layers size={48} color="#10b981" style={{ marginBottom: '1rem' }} />
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
-                {viewMetadata.title}
-              </h3>
               <p style={{ fontSize: '0.88rem', maxWidth: '480px', margin: '0 auto' }}>
                 {viewMetadata.subtitle}
               </p>
