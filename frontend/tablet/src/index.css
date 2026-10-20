@@ -192,8 +192,44 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Tablet Responsive Container & Proportional Scaling (Mini 768px -> Wide 960px -> High-Res/iPad Pro 1032px+) */
+:root {
+  --tablet-container-max: 960px;
+}
+
 html {
+  font-size: 16px;
   scroll-behavior: smooth;
+}
+
+/* Standard to Wide Tablet (880px to 999px, e.g. 960x1440) */
+@media screen and (min-width: 880px) {
+  :root {
+    --tablet-container-max: min(1040px, 94vw);
+  }
+  html {
+    font-size: 16.5px;
+  }
+}
+
+/* High-Res & Large Tablet Portrait (1000px to 1179px, e.g. iPad Pro 11"/12.9"/13", 1032x1376) */
+@media screen and (min-width: 1000px) {
+  :root {
+    --tablet-container-max: min(1120px, 93vw);
+  }
+  html {
+    font-size: 17.25px;
+  }
+}
+
+/* Ultra-Wide Tablet Landscape (>= 1180px) */
+@media screen and (min-width: 1180px) {
+  :root {
+    --tablet-container-max: min(1180px, 92vw);
+  }
+  html {
+    font-size: 17.75px;
+  }
 }
 
 html, body {

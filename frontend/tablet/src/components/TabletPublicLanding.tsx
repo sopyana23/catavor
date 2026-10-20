@@ -584,7 +584,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
       {/* 3. HERO SECTION (Aligned with Desktop & Mobile) */}
       <section style={{
         padding: isMiniTablet ? '2.5rem 1.25rem 2.25rem 1.25rem' : '3.5rem 2rem 3rem 2rem',
-        maxWidth: '960px',
+        maxWidth: 'var(--tablet-container-max, 960px)',
         margin: '0 auto',
         width: '100%',
         boxSizing: 'border-box',
@@ -792,7 +792,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           SECTION 1: 7 SPESIALISASI FORMAT KATALOG (#catalog-types)
           ========================================================================= */}
       <section id="catalog-types" style={{
-        maxWidth: '960px',
+        maxWidth: 'var(--tablet-container-max, 960px)',
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
@@ -1001,7 +1001,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           SECTION 2: KEUNGGULAN UTAMA (#features-section)
           ========================================================================= */}
       <section id="features-section" style={{
-        maxWidth: '960px',
+        maxWidth: 'var(--tablet-container-max, 960px)',
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
@@ -1223,7 +1223,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           SECTION 3: CARA KERJA 3 LANGKAH (#steps-section)
           ========================================================================= */}
       <section id="steps-section" style={{
-        maxWidth: '960px',
+        maxWidth: 'var(--tablet-container-max, 960px)',
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
@@ -1361,7 +1361,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           SECTION 4: KEMITRAAN RESMI REKBER & TRANSAKSI AMAN ESCROW (#escrow-partner)
           ========================================================================= */}
       <section id="escrow-partner" style={{
-        maxWidth: '960px',
+        maxWidth: 'var(--tablet-container-max, 960px)',
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
@@ -1721,7 +1721,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           SECTION 5: PAKET & HARGA (#pricing-section)
           ========================================================================= */}
       <section id="pricing-section" style={{
-        maxWidth: '960px',
+        maxWidth: 'var(--tablet-container-max, 960px)',
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
@@ -2058,7 +2058,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           SECTION 6: FAQ ACCORDION (#faq-section)
           ========================================================================= */}
       <section id="faq-section" style={{
-        maxWidth: '960px',
+        maxWidth: 'var(--tablet-container-max, 960px)',
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
@@ -2134,7 +2134,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           SECTION 7: BOTTOM HERO CTA BANNER
           ========================================================================= */}
       <section style={{
-        maxWidth: '960px',
+        maxWidth: 'var(--tablet-container-max, 960px)',
         margin: isMiniTablet ? '0 auto 3rem auto' : '0 auto 4rem auto',
         padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
         width: '100%',
@@ -2193,7 +2193,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         marginTop: 'auto'
       }}>
         <div style={{
-          maxWidth: '960px',
+          maxWidth: 'var(--tablet-container-max, 960px)',
           margin: '0 auto',
           display: 'flex',
           flexDirection: isMiniTablet ? 'column' : 'row',
