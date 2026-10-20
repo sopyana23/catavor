@@ -249,6 +249,10 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
 
   const currentMeta = getViewMetadata(activeView);
   const isCollapsed = isTablet ? !isTabletDrawerOpen : isSidebarCollapsed;
+  const isSidebarShowing = !isCollapsed;
+  const isCompactScreen = windowWidth < 1280;
+  // Kondisi khusus: Pada tablet atau layar kompak ketika sidebar menu tampil (show)
+  const isTightHeader = isTablet || (isCompactScreen && isSidebarShowing) || windowWidth < 1120;
 
   // Background and surface styling tokens
   const shellBg = isDark ? '#090d16' : '#f8fafc';
@@ -744,51 +748,53 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: isDesktop ? '0 2rem' : '0 1.25rem',
+            padding: isTightHeader ? '0 1.25rem' : (isDesktop ? '0 2rem' : '0 1.25rem'),
+            gap: '1rem',
             zIndex: 40,
             flexShrink: 0
           }}
         >
-          {/* Left: Semantic Breadcrumbs & View Meta */}
-          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.72rem', color: textMut, fontWeight: 700 }}>
-              <span>Platform Console</span>
-              <span>/</span>
-              <span style={{ color: activeNavText }}>{currentMeta.title}</span>
-            </div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: isDesktop ? '1.15rem' : '1.02rem',
-                fontWeight: 800,
-                color: textPri,
-                letterSpacing: '-0.02em',
-                lineHeight: 1.2
-              }}
-            >
-              {currentMeta.title}
-            </h1>
-          </div>
-
-          {/* Right: Refresh action, Subtitle Status Pill, Quick Role Pill */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {/* Live Subtitle Pill on Desktop */}
-            {isDesktop && currentMeta.subtitle && (
-              <span
+          {/* Left: Semantic Breadcrumbs & View Meta (Clean single line on tablet/tight viewports) */}
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, justifyContent: 'center' }}>
+            {!isTightHeader && (
+              <div
                 style={{
-                  fontSize: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  fontSize: '0.72rem',
                   color: textMut,
-                  fontWeight: 500,
-                  maxWidth: '320px',
+                  fontWeight: 700,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis'
                 }}
               >
-                {currentMeta.subtitle}
-              </span>
+                <span>Platform Console</span>
+                <span>/</span>
+                <span style={{ color: activeNavText }}>{currentMeta.title}</span>
+              </div>
             )}
+            <h1
+              style={{
+                margin: 0,
+                fontSize: isTightHeader ? '1.05rem' : (isDesktop ? '1.18rem' : '1.05rem'),
+                fontWeight: 800,
+                color: textPri,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.25,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+              title={currentMeta.title}
+            >
+              {currentMeta.title}
+            </h1>
+          </div>
 
+          {/* Right: Refresh action & Quick Role Pill (Clean, without truncated ellipsis info) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: isTightHeader ? '0.5rem' : '0.65rem', flexShrink: 0 }}>
             {/* Quick Refresh Data Button */}
             {onRefresh && (
               <button
@@ -798,8 +804,11 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '0.35rem',
-                  padding: '0.45rem 0.8rem',
+                  padding: isTightHeader ? '0.45rem' : '0.45rem 0.8rem',
+                  minWidth: isTightHeader ? '36px' : 'auto',
+                  height: '36px',
                   borderRadius: '0.65rem',
                   border: `1px solid ${borderCol}`,
                   backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
@@ -808,12 +817,13 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
                   fontWeight: 700,
                   cursor: isRefreshing ? 'wait' : 'pointer',
                   boxShadow: isDark ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.05)',
-                  transition: 'all 0.15s ease'
+                  transition: 'all 0.15s ease',
+                  flexShrink: 0
                 }}
                 title="Segarkan Data Realtime"
               >
-                <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-                {isDesktop && <span>Segarkan</span>}
+                <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
+                {!isTightHeader && <span>Segarkan</span>}
               </button>
             )}
 
@@ -829,7 +839,9 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
                 color: roleBadge.color,
                 border: `1px solid ${roleBadge.border}`,
                 fontSize: '0.72rem',
-                fontWeight: 800
+                fontWeight: 800,
+                whiteSpace: 'nowrap',
+                flexShrink: 0
               }}
             >
               <span>{roleBadge.label}</span>
