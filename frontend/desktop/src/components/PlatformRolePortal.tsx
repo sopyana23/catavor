@@ -4183,8 +4183,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
       {/* ========================================================================= */}
       {/* 2. DEDICATED EXCLUSIVE SUBPAGE HEADER (When in a specific sub-module)       */}
+      {/* Redundant on Desktop and Tablet since PlatformAdminShell provides top bar. */}
       {/* ========================================================================= */}
-      {activeView !== 'dashboard' && (() => {
+      {activeView !== 'dashboard' && false && (() => {
         const currentItem = allModules[activeView];
         const isFooterTab = ['reports', 'support', 'finance'].includes(activeView);
         const subStatusText = 
@@ -4367,8 +4368,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {headerConfig.primaryAction && (
                   <button
                     type="button"
-                    onClick={headerConfig.primaryAction.onClick}
-                    title={headerConfig.primaryAction.title}
+                    onClick={headerConfig.primaryAction?.onClick}
+                    title={headerConfig.primaryAction?.title}
                     style={{
                       width: '34px',
                       height: '34px',
@@ -4383,7 +4384,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    {headerConfig.primaryAction.icon}
+                    {headerConfig.primaryAction?.icon}
                   </button>
                 )}
                 {headerConfig.showMenu && (
@@ -6423,6 +6424,39 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               flexDirection: 'column',
               gap: '0.85rem'
             }}>
+              {/* Back to Ticket List Button (Desktop & Tablet) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={handleCloseTicketChat}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '0.55rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc',
+                    color: theme.textSecondary,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : '#f1f5f9';
+                    e.currentTarget.style.color = theme.textPrimary;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc';
+                    e.currentTarget.style.color = theme.textSecondary;
+                  }}
+                >
+                  <ArrowLeft size={14} />
+                  <span>Kembali ke Daftar Tiket</span>
+                </button>
+              </div>
+
               {/* Subject, Ticket Number & Date */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
