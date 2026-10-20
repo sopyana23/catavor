@@ -2226,9 +2226,14 @@ func (h *StoreHandler) AdminListStores(c *fiber.Ctx) error {
 	}
 	offset := (page - 1) * limit
 
-	// 2. Filter Status (Active by default vs Banned/Suspended)
+	// 2. Filter Status & Detail Parameters
 	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status", "active")))
 	planFilter := strings.ToLower(strings.TrimSpace(c.Query("plan", "all")))
+	planStatusFilter := strings.ToLower(strings.TrimSpace(c.Query("plan_status", "all")))
+	dormancyLevelFilter := strings.ToLower(strings.TrimSpace(c.Query("dormancy_level", "all")))
+	productFilter := strings.ToLower(strings.TrimSpace(c.Query("product_filter", "all")))
+	customDomainFilter := strings.ToLower(strings.TrimSpace(c.Query("custom_domain", "all")))
+	violationTypeFilter := strings.ToLower(strings.TrimSpace(c.Query("violation_type", "all")))
 	sortFilter := strings.ToLower(strings.TrimSpace(c.Query("sort", "created_at_desc")))
 	searchQuery := strings.TrimSpace(c.Query("q", ""))
 
@@ -2263,49 +2268,67 @@ func (h *StoreHandler) AdminListStores(c *fiber.Ctx) error {
 		`).
 		Joins("LEFT JOIN users ON users.id = stores.user_id")
 
-	// Apply Status Isolation:
-	if statusFilter == "active" {
-		query = query.Where("stores.dormancy_status NOT IN ('banned', 'suspended', 'purged') AND stores.is_suspended = false AND stores.is_blacklisted = false")
-	} else if statusFilter == "banned" {
-		query = query.Where("(stores.dormancy_status IN ('banned', 'suspended', 'purged') OR stores.is_suspended = true OR stores.is_blacklisted = true)")
-	}
-
-	// Apply Plan Filter:
-	if planFilter != "" && planFilter != "all" {
-		query = query.Where("stores.plan = ?", planFilter)
-	}
-
-	// Apply Search Query:
-	if searchQuery != "" {
-		likeOp := "ILIKE"
-		if h.db.Dialector != nil && h.db.Dialector.Name() == "sqlite" {
-			likeOp = "LIKE"
+	// Helper to apply filter conditions consistently to both query and countQuery
+	applyStoreFilters := func(tx *gorm.DB) *gorm.DB {
+		// Apply Status Isolation:
+		if statusFilter == "active" {
+			tx = tx.Where("stores.dormancy_status NOT IN ('banned', 'suspended', 'purged') AND stores.is_suspended = false AND stores.is_blacklisted = false")
+			if planStatusFilter != "" && planStatusFilter != "all" {
+				tx = tx.Where("stores.plan_status = ?", planStatusFilter)
+			}
+			if dormancyLevelFilter != "" && dormancyLevelFilter != "all" {
+				tx = tx.Where("stores.dormancy_status = ?", dormancyLevelFilter)
+			}
+			if productFilter == "has_products" {
+				tx = tx.Where("(SELECT COUNT(*) FROM products WHERE products.store_id = stores.id AND products.deleted_at IS NULL) > 0")
+			} else if productFilter == "no_products" {
+				tx = tx.Where("(SELECT COUNT(*) FROM products WHERE products.store_id = stores.id AND products.deleted_at IS NULL) = 0")
+			}
+			if customDomainFilter == "with_domain" {
+				tx = tx.Where("stores.custom_domain IS NOT NULL AND stores.custom_domain != ''")
+			} else if customDomainFilter == "no_domain" {
+				tx = tx.Where("(stores.custom_domain IS NULL OR stores.custom_domain = '')")
+			}
+		} else if statusFilter == "banned" {
+			tx = tx.Where("(stores.dormancy_status IN ('banned', 'suspended', 'purged') OR stores.is_suspended = true OR stores.is_blacklisted = true)")
+			if violationTypeFilter == "moderation" {
+				tx = tx.Where("stores.suspension_reason = 'moderation_violation'")
+			} else if violationTypeFilter == "dormancy" {
+				tx = tx.Where("(stores.suspension_reason = 'dormancy' OR stores.dormancy_status IN ('suspended', 'purged'))")
+			} else if violationTypeFilter == "blacklisted" {
+				tx = tx.Where("stores.is_blacklisted = true")
+			} else if violationTypeFilter == "suspended" {
+				tx = tx.Where("(stores.is_suspended = true OR stores.dormancy_status = 'suspended')")
+			} else if violationTypeFilter == "purged" {
+				tx = tx.Where("stores.dormancy_status = 'purged'")
+			}
 		}
-		escaped := "%" + escapeLikePattern(searchQuery) + "%"
-		searchClause := fmt.Sprintf(`(stores.store_title %s ? OR stores.slug %s ? OR stores.whatsapp_number %s ? OR users.name %s ? OR users.email %s ?)`, likeOp, likeOp, likeOp, likeOp, likeOp)
-		query = query.Where(searchClause, escaped, escaped, escaped, escaped, escaped)
+
+		// Apply Plan Filter:
+		if planFilter != "" && planFilter != "all" {
+			tx = tx.Where("stores.plan = ?", planFilter)
+		}
+
+		// Apply Search Query:
+		if searchQuery != "" {
+			likeOp := "ILIKE"
+			if h.db.Dialector != nil && h.db.Dialector.Name() == "sqlite" {
+				likeOp = "LIKE"
+			}
+			escaped := "%" + escapeLikePattern(searchQuery) + "%"
+			searchClause := fmt.Sprintf(`(stores.store_title %s ? OR stores.slug %s ? OR stores.whatsapp_number %s ? OR users.name %s ? OR users.email %s ?)`, likeOp, likeOp, likeOp, likeOp, likeOp)
+			tx = tx.Where(searchClause, escaped, escaped, escaped, escaped, escaped)
+		}
+
+		return tx
 	}
+
+	query = applyStoreFilters(query)
 
 	// 4. Calculate Total Count for this filtered query
 	var total int64
 	countQuery := h.db.Table("stores").Joins("LEFT JOIN users ON users.id = stores.user_id")
-	if statusFilter == "active" {
-		countQuery = countQuery.Where("stores.dormancy_status NOT IN ('banned', 'suspended', 'purged') AND stores.is_suspended = false AND stores.is_blacklisted = false")
-	} else if statusFilter == "banned" {
-		countQuery = countQuery.Where("(stores.dormancy_status IN ('banned', 'suspended', 'purged') OR stores.is_suspended = true OR stores.is_blacklisted = true)")
-	}
-	if planFilter != "" && planFilter != "all" {
-		countQuery = countQuery.Where("stores.plan = ?", planFilter)
-	}
-	if searchQuery != "" {
-		likeOp := "ILIKE"
-		if h.db.Dialector != nil && h.db.Dialector.Name() == "sqlite" {
-			likeOp = "LIKE"
-		}
-		escaped := "%" + escapeLikePattern(searchQuery) + "%"
-		searchClause := fmt.Sprintf(`(stores.store_title %s ? OR stores.slug %s ? OR stores.whatsapp_number %s ? OR users.name %s ? OR users.email %s ?)`, likeOp, likeOp, likeOp, likeOp, likeOp)
-		countQuery = countQuery.Where(searchClause, escaped, escaped, escaped, escaped, escaped)
-	}
+	countQuery = applyStoreFilters(countQuery)
 	countQuery.Count(&total)
 
 	// 5. Apply Sorting
@@ -2316,6 +2339,8 @@ func (h *StoreHandler) AdminListStores(c *fiber.Ctx) error {
 		query = query.Order("products_count DESC, stores.created_at DESC")
 	case "title_asc":
 		query = query.Order("stores.store_title ASC")
+	case "title_desc":
+		query = query.Order("stores.store_title DESC")
 	case "activity_desc":
 		query = query.Order("stores.last_activity_at DESC")
 	default: // created_at_desc

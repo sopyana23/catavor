@@ -17,7 +17,11 @@ import {
   Clock,
   ArrowUpDown,
   User,
-  HardDrive
+  HardDrive,
+  SlidersHorizontal,
+  Check,
+  RotateCcw,
+  Filter
 } from 'lucide-react';
 import { useModalBackHandler } from '../utils/navigation';
 
@@ -102,8 +106,25 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Server-Side Filters
   const [planFilter, setPlanFilter] = useState('all');
+  const [planStatusFilter, setPlanStatusFilter] = useState('all');
+  const [dormancyLevelFilter, setDormancyLevelFilter] = useState('all');
+  const [productFilter, setProductFilter] = useState('all');
+  const [customDomainFilter, setCustomDomainFilter] = useState('all');
+  const [violationTypeFilter, setViolationTypeFilter] = useState('all');
   const [sortFilter, setSortFilter] = useState('created_at_desc');
+
+  // Filter Bottom Sheet state
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [tempPlan, setTempPlan] = useState('all');
+  const [tempPlanStatus, setTempPlanStatus] = useState('all');
+  const [tempDormancyLevel, setTempDormancyLevel] = useState('all');
+  const [tempProductFilter, setTempProductFilter] = useState('all');
+  const [tempCustomDomain, setTempCustomDomain] = useState('all');
+  const [tempViolationType, setTempViolationType] = useState('all');
+  const [tempSort, setTempSort] = useState('created_at_desc');
 
   // Server-Side Numbered Pagination state
   const [page, setPage] = useState(1);
@@ -141,6 +162,13 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
     }
   });
 
+  useModalBackHandler({
+    isOpen: isFilterSheetOpen,
+    onClose: () => {
+      setIsFilterSheetOpen(false);
+    }
+  });
+
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -160,7 +188,12 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
         page: page.toString(),
         limit: limit.toString(),
         sort: sortFilter,
-        plan: planFilter
+        plan: planFilter,
+        plan_status: planStatusFilter,
+        dormancy_level: dormancyLevelFilter,
+        product_filter: productFilter,
+        custom_domain: customDomainFilter,
+        violation_type: violationTypeFilter
       });
       if (debouncedSearch) {
         queryParams.set('q', debouncedSearch);
@@ -194,7 +227,20 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [token, subTab, page, limit, sortFilter, planFilter, debouncedSearch]);
+  }, [
+    token,
+    subTab,
+    page,
+    limit,
+    sortFilter,
+    planFilter,
+    planStatusFilter,
+    dormancyLevelFilter,
+    productFilter,
+    customDomainFilter,
+    violationTypeFilter,
+    debouncedSearch
+  ]);
 
   useEffect(() => {
     fetchStores();
@@ -228,7 +274,77 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
     setSubTab(newTab);
     setPage(1);
     setSearchQuery('');
+    setPlanFilter('all');
+    setPlanStatusFilter('all');
+    setDormancyLevelFilter('all');
+    setProductFilter('all');
+    setCustomDomainFilter('all');
+    setViolationTypeFilter('all');
+    setSortFilter('created_at_desc');
   };
+
+  const openFilterSheet = () => {
+    setTempPlan(planFilter);
+    setTempPlanStatus(planStatusFilter);
+    setTempDormancyLevel(dormancyLevelFilter);
+    setTempProductFilter(productFilter);
+    setTempCustomDomain(customDomainFilter);
+    setTempViolationType(violationTypeFilter);
+    setTempSort(sortFilter);
+    setIsFilterSheetOpen(true);
+  };
+
+  const applyFilters = () => {
+    setPlanFilter(tempPlan);
+    setPlanStatusFilter(tempPlanStatus);
+    setDormancyLevelFilter(tempDormancyLevel);
+    setProductFilter(tempProductFilter);
+    setCustomDomainFilter(tempCustomDomain);
+    setViolationTypeFilter(tempViolationType);
+    setSortFilter(tempSort);
+    setPage(1);
+    setIsFilterSheetOpen(false);
+  };
+
+  const resetTempFilters = () => {
+    setTempPlan('all');
+    setTempPlanStatus('all');
+    setTempDormancyLevel('all');
+    setTempProductFilter('all');
+    setTempCustomDomain('all');
+    setTempViolationType('all');
+    setTempSort('created_at_desc');
+  };
+
+  const clearAllFilters = () => {
+    setPlanFilter('all');
+    setPlanStatusFilter('all');
+    setDormancyLevelFilter('all');
+    setProductFilter('all');
+    setCustomDomainFilter('all');
+    setViolationTypeFilter('all');
+    setSortFilter('created_at_desc');
+    setPage(1);
+  };
+
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (subTab === 'active') {
+      if (planFilter !== 'all') count++;
+      if (planStatusFilter !== 'all') count++;
+      if (dormancyLevelFilter !== 'all') count++;
+      if (productFilter !== 'all') count++;
+      if (customDomainFilter !== 'all') count++;
+      if (sortFilter !== 'created_at_desc') count++;
+    } else {
+      if (violationTypeFilter !== 'all') count++;
+      if (planFilter !== 'all') count++;
+      if (sortFilter !== 'created_at_desc') count++;
+    }
+    return count;
+  };
+
+  const activeFilterCount = getActiveFilterCount();
 
   const getStorageQuota = (plan: string): number => {
     switch (plan) {
@@ -385,72 +501,289 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
         )}
       </div>
 
-      {/* 4. Filter Pills Row */}
-      <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
-        <select
-          value={planFilter}
-          onChange={(e) => {
-            setPlanFilter(e.target.value);
-            setPage(1);
-          }}
+      {/* 4. Filter Action Bar & Detail Trigger */}
+      <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={openFilterSheet}
           style={{
-            minHeight: '40px',
-            padding: '0 0.75rem',
-            borderRadius: '0.55rem',
-            backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
-            border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'}`,
-            color: isDark ? '#f3f4f6' : '#111827',
-            fontSize: '0.82rem',
-            outline: 'none'
+            flex: 1,
+            minHeight: '44px',
+            padding: '0 0.95rem',
+            borderRadius: '0.65rem',
+            border: activeFilterCount > 0
+              ? `1.5px solid ${subTab === 'active' ? '#10b981' : '#ef4444'}`
+              : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'}`,
+            backgroundColor: activeFilterCount > 0
+              ? (subTab === 'active'
+                  ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)')
+                  : (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)'))
+              : (isDark ? 'rgba(0,0,0,0.25)' : '#ffffff'),
+            color: activeFilterCount > 0
+              ? (subTab === 'active' ? '#10b981' : '#ef4444')
+              : (isDark ? '#f3f4f6' : '#111827'),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
           }}
         >
-          <option value="all">Semua Paket</option>
-          <option value="free">Gratis</option>
-          <option value="pro_starter">Pro Starter</option>
-          <option value="pro_business">Pro Business</option>
-        </select>
-
-        <select
-          value={sortFilter}
-          onChange={(e) => {
-            setSortFilter(e.target.value);
-            setPage(1);
-          }}
-          style={{
-            minHeight: '40px',
-            padding: '0 0.75rem',
-            borderRadius: '0.55rem',
-            backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
-            border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'}`,
-            color: isDark ? '#f3f4f6' : '#111827',
-            fontSize: '0.82rem',
-            outline: 'none'
-          }}
-        >
-          <option value="created_at_desc">Terbaru</option>
-          <option value="products_desc">Produk Terbanyak</option>
-          <option value="title_asc">Nama (A-Z)</option>
-        </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <SlidersHorizontal size={17} />
+            <span>
+              {subTab === 'active' ? 'Filter Detail Katalog' : 'Filter Detail Pelanggaran'}
+            </span>
+          </div>
+          {activeFilterCount > 0 && (
+            <span
+              style={{
+                padding: '0.15rem 0.5rem',
+                borderRadius: '9999px',
+                backgroundColor: subTab === 'active' ? '#10b981' : '#ef4444',
+                color: '#ffffff',
+                fontSize: '0.72rem',
+                fontWeight: 800
+              }}
+            >
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
 
         <button
+          type="button"
           onClick={fetchStores}
           disabled={loading}
           style={{
-            minWidth: '40px',
-            minHeight: '40px',
-            borderRadius: '0.55rem',
+            minWidth: '44px',
+            minHeight: '44px',
+            borderRadius: '0.65rem',
             border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'}`,
             backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
             color: isDark ? '#e5e7eb' : '#374151',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: loading ? 'not-allowed' : 'pointer'
+            cursor: loading ? 'not-allowed' : 'pointer',
+            flexShrink: 0
           }}
+          aria-label="Segarkan data"
         >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={17} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
+
+      {/* 4.B Active Filter Chips Row (If filters are active) */}
+      {activeFilterCount > 0 && (
+        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.2rem', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              padding: '0.3rem 0.65rem',
+              borderRadius: '9999px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+              color: '#ef4444',
+              border: 'none',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+          >
+            <RotateCcw size={12} />
+            Reset Semua
+          </button>
+
+          {planFilter !== 'all' && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                color: isDark ? '#f3f4f6' : '#111827',
+                flexShrink: 0
+              }}
+            >
+              Paket: {planFilter}
+              <button
+                type="button"
+                onClick={() => { setPlanFilter('all'); setPage(1); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {planStatusFilter !== 'all' && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                color: isDark ? '#f3f4f6' : '#111827',
+                flexShrink: 0
+              }}
+            >
+              Status: {planStatusFilter}
+              <button
+                type="button"
+                onClick={() => { setPlanStatusFilter('all'); setPage(1); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {dormancyLevelFilter !== 'all' && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                color: isDark ? '#f3f4f6' : '#111827',
+                flexShrink: 0
+              }}
+            >
+              Dormancy: {dormancyLevelFilter}
+              <button
+                type="button"
+                onClick={() => { setDormancyLevelFilter('all'); setPage(1); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {productFilter !== 'all' && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                color: isDark ? '#f3f4f6' : '#111827',
+                flexShrink: 0
+              }}
+            >
+              {productFilter === 'has_products' ? 'Ada Produk' : 'Tanpa Produk'}
+              <button
+                type="button"
+                onClick={() => { setProductFilter('all'); setPage(1); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {customDomainFilter !== 'all' && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                color: isDark ? '#f3f4f6' : '#111827',
+                flexShrink: 0
+              }}
+            >
+              {customDomainFilter === 'with_domain' ? 'Custom Domain' : 'Subdomain'}
+              <button
+                type="button"
+                onClick={() => { setCustomDomainFilter('all'); setPage(1); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {violationTypeFilter !== 'all' && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2',
+                color: '#ef4444',
+                flexShrink: 0
+              }}
+            >
+              Sanksi: {violationTypeFilter}
+              <button
+                type="button"
+                onClick={() => { setViolationTypeFilter('all'); setPage(1); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {sortFilter !== 'created_at_desc' && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                color: isDark ? '#f3f4f6' : '#111827',
+                flexShrink: 0
+              }}
+            >
+              Urut: {sortFilter === 'products_desc' ? 'Produk Terbanyak' : sortFilter === 'title_asc' ? 'Nama A-Z' : sortFilter === 'title_desc' ? 'Nama Z-A' : sortFilter === 'activity_desc' ? 'Terakhir Aktif' : 'Terlama'}
+              <button
+                type="button"
+                onClick={() => { setSortFilter('created_at_desc'); setPage(1); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* 5. Mobile Single-Column Card List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -718,7 +1051,628 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
         </div>
       )}
 
-      {/* 7. Mobile Bottom Sheet Detail Inspector (Rule 7.A.3 & Rule 2) */}
+      {/* 7. Mobile Filter Detail Bottom Sheet (Rule 7.A.3 & Rule 2) */}
+      {isFilterSheetOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)'
+          }}
+          onClick={() => setIsFilterSheetOpen(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxHeight: '88vh',
+              borderTopLeftRadius: '1.25rem',
+              borderTopRightRadius: '1.25rem',
+              backgroundColor: isDark ? '#18181b' : '#ffffff',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+              borderBottom: 'none',
+              boxShadow: '0 -8px 32px rgba(0,0,0,0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Sheet Drag Handle */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '0.65rem 0 0.25rem 0' }}>
+              <div
+                style={{
+                  width: '40px',
+                  height: '4px',
+                  borderRadius: '2px',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : '#d1d5db'
+                }}
+              />
+            </div>
+
+            {/* Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.75rem 1.25rem',
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <SlidersHorizontal size={20} color={subTab === 'active' ? '#10b981' : '#ef4444'} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: isDark ? '#f3f4f6' : '#111827' }}>
+                    {subTab === 'active' ? 'Filter Detail Profil Aktif' : 'Filter Detail Pelanggaran & Sanksi'}
+                  </h3>
+                  <div style={{ fontSize: '0.72rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
+                    Kriteria pencarian terinci berbasis atribut database
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFilterSheetOpen(false)}
+                style={{
+                  minWidth: '40px',
+                  minHeight: '40px',
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb',
+                  color: isDark ? '#e5e7eb' : '#374151',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable Filter Content */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '1rem 1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.15rem'
+              }}
+            >
+              {/* SECTION: URUTKAN */}
+              <div>
+                <span
+                  style={{
+                    fontSize: '0.76rem',
+                    fontWeight: 800,
+                    color: isDark ? '#9ca3af' : '#4b5563',
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  Urutkan Berdasarkan
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+                  {(subTab === 'active'
+                    ? [
+                        { key: 'created_at_desc', label: 'Terbaru Terdaftar' },
+                        { key: 'products_desc', label: 'Produk Terbanyak' },
+                        { key: 'activity_desc', label: 'Terakhir Aktif' },
+                        { key: 'created_at_asc', label: 'Terlama Terdaftar' },
+                        { key: 'title_asc', label: 'Nama (A - Z)' },
+                        { key: 'title_desc', label: 'Nama (Z - A)' }
+                      ]
+                    : [
+                        { key: 'created_at_desc', label: 'Terbaru Disanksi' },
+                        { key: 'created_at_asc', label: 'Terlama Disanksi' },
+                        { key: 'title_asc', label: 'Nama (A - Z)' },
+                        { key: 'title_desc', label: 'Nama (Z - A)' }
+                      ]
+                  ).map((opt) => {
+                    const isSelected = tempSort === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setTempSort(opt.key)}
+                        style={{
+                          padding: '0.5rem 0.65rem',
+                          borderRadius: '0.65rem',
+                          fontSize: '0.78rem',
+                          fontWeight: isSelected ? 800 : 500,
+                          minHeight: '44px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          textAlign: 'left',
+                          border: isSelected
+                            ? `1.5px solid ${subTab === 'active' ? '#10b981' : '#ef4444'}`
+                            : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                          backgroundColor: isSelected
+                            ? (subTab === 'active'
+                                ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)')
+                                : (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)'))
+                            : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                          color: isSelected
+                            ? (subTab === 'active' ? '#10b981' : '#ef4444')
+                            : (isDark ? '#e5e7eb' : '#374151'),
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt.label}</span>
+                        {isSelected && <Check size={14} strokeWidth={3} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* KHUSUS TAB AKTIF */}
+              {subTab === 'active' ? (
+                <>
+                  {/* SECTION: PAKET LANGGANAN */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Paket Langganan
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Paket' },
+                        { key: 'free', label: 'Gratis (Free)' },
+                        { key: 'pro_starter', label: 'Pro Starter' },
+                        { key: 'pro_business', label: 'Pro Business' }
+                      ].map((opt) => {
+                        const isSelected = tempPlan === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempPlan(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.78rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected
+                                ? '1.5px solid #10b981'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#10b981' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && <Check size={14} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION: STATUS MASA AKTIF PAKET */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Status Masa Aktif Akun (Plan Status)
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Status' },
+                        { key: 'active', label: 'Aktif Normal' },
+                        { key: 'grace_period', label: 'Masa Tenggang' },
+                        { key: 'expired', label: 'Kedaluwarsa' }
+                      ].map((opt) => {
+                        const isSelected = tempPlanStatus === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempPlanStatus(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.78rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected
+                                ? '1.5px solid #10b981'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#10b981' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && <Check size={14} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION: TINGKAT DORMANCY / KESEHATAN */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Kesehatan Toko (Dormancy)
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Tingkat' },
+                        { key: 'active', label: 'Sehat & Aktif' },
+                        { key: 'warning_1', label: 'Peringatan 1 (30 Hari Inaktif)' },
+                        { key: 'warning_2', label: 'Peringatan 2 (60 Hari Inaktif)' }
+                      ].map((opt) => {
+                        const isSelected = tempDormancyLevel === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempDormancyLevel(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.78rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected
+                                ? '1.5px solid #10b981'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#10b981' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt.label}</span>
+                            {isSelected && <Check size={14} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION: KETERSEDIAAN PRODUK */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Ketersediaan Produk
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua' },
+                        { key: 'has_products', label: 'Ada Produk (>0)' },
+                        { key: 'no_products', label: 'Belum Ada (0)' }
+                      ].map((opt) => {
+                        const isSelected = tempProductFilter === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempProductFilter(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.5rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.76rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              border: isSelected
+                                ? '1.5px solid #10b981'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#10b981' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION: CUSTOM DOMAIN */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Penggunaan Domain
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua' },
+                        { key: 'with_domain', label: 'Custom Domain' },
+                        { key: 'no_domain', label: 'Subdomain' }
+                      ].map((opt) => {
+                        const isSelected = tempCustomDomain === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempCustomDomain(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.5rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.76rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              border: isSelected
+                                ? '1.5px solid #10b981'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#10b981' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* KHUSUS TAB PELANGGARAN & BANNED */}
+                  {/* SECTION: JENIS PELANGGARAN / SANKSI */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Jenis &amp; Kategori Pelanggaran
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Pelanggaran' },
+                        { key: 'moderation', label: 'Moderasi Konten' },
+                        { key: 'dormancy', label: 'Inaktif / Dormancy' },
+                        { key: 'blacklisted', label: 'Blacklist Permanen' },
+                        { key: 'suspended', label: 'Suspended Sementara' },
+                        { key: 'purged', label: 'Dihapus Sistem' }
+                      ].map((opt) => {
+                        const isSelected = tempViolationType === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempViolationType(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.78rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected
+                                ? '1.5px solid #ef4444'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#ef4444' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt.label}</span>
+                            {isSelected && <Check size={14} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION: PAKET SEBELUM SANKSI */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Paket Akun Sebelum Disanksi
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Paket' },
+                        { key: 'free', label: 'Gratis (Free)' },
+                        { key: 'pro_starter', label: 'Pro Starter' },
+                        { key: 'pro_business', label: 'Pro Business' }
+                      ].map((opt) => {
+                        const isSelected = tempPlan === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempPlan(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.78rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected
+                                ? '1.5px solid #ef4444'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#ef4444' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && <Check size={14} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Sticky Sheet Action Footer */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.75rem',
+                padding: '0.85rem 1.25rem',
+                borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`,
+                backgroundColor: isDark ? '#18181b' : '#ffffff'
+              }}
+            >
+              <button
+                type="button"
+                onClick={resetTempFilters}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  borderRadius: '0.65rem',
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#d1d5db'}`,
+                  backgroundColor: 'transparent',
+                  color: isDark ? '#e5e7eb' : '#374151',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <RotateCcw size={15} />
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={applyFilters}
+                style={{
+                  flex: 2,
+                  minHeight: '44px',
+                  borderRadius: '0.65rem',
+                  border: 'none',
+                  backgroundColor: subTab === 'active' ? '#10b981' : '#ef4444',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '0.85rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  cursor: 'pointer',
+                  boxShadow: subTab === 'active'
+                    ? '0 4px 14px rgba(16, 185, 129, 0.35)'
+                    : '0 4px 14px rgba(239, 68, 68, 0.35)'
+                }}
+              >
+                <Check size={16} strokeWidth={3} />
+                Terapkan Filter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. Mobile Bottom Sheet Detail Inspector (Rule 7.A.3 & Rule 2) */}
       {selectedStoreID !== null && (
         <div
           style={{

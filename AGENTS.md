@@ -136,6 +136,7 @@ Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewaki
        - Filter dan kategori disajikan dalam deretan horizontal scrollable pills dengan indikator geser yang halus.
    - **Layout Single-Column Vertical Flow**: Data kompleks disajikan dalam format **Card List** rapi dengan badge status yang jelas.
    - **Dialog Overlay Bottom Sheet**: Seluruh formulir pop-up, filter, atau konfirmasi tindakan wajib menggunakan **Bottom Sheet** yang meluncur dari dasar layar.
+   - **Haram Native Select / Dropdown Kaku di Mobile**: Dilarang keras memakai HTML `<select>` kaku atau dropdown sempit desktop pada form-factor mobile. Seluruh pemilihan filter/opsi WAJIB menggunakan **Modal / Bottom Sheet Filter** khas mobile (drag handle, header Lucide icon, touch pills $\ge$ 44px dengan tanda centang `Check`, tombol Reset & Terapkan, dan intersepsi back `useModalBackHandler`).
 
 ### B. Single Source of Truth & Database Consistency (MANDATORY)
 - **Tabel & API yang Sama**: Seluruh transaksi, operasi data, pembacaan, dan penulisan dari ketiga device **wajib menggunakan endpoint API Go yang sama dan tersimpan ke tabel PostgreSQL yang sama**. Tidak boleh ada skema database terpisah antar-device.

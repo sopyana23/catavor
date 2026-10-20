@@ -674,6 +674,32 @@ func TestAdminListStores_IsolationAndPagination_SQLite(t *testing.T) {
 			t.Errorf("expected 2 top products, got %d", len(topProducts))
 		}
 	})
+
+	t.Run("server_side_deep_filters", func(t *testing.T) {
+		// Filter Toko Aktif dengan Produk vs Tanpa Produk
+		code, resp := storeReq(t, app, "GET", "/admin/stores?status=active&product_filter=has_products", "", map[string]string{"X-Test-Actor": "staff"})
+		if code != 200 {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		data, _ := resp["data"].([]any)
+		if len(data) != 1 {
+			t.Fatalf("expected 1 store with products, got %d", len(data))
+		}
+
+		// Filter Toko Banned dengan Pelanggaran Blacklisted
+		codeBanned, respBanned := storeReq(t, app, "GET", "/admin/stores?status=banned&violation_type=blacklisted", "", map[string]string{"X-Test-Actor": "staff"})
+		if codeBanned != 200 {
+			t.Fatalf("status = %d, want 200", codeBanned)
+		}
+		dataBanned, _ := respBanned["data"].([]any)
+		if len(dataBanned) != 1 {
+			t.Fatalf("expected 1 blacklisted store, got %d", len(dataBanned))
+		}
+		m := dataBanned[0].(map[string]any)
+		if m["slug"] != "toko-banned" {
+			t.Errorf("expected toko-banned, got %v", m["slug"])
+		}
+	})
 }
 
 func itoa(u uint) string {
