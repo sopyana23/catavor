@@ -509,6 +509,10 @@ func main() {
 		adminApi.Get("/stores/search", notificationHandler.SearchStores)
 		adminApi.Get("/users/search", notificationHandler.SearchUsers)
 
+		// Store Management / Directory Catalog Profiles (Server-Side Paginated & Filtered)
+		adminApi.Get("/stores", storeHandler.AdminListStores)
+		adminApi.Get("/stores/:id", storeHandler.AdminGetStoreDetail)
+
 		// Moderasi Komentar Artikel (wewenang platform/content, tidak butuh toko)
 		// Dipindah dari grup "guarded" (StoreOwnerRequired) sesuai OWASP:
 		// jalur admin lintas-tenant harus explicit & separately authorized.

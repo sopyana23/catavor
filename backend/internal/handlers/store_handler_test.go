@@ -134,6 +134,8 @@ func storeApp(t *testing.T, db *gorm.DB) *fiber.App {
 	app.Get("/stores/check-slug/:slug", h.CheckSlug)
 	app.Put("/stores/profile", actor, h.UpdateStore)
 	app.Delete("/stores/:id", actor, h.DeleteStore)
+	app.Get("/admin/stores", actor, h.AdminListStores)
+	app.Get("/admin/stores/:id", actor, h.AdminGetStoreDetail)
 	return app
 }
 
@@ -532,6 +534,144 @@ func TestStoreDelete_SQLite(t *testing.T) {
 		db.Model(&models.Store{}).Where("id = ?", own.ID).Count(&count)
 		if count != 1 {
 			t.Fatalf("toko terhapus walau konfirmasi salah (count=%d)", count)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// AdminListStores & AdminGetStoreDetail — audit kepatuhan isolasi status & paginasi
+// ---------------------------------------------------------------------------
+
+func TestAdminListStores_IsolationAndPagination_SQLite(t *testing.T) {
+	db := newTestDB(t)
+	app := storeApp(t, db)
+
+	// Seed Users
+	u1 := models.User{ID: 101, Name: "Owner Satu", Email: "owner1@example.com"}
+	u2 := models.User{ID: 102, Name: "Owner Dua", Email: "owner2@example.com"}
+	u3 := models.User{ID: 103, Name: "Pelanggar Toko", Email: "banned@example.com"}
+	db.Create(&u1)
+	db.Create(&u2)
+	db.Create(&u3)
+
+	// Seed Stores: 2 Active, 1 Suspended, 1 Banned
+	s1 := models.Store{UserID: 101, Slug: "toko-aktif-satu", StoreTitle: "Toko Aktif Satu", Plan: "free", DormancyStatus: "active", IsSuspended: false, IsBlacklisted: false}
+	s2 := models.Store{UserID: 102, Slug: "toko-aktif-dua", StoreTitle: "Toko Aktif Dua Pro", Plan: "pro_starter", DormancyStatus: "active", IsSuspended: false, IsBlacklisted: false}
+	s3 := models.Store{UserID: 103, Slug: "toko-suspended", StoreTitle: "Toko Suspended", Plan: "free", DormancyStatus: "suspended", IsSuspended: true, SuspensionReason: "Pelanggaran konten satwa"}
+	s4 := models.Store{UserID: 103, Slug: "toko-banned", StoreTitle: "Toko Banned", Plan: "free", DormancyStatus: "banned", IsBlacklisted: true, SuspensionReason: "Penipuan transaksi"}
+	db.Create(&s1)
+	db.Create(&s2)
+	db.Create(&s3)
+	db.Create(&s4)
+
+	// Seed some products for s1
+	p1 := models.Product{StoreID: s1.ID, Name: "Produk Unggulan Satu", Price: 50000}
+	p2 := models.Product{StoreID: s1.ID, Name: "Produk Unggulan Dua", Price: 75000}
+	db.Create(&p1)
+	db.Create(&p2)
+
+	t.Run("default_active_stores_only", func(t *testing.T) {
+		code, resp := storeReq(t, app, "GET", "/admin/stores?status=active", "", map[string]string{"X-Test-Actor": "staff"})
+		if code != 200 {
+			t.Fatalf("status = %d, want 200 (resp: %v)", code, resp)
+		}
+		data, ok := resp["data"].([]any)
+		if !ok || len(data) != 2 {
+			t.Fatalf("expected 2 active stores, got %d (%v)", len(data), resp)
+		}
+		// Pastikan toko suspended/banned tidak masuk
+		for _, item := range data {
+			m := item.(map[string]any)
+			slug := m["slug"].(string)
+			if slug == "toko-suspended" || slug == "toko-banned" {
+				t.Errorf("toko pelanggaran/banned %s bocor ke daftar aktif!", slug)
+			}
+		}
+	})
+
+	t.Run("isolated_banned_stores_only", func(t *testing.T) {
+		code, resp := storeReq(t, app, "GET", "/admin/stores?status=banned", "", map[string]string{"X-Test-Actor": "staff"})
+		if code != 200 {
+			t.Fatalf("status = %d, want 200 (resp: %v)", code, resp)
+		}
+		data, ok := resp["data"].([]any)
+		if !ok || len(data) != 2 {
+			t.Fatalf("expected 2 banned/suspended stores, got %d (%v)", len(data), resp)
+		}
+		for _, item := range data {
+			m := item.(map[string]any)
+			slug := m["slug"].(string)
+			if slug == "toko-aktif-satu" || slug == "toko-aktif-dua" {
+				t.Errorf("toko aktif %s masuk ke daftar banned!", slug)
+			}
+		}
+	})
+
+	t.Run("server_side_search", func(t *testing.T) {
+		code, resp := storeReq(t, app, "GET", "/admin/stores?status=active&q=Pro", "", map[string]string{"X-Test-Actor": "staff"})
+		if code != 200 {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		data, ok := resp["data"].([]any)
+		if !ok || len(data) != 1 {
+			t.Fatalf("expected 1 search result, got %d", len(data))
+		}
+		m := data[0].(map[string]any)
+		if m["slug"] != "toko-aktif-dua" {
+			t.Errorf("slug = %v, want toko-aktif-dua", m["slug"])
+		}
+	})
+
+	t.Run("server_side_plan_filter", func(t *testing.T) {
+		code, resp := storeReq(t, app, "GET", "/admin/stores?status=active&plan=pro_starter", "", map[string]string{"X-Test-Actor": "staff"})
+		if code != 200 {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		data, ok := resp["data"].([]any)
+		if !ok || len(data) != 1 {
+			t.Fatalf("expected 1 pro_starter store, got %d", len(data))
+		}
+	})
+
+	t.Run("server_side_numbered_pagination", func(t *testing.T) {
+		code, resp := storeReq(t, app, "GET", "/admin/stores?status=active&page=1&limit=1", "", map[string]string{"X-Test-Actor": "staff"})
+		if code != 200 {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		data, ok := resp["data"].([]any)
+		if !ok || len(data) != 1 {
+			t.Fatalf("expected 1 store for page 1 limit 1, got %d", len(data))
+		}
+		pag, ok := resp["pagination"].(map[string]any)
+		if !ok {
+			t.Fatalf("missing pagination object: %v", resp)
+		}
+		if int(pag["total"].(float64)) != 2 {
+			t.Errorf("total = %v, want 2", pag["total"])
+		}
+		if int(pag["total_pages"].(float64)) != 2 {
+			t.Errorf("total_pages = %v, want 2", pag["total_pages"])
+		}
+	})
+
+	t.Run("store_detail_inspection", func(t *testing.T) {
+		code, resp := storeReq(t, app, "GET", "/admin/stores/"+itoa(s1.ID), "", map[string]string{"X-Test-Actor": "staff"})
+		if code != 200 {
+			t.Fatalf("status = %d, want 200 (resp: %v)", code, resp)
+		}
+		data, ok := resp["data"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected data object, got %v", resp)
+		}
+		if data["slug"] != "toko-aktif-satu" {
+			t.Errorf("slug = %v, want toko-aktif-satu", data["slug"])
+		}
+		if int(resp["products_count"].(float64)) != 2 {
+			t.Errorf("products_count = %v, want 2", resp["products_count"])
+		}
+		topProducts, ok := resp["top_products"].([]any)
+		if !ok || len(topProducts) != 2 {
+			t.Errorf("expected 2 top products, got %d", len(topProducts))
 		}
 	})
 }

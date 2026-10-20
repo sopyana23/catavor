@@ -91,6 +91,7 @@ import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '..
 import { PlatformAdminShell } from './PlatformAdminShell';
 import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
+import { AdminStoresManagement } from './AdminStoresManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
@@ -5042,31 +5043,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* 4. MODULE 2: TATA KELOLA TOKO & DORMANSI                                  */}
       {/* ========================================================================= */}
       {activeView === 'stores' && canAccessCompliance && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-          <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-            <h4 style={{ margin: '0 0 0.65rem 0', fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
-              Metrik Dormansi Toko
-            </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.55rem' }}>
-              <div style={{ backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.08)', padding: '0.75rem 0.5rem', borderRadius: '0.75rem', border: '1px solid rgba(16, 185, 129, 0.25)', textAlign: 'center' }}>
-                <span style={{ fontSize: '0.65rem', color: theme.textSecondary, display: 'block', marginBottom: '0.15rem' }}>Toko Aktif</span>
-                <strong style={{ fontSize: '1.05rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900 }}>{dormancyMetrics?.active_stores || 1}</strong>
-              </div>
-              <div style={{ backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : 'rgba(245, 158, 11, 0.08)', padding: '0.75rem 0.5rem', borderRadius: '0.75rem', border: '1px solid rgba(245, 158, 11, 0.25)', textAlign: 'center' }}>
-                <span style={{ fontSize: '0.65rem', color: theme.textSecondary, display: 'block', marginBottom: '0.15rem' }}>Dorman</span>
-                <strong style={{ fontSize: '1.05rem', color: isDark ? '#fbbf24' : '#d97706', fontWeight: 900 }}>{dormancyMetrics?.dormant_stores || 0}</strong>
-              </div>
-              <div style={{ backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.08)', padding: '0.75rem 0.5rem', borderRadius: '0.75rem', border: '1px solid rgba(239, 68, 68, 0.25)', textAlign: 'center' }}>
-                <span style={{ fontSize: '0.65rem', color: theme.textSecondary, display: 'block', marginBottom: '0.15rem' }}>Ditangguhkan</span>
-                <strong style={{ fontSize: '1.05rem', color: isDark ? '#f87171' : '#dc2626', fontWeight: 900 }}>{dormancyMetrics?.suspended_stores || 0}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ padding: '0.95rem 1rem', borderRadius: '0.95rem', backgroundColor: theme.cardAlt, border: `1px solid ${theme.border}`, fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.55 }}>
-            Kebijakan dormansi otomatis mengarsipkan katalog toko yang tidak aktif lebih dari 45 hari untuk menjaga kualitas pencarian ekosistem Catavor.
-          </div>
-        </div>
+        <AdminStoresManagement
+          token={token}
+          themeMode={themeMode}
+          onNavigateToTab={(tab: string) => setActiveView(tab as any)}
+        />
       )}
 
       {/* ========================================================================= */}

@@ -2175,3 +2175,236 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		"next_store":       nextStore,
 	})
 }
+
+// AdminStoreListItem represents a registered store catalog for platform management
+type AdminStoreListItem struct {
+	ID                 uint       `json:"id"`
+	UserID             uint       `json:"user_id"`
+	Slug               string     `json:"slug"`
+	StoreTitle         string     `json:"store_title"`
+	StoreSlogan        string     `json:"store_slogan"`
+	StoreLogoURL       string     `json:"store_logo_url"`
+	StoreTheme         string     `json:"store_theme"`
+	WhatsappNumber     string     `json:"whatsapp_number"`
+	OfficialWebsite    string     `json:"official_website"`
+	CustomDomain       *string    `json:"custom_domain,omitempty"`
+	CustomDomainStatus string     `json:"custom_domain_status"`
+	Plan               string     `json:"plan"`
+	PlanStatus         string     `json:"plan_status"`
+	PlanExpiresAt      *time.Time `json:"plan_expires_at,omitempty"`
+	StorageUsedBytes   int64      `json:"storage_used_bytes"`
+	DormancyStatus     string     `json:"dormancy_status"`
+	IsSuspended        bool       `json:"is_suspended"`
+	IsBlacklisted      bool       `json:"is_blacklisted"`
+	SuspensionReason   string     `json:"suspension_reason"`
+	LastActivityAt     time.Time  `json:"last_activity_at"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+	UserName           string     `json:"user_name"`
+	UserEmail          string     `json:"user_email"`
+	ProductsCount      int64      `json:"products_count"`
+}
+
+// AdminListStores provides server-side paginated, cached, filtered and searchable store catalogs.
+// By default, it strictly filters ACTIVE stores only. Banned/suspended stores are isolated into a separate view.
+func (h *StoreHandler) AdminListStores(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum terhubung.",
+		})
+	}
+
+	// 1. Parse Pagination Parameters
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	// 2. Filter Status (Active by default vs Banned/Suspended)
+	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status", "active")))
+	planFilter := strings.ToLower(strings.TrimSpace(c.Query("plan", "all")))
+	sortFilter := strings.ToLower(strings.TrimSpace(c.Query("sort", "created_at_desc")))
+	searchQuery := strings.TrimSpace(c.Query("q", ""))
+
+	// 3. Base Query with JOIN on users table
+	query := h.db.Table("stores").
+		Select(`
+			stores.id,
+			stores.user_id,
+			stores.slug,
+			stores.store_title,
+			stores.store_slogan,
+			stores.store_logo_url,
+			stores.store_theme,
+			stores.whatsapp_number,
+			stores.official_website,
+			stores.custom_domain,
+			stores.custom_domain_status,
+			stores.plan,
+			stores.plan_status,
+			stores.plan_expires_at,
+			stores.storage_used_bytes,
+			stores.dormancy_status,
+			stores.is_suspended,
+			stores.is_blacklisted,
+			stores.suspension_reason,
+			stores.last_activity_at,
+			stores.created_at,
+			stores.updated_at,
+			COALESCE(users.name, '') as user_name,
+			COALESCE(users.email, '') as user_email,
+			COALESCE((SELECT COUNT(*) FROM products WHERE products.store_id = stores.id AND products.deleted_at IS NULL), 0) as products_count
+		`).
+		Joins("LEFT JOIN users ON users.id = stores.user_id")
+
+	// Apply Status Isolation:
+	if statusFilter == "active" {
+		query = query.Where("stores.dormancy_status NOT IN ('banned', 'suspended', 'purged') AND stores.is_suspended = false AND stores.is_blacklisted = false")
+	} else if statusFilter == "banned" {
+		query = query.Where("(stores.dormancy_status IN ('banned', 'suspended', 'purged') OR stores.is_suspended = true OR stores.is_blacklisted = true)")
+	}
+
+	// Apply Plan Filter:
+	if planFilter != "" && planFilter != "all" {
+		query = query.Where("stores.plan = ?", planFilter)
+	}
+
+	// Apply Search Query:
+	if searchQuery != "" {
+		likeOp := "ILIKE"
+		if h.db.Dialector != nil && h.db.Dialector.Name() == "sqlite" {
+			likeOp = "LIKE"
+		}
+		escaped := "%" + escapeLikePattern(searchQuery) + "%"
+		searchClause := fmt.Sprintf(`(stores.store_title %s ? OR stores.slug %s ? OR stores.whatsapp_number %s ? OR users.name %s ? OR users.email %s ?)`, likeOp, likeOp, likeOp, likeOp, likeOp)
+		query = query.Where(searchClause, escaped, escaped, escaped, escaped, escaped)
+	}
+
+	// 4. Calculate Total Count for this filtered query
+	var total int64
+	countQuery := h.db.Table("stores").Joins("LEFT JOIN users ON users.id = stores.user_id")
+	if statusFilter == "active" {
+		countQuery = countQuery.Where("stores.dormancy_status NOT IN ('banned', 'suspended', 'purged') AND stores.is_suspended = false AND stores.is_blacklisted = false")
+	} else if statusFilter == "banned" {
+		countQuery = countQuery.Where("(stores.dormancy_status IN ('banned', 'suspended', 'purged') OR stores.is_suspended = true OR stores.is_blacklisted = true)")
+	}
+	if planFilter != "" && planFilter != "all" {
+		countQuery = countQuery.Where("stores.plan = ?", planFilter)
+	}
+	if searchQuery != "" {
+		likeOp := "ILIKE"
+		if h.db.Dialector != nil && h.db.Dialector.Name() == "sqlite" {
+			likeOp = "LIKE"
+		}
+		escaped := "%" + escapeLikePattern(searchQuery) + "%"
+		searchClause := fmt.Sprintf(`(stores.store_title %s ? OR stores.slug %s ? OR stores.whatsapp_number %s ? OR users.name %s ? OR users.email %s ?)`, likeOp, likeOp, likeOp, likeOp, likeOp)
+		countQuery = countQuery.Where(searchClause, escaped, escaped, escaped, escaped, escaped)
+	}
+	countQuery.Count(&total)
+
+	// 5. Apply Sorting
+	switch sortFilter {
+	case "created_at_asc":
+		query = query.Order("stores.created_at ASC")
+	case "products_desc":
+		query = query.Order("products_count DESC, stores.created_at DESC")
+	case "title_asc":
+		query = query.Order("stores.store_title ASC")
+	case "activity_desc":
+		query = query.Order("stores.last_activity_at DESC")
+	default: // created_at_desc
+		query = query.Order("stores.created_at DESC")
+	}
+
+	// 6. Execute Paginated Query
+	var items []AdminStoreListItem
+	if err := query.Limit(limit).Offset(offset).Scan(&items).Error; err != nil {
+		log.Error().Err(err).Msg("AdminListStores failed to execute query")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengambil daftar katalog toko.",
+		})
+	}
+	if items == nil {
+		items = []AdminStoreListItem{}
+	}
+
+	// 7. Calculate Global Statistics for Status Badges
+	var stats struct {
+		TotalActive      int64 `json:"total_active"`
+		TotalBanned      int64 `json:"total_banned"`
+		TotalFree        int64 `json:"total_free"`
+		TotalProStarter  int64 `json:"total_pro_starter"`
+		TotalProBusiness int64 `json:"total_pro_business"`
+	}
+	h.db.Table("stores").Where("dormancy_status NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false").Count(&stats.TotalActive)
+	h.db.Table("stores").Where("dormancy_status IN ('banned', 'suspended', 'purged') OR is_suspended = true OR is_blacklisted = true").Count(&stats.TotalBanned)
+	h.db.Table("stores").Where("plan = 'free' AND dormancy_status NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false").Count(&stats.TotalFree)
+	h.db.Table("stores").Where("plan = 'pro_starter' AND dormancy_status NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false").Count(&stats.TotalProStarter)
+	h.db.Table("stores").Where("plan = 'pro_business' AND dormancy_status NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false").Count(&stats.TotalProBusiness)
+
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	// 8. Cache-Control Header (always fresh with validation)
+	c.Set("Cache-Control", "private, no-cache, must-revalidate")
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    items,
+		"pagination": fiber.Map{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+		"stats": stats,
+	})
+}
+
+// AdminGetStoreDetail returns comprehensive store inspection data for modal/sheet inspection.
+func (h *StoreHandler) AdminGetStoreDetail(c *fiber.Ctx) error {
+	idParam := c.Params("id")
+	storeID, err := strconv.Atoi(idParam)
+	if err != nil || storeID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID katalog toko tidak valid.",
+		})
+	}
+
+	var store models.Store
+	if err := h.db.Preload("User").First(&store, storeID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Profil katalog tidak ditemukan.",
+		})
+	}
+
+	var productsCount int64
+	h.db.Model(&models.Product{}).Where("store_id = ? AND deleted_at IS NULL", store.ID).Count(&productsCount)
+
+	var categoriesCount int64
+	h.db.Model(&models.Category{}).Where("store_id = ?", store.ID).Count(&categoriesCount)
+
+	// Top products in this store
+	var topProducts []models.Product
+	h.db.Where("store_id = ? AND deleted_at IS NULL", store.ID).
+		Order("created_at desc").Limit(5).Find(&topProducts)
+
+	return c.JSON(fiber.Map{
+		"success":          true,
+		"data":             store,
+		"products_count":   productsCount,
+		"categories_count": categoriesCount,
+		"top_products":     topProducts,
+	})
+}

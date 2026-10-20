@@ -12,6 +12,7 @@ import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletRailNav } from './components/TabletRailNav';
 import { TabletMasterDetailView } from './components/TabletMasterDetailView';
 import { TabletSegmentedPagination } from './components/TabletSegmentedPagination';
+import { TabletPlatformStoresView } from './components/TabletPlatformStoresView';
 import { type UserRBACInfo, isPlatformAdmin, getRoleBadge } from './utils/rbac';
 
 export const App: React.FC = () => {
@@ -52,7 +53,14 @@ export const App: React.FC = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Platform Admin State
-  const [platformView, setPlatformView] = useState<string>('dashboard');
+  const [platformView, setPlatformView] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab') || params.get('view');
+      if (tab) return tab;
+    }
+    return 'dashboard';
+  });
 
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
@@ -520,7 +528,7 @@ export const App: React.FC = () => {
   // 3. AUTHENTICATED ADMIN ROUTES:
   if (isAdminRoute && token) {
     // A. PLATFORM ROLE PORTAL (Superadmin, Compliance, CS, Finance)
-    const isPlatformRoute = currentPath.startsWith('/platform') || currentPath.startsWith('/ops');
+    const isPlatformRoute = currentPath.startsWith('/platform') || currentPath.startsWith('/ops') || (isPlatformAdmin(currentUser) && (new URLSearchParams(window.location.search).get('tab') === 'stores' || platformView === 'stores'));
     if (isPlatformAdmin(currentUser) && isPlatformRoute) {
       const roleInfo = getRoleBadge(currentUser?.platform_role || 'superadmin');
       return (
@@ -534,7 +542,14 @@ export const App: React.FC = () => {
         }}>
           <TabletRailNav
             activeView={platformView}
-            onSwitchView={setPlatformView}
+            onSwitchView={(newView) => {
+              setPlatformView(newView);
+              if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', newView);
+                window.history.pushState({}, '', url.toString());
+              }
+            }}
             currentUser={currentUser}
             roleBadge={roleInfo.label}
             onLogout={handleLogout}
@@ -561,25 +576,32 @@ export const App: React.FC = () => {
                 {currentUser?.email}
               </div>
             </header>
-            <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
-              <div style={{
-                padding: '2.5rem',
-                borderRadius: '1rem',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-light)',
-                textAlign: 'center',
-                maxWidth: '640px',
-                margin: '0 auto'
-              }}>
-                <ShieldCheck size={48} color="#10b981" style={{ marginBottom: '1rem' }} />
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                  Konsol Pengelola Platform Terhubung
-                </h2>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
-                  Akses operasional resmi untuk pemantauan sistem, kepatuhan, tiket bantuan CS, dan rekber keuangan platform.
-                </p>
+            {platformView === 'stores' ? (
+              <TabletPlatformStoresView
+                token={token || ''}
+                onNavigateToTab={setPlatformView}
+              />
+            ) : (
+              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+                <div style={{
+                  padding: '2.5rem',
+                  borderRadius: '1rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  textAlign: 'center',
+                  maxWidth: '640px',
+                  margin: '0 auto'
+                }}>
+                  <ShieldCheck size={48} color="#10b981" style={{ marginBottom: '1rem' }} />
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+                    Konsol Pengelola Platform Terhubung
+                  </h2>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                    Akses operasional resmi untuk pemantauan sistem, kepatuhan, tiket bantuan CS, dan rekber keuangan platform.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </main>
         </div>
       );
