@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   ShieldCheck, 
   Laptop, 
@@ -49,6 +49,64 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
   const [revokingAll, setRevokingAll] = useState<boolean>(false);
   const [confirmRevokeTarget, setConfirmRevokeTarget] = useState<UserSessionItem | null>(null);
   const [confirmRevokeOthers, setConfirmRevokeOthers] = useState<boolean>(false);
+
+  // Drag-to-dismiss gesture state for Single Device Revoke Sheet
+  const [targetSheetDragY, setTargetSheetDragY] = useState(0);
+  const [isTargetSheetDragging, setIsTargetSheetDragging] = useState(false);
+  const targetTouchStartY = useRef(0);
+
+  const handleTargetDragStart = (clientY: number) => {
+    targetTouchStartY.current = clientY;
+    setIsTargetSheetDragging(true);
+  };
+
+  const handleTargetDragMove = (clientY: number) => {
+    if (!isTargetSheetDragging) return;
+    const delta = clientY - targetTouchStartY.current;
+    if (delta > 0) {
+      setTargetSheetDragY(delta);
+    } else {
+      setTargetSheetDragY(delta * 0.15);
+    }
+  };
+
+  const handleTargetDragEnd = () => {
+    if (!isTargetSheetDragging) return;
+    setIsTargetSheetDragging(false);
+    if (targetSheetDragY > 70) {
+      setConfirmRevokeTarget(null);
+    }
+    setTargetSheetDragY(0);
+  };
+
+  // Drag-to-dismiss gesture state for Others Devices Revoke Sheet
+  const [othersSheetDragY, setOthersSheetDragY] = useState(0);
+  const [isOthersSheetDragging, setIsOthersSheetDragging] = useState(false);
+  const othersTouchStartY = useRef(0);
+
+  const handleOthersDragStart = (clientY: number) => {
+    othersTouchStartY.current = clientY;
+    setIsOthersSheetDragging(true);
+  };
+
+  const handleOthersDragMove = (clientY: number) => {
+    if (!isOthersSheetDragging) return;
+    const delta = clientY - othersTouchStartY.current;
+    if (delta > 0) {
+      setOthersSheetDragY(delta);
+    } else {
+      setOthersSheetDragY(delta * 0.15);
+    }
+  };
+
+  const handleOthersDragEnd = () => {
+    if (!isOthersSheetDragging) return;
+    setIsOthersSheetDragging(false);
+    if (othersSheetDragY > 70) {
+      setConfirmRevokeOthers(false);
+    }
+    setOthersSheetDragY(0);
+  };
 
   // Setup Back interceptor for confirmation bottom sheets / modals
   useEffect(() => {
@@ -421,25 +479,61 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
               backgroundColor: 'var(--bg-surface, #1e293b)',
               borderTopLeftRadius: '1.25rem',
               borderTopRightRadius: '1.25rem',
-              padding: '1.25rem 1.25rem 2rem 1.25rem',
-              border: '1px solid var(--border-light)'
+              padding: '0.75rem 1.25rem 2rem 1.25rem',
+              border: '1px solid var(--border-light)',
+              transform: `translateY(${Math.max(0, targetSheetDragY)}px)`,
+              transition: isTargetSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.25rem 0 0.65rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleTargetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleTargetDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleTargetDragEnd}
+              onMouseDown={(e) => handleTargetDragStart(e.clientY)}
+              onMouseMove={(e) => handleTargetDragMove(e.clientY)}
+              onMouseUp={handleTargetDragEnd}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: 'rgba(255,255,255,0.25)'
+                }}
+              />
+            </div>
+
+            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, or footer Batal) */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: '1rem',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleTargetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleTargetDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleTargetDragEnd}
+              onMouseDown={(e) => handleTargetDragStart(e.clientY)}
+              onMouseMove={(e) => handleTargetDragMove(e.clientY)}
+              onMouseUp={handleTargetDragEnd}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <AlertTriangle size={18} style={{ color: '#ef4444' }} />
                 <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                   Cabut Akses Perangkat?
                 </h4>
               </div>
-              <button 
-                type="button" 
-                onClick={() => setConfirmRevokeTarget(null)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', padding: '4px' }}
-              >
-                <X size={18} />
-              </button>
             </div>
 
             <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 1.25rem 0', lineHeight: 1.5 }}>
@@ -507,25 +601,61 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
               backgroundColor: 'var(--bg-surface, #1e293b)',
               borderTopLeftRadius: '1.25rem',
               borderTopRightRadius: '1.25rem',
-              padding: '1.25rem 1.25rem 2rem 1.25rem',
-              border: '1px solid var(--border-light)'
+              padding: '0.75rem 1.25rem 2rem 1.25rem',
+              border: '1px solid var(--border-light)',
+              transform: `translateY(${Math.max(0, othersSheetDragY)}px)`,
+              transition: isOthersSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.25rem 0 0.65rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleOthersDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleOthersDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleOthersDragEnd}
+              onMouseDown={(e) => handleOthersDragStart(e.clientY)}
+              onMouseMove={(e) => handleOthersDragMove(e.clientY)}
+              onMouseUp={handleOthersDragEnd}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: 'rgba(255,255,255,0.25)'
+                }}
+              />
+            </div>
+
+            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, or footer Batal) */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: '1rem',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleOthersDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleOthersDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleOthersDragEnd}
+              onMouseDown={(e) => handleOthersDragStart(e.clientY)}
+              onMouseMove={(e) => handleOthersDragMove(e.clientY)}
+              onMouseUp={handleOthersDragEnd}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <AlertTriangle size={18} style={{ color: '#ef4444' }} />
                 <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                   Keluarkan Seluruh Perangkat Lain?
                 </h4>
               </div>
-              <button 
-                type="button" 
-                onClick={() => setConfirmRevokeOthers(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', padding: '4px' }}
-              >
-                <X size={18} />
-              </button>
             </div>
 
             <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 1.25rem 0', lineHeight: 1.5 }}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   AlertTriangle, 
   Trash2, 
@@ -58,6 +58,72 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
   const [accountPassword, setAccountPassword] = useState<string>('');
   const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
   const [accountDeleteError, setAccountDeleteError] = useState<string | null>(null);
+
+  // Drag-to-dismiss gesture state for Store Delete Bottom Sheet
+  const [storeDeleteDragY, setStoreDeleteDragY] = useState(0);
+  const [isStoreDeleteDragging, setIsStoreDeleteDragging] = useState(false);
+  const storeTouchStartY = useRef(0);
+
+  const handleStoreDragStart = (clientY: number) => {
+    if (isDeletingStore) return;
+    storeTouchStartY.current = clientY;
+    setIsStoreDeleteDragging(true);
+  };
+
+  const handleStoreDragMove = (clientY: number) => {
+    if (!isStoreDeleteDragging || isDeletingStore) return;
+    const delta = clientY - storeTouchStartY.current;
+    if (delta > 0) {
+      setStoreDeleteDragY(delta);
+    } else {
+      setStoreDeleteDragY(delta * 0.15);
+    }
+  };
+
+  const handleStoreDragEnd = () => {
+    if (!isStoreDeleteDragging || isDeletingStore) return;
+    setIsStoreDeleteDragging(false);
+    if (storeDeleteDragY > 70) {
+      setShowStoreDeleteModal(false);
+      setStoreSlugConfirmation('');
+      setStorePassword('');
+      setStoreDeleteError(null);
+    }
+    setStoreDeleteDragY(0);
+  };
+
+  // Drag-to-dismiss gesture state for Account Delete Bottom Sheet
+  const [accountDeleteDragY, setAccountDeleteDragY] = useState(0);
+  const [isAccountDeleteDragging, setIsAccountDeleteDragging] = useState(false);
+  const accountTouchStartY = useRef(0);
+
+  const handleAccountDragStart = (clientY: number) => {
+    if (isDeletingAccount) return;
+    accountTouchStartY.current = clientY;
+    setIsAccountDeleteDragging(true);
+  };
+
+  const handleAccountDragMove = (clientY: number) => {
+    if (!isAccountDeleteDragging || isDeletingAccount) return;
+    const delta = clientY - accountTouchStartY.current;
+    if (delta > 0) {
+      setAccountDeleteDragY(delta);
+    } else {
+      setAccountDeleteDragY(delta * 0.15);
+    }
+  };
+
+  const handleAccountDragEnd = () => {
+    if (!isAccountDeleteDragging || isDeletingAccount) return;
+    setIsAccountDeleteDragging(false);
+    if (accountDeleteDragY > 70) {
+      setShowAccountDeleteModal(false);
+      setAccountPhraseConfirmation('');
+      setAccountPassword('');
+      setAccountDeleteError(null);
+    }
+    setAccountDeleteDragY(0);
+  };
 
   // Smart Back Interceptors for Mobile Sheets
   useEffect(() => {
@@ -423,14 +489,57 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
               backgroundColor: 'var(--bg-surface, #1e293b)',
               borderTopLeftRadius: '1.25rem',
               borderTopRightRadius: '1.25rem',
-              padding: '1.25rem 1.25rem 2rem 1.25rem',
+              padding: '0.75rem 1.25rem 2rem 1.25rem',
               border: '1px solid var(--border-light)',
               maxHeight: '90vh',
-              overflowY: 'auto'
+              overflowY: 'auto',
+              transform: `translateY(${Math.max(0, storeDeleteDragY)}px)`,
+              transition: isStoreDeleteDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.25rem 0 0.65rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleStoreDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleStoreDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleStoreDragEnd}
+              onMouseDown={(e) => handleStoreDragStart(e.clientY)}
+              onMouseMove={(e) => handleStoreDragMove(e.clientY)}
+              onMouseUp={handleStoreDragEnd}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: 'rgba(255,255,255,0.25)'
+                }}
+              />
+            </div>
+
+            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, or footer Batal) */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: '0.85rem',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleStoreDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleStoreDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleStoreDragEnd}
+              onMouseDown={(e) => handleStoreDragStart(e.clientY)}
+              onMouseMove={(e) => handleStoreDragMove(e.clientY)}
+              onMouseUp={handleStoreDragEnd}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <div style={{
                   width: '32px',
@@ -441,7 +550,8 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
                   color: 'var(--text-secondary)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  flexShrink: 0
                 }}>
                   <Store size={16} />
                 </div>
@@ -454,14 +564,6 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
                   </span>
                 </div>
               </div>
-              <button 
-                type="button" 
-                onClick={() => setShowStoreDeleteModal(false)}
-                disabled={isDeletingStore}
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', padding: '4px' }}
-              >
-                <X size={18} />
-              </button>
             </div>
 
             <div style={{
@@ -606,14 +708,57 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
               backgroundColor: 'var(--bg-surface, #1e293b)',
               borderTopLeftRadius: '1.25rem',
               borderTopRightRadius: '1.25rem',
-              padding: '1.25rem 1.25rem 2rem 1.25rem',
+              padding: '0.75rem 1.25rem 2rem 1.25rem',
               border: '1px solid var(--border-light)',
               maxHeight: '90vh',
-              overflowY: 'auto'
+              overflowY: 'auto',
+              transform: `translateY(${Math.max(0, accountDeleteDragY)}px)`,
+              transition: isAccountDeleteDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.25rem 0 0.65rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleAccountDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleAccountDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleAccountDragEnd}
+              onMouseDown={(e) => handleAccountDragStart(e.clientY)}
+              onMouseMove={(e) => handleAccountDragMove(e.clientY)}
+              onMouseUp={handleAccountDragEnd}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: 'rgba(255,255,255,0.25)'
+                }}
+              />
+            </div>
+
+            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, or footer Batal) */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: '0.85rem',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleAccountDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleAccountDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleAccountDragEnd}
+              onMouseDown={(e) => handleAccountDragStart(e.clientY)}
+              onMouseMove={(e) => handleAccountDragMove(e.clientY)}
+              onMouseUp={handleAccountDragEnd}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <div style={{
                   width: '32px',
@@ -624,7 +769,8 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
                   color: 'var(--text-secondary)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  flexShrink: 0
                 }}>
                   <UserX size={16} />
                 </div>
@@ -637,14 +783,6 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
                   </span>
                 </div>
               </div>
-              <button 
-                type="button" 
-                onClick={() => setShowAccountDeleteModal(false)}
-                disabled={isDeletingAccount}
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', padding: '4px' }}
-              >
-                <X size={18} />
-              </button>
             </div>
 
             <div style={{

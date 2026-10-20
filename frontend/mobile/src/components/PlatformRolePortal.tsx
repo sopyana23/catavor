@@ -1431,6 +1431,42 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   const [selectedProofOrder, setSelectedProofOrder] = useState<any | null>(null);
+
+  // Swipe & Drag Bottom Sheet State for Proof Order Modal
+  const [proofSheetDragY, setProofSheetDragY] = useState(0);
+  const [isProofSheetDragging, setIsProofSheetDragging] = useState(false);
+  const proofDragStartY = useRef(0);
+
+  const handleProofSheetDragStart = (clientY: number) => {
+    proofDragStartY.current = clientY;
+    setIsProofSheetDragging(true);
+  };
+
+  const handleProofSheetDragMove = (clientY: number) => {
+    if (!isProofSheetDragging) return;
+    const delta = clientY - proofDragStartY.current;
+    if (delta > 0) {
+      setProofSheetDragY(delta);
+    } else {
+      setProofSheetDragY(delta * 0.18);
+    }
+  };
+
+  const handleProofSheetDragEnd = () => {
+    if (!isProofSheetDragging) return;
+    setIsProofSheetDragging(false);
+    if (proofSheetDragY > 75) {
+      setSelectedProofOrder(null);
+    }
+    setProofSheetDragY(0);
+  };
+
+  useEffect(() => {
+    if (!selectedProofOrder) {
+      setProofSheetDragY(0);
+      setIsProofSheetDragging(false);
+    }
+  }, [selectedProofOrder]);
   const [replyText, setReplyText] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const mobileTicketTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -13853,7 +13889,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
 
 
-      {/* Modal Zoom: Preview Bukti Transfer */}
+      {/* Bottom Sheet: Preview Bukti Transfer */}
       {selectedProofOrder && (
         <div style={{
           position: 'fixed',
@@ -13865,32 +13901,94 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           backdropFilter: 'blur(8px)',
           zIndex: 99999,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.25rem'
+          justifyContent: 'flex-end'
         }} onClick={() => setSelectedProofOrder(null)}>
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              maxWidth: '380px',
+              maxWidth: '480px',
               width: '100%',
               backgroundColor: theme.modalBg,
-              borderRadius: '1.25rem',
+              borderTopLeftRadius: '1.5rem',
+              borderTopRightRadius: '1.5rem',
               border: `1px solid ${theme.borderStrong}`,
+              borderBottom: 'none',
               boxShadow: theme.shadow,
-              padding: '1.25rem',
+              padding: '0.75rem 1.25rem 1.5rem 1.25rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.85rem'
+              gap: '0.85rem',
+              transform: `translateY(${Math.max(0, proofSheetDragY)}px)`,
+              transition: isProofSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>
-                Bukti Pembayaran #{selectedProofOrder.id}
-              </h4>
-              <button onClick={() => setSelectedProofOrder(null)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
+            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.25rem 0 0.5rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleProofSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleProofSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleProofSheetDragEnd}
+              onMouseDown={(e) => handleProofSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleProofSheetDragMove(e.clientY)}
+              onMouseUp={handleProofSheetDragEnd}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1'
+                }}
+              />
+            </div>
+
+            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, or footer actions) */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleProofSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleProofSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleProofSheetDragEnd}
+              onMouseDown={(e) => handleProofSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleProofSheetDragMove(e.clientY)}
+              onMouseUp={handleProofSheetDragEnd}
+            >
+              <div
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#10b981',
+                  flexShrink: 0
+                }}
+              >
+                <CreditCard size={18} />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.98rem', fontWeight: 800 }}>
+                  Bukti Pembayaran #{selectedProofOrder.id}
+                </h4>
+                <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>
+                  Verifikasi transfer langganan katalog
+                </span>
+              </div>
             </div>
 
             <div 
@@ -13910,7 +14008,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <span>Nominal: <strong style={{ color: isDark ? '#34d399' : '#059669' }}>Rp {(selectedProofOrder.amount || 99000).toLocaleString('id-ID')}</strong></span>
             </div>
 
-            {selectedProofOrder.status === 'pending' && (
+            {selectedProofOrder.status === 'pending' ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.35rem' }}>
                 <button
                   onClick={() => handleUpdateOrderStatus(selectedProofOrder.id, 'rejected')}
@@ -13943,6 +14041,24 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   Aktifkan Paket
                 </button>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectedProofOrder(null)}
+                style={{
+                  marginTop: '0.35rem',
+                  padding: '0.75rem',
+                  borderRadius: '0.65rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.cardAlt,
+                  color: theme.textSecondary,
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Tutup
+              </button>
             )}
           </div>
         </div>

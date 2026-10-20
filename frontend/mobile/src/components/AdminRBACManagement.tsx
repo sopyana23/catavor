@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useModalBackHandler } from '../utils/navigation';
 import {
   Shield,
   Users,
@@ -94,8 +95,43 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   const [selectedStaffEmail, setSelectedStaffEmail] = useState('');
   const [selectedRoleSlug, setSelectedRoleSlug] = useState('support');
   const [staffActionLoading, setStaffActionLoading] = useState(false);
+  // Intercept back navigation for assign modal
+  useModalBackHandler({
+    isOpen: showAssignModal,
+    onClose: () => setShowAssignModal(false)
+  });
+
+  // Drag-to-dismiss gesture state for Assign Role Bottom Sheet
+  const [assignSheetDragY, setAssignSheetDragY] = useState(0);
+  const [isAssignSheetDragging, setIsAssignSheetDragging] = useState(false);
+  const assignTouchStartY = useRef(0);
+
+  const handleAssignDragStart = (clientY: number) => {
+    assignTouchStartY.current = clientY;
+    setIsAssignSheetDragging(true);
+  };
+
+  const handleAssignDragMove = (clientY: number) => {
+    if (!isAssignSheetDragging) return;
+    const delta = clientY - assignTouchStartY.current;
+    if (delta > 0) {
+      setAssignSheetDragY(delta);
+    } else {
+      setAssignSheetDragY(delta * 0.15);
+    }
+  };
+
+  const handleAssignDragEnd = () => {
+    if (!isAssignSheetDragging) return;
+    setIsAssignSheetDragging(false);
+    if (assignSheetDragY > 70) {
+      setShowAssignModal(false);
+    }
+    setAssignSheetDragY(0);
+  };
 
   // New Custom Role Form
+
   const [newRoleSlug, setNewRoleSlug] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDesc, setNewRoleDesc] = useState('');
@@ -1034,20 +1070,80 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               borderTopRightRadius: '1.5rem',
               border: `1px solid ${theme.borderStrong}`,
               boxShadow: theme.cardShadow,
-              padding: '1.25rem',
+              padding: '0.75rem 1.25rem 1.5rem 1.25rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '1rem',
-              overflowY: 'auto'
+              gap: '0.85rem',
+              overflowY: 'auto',
+              transform: `translateY(${Math.max(0, assignSheetDragY)}px)`,
+              transition: isAssignSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary }}>
-                Tugaskan Peran Staf Admin
-              </h3>
-              <button onClick={() => setShowAssignModal(false)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
+            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.25rem 0 0.5rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleAssignDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleAssignDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleAssignDragEnd}
+              onMouseDown={(e) => handleAssignDragStart(e.clientY)}
+              onMouseMove={(e) => handleAssignDragMove(e.clientY)}
+              onMouseUp={handleAssignDragEnd}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1'
+                }}
+              />
+            </div>
+
+            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, or footer actions) */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleAssignDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleAssignDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleAssignDragEnd}
+              onMouseDown={(e) => handleAssignDragStart(e.clientY)}
+              onMouseMove={(e) => handleAssignDragMove(e.clientY)}
+              onMouseUp={handleAssignDragEnd}
+            >
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(244, 63, 94, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#f43f5e',
+                  flexShrink: 0
+                }}
+              >
+                <UserPlus size={18} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: theme.textPrimary }}>
+                  Tugaskan Peran Staf Admin
+                </h3>
+                <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>
+                  Tentukan wewenang operasional untuk akun staf
+                </span>
+              </div>
             </div>
 
             <form onSubmit={handleAssignRole} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -1098,29 +1194,47 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 </select>
               </div>
 
-              <button
-                type="submit"
-                disabled={staffActionLoading || !selectedStaffEmail.trim()}
-                style={{
-                  marginTop: '0.5rem',
-                  padding: '0.8rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: '#f43f5e',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)'
-                }}
-              >
-                <Check size={16} />
-                <span>{staffActionLoading ? 'Menugaskan...' : 'Konfirmasi Penugasan Role'}</span>
-              </button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '0.65rem', marginTop: '0.65rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAssignModal(false)}
+                  style={{
+                    padding: '0.8rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: theme.cardAlt,
+                    color: theme.textSecondary,
+                    border: `1px solid ${theme.border}`,
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={staffActionLoading || !selectedStaffEmail.trim()}
+                  style={{
+                    padding: '0.8rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: '#f43f5e',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)',
+                    opacity: staffActionLoading || !selectedStaffEmail.trim() ? 0.6 : 1
+                  }}
+                >
+                  <Check size={16} />
+                  <span>{staffActionLoading ? 'Menugaskan...' : 'Tugaskan Role'}</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>

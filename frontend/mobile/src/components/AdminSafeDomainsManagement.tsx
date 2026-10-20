@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useModalBackHandler } from '../utils/navigation';
 import {
   Globe,
   Plus,
@@ -115,6 +116,41 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   });
 
   const [copiedDomain, setCopiedDomain] = useState<string | null>(null);
+
+  // Modal Back Navigation Interceptor
+  useModalBackHandler({
+    isOpen: showFormModal,
+    onClose: () => setShowFormModal(false)
+  });
+
+  // Drag-to-dismiss gesture state for Form Bottom Sheet
+  const [formSheetDragY, setFormSheetDragY] = useState(0);
+  const [isFormSheetDragging, setIsFormSheetDragging] = useState(false);
+  const formTouchStartY = useRef(0);
+
+  const handleFormDragStart = (clientY: number) => {
+    formTouchStartY.current = clientY;
+    setIsFormSheetDragging(true);
+  };
+
+  const handleFormDragMove = (clientY: number) => {
+    if (!isFormSheetDragging) return;
+    const delta = clientY - formTouchStartY.current;
+    if (delta > 0) {
+      setFormSheetDragY(delta);
+    } else {
+      setFormSheetDragY(delta * 0.15);
+    }
+  };
+
+  const handleFormDragEnd = () => {
+    if (!isFormSheetDragging) return;
+    setIsFormSheetDragging(false);
+    if (formSheetDragY > 70) {
+      setShowFormModal(false);
+    }
+    setFormSheetDragY(0);
+  };
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMsg({ text, type });
@@ -811,9 +847,9 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
             backgroundColor: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.55)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
+            justifyContent: 'flex-end',
             animation: 'fadeIn 0.2s ease-out'
           }}
           onClick={() => setShowFormModal(false)}
@@ -821,48 +857,87 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              maxWidth: '460px',
+              maxWidth: '540px',
               width: '100%',
+              maxHeight: '88vh',
+              overflowY: 'auto',
               backgroundColor: theme.surface,
-              borderRadius: '1.25rem',
+              borderTopLeftRadius: '1.5rem',
+              borderTopRightRadius: '1.5rem',
               border: `1px solid ${theme.borderStrong}`,
-              boxShadow: isDark ? '0 20px 50px rgba(0,0,0,0.6)' : '0 15px 35px rgba(0,0,0,0.15)',
-              padding: '1.35rem',
+              borderBottom: 'none',
+              boxShadow: isDark ? '0 -10px 40px rgba(0,0,0,0.6)' : '0 -10px 30px rgba(0,0,0,0.15)',
+              padding: '0.75rem 1.25rem 1.5rem 1.25rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '1rem'
+              gap: '0.85rem',
+              transform: `translateY(${Math.max(0, formSheetDragY)}px)`,
+              transition: isFormSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <div style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: isDark ? '#38bdf8' : '#0284c7'
-                }}>
-                  <Globe size={18} />
-                </div>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary }}>
-                    {editingDomain ? 'Edit Domain Whitelist' : 'Tambah Domain Aman'}
-                  </h4>
-                  <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
-                    Domain yang diizinkan untuk navigasi langsung
-                  </span>
-                </div>
+            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.25rem 0 0.5rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleFormDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleFormDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleFormDragEnd}
+              onMouseDown={(e) => handleFormDragStart(e.clientY)}
+              onMouseMove={(e) => handleFormDragMove(e.clientY)}
+              onMouseUp={handleFormDragEnd}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1'
+                }}
+              />
+            </div>
+
+            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, back button, or footer Batal) */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleFormDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleFormDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleFormDragEnd}
+              onMouseDown={(e) => handleFormDragStart(e.clientY)}
+              onMouseMove={(e) => handleFormDragMove(e.clientY)}
+              onMouseUp={handleFormDragEnd}
+            >
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '0.75rem',
+                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: isDark ? '#38bdf8' : '#0284c7',
+                flexShrink: 0
+              }}>
+                <Globe size={18} />
               </div>
-              <button
-                type="button"
-                onClick={() => setShowFormModal(false)}
-                style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer' }}
-              >
-                <X size={18} />
-              </button>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary }}>
+                  {editingDomain ? 'Edit Domain Whitelist' : 'Tambah Domain Aman'}
+                </h4>
+                <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                  Domain yang diizinkan untuk navigasi langsung
+                </span>
+              </div>
             </div>
 
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>

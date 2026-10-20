@@ -135,8 +135,18 @@ Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewaki
        - Sticky bottom bar dapat menampung tombol aksi ganda horizontal berdampingan (misal `Hubungi WhatsApp` 45% + `Pesan Sekarang` 55%).
        - Filter dan kategori disajikan dalam deretan horizontal scrollable pills dengan indikator geser yang halus.
    - **Layout Single-Column Vertical Flow**: Data kompleks disajikan dalam format **Card List** rapi dengan badge status yang jelas.
-   - **Dialog Overlay Bottom Sheet**: Seluruh formulir pop-up, filter, atau konfirmasi tindakan wajib menggunakan **Bottom Sheet** yang meluncur dari dasar layar.
-   - **Haram Native Select / Dropdown Kaku di Mobile**: Dilarang keras memakai HTML `<select>` kaku atau dropdown sempit desktop pada form-factor mobile. Seluruh pemilihan filter/opsi WAJIB menggunakan **Modal / Bottom Sheet Filter** khas mobile (drag handle, header Lucide icon, touch pills $\ge$ 44px dengan tanda centang `Check`, tombol Reset & Terapkan, dan intersepsi back `useModalBackHandler`).
+   - **Dialog Overlay Bottom Sheet**: Seluruh formulir pop-up, filter, atau konfirmasi tindakan wajib menggunakan **Bottom Sheet** yang meluncur dari dasar layar (*Slide-Up Bottom Sheet*).
+   - **Haram Native Select / Dropdown Kaku di Mobile (Wajib Filter & Option Picker Bottom Sheet)**:
+     - Dilarang keras memakai HTML `<select>` kaku atau dropdown sempit desktop pada form-factor mobile.
+     - Seluruh tombol atau field yang memunculkan dropdown pilihan multi-opsi **WAJIB** membuka **Modal / Bottom Sheet khas mobile**.
+   - **Standar Wajib Interaksi & Header Modal Mobile (MANDATORY)**:
+     - **Wajib Interactive Drag Handle (Drag Gesture Ke Atas / Ke Bawah untuk Menutup)**: Di bagian paling atas modal wajib terpasang drag handle bar interaktif (`bottom-sheet-handle-bar` / drag pill) yang mendukung gesture sentuh (*touch*) dan *mouse drag* ke atas/ke bawah (khususnya drag-down $\ge 70\text{px}$) untuk menutup (*dismiss*) modal secara halus dan responsif dengan animasi `translateY`.
+     - **Haram Tombol Close / 'X' di Header Modal Mobile**: Dilarang keras menaruh tombol close ("✕" atau tombol X) di header modal/bottom sheet mobile. Header harus bersih (*clean*), hanya memuat ikon vektor profesional (Lucide) dan judul/keterangan. Penutupan modal di mobile native hanya mengandalkan:
+       1. Gesture drag-down pada drag handle bar atau header modal,
+       2. Tap pada backdrop overlay (di luar area modal sheet),
+       3. Intersepsi tombol hardware/browser back (`useModalBackHandler`),
+       4. Tombol aksi yang jelas di footer jika ada (misal: "Batal", "Tutup", "Reset", "Terapkan").
+     - **Pilihan Opsi Ramah Sentuhan**: Pilihan opsi disajikan dalam touch pills / buttons (touch target $\ge 44\text{px}$) dengan indikator centang (`Check`) dan highlight warna aksen.
 
 ### B. Single Source of Truth & Database Consistency (MANDATORY)
 - **Tabel & API yang Sama**: Seluruh transaksi, operasi data, pembacaan, dan penulisan dari ketiga device **wajib menggunakan endpoint API Go yang sama dan tersimpan ke tabel PostgreSQL yang sama**. Tidak boleh ada skema database terpisah antar-device.

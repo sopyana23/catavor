@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Store,
   Search,
@@ -169,7 +169,65 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
     }
   });
 
-  // Debounce search input
+  // Drag-to-dismiss gesture state for Filter Bottom Sheet
+  const [filterSheetDragY, setFilterSheetDragY] = useState(0);
+  const [isFilterSheetDragging, setIsFilterSheetDragging] = useState(false);
+  const filterTouchStartY = useRef(0);
+
+  const handleFilterDragStart = (clientY: number) => {
+    filterTouchStartY.current = clientY;
+    setIsFilterSheetDragging(true);
+  };
+
+  const handleFilterDragMove = (clientY: number) => {
+    if (!isFilterSheetDragging) return;
+    const delta = clientY - filterTouchStartY.current;
+    if (delta > 0) {
+      setFilterSheetDragY(delta);
+    } else {
+      setFilterSheetDragY(delta * 0.15);
+    }
+  };
+
+  const handleFilterDragEnd = () => {
+    if (!isFilterSheetDragging) return;
+    setIsFilterSheetDragging(false);
+    if (filterSheetDragY > 70) {
+      setIsFilterSheetOpen(false);
+    }
+    setFilterSheetDragY(0);
+  };
+
+  // Drag-to-dismiss gesture state for Detail Bottom Sheet
+  const [detailSheetDragY, setDetailSheetDragY] = useState(0);
+  const [isDetailSheetDragging, setIsDetailSheetDragging] = useState(false);
+  const detailTouchStartY = useRef(0);
+
+  const handleDetailDragStart = (clientY: number) => {
+    detailTouchStartY.current = clientY;
+    setIsDetailSheetDragging(true);
+  };
+
+  const handleDetailDragMove = (clientY: number) => {
+    if (!isDetailSheetDragging) return;
+    const delta = clientY - detailTouchStartY.current;
+    if (delta > 0) {
+      setDetailSheetDragY(delta);
+    } else {
+      setDetailSheetDragY(delta * 0.15);
+    }
+  };
+
+  const handleDetailDragEnd = () => {
+    if (!isDetailSheetDragging) return;
+    setIsDetailSheetDragging(false);
+    if (detailSheetDragY > 70) {
+      setSelectedStoreID(null);
+      setStoreDetail(null);
+    }
+    setDetailSheetDragY(0);
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery.trim());
@@ -1078,34 +1136,57 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
               boxShadow: '0 -8px 32px rgba(0,0,0,0.3)',
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              transform: `translateY(${Math.max(0, filterSheetDragY)}px)`,
+              transition: isFilterSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Sheet Drag Handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '0.65rem 0 0.25rem 0' }}>
+            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.75rem 0 0.35rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleFilterDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleFilterDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleFilterDragEnd}
+              onMouseDown={(e) => handleFilterDragStart(e.clientY)}
+              onMouseMove={(e) => handleFilterDragMove(e.clientY)}
+              onMouseUp={handleFilterDragEnd}
+            >
               <div
                 style={{
-                  width: '40px',
-                  height: '4px',
-                  borderRadius: '2px',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : '#d1d5db'
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1'
                 }}
               />
             </div>
 
-            {/* Header */}
+            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, or footer actions) */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.75rem 1.25rem',
-                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`
+                padding: '0.65rem 1.25rem 0.85rem 1.25rem',
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`,
+                cursor: 'grab',
+                touchAction: 'none'
               }}
+              onTouchStart={(e) => handleFilterDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleFilterDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleFilterDragEnd}
+              onMouseDown={(e) => handleFilterDragStart(e.clientY)}
+              onMouseMove={(e) => handleFilterDragMove(e.clientY)}
+              onMouseUp={handleFilterDragEnd}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <SlidersHorizontal size={20} color={subTab === 'active' ? '#10b981' : '#ef4444'} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <SlidersHorizontal size={20} color={subTab === 'active' ? '#10b981' : '#ef4444'} style={{ flexShrink: 0 }} />
                 <div>
                   <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: isDark ? '#f3f4f6' : '#111827' }}>
                     {subTab === 'active' ? 'Filter Detail Profil Aktif' : 'Filter Detail Pelanggaran & Sanksi'}
@@ -1115,24 +1196,6 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsFilterSheetOpen(false)}
-                style={{
-                  minWidth: '40px',
-                  minHeight: '40px',
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb',
-                  color: isDark ? '#e5e7eb' : '#374151',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-              >
-                <X size={18} />
-              </button>
             </div>
 
             {/* Scrollable Filter Content */}
@@ -1699,55 +1762,66 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
               boxShadow: '0 -8px 32px rgba(0,0,0,0.3)',
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              transform: `translateY(${Math.max(0, detailSheetDragY)}px)`,
+              transition: isDetailSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Sheet Drag Handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '0.65rem 0 0.25rem 0' }}>
+            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.75rem 0 0.35rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleDetailDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleDetailDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleDetailDragEnd}
+              onMouseDown={(e) => handleDetailDragStart(e.clientY)}
+              onMouseMove={(e) => handleDetailDragMove(e.clientY)}
+              onMouseUp={handleDetailDragEnd}
+            >
               <div
                 style={{
-                  width: '40px',
-                  height: '4px',
-                  borderRadius: '2px',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : '#d1d5db'
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1'
                 }}
               />
             </div>
 
-            {/* Header */}
+            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, back button, or footer close button) */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.75rem 1.25rem',
-                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`
+                padding: '0.65rem 1.25rem 0.85rem 1.25rem',
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`,
+                cursor: 'grab',
+                touchAction: 'none'
               }}
+              onTouchStart={(e) => handleDetailDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleDetailDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleDetailDragEnd}
+              onMouseDown={(e) => handleDetailDragStart(e.clientY)}
+              onMouseMove={(e) => handleDetailDragMove(e.clientY)}
+              onMouseUp={handleDetailDragEnd}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Store size={20} color="#10b981" />
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: isDark ? '#f3f4f6' : '#111827' }}>
-                  Detail Profil Katalog
-                </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <Store size={20} color="#10b981" style={{ flexShrink: 0 }} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: isDark ? '#f3f4f6' : '#111827' }}>
+                    Detail Profil Katalog
+                  </h3>
+                  <div style={{ fontSize: '0.72rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
+                    Informasi terpusat status dan kepemilikan
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={() => setSelectedStoreID(null)}
-                style={{
-                  minWidth: '40px',
-                  minHeight: '40px',
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb',
-                  color: isDark ? '#e5e7eb' : '#374151',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-              >
-                <X size={18} />
-              </button>
             </div>
 
             {/* Content Area */}
