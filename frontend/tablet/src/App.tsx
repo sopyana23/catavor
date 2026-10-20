@@ -9,11 +9,8 @@ import {
 import { TabletPublicLanding } from './components/TabletPublicLanding';
 import { TabletStoreCatalog } from './components/TabletStoreCatalog';
 import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
-import { TabletRailNav } from './components/TabletRailNav';
-import { TabletMasterDetailView } from './components/TabletMasterDetailView';
-import { TabletSegmentedPagination } from './components/TabletSegmentedPagination';
-import { TabletPlatformStoresView } from './components/TabletPlatformStoresView';
-import { type UserRBACInfo, isPlatformAdmin, getRoleBadge } from './utils/rbac';
+import { TabletPlatformConsole } from './components/TabletPlatformConsole';
+import { type UserRBACInfo, isPlatformAdmin } from './utils/rbac';
 
 export const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('catavor_token') || localStorage.getItem('token') || '');
@@ -52,16 +49,6 @@ export const App: React.FC = () => {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Platform Admin State
-  const [platformView, setPlatformView] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab') || params.get('view');
-      if (tab) return tab;
-    }
-    return 'dashboard';
-  });
-
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
     const resolvedTheme = storeTheme || 'navy';
@@ -70,12 +57,52 @@ export const App: React.FC = () => {
     localStorage.setItem('catavor_theme', resolvedTheme);
   }, [storeTheme]);
 
+  // Session Token & RBAC Verification Hook on Mount
+  useEffect(() => {
+    if (!token) return;
+    let isMounted = true;
+    const verifySession = async () => {
+      try {
+        const res = await fetch('/api/auth/verify', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!isMounted) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.valid && data.user) {
+            setCurrentUser(data.user);
+            localStorage.setItem('catavor_user', JSON.stringify(data.user));
+            if (data.active_store?.store_theme || data.user?.store_theme) {
+              setStoreTheme(data.active_store?.store_theme || data.user?.store_theme);
+            }
+            if (data.active_store?.slug) {
+              localStorage.setItem('catavor_active_slug', data.active_store.slug);
+            }
+          } else {
+            handleLogout();
+          }
+        } else if (res.status === 401 || res.status === 403) {
+          handleLogout();
+        }
+      } catch (err) {
+        console.warn('Session verification error:', err);
+      }
+    };
+    verifySession();
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
+
   // Handle URL change
   useEffect(() => {
     const handlePopState = () => {
-      const path = window.location.pathname.toLowerCase();
-      setCurrentPath(path);
-      const parts = path.split('/').filter(Boolean);
+      const pathname = window.location.pathname.toLowerCase();
+      setCurrentPath(pathname);
+      const parts = pathname.split('/').filter(Boolean);
       const reserved = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops'];
       if (parts.length > 0 && !reserved.includes(parts[0])) {
         setActiveSlug(parts[0]);
@@ -89,8 +116,9 @@ export const App: React.FC = () => {
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
-    setCurrentPath(path.toLowerCase());
-    const parts = path.split('/').filter(Boolean);
+    const pathname = path.split('?')[0].toLowerCase();
+    setCurrentPath(pathname);
+    const parts = pathname.split('/').filter(Boolean);
     const reserved = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops'];
     if (parts.length > 0 && !reserved.includes(parts[0].toLowerCase())) {
       setActiveSlug(parts[0].toLowerCase());
@@ -102,6 +130,7 @@ export const App: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
+    localStorage.removeItem('catavor_active_slug');
     setToken(null);
     setCurrentUser(null);
     navigateTo('/');
@@ -124,9 +153,19 @@ export const App: React.FC = () => {
         localStorage.setItem('catavor_user', JSON.stringify(json.user || {}));
         setToken(json.token);
         setCurrentUser(json.user);
+        if (json.active_store?.store_theme || json.user?.store_theme) {
+          setStoreTheme(json.active_store?.store_theme || json.user?.store_theme);
+        }
+        if (json.active_store?.slug) {
+          localStorage.setItem('catavor_active_slug', json.active_store.slug);
+        }
         setLoginEmail('');
         setLoginPassword('');
-        navigateTo('/admin');
+        if (isPlatformAdmin(json.user)) {
+          navigateTo('/admin?tab=dashboard');
+        } else {
+          navigateTo('/admin');
+        }
       } else {
         setLoginError(json.message || 'Email atau password tidak sesuai.');
       }
@@ -167,7 +206,14 @@ export const App: React.FC = () => {
         if (data.active_store?.store_theme || data.user?.store_theme) {
           setStoreTheme(data.active_store?.store_theme || data.user?.store_theme);
         }
-        navigateTo('/admin');
+        if (data.active_store?.slug) {
+          localStorage.setItem('catavor_active_slug', data.active_store.slug);
+        }
+        if (isPlatformAdmin(data.user)) {
+          navigateTo('/admin?tab=dashboard');
+        } else {
+          navigateTo('/admin');
+        }
       } else {
         setLoginError(data.message || 'Otentikasi Google gagal diproses.');
       }
@@ -305,11 +351,14 @@ export const App: React.FC = () => {
       if (bc) bc.close();
     };
   }, []);
-  const isLoginRoute = currentPath === '/login';
-  const isAdminRoute = currentPath === '/admin' || currentPath.endsWith('/admin') || currentPath.startsWith('/platform');
 
-  // 1. PUBLIC STORE CATALOG ROUTE (e.g. /:slug and not admin)
-  if (activeSlug && !isAdminRoute) {
+  const isLoginRoute = currentPath === '/login';
+  const isPlatformPath = currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/');
+  const isAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/');
+  const isAnyAdminRoute = isAdminPath || isPlatformPath;
+
+  // 1. PUBLIC STORE CATALOG ROUTE (e.g. /:slug and not admin or login)
+  if (activeSlug && !isAnyAdminRoute && !isLoginRoute) {
     return (
       <TabletStoreCatalog
         slug={activeSlug}
@@ -318,8 +367,8 @@ export const App: React.FC = () => {
     );
   }
 
-  // 2. UNATHENTICATED LOGIN VIEW FOR TABLET
-  if (isLoginRoute || (isAdminRoute && !token)) {
+  // 2. UNAUTHENTICATED LOGIN VIEW FOR TABLET
+  if (isLoginRoute || (isAnyAdminRoute && !token)) {
     return (
       <div style={{
         minHeight: '100vh',
@@ -345,21 +394,23 @@ export const App: React.FC = () => {
               width: '56px',
               height: '56px',
               borderRadius: '1rem',
-              backgroundColor: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              color: '#10b981',
+              backgroundColor: isPlatformPath ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+              border: isPlatformPath ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+              color: isPlatformPath ? '#3b82f6' : '#10b981',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               marginBottom: '1rem'
             }}>
-              <Lock size={28} />
+              {isPlatformPath ? <ShieldCheck size={28} /> : <Lock size={28} />}
             </div>
             <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-              Masuk Konsol Tablet
+              {isPlatformPath ? 'Masuk Konsol Pengelola Platform' : 'Masuk Konsol Tablet'}
             </h1>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
-              Kelola katalog toko Anda atau akses konsol operasional
+              {isPlatformPath
+                ? 'Portal otentikasi resmi staf kepatuhan, CS, dan eksekutif platform'
+                : 'Kelola katalog toko Anda atau akses konsol operasional'}
             </p>
           </div>
 
@@ -526,96 +577,40 @@ export const App: React.FC = () => {
   }
 
   // 3. AUTHENTICATED ADMIN ROUTES:
-  if (isAdminRoute && token) {
-    // A. PLATFORM ROLE PORTAL (Superadmin, Compliance, CS, Finance)
-    const isPlatformRoute = currentPath.startsWith('/platform') || currentPath.startsWith('/ops') || (isPlatformAdmin(currentUser) && (new URLSearchParams(window.location.search).get('tab') === 'stores' || platformView === 'stores'));
-    if (isPlatformAdmin(currentUser) && isPlatformRoute) {
-      const roleInfo = getRoleBadge(currentUser?.platform_role || 'superadmin');
+  if (isAnyAdminRoute && token) {
+    // A. PLATFORM ROLE PORTAL (Superadmin, Compliance, CS, Finance, Ops)
+    if (isPlatformAdmin(currentUser)) {
       return (
-        <div style={{
-          display: 'flex',
-          width: '100vw',
-          height: '100vh',
-          overflow: 'hidden',
-          backgroundColor: 'var(--bg-deep)',
-          color: 'var(--text-primary)'
-        }}>
-          <TabletRailNav
-            activeView={platformView}
-            onSwitchView={(newView) => {
-              setPlatformView(newView);
-              if (typeof window !== 'undefined') {
-                const url = new URL(window.location.href);
-                url.searchParams.set('tab', newView);
-                window.history.pushState({}, '', url.toString());
-              }
-            }}
-            currentUser={currentUser}
-            roleBadge={roleInfo.label}
-            onLogout={handleLogout}
-          />
-          <main style={{ flex: 1, height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <header style={{
-              height: '64px',
-              padding: '0 1.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              backgroundColor: 'var(--bg-card)',
-              borderBottom: '1px solid var(--border-light)'
-            }}>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  Tablet Executive Console &bull; {roleInfo.label}
-                </div>
-                <h1 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Konsol Operasional Platform
-                </h1>
-              </div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                {currentUser?.email}
-              </div>
-            </header>
-            {platformView === 'stores' ? (
-              <TabletPlatformStoresView
-                token={token || ''}
-                onNavigateToTab={setPlatformView}
-              />
-            ) : (
-              <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
-                <div style={{
-                  padding: '2.5rem',
-                  borderRadius: '1rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  textAlign: 'center',
-                  maxWidth: '640px',
-                  margin: '0 auto'
-                }}>
-                  <ShieldCheck size={48} color="#10b981" style={{ marginBottom: '1rem' }} />
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                    Konsol Pengelola Platform Terhubung
-                  </h2>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
-                    Akses operasional resmi untuk pemantauan sistem, kepatuhan, tiket bantuan CS, dan rekber keuangan platform.
-                  </p>
-                </div>
-              </div>
-            )}
-          </main>
-        </div>
+        <TabletPlatformConsole
+          token={token}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+        />
       );
     }
 
     // B. MERCHANT ADMIN DASHBOARD FOR TABLET
-    const userStoreSlug = (currentUser as any)?.store_slug || activeSlug || 'my-store';
+    // Guard against non-platform merchant accessing /platform or /ops
+    if (isPlatformPath) {
+      navigateTo('/admin');
+      return null;
+    }
+
+    const merchantSlug =
+      (currentUser as any)?.store_slug ||
+      (currentUser as any)?.active_store?.slug ||
+      (currentUser as any)?.stores?.[0]?.slug ||
+      localStorage.getItem('catavor_active_slug') ||
+      activeSlug ||
+      '';
+
     return (
       <TabletMerchantAdmin
         token={token}
         currentUser={currentUser}
-        storeSlug={userStoreSlug}
+        storeSlug={merchantSlug || 'my-store'}
         onLogout={handleLogout}
-        onViewPublicCatalog={() => navigateTo(`/${userStoreSlug}`)}
+        onViewPublicCatalog={() => navigateTo(merchantSlug ? `/${merchantSlug}` : '/')}
         onThemeChange={(newTheme) => setStoreTheme(newTheme)}
       />
     );
@@ -632,3 +627,4 @@ export const App: React.FC = () => {
 };
 
 export default App;
+
