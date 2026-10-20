@@ -202,7 +202,7 @@ html, body {
   font-family: var(--font-body);
   background-color: var(--bg-deep);
   color: var(--text-primary);
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.25s ease, color 0.25s ease;

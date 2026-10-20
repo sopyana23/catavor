@@ -152,7 +152,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [selectedPlanTab, setSelectedPlanTab] = useState<'free' | 'pro_starter' | 'pro_business'>('pro_starter');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
-  const [showFloatingMenu, setShowFloatingMenu] = useState(true);
+  const [showFloatingMenu, setShowFloatingMenu] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('catalog-types');
   const pillRailRef = useRef<HTMLDivElement>(null);
 
@@ -315,20 +315,25 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
       flexDirection: 'column',
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif"
     }}>
-      {/* 1. TABLET ADAPTIVE HEADER */}
-      <header style={{
-        height: '68px',
-        padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: 'var(--bg-card)',
-        borderBottom: '1px solid var(--border-light)',
+      {/* 1. TABLET UNIFIED STICKY TOP CONTAINER (Header + Floating Sub-Nav Always Floating Together) */}
+      <div style={{
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+        width: '100%',
+        backgroundColor: 'var(--bg-card)'
       }}>
+        {/* Header */}
+        <header style={{
+          height: '68px',
+          padding: isMiniTablet ? '0 1.25rem' : '0 2rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          backgroundColor: 'var(--bg-card)',
+          borderBottom: '1px solid var(--border-light)',
+          boxShadow: !showFloatingMenu ? '0 2px 8px rgba(0,0,0,0.03)' : 'none'
+        }}>
         {/* Brand */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <div style={{
@@ -431,14 +436,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         </div>
       </header>
 
-      {/* 2. FLOATING STICKY SUB-NAVIGATION BAR */}
+      {/* 2. FLOATING SUB-NAVIGATION BAR (Sticky Together with Header inside Unified Container) */}
       {showFloatingMenu && (
         <nav
           aria-label="Navigasi Seksi Halaman"
           style={{
-            position: 'sticky',
-            top: '68px',
-            zIndex: 45,
             backgroundColor: 'var(--bg-card)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
@@ -551,6 +553,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           </div>
         </nav>
       )}
+      </div>
 
       {/* 3. HERO SECTION (Aligned with Desktop & Mobile) */}
       <section style={{
