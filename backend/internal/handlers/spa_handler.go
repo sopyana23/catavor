@@ -99,6 +99,7 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 
 	userAgent := c.Get("User-Agent")
 	viewQuery := strings.ToLower(c.Query("view"))
+	deviceCookie := strings.ToLower(c.Cookies("catavor_device"))
 	secCHMobile := c.Get("Sec-CH-UA-Mobile")
 
 	var targetDist string
@@ -111,6 +112,15 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 		targetDist = h.cfg.MobileDistDir
 		fallbackDist = h.cfg.DesktopDistDir
 	} else if viewQuery == "desktop" {
+		targetDist = h.cfg.DesktopDistDir
+		fallbackDist = h.cfg.MobileDistDir
+	} else if deviceCookie == "tablet" {
+		targetDist = h.cfg.TabletDistDir
+		fallbackDist = h.cfg.DesktopDistDir
+	} else if deviceCookie == "mobile" {
+		targetDist = h.cfg.MobileDistDir
+		fallbackDist = h.cfg.DesktopDistDir
+	} else if deviceCookie == "desktop" {
 		targetDist = h.cfg.DesktopDistDir
 		fallbackDist = h.cfg.MobileDistDir
 	} else if tabletUARegex.MatchString(userAgent) || (androidRegex.MatchString(userAgent) && !mobileSubRegex.MatchString(userAgent)) {

@@ -8,6 +8,11 @@ export default defineConfig({
   base: '/tablet/',
   build: {
     outDir: '../../public/tablet',
-    emptyOutDir: true
+    emptyOutDir: false,
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/[name]-[hash]-t.js'
+      }
+    }
   }
 })

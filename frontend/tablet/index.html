@@ -5,21 +5,69 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Catavor Tablet - Platform Katalog Digital</title>
-    <!-- Tri-Frontend Form-Factor Viewport Guard -->
+    <!-- Tri-Frontend Universal Device & Form-Factor Classifier Engine -->
     <script>
       (function() {
         try {
+          var CURRENT_BUNDLE = 'tablet';
           var search = window.location.search || '';
-          if (search.indexOf('view=') !== -1) return;
-          var w = window.innerWidth || document.documentElement.clientWidth || screen.width;
-          if (w >= 1024) {
-            var url = new URL(window.location.href);
-            url.searchParams.set('view', 'desktop');
-            window.location.replace(url.toString());
-          } else if (w < 768) {
-            var url = new URL(window.location.href);
-            url.searchParams.set('view', 'mobile');
-            window.location.replace(url.toString());
+
+          // 1. Explicit query param (?view=desktop|tablet|mobile) takes absolute priority for testing/dev
+          var queryMatch = search.match(/[?&]view=(desktop|tablet|mobile)(?:&|$)/i);
+          if (queryMatch) {
+            var forced = queryMatch[1].toLowerCase();
+            document.cookie = "catavor_device=" + forced + "; path=/; max-age=31536000; SameSite=Lax";
+            return;
+          }
+
+          // 2. Hardware and Pointer Capability Extraction
+          var ua = navigator.userAgent || '';
+          var navPlatform = navigator.platform || '';
+          var maxTouch = navigator.maxTouchPoints || 0;
+          var hasTouchScreen = (maxTouch > 0) || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+
+          var sw = screen.width || 0;
+          var sh = screen.height || 0;
+          var minScreenDim = Math.min(sw, sh);
+          var winW = window.innerWidth || document.documentElement.clientWidth || sw;
+
+          // Universal Brand-Agnostic Tablet Signals
+          var isAppleTablet = /ipad/i.test(ua) || (navPlatform === 'MacIntel' && maxTouch > 1);
+          var isAndroid = /android/i.test(ua);
+          var isAndroidTablet = isAndroid && (!/mobile/i.test(ua) || minScreenDim >= 600);
+          var isWindowsTablet = /windows nt/i.test(ua) && hasTouchScreen && minScreenDim >= 600 && minScreenDim <= 1080;
+          var isGenericTabletUA = /tablet|silk|kindle|playbook/i.test(ua);
+          var isTouchTabletDimension = hasTouchScreen && (minScreenDim >= 600 && minScreenDim <= 1024);
+
+          // Phone Signals
+          var isPhoneUA = /iphone|ipod/i.test(ua) || (isAndroid && !isAndroidTablet && minScreenDim < 600);
+          var isSmallPhone = hasTouchScreen && minScreenDim < 600 && winW < 768;
+
+          var target = 'desktop';
+
+          if (isPhoneUA || isSmallPhone || (winW < 768 && !isAppleTablet && !isAndroidTablet && !isWindowsTablet && minScreenDim < 600)) {
+            target = 'mobile';
+          } else if (isAppleTablet || isAndroidTablet || isWindowsTablet || isGenericTabletUA || isTouchTabletDimension || (winW >= 768 && winW < 1024)) {
+            target = 'tablet';
+          } else {
+            target = 'desktop';
+          }
+
+          // 3. Persistent Cookie Synchronization
+          var cookieMatch = document.cookie.match(/(?:^|;\s*)catavor_device=([^;]+)/);
+          var currentCookie = cookieMatch ? cookieMatch[1].toLowerCase() : null;
+          if (currentCookie !== target) {
+            document.cookie = "catavor_device=" + target + "; path=/; max-age=31536000; SameSite=Lax";
+          }
+
+          // 4. Seamless Bundle Alignment (Preserves Clean URL Without Adding Query Params!)
+          if (CURRENT_BUNDLE !== target) {
+            var lastSwitch = sessionStorage.getItem('catavor_device_switched');
+            var now = Date.now();
+            if (!lastSwitch || (now - parseInt(lastSwitch, 10)) > 3000) {
+              sessionStorage.setItem('catavor_device_switched', now.toString());
+              window.location.replace(window.location.href);
+            }
           }
         } catch (e) {}
       })();

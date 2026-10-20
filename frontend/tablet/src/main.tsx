@@ -4,6 +4,7 @@ import './index.css';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
+export const TABLET_BUILD_VERSION = '2.1.0';
 if (!(window as any).__IS_OAUTH_POPUP_CALLBACK__) {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
