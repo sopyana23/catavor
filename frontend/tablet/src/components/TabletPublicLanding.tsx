@@ -155,6 +155,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   const [showFloatingMenu, setShowFloatingMenu] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('catalog-types');
   const pillRailRef = useRef<HTMLDivElement>(null);
+  const stickyContainerRef = useRef<HTMLDivElement>(null);
+  const isManualScrollRef = useRef<boolean>(false);
+  const manualScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Exact 6 Canonical Sections matching Desktop and Mobile
   const SECTION_NAV_ITEMS = [
@@ -222,11 +225,22 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Real-time Scrollspy Tracking for Sticky Section Navigation
+  // Cleanup scroll timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (manualScrollTimeoutRef.current) {
+        clearTimeout(manualScrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Real-time Scrollspy Tracking for Sticky Section Navigation with Lock during Smooth Scroll
   useEffect(() => {
     const handleScroll = () => {
-      const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      const scrollPos = currentScroll + 160;
+      if (isManualScrollRef.current) return;
+      const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+      const headerOffset = stickyContainerRef.current ? stickyContainerRef.current.offsetHeight : 135;
+      const scrollPos = currentScroll + headerOffset + 60;
       const sectionIds = ['catalog-types', 'features-section', 'steps-section', 'escrow-partner', 'pricing-section', 'faq-section'];
 
       for (let i = sectionIds.length - 1; i >= 0; i--) {
@@ -246,9 +260,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Auto-scroll active pill into view safely on Tablet Mini without clipping left edge
+  // Auto-scroll active pill into view smoothly without clipping edges
   useEffect(() => {
-    if (pillRailRef.current && isMiniTablet && showFloatingMenu) {
+    if (pillRailRef.current && showFloatingMenu) {
       const container = pillRailRef.current;
       const activeEl = container.querySelector('[data-active="true"]') as HTMLElement;
       if (activeEl) {
@@ -263,40 +277,35 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         }
       }
     }
-  }, [activeSection, isMiniTablet, showFloatingMenu]);
+  }, [activeSection, showFloatingMenu]);
 
   const handleScrollTo = (e: React.MouseEvent, sectionId: string) => {
     e.preventDefault();
     const target = document.getElementById(sectionId);
     if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-      const headerOffset = 135;
-      const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      const elementTop = target.getBoundingClientRect().top + currentScroll;
-      const targetPosition = Math.max(0, elementTop - headerOffset);
-
-      if (typeof window.scrollTo === 'function') {
-        try {
-          window.scrollTo({
-            top: targetPosition,
-            behavior: 'smooth'
-          });
-        } catch (_) {
-          window.scrollTo(0, targetPosition);
-        }
-      }
-
-      if (document.documentElement && typeof document.documentElement.scrollTo === 'function') {
-        try {
-          document.documentElement.scrollTo({
-            top: targetPosition,
-            behavior: 'smooth'
-          });
-        } catch (_) {}
-      }
-
+      // 1. Immediately highlight target tab for immediate fluid feedback
       setActiveSection(sectionId);
+
+      // 2. Lock scrollspy during smooth scroll to prevent intermediate tab flickering
+      isManualScrollRef.current = true;
+      if (manualScrollTimeoutRef.current) {
+        clearTimeout(manualScrollTimeoutRef.current);
+      }
+      manualScrollTimeoutRef.current = setTimeout(() => {
+        isManualScrollRef.current = false;
+      }, 750);
+
+      // 3. Smooth scroll with exact header offset
+      const headerOffset = stickyContainerRef.current ? stickyContainerRef.current.offsetHeight : 135;
+      const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+      const elementTop = target.getBoundingClientRect().top + currentScroll;
+      const targetPosition = Math.max(0, elementTop - headerOffset + 4);
+
+      window.scrollTo({
+        top: targetPosition,
+        behavior: 'smooth'
+      });
+
       try {
         window.history.pushState(null, '', `#${sectionId}`);
       } catch (_) {}
@@ -316,13 +325,15 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
       fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif"
     }}>
       {/* 1. TABLET UNIFIED STICKY TOP CONTAINER (Header + Floating Sub-Nav Always Floating Together) */}
-      <div style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-        width: '100%',
-        backgroundColor: 'var(--bg-card)'
-      }}>
+      <div
+        ref={stickyContainerRef}
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          width: '100%',
+          backgroundColor: 'var(--bg-card)'
+        }}>
         {/* Header */}
         <header style={{
           height: '68px',
@@ -366,6 +377,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         {/* Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <button
+            id="tablet-toggle-floating-nav"
             type="button"
             onClick={() => setShowFloatingMenu(!showFloatingMenu)}
             style={{
@@ -476,11 +488,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               </div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                 Melihat:{' '}
-                <strong style={{ color: 'var(--text-primary)' }}>
+                <strong style={{ color: 'var(--text-primary)', transition: 'color 0.25s ease' }}>
                   {SECTION_NAV_ITEMS.find(s => s.id === activeSection)?.label || 'Tipe Katalog'}
                 </strong>
                 <span style={{ margin: '0 0.4rem', opacity: 0.5 }}>•</span>
-                <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                <span style={{ color: 'var(--primary)', fontWeight: 700, transition: 'color 0.25s ease' }}>
                   {SECTION_NAV_ITEMS.find(s => s.id === activeSection)?.subtitle || 'Platform'}
                 </span>
               </div>
@@ -495,6 +507,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               alignItems: 'center',
               gap: '0.65rem',
               overflowX: 'auto',
+              scrollBehavior: 'smooth',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch',
@@ -509,14 +522,15 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               return (
                 <a
                   key={item.id}
+                  id={`tablet-nav-pill-${item.id}`}
                   href={`#${item.id}`}
                   data-active={isActive ? 'true' : 'false'}
                   onClick={(e) => handleScrollTo(e, item.id)}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: isMiniTablet ? '0.48rem 1rem' : '0.52rem 1.2rem',
+                    gap: '0.45rem',
+                    padding: isMiniTablet ? '0.48rem 0.95rem' : '0.52rem 1.15rem',
                     borderRadius: '999px',
                     backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
                     color: isActive ? '#ffffff' : 'var(--text-primary)',
@@ -526,27 +540,39 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                     fontWeight: 700,
                     whiteSpace: 'nowrap',
                     cursor: 'pointer',
-                    transition: 'all 0.18s ease',
-                    boxShadow: isActive ? '0 2px 10px var(--primary-glow)' : 'none',
+                    transition: 'all 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: isActive ? '0 3px 12px var(--primary-glow)' : 'none',
+                    transform: isActive ? 'translateY(-1px)' : 'none',
                     flexShrink: 0
                   }}
                 >
-                  <Icon size={15} color={isActive ? '#ffffff' : 'var(--primary)'} />
-                  <span>{item.label}</span>
-                  {isActive && (
-                    <span style={{
-                      fontSize: '0.65rem',
-                      padding: '0.12rem 0.5rem',
-                      borderRadius: '999px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                      color: '#ffffff',
-                      fontWeight: 800,
-                      letterSpacing: '0.02em',
-                      marginLeft: '0.2rem'
-                    }}>
-                      {item.badge}
-                    </span>
-                  )}
+                  <Icon
+                    size={15}
+                    color={isActive ? '#ffffff' : 'var(--primary)'}
+                    style={{ transition: 'color 0.25s ease' }}
+                  />
+                  <span style={{ transition: 'color 0.25s ease' }}>{item.label}</span>
+                  <span style={{
+                    fontSize: '0.65rem',
+                    borderRadius: '999px',
+                    backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : 'transparent',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    letterSpacing: '0.02em',
+                    maxWidth: isActive ? '80px' : '0px',
+                    padding: isActive ? '0.12rem 0.5rem' : '0',
+                    marginLeft: isActive ? '0.25rem' : '0',
+                    opacity: isActive ? 1 : 0,
+                    transform: isActive ? 'scale(1)' : 'scale(0.8)',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    transition: 'all 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+                    pointerEvents: 'none'
+                  }}>
+                    {item.badge}
+                  </span>
                 </a>
               );
             })}
