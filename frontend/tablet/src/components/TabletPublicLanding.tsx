@@ -211,19 +211,54 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
     }
   ];
 
-  // Dynamic Tablet Width State: Mini (<880px) vs Large (>=880px)
-  const [isMiniTablet, setIsMiniTablet] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth < 880;
+  /* ---------------------------------------------------------------------
+     TABLET VIEWPORT TIER SYSTEM
+     Dipetakan ke lebar CSS perangkat tablet yang beredar saat ini:
+       compact  : < 768px   -> tablet mini portrait (iPad mini 744, Android 600-767)
+       regular  : 768-899   -> tablet portrait standar (iPad 768, iPad Air 810/820, iPad Pro 11 834)
+       expanded : 900-1119  -> tablet besar portrait / landscape kecil (Surface Go 912, iPad Pro 12.9 1024)
+       wide     : >= 1120   -> tablet landscape lebar (iPad Air 13 1180/1194, Surface Pro 1280/1366)
+     --------------------------------------------------------------------- */
+  type TabletTier = 'compact' | 'regular' | 'expanded' | 'wide';
+  const resolveTier = (w: number): TabletTier => {
+    if (w < 768) return 'compact';
+    if (w < 900) return 'regular';
+    if (w < 1120) return 'expanded';
+    return 'wide';
+  };
+
+  const [viewportWidth, setViewportWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1024;
+    return window.innerWidth;
   });
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMiniTablet(window.innerWidth < 880);
-    };
+    const handleResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
+
+  const tier = resolveTier(viewportWidth);
+  // isMiniTablet dipertahankan sebagai alias "layout paling sempit" (compact)
+  // agar seluruh pemakaian lama tetap konsisten, sementara tier baru dipakai
+  // untuk keputusan grid/tipografi yang butuh pembedaan lebih rinci.
+  const isMiniTablet = tier === 'compact';
+  const isCompact = tier === 'compact';
+  const isRegular = tier === 'regular';
+  const isExpanded = tier === 'expanded';
+  const isWide = tier === 'wide';
+  const isExpandedPlus = isExpanded || isWide;
+  // Layar sempit (di bawah tablet): CTA & pricing ditumpuk.
+  // Tablet mini 744px sudah cukup lebar untuk CTA sejajar + grid harga 2 kolom.
+  const isNarrow = viewportWidth < 640;
+  const useTabbedPricing = isNarrow;
+  // Ritme spasi vertikal antar section mengikuti tinggi layar efektif
+  const sectionGap = isCompact ? '2.25rem' : isRegular ? '2.5rem' : '2.75rem';
+  const sectionPadX = isCompact ? '1.25rem' : isRegular ? '1.5rem' : '1.75rem';
 
   // Cleanup scroll timeout on unmount
   useEffect(() => {
@@ -336,8 +371,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         }}>
         {/* Header */}
         <header style={{
-          height: '66px',
-          padding: isMiniTablet ? '0 1.25rem' : '0 1.75rem',
+          height: isCompact ? '64px' : '72px',
+          padding: isCompact ? '0 1.25rem' : isRegular ? '0 1.5rem' : '0 1.75rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -381,8 +416,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             type="button"
             onClick={() => setShowFloatingMenu(!showFloatingMenu)}
             style={{
-              width: '40px',
-              height: '40px',
+              width: '44px',
+              height: '44px',
+              flexShrink: 0,
               borderRadius: '0.65rem',
               border: showFloatingMenu ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
               backgroundColor: showFloatingMenu ? 'rgba(30, 58, 138, 0.08)' : 'var(--bg-deep)',
@@ -403,7 +439,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               type="button"
               onClick={() => window.location.href = '/admin?view=tablet'}
               style={{
-                minHeight: '40px',
+                minHeight: '44px',
                 padding: '0 1.25rem',
                 borderRadius: '0.65rem',
                 backgroundColor: 'var(--primary)',
@@ -426,7 +462,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               type="button"
               onClick={onOpenLogin}
               style={{
-                minHeight: '40px',
+                minHeight: '44px',
                 padding: '0 1.25rem',
                 borderRadius: '0.65rem',
                 backgroundColor: 'var(--primary)',
@@ -458,10 +494,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             WebkitBackdropFilter: 'blur(16px)',
             borderBottom: '1px solid var(--border-light)',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
-            padding: isMiniTablet ? '0.65rem 1.25rem' : '0.8rem 2.25rem',
+            padding: isCompact ? '0.65rem 1.25rem' : isRegular ? '0.7rem 1.5rem' : '0.8rem 2.25rem',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: isMiniTablet ? 'flex-start' : 'space-between',
+            justifyContent: isExpandedPlus ? 'space-between' : 'flex-start',
             gap: '0.85rem',
             boxSizing: 'border-box',
             width: '100%',
@@ -469,7 +505,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           }}
         >
           {/* On Tablet Lebar: Contextual Status Information */}
-          {!isMiniTablet && (
+          {isExpandedPlus && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexShrink: 0 }}>
               <div style={{
                 display: 'inline-flex',
@@ -530,7 +566,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    padding: isMiniTablet ? '0.48rem 0.95rem' : '0.58rem 1.25rem',
+                    minHeight: '44px',
+                    padding: isCompact ? '0.5rem 0.95rem' : '0.55rem 1.25rem',
                     borderRadius: '999px',
                     backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
                     color: isActive ? '#ffffff' : 'var(--text-primary)',
@@ -583,7 +620,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
       {/* 3. HERO SECTION (Aligned with Desktop & Mobile) */}
       <section style={{
-        padding: isMiniTablet ? '2rem 1.25rem 1.5rem 1.25rem' : '2.5rem 1.5rem 1.85rem 1.5rem',
+        padding: isCompact ? '1.75rem 1.25rem 1.5rem 1.25rem' : isRegular ? '2.25rem 1.5rem 1.85rem 1.5rem' : '2.5rem 1.75rem 2rem 1.75rem',
         maxWidth: 'var(--tablet-container-max, 960px)',
         margin: '0 auto',
         width: '100%',
@@ -610,12 +647,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
         {/* Main Title */}
         <h1 style={{
-          fontSize: isMiniTablet ? '2.1rem' : 'clamp(2.15rem, 3.2vw, 2.55rem)',
+          fontSize: isCompact ? '1.95rem' : isRegular ? '2.3rem' : isExpanded ? '2.5rem' : 'clamp(2.6rem, 2.4vw, 2.9rem)',
           fontWeight: 900,
           lineHeight: 1.18,
           letterSpacing: '-0.03em',
           color: 'var(--text-primary)',
-          margin: '0 0 1rem 0'
+          margin: '0 0 1rem 0',
+          textWrap: 'balance'
         }}>
           Katalog Produk Interaktif untuk{' '}
           <span style={{ color: 'var(--primary)' }}>Segala Jenis Usaha</span>
@@ -623,10 +661,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
         {/* Subtitle */}
         <p style={{
-          fontSize: isMiniTablet ? '0.9rem' : '0.98rem',
+          fontSize: isCompact ? '0.92rem' : isRegular ? '0.95rem' : '0.98rem',
           color: 'var(--text-secondary)',
           lineHeight: 1.6,
-          maxWidth: '720px',
+          maxWidth: isCompact ? '560px' : isRegular ? '640px' : '720px',
           margin: '0 auto 1.5rem auto'
         }}>
           Gantikan buku menu fisik dan daftar harga manual. Hadirkan website katalog modern responsif yang terhubung langsung ke WhatsApp tanpa potongan komisi.
@@ -715,9 +753,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         {/* CTA Buttons */}
         <div style={{
           display: 'flex',
-          flexDirection: isMiniTablet ? 'column' : 'row',
+          flexDirection: isNarrow ? 'column' : 'row',
           alignItems: 'center',
           justifyContent: 'center',
+          flexWrap: 'wrap',
           gap: '0.75rem',
           marginBottom: '1.5rem'
         }}>
@@ -739,7 +778,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               justifyContent: 'center',
               gap: '0.55rem',
               boxShadow: 'var(--shadow-premium)',
-              width: isMiniTablet ? '100%' : 'auto'
+              width: isNarrow ? '100%' : 'auto'
             }}
           >
             <span>Mulai Buat Katalog — Gratis</span>
@@ -762,7 +801,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               textDecoration: 'none',
-              width: isMiniTablet ? '100%' : 'auto'
+              width: isNarrow ? '100%' : 'auto'
             }}
           >
             <span>Lihat 7 Tipe Katalog</span>
@@ -793,8 +832,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           ========================================================================= */}
       <section id="catalog-types" style={{
         maxWidth: 'var(--tablet-container-max, 960px)',
-        margin: isMiniTablet ? '0 auto 2.25rem auto' : '0 auto 2.75rem auto',
-        padding: isMiniTablet ? '0 1.25rem' : '0 1.5rem',
+        margin: `0 auto ${sectionGap} auto`,
+        padding: `0 ${sectionPadX}`,
         width: '100%',
         boxSizing: 'border-box',
         scrollMarginTop: '135px'
@@ -815,11 +854,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         <div style={{
           display: 'flex',
           gap: '0.5rem',
-          overflowX: isMiniTablet ? 'auto' : 'visible',
-          flexWrap: isMiniTablet ? 'nowrap' : 'wrap',
-          justifyContent: isMiniTablet ? 'flex-start' : 'center',
+          // Tablet mini (744px) masih cukup lebar untuk wrap 2 baris — jauh lebih
+          // nyaman daripada rail horizontal yang memotong label. Scroll hanya
+          // dipakai untuk layar sempit non-tablet (< 600px).
+          overflowX: viewportWidth < 600 ? 'auto' : 'visible',
+          flexWrap: viewportWidth < 600 ? 'nowrap' : 'wrap',
+          justifyContent: viewportWidth < 600 ? 'flex-start' : 'center',
           scrollbarWidth: 'none',
-          paddingBottom: isMiniTablet ? '0.5rem' : '0',
+          paddingBottom: viewportWidth < 600 ? '0.5rem' : '0',
           marginBottom: '1rem',
           WebkitOverflowScrolling: 'touch'
         }}>
@@ -835,7 +877,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.45rem',
-                  padding: '0.5rem 0.95rem',
+                  minHeight: '44px',
+                  padding: isCompact ? '0.5rem 0.95rem' : '0.55rem 1.1rem',
                   borderRadius: '0.65rem',
                   border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
                   backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
@@ -927,7 +970,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             padding: '1.5rem 1.65rem',
             boxShadow: 'var(--shadow-premium)',
             display: 'grid',
-            gridTemplateColumns: '360px 1fr',
+            gridTemplateColumns: isRegular ? '300px 1fr' : '360px 1fr',
             gap: '1.5rem',
             alignItems: 'center'
           }}>
@@ -1019,8 +1062,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           ========================================================================= */}
       <section id="features-section" style={{
         maxWidth: 'var(--tablet-container-max, 960px)',
-        margin: isMiniTablet ? '0 auto 2.25rem auto' : '0 auto 2.75rem auto',
-        padding: isMiniTablet ? '0 1.25rem' : '0 1.5rem',
+        margin: `0 auto ${sectionGap} auto`,
+        padding: `0 ${sectionPadX}`,
         width: '100%',
         boxSizing: 'border-box',
         scrollMarginTop: '135px'
@@ -1039,7 +1082,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
         <div style={{
           display: 'grid',
-          gridTemplateColumns: isMiniTablet ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+          gridTemplateColumns: isExpandedPlus ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
           gap: isMiniTablet ? '0.85rem' : '1rem'
         }}>
           {/* Card 1 */}
@@ -1241,8 +1284,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           ========================================================================= */}
       <section id="steps-section" style={{
         maxWidth: 'var(--tablet-container-max, 960px)',
-        margin: isMiniTablet ? '0 auto 2.25rem auto' : '0 auto 2.75rem auto',
-        padding: isMiniTablet ? '0 1.25rem' : '0 1.5rem',
+        margin: `0 auto ${sectionGap} auto`,
+        padding: `0 ${sectionPadX}`,
         width: '100%',
         boxSizing: 'border-box',
         scrollMarginTop: '135px'
@@ -1261,8 +1304,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
         <div style={{
           display: 'grid',
-          gridTemplateColumns: isMiniTablet ? '1fr' : 'repeat(3, 1fr)',
-          gap: isMiniTablet ? '0.85rem' : '1rem'
+          gridTemplateColumns: isExpandedPlus ? 'repeat(3, 1fr)' : '1fr',
+          gap: isCompact ? '0.85rem' : '1rem'
         }}>
           {/* Step 1 */}
           <div style={{
@@ -1271,13 +1314,15 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             border: '1px solid var(--border-light)',
             padding: isMiniTablet ? '1.25rem 1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '0.85rem',
+            flexDirection: isRegular ? 'row' : 'column',
+            alignItems: isRegular ? 'center' : 'stretch',
+            gap: isRegular ? '1.25rem' : '0.85rem',
             boxShadow: 'var(--shadow-premium)'
           }}>
             <div style={{
               width: '38px',
               height: '38px',
+              flexShrink: 0,
               borderRadius: '0.65rem',
               backgroundColor: 'var(--primary)',
               color: '#ffffff',
@@ -1290,11 +1335,16 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               1
             </div>
-            <div>
-              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+            <div style={{
+              display: isRegular ? 'grid' : 'block',
+              gridTemplateColumns: isRegular ? 'minmax(0, 1.1fr) minmax(0, 1fr)' : undefined,
+              alignItems: 'center',
+              gap: isRegular ? '1.25rem' : 0
+            }}>
+              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: isRegular ? 0 : '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
                 Klaim Tautan &amp; Daftarkan Akun
               </h3>
-              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55, maxWidth: isRegular ? '54ch' : undefined }}>
                 Daftar gratis dalam 30 detik dan pilih slug nama toko Anda (contoh: <strong>catavor.com/usaha-anda</strong>).
               </p>
             </div>
@@ -1307,13 +1357,15 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             border: '1px solid var(--border-light)',
             padding: isMiniTablet ? '1.25rem 1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '0.85rem',
+            flexDirection: isRegular ? 'row' : 'column',
+            alignItems: isRegular ? 'center' : 'stretch',
+            gap: isRegular ? '1.25rem' : '0.85rem',
             boxShadow: 'var(--shadow-premium)'
           }}>
             <div style={{
               width: '38px',
               height: '38px',
+              flexShrink: 0,
               borderRadius: '0.65rem',
               backgroundColor: 'var(--primary)',
               color: '#ffffff',
@@ -1326,11 +1378,16 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               2
             </div>
-            <div>
-              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+            <div style={{
+              display: isRegular ? 'grid' : 'block',
+              gridTemplateColumns: isRegular ? 'minmax(0, 1.1fr) minmax(0, 1fr)' : undefined,
+              alignItems: 'center',
+              gap: isRegular ? '1.25rem' : 0
+            }}>
+              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: isRegular ? 0 : '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
                 Upload Produk &amp; Atur Tarif
               </h3>
-              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55, maxWidth: isRegular ? '54ch' : undefined }}>
                 Unggah foto produk, isi harga promo, kategori, profil bisnis, nomor WhatsApp, dan jam operasional.
               </p>
             </div>
@@ -1343,13 +1400,15 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             border: '1px solid var(--border-light)',
             padding: isMiniTablet ? '1.25rem 1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '0.85rem',
+            flexDirection: isRegular ? 'row' : 'column',
+            alignItems: isRegular ? 'center' : 'stretch',
+            gap: isRegular ? '1.25rem' : '0.85rem',
             boxShadow: 'var(--shadow-premium)'
           }}>
             <div style={{
               width: '38px',
               height: '38px',
+              flexShrink: 0,
               borderRadius: '0.65rem',
               backgroundColor: 'var(--primary)',
               color: '#ffffff',
@@ -1362,11 +1421,16 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               3
             </div>
-            <div>
-              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+            <div style={{
+              display: isRegular ? 'grid' : 'block',
+              gridTemplateColumns: isRegular ? 'minmax(0, 1.1fr) minmax(0, 1fr)' : undefined,
+              alignItems: 'center',
+              gap: isRegular ? '1.25rem' : 0
+            }}>
+              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: isRegular ? 0 : '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
                 Bagikan Biolink &amp; Terima Pesanan
               </h3>
-              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55, maxWidth: isRegular ? '54ch' : undefined }}>
                 Pasang link di bio media sosial (Instagram, TikTok, WhatsApp). Pelanggan memesan langsung ke WhatsApp atau transaksi terproteksi Rekber Syariah.
               </p>
             </div>
@@ -1379,8 +1443,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           ========================================================================= */}
       <section id="escrow-partner" style={{
         maxWidth: 'var(--tablet-container-max, 960px)',
-        margin: isMiniTablet ? '0 auto 2.25rem auto' : '0 auto 2.75rem auto',
-        padding: isMiniTablet ? '0 1.25rem' : '0 1.5rem',
+        margin: `0 auto ${sectionGap} auto`,
+        padding: `0 ${sectionPadX}`,
         width: '100%',
         boxSizing: 'border-box',
         scrollMarginTop: '135px'
@@ -1513,8 +1577,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 <BadgeCheck size={22} />
               </div>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <h3 style={{ fontSize: isMiniTablet ? '1.05rem' : '1.2rem', fontWeight: 900, margin: 0, color: 'var(--text-primary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: isMiniTablet ? '1.05rem' : isRegular ? '1.12rem' : '1.2rem', fontWeight: 900, margin: 0, color: 'var(--text-primary)' }}>
                     Rekber Syariah
                   </h3>
                   <span style={{
@@ -1535,7 +1599,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isRegular ? '1fr' : 'repeat(2, 1fr)', gap: '0.65rem' }}>
               <div style={{ padding: '0.65rem 0.85rem', backgroundColor: 'var(--bg-deep)', borderRadius: '0.65rem', border: '1px solid var(--border-light)' }}>
                 <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.15rem' }}>Sistem Transaksi</div>
                 <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>Grup WA 3 Pihak</div>
@@ -1553,7 +1617,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   href="https://rekbersyariah.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: 'var(--primary)', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none' }}
+                  style={{ color: 'var(--primary)', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none', minHeight: '44px' }}
                 >
                   <span>rekbersyariah.com</span>
                   <ExternalLink size={13} />
@@ -1566,7 +1630,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   href="https://wa.me/62811220227"
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: '#16a34a', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none' }}
+                  style={{ color: '#16a34a', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none', minHeight: '44px' }}
                 >
                   <MessageCircle size={14} />
                   <span>+62811220227</span>
@@ -1574,14 +1638,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.65rem', marginTop: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: isRegular ? 'column' : 'row', gap: '0.65rem', marginTop: 'auto' }}>
               <a
                 href="https://rekbersyariah.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
                   flex: 1,
-                  minHeight: '40px',
+                  minHeight: '44px',
                   padding: '0 0.85rem',
                   borderRadius: '0.65rem',
                   border: '1px solid var(--border-light)',
@@ -1605,7 +1669,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 rel="noopener noreferrer"
                 style={{
                   flex: 1,
-                  minHeight: '40px',
+                  minHeight: '44px',
                   padding: '0 0.85rem',
                   borderRadius: '0.65rem',
                   backgroundColor: '#16a34a',
@@ -1649,7 +1713,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: isMiniTablet ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+            gridTemplateColumns: isWide ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)',
             gap: isMiniTablet ? '0.75rem' : '0.85rem',
             marginBottom: '1.25rem'
           }}>
@@ -1738,8 +1802,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           ========================================================================= */}
       <section id="pricing-section" style={{
         maxWidth: 'var(--tablet-container-max, 960px)',
-        margin: isMiniTablet ? '0 auto 2.25rem auto' : '0 auto 2.75rem auto',
-        padding: isMiniTablet ? '0 1.25rem' : '0 1.5rem',
+        margin: `0 auto ${sectionGap} auto`,
+        padding: `0 ${sectionPadX}`,
         width: '100%',
         boxSizing: 'border-box',
         scrollMarginTop: '135px'
@@ -1770,6 +1834,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               onClick={() => setBillingCycle('monthly')}
               style={{
                 padding: '0.38rem 1.15rem',
+                minHeight: '44px',
                 borderRadius: '999px',
                 border: 'none',
                 backgroundColor: billingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
@@ -1787,6 +1852,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               onClick={() => setBillingCycle('yearly')}
               style={{
                 padding: '0.38rem 1.15rem',
+                minHeight: '44px',
                 borderRadius: '999px',
                 border: 'none',
                 backgroundColor: billingCycle === 'yearly' ? 'var(--primary)' : 'transparent',
@@ -1816,7 +1882,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         </div>
 
         {/* On Tablet Mini: Interactive Segmented Tab Switcher for 3 Plans */}
-        {isMiniTablet && (
+        {useTabbedPricing && (
           <div style={{
             display: 'flex',
             backgroundColor: 'var(--bg-card)',
@@ -1835,6 +1901,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   onClick={() => setSelectedPlanTab(planKey)}
                   style={{
                     flex: 1,
+                    minHeight: '44px',
                     padding: '0.5rem',
                     borderRadius: '0.55rem',
                     border: 'none',
@@ -1856,11 +1923,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         {/* Pricing Cards Grid (Mini shows selected card or all 3 on wide tablet) */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: isMiniTablet ? '1fr' : 'repeat(3, 1fr)',
-          gap: isMiniTablet ? '1rem' : '1.15rem'
+          gridTemplateColumns: isExpandedPlus ? 'repeat(3, 1fr)' : useTabbedPricing ? '1fr' : 'repeat(2, 1fr)',
+          gap: useTabbedPricing ? '1rem' : '1.15rem'
         }}>
           {/* Plan 1: Free */}
-          {(!isMiniTablet || selectedPlanTab === 'free') && (
+          {(!useTabbedPricing || selectedPlanTab === 'free') && (
             <div style={{
               backgroundColor: 'var(--bg-card)',
               borderRadius: '1.15rem',
@@ -1900,7 +1967,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 onClick={onOpenLogin}
                 style={{
                   width: '100%',
-                  minHeight: '40px',
+                  minHeight: '44px',
                   padding: '0 1.15rem',
                   borderRadius: '0.65rem',
                   backgroundColor: 'var(--bg-deep)',
@@ -1921,7 +1988,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           )}
 
           {/* Plan 2: Pro Starter */}
-          {(!isMiniTablet || selectedPlanTab === 'pro_starter') && (
+          {(!useTabbedPricing || selectedPlanTab === 'pro_starter') && (
             <div style={{
               backgroundColor: 'var(--bg-card)',
               borderRadius: '1.15rem',
@@ -1972,7 +2039,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 onClick={onOpenLogin}
                 style={{
                   width: '100%',
-                  minHeight: '40px',
+                  minHeight: '44px',
                   padding: '0 1.15rem',
                   borderRadius: '0.65rem',
                   backgroundColor: '#0284c7',
@@ -1996,7 +2063,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           )}
 
           {/* Plan 3: Pro Bisnis */}
-          {(!isMiniTablet || selectedPlanTab === 'pro_business') && (
+          {(!useTabbedPricing || selectedPlanTab === 'pro_business') && (
             <div style={{
               backgroundColor: 'var(--bg-card)',
               borderRadius: '1.15rem',
@@ -2006,7 +2073,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               flexDirection: 'column',
               justifyContent: 'space-between',
               boxShadow: '0 12px 30px -10px rgba(245, 158, 11, 0.2)',
-              position: 'relative'
+              position: 'relative',
+              gridColumn: isExpandedPlus || useTabbedPricing ? undefined : '1 / -1'
             }}>
               <div style={{
                 position: 'absolute',
@@ -2021,7 +2089,12 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               }}>
                 UNLIMITED + DOMAIN
               </div>
-              <div>
+              <div style={{
+                display: isRegular ? 'grid' : 'block',
+                gridTemplateColumns: isRegular ? 'minmax(0, 1fr) minmax(0, 1.05fr)' : undefined,
+                gap: isRegular ? '0 1.5rem' : 0,
+                alignItems: 'start'
+              }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
                   <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Pro Bisnis
@@ -2034,39 +2107,42 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 <p style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-secondary)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
                   Solusi terlengkap dengan postingan tak terbatas dan alamat website domain Anda sendiri.
                 </p>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-primary)' }}>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gridColumn: isRegular ? 2 : undefined, gridRow: isRegular ? '1 / span 4' : undefined, alignSelf: isRegular ? 'stretch' : undefined, alignContent: isRegular ? 'space-between' : undefined, gridTemplateColumns: useTabbedPricing || isRegular ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '0.5rem 1.25rem', fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-primary)' }}>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#d97706" /> <strong>Unlimited Produk &amp; Jasa</strong></li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#d97706" /> <strong>10 GB Storage &amp; 10 foto/item</strong></li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#d97706" /> <strong>Custom Domain (toko.com)</strong></li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#d97706" /> Lencana Toko Terverifikasi</li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#d97706" /> Prioritas VIP Support 24/7</li>
                 </ul>
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  style={{
+                    width: isRegular ? 'fit-content' : '100%',
+                    minWidth: isRegular ? '240px' : undefined,
+                    minHeight: '44px',
+                    padding: isRegular ? '0 1.6rem' : '0 1.15rem',
+                    borderRadius: '0.65rem',
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    border: 'none',
+                    color: '#000000',
+                    fontSize: '0.86rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    marginTop: isRegular ? '1rem' : '1.25rem',
+                    gridColumn: isRegular ? 1 : undefined,
+                    gridRow: isRegular ? 4 : undefined,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)'
+                  }}
+                >
+                  <span>Pilih Pro Bisnis</span>
+                  <ArrowRight size={15} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={onOpenLogin}
-                style={{
-                  width: '100%',
-                  minHeight: '40px',
-                  padding: '0 1.15rem',
-                  borderRadius: '0.65rem',
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                  border: 'none',
-                  color: '#000000',
-                  fontSize: '0.86rem',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  marginTop: '1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.45rem',
-                  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)'
-                }}
-              >
-                <span>Pilih Pro Bisnis</span>
-                <ArrowRight size={15} />
-              </button>
             </div>
           )}
         </div>
@@ -2077,8 +2153,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           ========================================================================= */}
       <section id="faq-section" style={{
         maxWidth: 'var(--tablet-container-max, 960px)',
-        margin: isMiniTablet ? '0 auto 2.25rem auto' : '0 auto 2.75rem auto',
-        padding: isMiniTablet ? '0 1.25rem' : '0 1.5rem',
+        margin: `0 auto ${sectionGap} auto`,
+        padding: `0 ${sectionPadX}`,
         width: '100%',
         boxSizing: 'border-box',
         scrollMarginTop: '135px'
@@ -2154,8 +2230,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           ========================================================================= */}
       <section style={{
         maxWidth: 'var(--tablet-container-max, 960px)',
-        margin: isMiniTablet ? '0 auto 2.25rem auto' : '0 auto 2.75rem auto',
-        padding: isMiniTablet ? '0 1.25rem' : '0 1.5rem',
+        margin: `0 auto ${sectionGap} auto`,
+        padding: `0 ${sectionPadX}`,
         width: '100%',
         boxSizing: 'border-box'
       }}>

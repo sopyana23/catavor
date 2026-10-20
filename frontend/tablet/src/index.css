@@ -192,9 +192,13 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Tablet Responsive Container & Proportional Scaling (768px -> 960px -> 1032px+) */
+/* Tablet Responsive Container — diselaraskan dengan tier viewport di TabletPublicLanding
+   compact  : < 768px   → tablet mini portrait (iPad mini 744, Android 600–767)
+   regular  : 768–899   → tablet portrait standar (iPad 768, iPad Air 810/820, iPad Pro 11 834)
+   expanded : 900–1119  → tablet besar portrait / landscape kecil (Surface Go 912, iPad Pro 12.9 1024)
+   wide     : >= 1120   → tablet landscape lebar (iPad Air 13 1180, Surface Pro 1280/1366) */
 :root {
-  --tablet-container-max: 920px;
+  --tablet-container-max: 100%;
 }
 
 html {
@@ -202,17 +206,24 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Wide Tablet (880px to 999px, e.g. 960x1440 Surface Pro) */
-@media screen and (min-width: 880px) {
+/* Regular Tablet Portrait */
+@media screen and (min-width: 768px) {
   :root {
-    --tablet-container-max: 940px;
+    --tablet-container-max: 760px;
   }
 }
 
-/* High-Res Tablet (>= 1000px, e.g. iPad Pro 1032x1376) */
-@media screen and (min-width: 1000px) {
+/* Expanded Tablet (portrait besar & landscape kecil) */
+@media screen and (min-width: 900px) {
   :root {
-    --tablet-container-max: 980px;
+    --tablet-container-max: 900px;
+  }
+}
+
+/* Wide Tablet Landscape */
+@media screen and (min-width: 1120px) {
+  :root {
+    --tablet-container-max: 1040px;
   }
 }
 
