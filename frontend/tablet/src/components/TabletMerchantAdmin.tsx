@@ -1017,51 +1017,92 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             borderBottom: '1px solid var(--border-light)',
             flexShrink: 0
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <div style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '0.65rem',
-                backgroundColor: 'rgba(30, 58, 138, 0.12)',
-                border: '1px solid var(--border-light)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--primary)',
-                flexShrink: 0
-              }}>
-                <StoreIcon size={20} />
-              </div>
-              {isNavExpanded && (
-                <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    {storeSettings.name || 'Admin Toko'}
+            {isNavExpanded ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden' }}>
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'rgba(30, 58, 138, 0.12)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--primary)',
+                    flexShrink: 0
+                  }}>
+                    <StoreIcon size={20} />
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600 }}>
-                    Konsol Merchant
+                  <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      {storeSettings.name || 'Admin Toko'}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600 }}>
+                      Konsol Merchant
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
 
-            <button
-              type="button"
-              onClick={() => setIsNavExpanded(!isNavExpanded)}
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '0.5rem',
-                border: '1px solid var(--border-light)',
-                backgroundColor: 'transparent',
-                color: 'var(--text-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-            >
-              {isNavExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setIsNavExpanded(false)}
+                  title="Ciutkan Menu"
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '0.5rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    flexShrink: 0
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsNavExpanded(true)}
+                title="Perluas Menu Navigasi"
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(30, 58, 138, 0.12)',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary)',
+                  cursor: 'pointer',
+                  position: 'relative'
+                }}
+              >
+                <StoreIcon size={20} />
+                <span style={{
+                  position: 'absolute',
+                  bottom: '-2px',
+                  right: '-2px',
+                  backgroundColor: 'var(--bg-card)',
+                  borderRadius: '50%',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '14px',
+                  height: '14px',
+                  color: 'var(--text-muted)'
+                }}>
+                  <ChevronRight size={10} />
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Navigation Items (Scrollable in Rail) */}
@@ -1190,6 +1231,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       {/* 2. MAIN WORKSPACE */}
       <main style={{
         flex: 1,
+        minWidth: 0,
         height: '100vh',
         overflow: 'hidden',
         display: 'flex',
@@ -1500,7 +1542,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   </div>
 
                   {/* Basic Information Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
                         Nama Produk *
@@ -1979,7 +2021,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             key={idx}
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 40px',
+                              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr)) 40px',
                               gap: '0.6rem',
                               alignItems: 'center',
                               padding: '0.65rem',
@@ -2352,7 +2394,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.25rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
               {/* Plan Card */}
               <div style={{
                 backgroundColor: 'var(--bg-card)',
@@ -2489,7 +2531,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               <h4 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 1rem 0' }}>
                 Fitur & Layanan Aktif Pada Toko Anda
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.85rem', fontSize: '0.88rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem', fontSize: '0.88rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
                   <ShieldCheck size={18} color="var(--primary)" />
                   Katalog Publik Terverifikasi
@@ -2810,7 +2852,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 0.75rem 0' }}>
                       Buka panel DNS (Cloudflare, Niagahoster, Domainesia, dsb.) dan tambahkan DNS Record berikut:
                     </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', fontSize: '0.82rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', fontSize: '0.82rem' }}>
                       <div style={{ padding: '0.65rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
                         <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>TIPE RECORD</div>
                         <div style={{ fontWeight: 800 }}>CNAME</div>
@@ -2916,7 +2958,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               }}>
                 {settingsTab === 'general' && (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.25rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
                           Nama Toko / Usaha
@@ -3081,7 +3123,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         Tema ini mengatur warna aksen, kartu, dan suasana visual pada halaman katalog publik Anda.
                       </p>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
                         {availableThemes.map(th => {
                           const isSelected = storeSettings.store_theme === th.id;
                           return (
@@ -3147,7 +3189,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       </p>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.25rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
                           Username Instagram Toko
@@ -3197,7 +3239,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
                 {settingsTab === 'about' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem', alignItems: 'center' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', alignItems: 'center' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
                           Jam Buka & Operasional
@@ -3321,7 +3363,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               Kelola kredensial akun, pembaruan kata sandi, dan pemantauan sesi perangkat aktif.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.25rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
               {/* Profile Card */}
               <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 1rem 0' }}>
@@ -3922,7 +3964,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               Promosikan etalase bisnis Anda dengan tautan langsung atau unduh QR Code resmi untuk dicetak.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
               {/* Link Share Card */}
               <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>

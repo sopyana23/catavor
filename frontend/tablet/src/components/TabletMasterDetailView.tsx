@@ -24,30 +24,49 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
   selectedId,
   onClearSelection
 }) => {
-  const [isNarrowTablet, setIsNarrowTablet] = React.useState(() => {
-    return typeof window !== 'undefined' ? window.innerWidth < 920 : false;
-  });
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = React.useState<number>(800);
 
   React.useEffect(() => {
-    const handleResize = () => {
-      setIsNarrowTablet(window.innerWidth < 920);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const el = containerRef.current;
+    if (!el) return;
+
+    if (el.clientWidth > 0) {
+      setContainerWidth(el.clientWidth);
+    }
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          setContainerWidth(entry.contentRect.width);
+        }
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
+
+  // When container width is below 700px (e.g. narrow tablet or expanded sidebar),
+  // adapt seamlessly to focused single-pane mode to prevent squeezed columns
+  const isNarrowTablet = containerWidth < 700;
+  const isSpaciousTablet = containerWidth >= 900;
 
   const showMaster = !isNarrowTablet || !selectedId;
   const showDetail = !isNarrowTablet || Boolean(selectedId);
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100%',
-      height: 'calc(100vh - 64px)',
-      overflow: 'hidden',
-      backgroundColor: 'var(--bg-deep)'
-    }}>
+    <div
+      ref={containerRef}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+        backgroundColor: 'var(--bg-deep)'
+      }}
+    >
       {/* Top Tablet Sub-Header Toolbar */}
       {(!hideHeaderTitle || (selectedId && onClearSelection) || headerAction) && (
         <div style={{
@@ -70,9 +89,8 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.35rem',
-                  padding: isNarrowTablet ? '0.45rem 0.85rem' : '0',
-                  width: isNarrowTablet ? 'auto' : '38px',
-                  height: '38px',
+                  padding: isNarrowTablet ? '0.45rem 0.85rem' : '0.45rem 0.65rem',
+                  minHeight: '38px',
                   borderRadius: '0.5rem',
                   border: '1px solid var(--border-light)',
                   backgroundColor: isNarrowTablet ? 'var(--bg-deep)' : 'transparent',
@@ -119,15 +137,16 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
         {/* Left Pane: Master List */}
         {showMaster && (
           <div style={{
-            width: isNarrowTablet ? '100%' : '38%',
-            minWidth: isNarrowTablet ? '100%' : '320px',
-            maxWidth: isNarrowTablet ? '100%' : '420px',
+            width: isNarrowTablet ? '100%' : isSpaciousTablet ? '35%' : '38%',
+            minWidth: isNarrowTablet ? '100%' : '270px',
+            maxWidth: isNarrowTablet ? '100%' : isSpaciousTablet ? '380px' : '320px',
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
             borderRight: isNarrowTablet ? 'none' : '1px solid var(--border-light)',
             backgroundColor: 'var(--bg-deep)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            transition: 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
             {masterPane}
           </div>

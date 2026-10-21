@@ -209,10 +209,10 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* KPI Cards Grid (Dynamically adapts: 4 columns on wide, 2 columns on compact tablet / expanded sidebar) */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
         gap: '1rem',
         marginBottom: '1.5rem'
       }}>
@@ -289,7 +289,7 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
         </div>
       </div>
 
-      {/* Channel Breakdown Row */}
+      {/* Channel Breakdown Row (Adaptive Auto-fit Grid) */}
       <div style={{
         backgroundColor: 'var(--bg-card)',
         borderRadius: '0.85rem',
@@ -300,7 +300,7 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
         <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 1rem 0' }}>
           Distribusi Kanal Konversi Pelanggan
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
           <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>WhatsApp Langsung</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981' }}>
