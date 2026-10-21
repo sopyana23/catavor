@@ -83,3 +83,24 @@ func TestCSRFRejectionPayload(t *testing.T) {
 		t.Fatalf("status = %d, ingin 403", res.StatusCode)
 	}
 }
+
+// TestCSRFSameOriginWithPort memastikan permintaan same-origin pada port dinamis (misal 8001)
+// lolos verifikasi CSRF meskipun tidak terdaftar di konfigurasi allowed origin eksplisit.
+func TestCSRFSameOriginWithPort(t *testing.T) {
+	app := fiber.New()
+	// allowed origin hanya 8000
+	app.Use(CSRFProtection([]string{"http://localhost:8000"}))
+	app.Post("/login", func(c *fiber.Ctx) error { return c.SendStatus(200) })
+
+	req := httptest.NewRequest(fiber.MethodPost, "/login", nil)
+	req.Host = "localhost:8001"
+	req.Header.Set("Origin", "http://localhost:8001")
+
+	res, err := app.Test(req, 5000)
+	if err != nil {
+		t.Fatalf("request gagal: %v", err)
+	}
+	if res.StatusCode != 200 {
+		t.Fatalf("status = %d, ingin 200 untuk same-origin di port 8001", res.StatusCode)
+	}
+}
