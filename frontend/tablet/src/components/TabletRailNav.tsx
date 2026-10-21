@@ -102,54 +102,96 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
           padding: isExpanded ? '0 1rem' : '0',
           borderBottom: '1px solid var(--border-light)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '0.65rem',
-              backgroundColor: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#10b981',
-              fontWeight: 800,
-              fontSize: '1.05rem',
-              flexShrink: 0
-            }}>
-              C
-            </div>
-            {isExpanded && (
-              <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-                  Catavor Tablet
+          {isExpanded ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#10b981',
+                  fontWeight: 800,
+                  fontSize: '1.05rem',
+                  flexShrink: 0
+                }}>
+                  C
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600 }}>
-                  Console Pengelola
+                <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                    Catavor Tablet
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600 }}>
+                    Console Pengelola
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            title={isExpanded ? 'Ciutkan Menu' : 'Perluas Menu'}
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '0.5rem',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'transparent',
-              color: 'var(--text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            {isExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-          </button>
+              <button
+                type="button"
+                onClick={() => setIsExpanded(false)}
+                title="Ciutkan Menu"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0
+                }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsExpanded(true)}
+              title="Perluas Menu Navigasi"
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#10b981',
+                fontWeight: 800,
+                fontSize: '1.05rem',
+                cursor: 'pointer',
+                position: 'relative'
+              }}
+            >
+              C
+              <span style={{
+                position: 'absolute',
+                bottom: '-2px',
+                right: '-2px',
+                backgroundColor: 'var(--bg-card)',
+                borderRadius: '50%',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '14px',
+                height: '14px',
+                color: 'var(--text-muted)'
+              }}>
+                <ChevronRight size={10} />
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Navigation List */}

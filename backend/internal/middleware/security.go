@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -70,8 +71,13 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 	// cabang "kosong di non-local" tidak pernah tercapai (dead code).
 	configuredOrigins := strings.Join(cfg.AllowedOrigins, ", ")
 	allowedOrigins := configuredOrigins
-	if allowedOrigins == "" || cfg.AppEnv == "local" {
-		allowedOrigins = "http://localhost:8000, http://127.0.0.1:8000, http://localhost:5173, http://localhost:3000, http://127.0.0.1:5173"
+	if allowedOrigins == "" {
+		allowedOrigins = fmt.Sprintf("http://localhost:%s, http://127.0.0.1:%s, http://localhost:8000, http://127.0.0.1:8000, http://localhost:5173, http://localhost:3000, http://127.0.0.1:5173", cfg.Port, cfg.Port)
+	} else if cfg.AppEnv == "local" {
+		currentOrigin := fmt.Sprintf("http://localhost:%s, http://127.0.0.1:%s", cfg.Port, cfg.Port)
+		if !strings.Contains(allowedOrigins, fmt.Sprintf(":%s", cfg.Port)) {
+			allowedOrigins = currentOrigin + ", " + allowedOrigins
+		}
 	}
 
 	// Daftar origin untuk pemeriksaan CSRF (dipisah koma -> slice).

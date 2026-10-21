@@ -79,10 +79,10 @@ func CSRFProtection(allowedOrigins []string) fiber.Handler {
 			return c.Next()
 		}
 
-		// Same-origin check: Origin harus cocok dengan Host permintaan.
-		// Ini menangani deployment yang tidak mengisi ALLOWED_ORIGINS.
+		// Same-origin check: Origin harus cocok dengan Host permintaan (host[:port]).
+		// Ini menangani deployment yang tidak mengisi ALLOWED_ORIGINS secara manual.
 		host := strings.ToLower(c.Hostname())
-		if u, err := url.Parse(origin); err == nil && strings.EqualFold(u.Hostname(), host) {
+		if u, err := url.Parse(origin); err == nil && (strings.EqualFold(u.Host, host) || strings.EqualFold(u.Hostname(), host)) {
 			return c.Next()
 		}
 

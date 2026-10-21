@@ -1,5 +1,5 @@
 /**
- * URL Security & Sanitization Utilities
+ * URL Security & Sanitization Utilities (Tablet)
  * Provides strict protocol whitelisting, dynamic master domain whitelist verifications,
  * user-level trusted domain preferences, and protection against XSS and Reverse Tabnabbing.
  */

@@ -22,25 +22,34 @@ export const TabletSegmentedPagination: React.FC<TabletSegmentedPaginationProps>
   return (
     <div style={{
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0.65rem 0.85rem',
+      flexDirection: 'column',
+      gap: '0.45rem',
+      padding: '0.65rem 0.75rem',
       backgroundColor: 'var(--bg-card)',
       borderTop: '1px solid var(--border-light)',
-      gap: '0.5rem',
       userSelect: 'none'
     }}>
       {/* Information Counter */}
-      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-        Hal <strong style={{ color: 'var(--text-primary)' }}>{currentPage}</strong> dari{' '}
-        <strong style={{ color: 'var(--text-primary)' }}>{totalPages || 1}</strong>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontSize: '0.78rem',
+        color: 'var(--text-muted)',
+        fontWeight: 500,
+        padding: '0 0.25rem'
+      }}>
+        <span>
+          Hal <strong style={{ color: 'var(--text-primary)' }}>{currentPage}</strong> dari{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>{totalPages || 1}</strong>
+        </span>
         {typeof totalRecords === 'number' && (
-          <span style={{ marginLeft: '0.35rem', opacity: 0.8 }}>({totalRecords} data)</span>
+          <span style={{ opacity: 0.85, fontWeight: 600 }}>({totalRecords} data)</span>
         )}
       </div>
 
       {/* Touch-Friendly Segmented Controls (Min Touch Target 44x44px) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', width: '100%' }}>
         <button
           type="button"
           disabled={currentPage <= 1 || isLoading}
