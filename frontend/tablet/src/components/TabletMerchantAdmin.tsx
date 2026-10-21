@@ -63,7 +63,8 @@ import {
   Award,
   Compass,
   Sun,
-  Droplets
+  Droplets,
+  RotateCcw
 } from 'lucide-react';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
@@ -71,6 +72,7 @@ import { TabletAnalyticsView } from './TabletAnalyticsView';
 import { TabletSubscriptionModal, type StoreQuotaData } from './TabletSubscriptionModal';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
+import { RichTextarea, FormattedText } from './RichTextarea';
 import { useModalBackHandler } from '../utils/navigation';
 
 export interface CatalogTypeOption {
@@ -422,8 +424,27 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // =========================================================================
   const [categories, setCategories] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<number | 'new' | null>(null);
-  const [isSelectingProductType, setIsSelectingProductType] = useState<boolean>(false);
+  const [selectedProductId, setSelectedProductId] = useState<number | 'new' | null>(() => {
+    if (typeof window !== 'undefined') {
+      const isNarrow = window.innerWidth < 880;
+      const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
+      if (isActionNew || !isNarrow) {
+        return 'new';
+      }
+    }
+    return null;
+  });
+  const [isSelectingProductType, setIsSelectingProductType] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const isNarrow = window.innerWidth < 880;
+      const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
+      const hasType = Boolean(new URLSearchParams(window.location.search).get('type') || new URLSearchParams(window.location.search).get('catalog_type'));
+      if ((isActionNew || !isNarrow) && !hasType) {
+        return true;
+      }
+    }
+    return false;
+  });
 
   // Responsive Tablet Form-Factor Tracking (Tablet Mini < 880px vs Tablet Lebar >= 880px)
   const [isNarrowScreen, setIsNarrowScreen] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 880);
@@ -583,47 +604,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const isUrlActionNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('action') === 'new';
         if (isUrlActionNew) {
           handleStartNewProduct();
-        } else if (list.length > 0 && selectedProductId === null && !isNarrowScreen) {
-          const first = list[0];
-          setSelectedProductId(first.id);
-          setIsSelectingProductType(false);
-          const gallery = (first.images || []).map((img: any) => img.image_url || img);
-          const variants = (first.variants || []).map((v: any) => ({
-            variant_name: v.variant_name || '',
-            sku: v.sku || '',
-            price_override: v.price_override,
-            stock_qty: v.stock_qty || 0
-          }));
-
-          let rawAttrs: Record<string, any> = {};
-          if (first.attributes) {
-            if (typeof first.attributes === 'string') {
-              try { rawAttrs = JSON.parse(first.attributes); } catch {}
-            } else if (typeof first.attributes === 'object') {
-              rawAttrs = { ...first.attributes };
-            }
-          }
-
-          setProductForm({
-            id: first.id,
-            name: first.name || '',
-            price: first.price || 0,
-            stock: first.stock !== undefined ? first.stock : 1,
-            category_id: first.category_id || '',
-            product_type: first.product_type || 'physical',
-            scientific_name: first.scientific_name || rawAttrs.scientific_name || '',
-            unit: first.unit || 'Pcs',
-            description: first.description || '',
-            image_url: first.image_url || '',
-            video_url: first.video_url || '',
-            is_active: first.is_active !== undefined ? first.is_active : true,
-            is_shipping_available: first.is_shipping_available !== undefined ? first.is_shipping_available : true,
-            min_order: first.min_order || 1,
-            max_order: first.max_order || '',
-            gallery_images: gallery,
-            variants: variants,
-            attributes: rawAttrs
-          });
+        } else if (selectedProductId === null && !isNarrowScreen) {
+          // USER REQUIREMENT: In wide tablet (split master-detail), default right pane to "Tambah Produk Baru" (Step 1: Pilih Tipe)
+          // instead of auto-selecting the first existing product.
+          handleStartNewProduct();
         }
       }
     } catch {
@@ -1532,29 +1516,58 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             title="Katalog Produk & Inventaris"
             subtitle={`${productTotalRecords} total item`}
             headerAction={
-              <button
-                id="btn-tambah-produk"
-                data-testid="btn-tambah-produk"
-                type="button"
-                onClick={() => handleStartNewProduct()}
-                style={{
-                  minHeight: '44px',
-                  padding: '0.55rem 1.15rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={17} />
-                Tambah Produk
-              </button>
+              selectedProductId === 'new' ? (
+                <button
+                  id="btn-reset-form-produk"
+                  data-testid="btn-reset-form-produk"
+                  type="button"
+                  onClick={() => handleStartNewProduct()}
+                  title="Mulai Ulang Formulir & Pilih Ulang Tipe Katalog"
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-light)',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <RotateCcw size={16} />
+                  <span>Reset Form</span>
+                </button>
+              ) : (
+                <button
+                  id="btn-tambah-produk"
+                  data-testid="btn-tambah-produk"
+                  type="button"
+                  onClick={() => handleStartNewProduct()}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px var(--primary-glow)'
+                  }}
+                >
+                  <Plus size={17} />
+                  <span>Tambah Produk</span>
+                </button>
+              )
             }
             selectedId={selectedProductId}
             onClearSelection={() => {
@@ -2093,6 +2106,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
                         {selectedProductId !== 'new' && (
                           <button
+                            id="btn-hapus-produk"
+                            data-testid="btn-hapus-produk"
                             type="button"
                             onClick={() => handleDeleteProduct(Number(selectedProductId))}
                             style={{
@@ -3621,26 +3636,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   </div>
 
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                      Deskripsi &amp; Spesifikasi Produk
-                    </label>
-                    <textarea
-                      rows={5}
+                    <RichTextarea
+                      label="Deskripsi & Spesifikasi Produk"
                       value={productForm.description}
-                      onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                      onChange={(val) => setProductForm((prev) => ({ ...prev, description: val }))}
                       placeholder="Jelaskan secara detail keunggulan, material, spesifikasi, dan kelengkapan produk..."
-                      style={{
-                        width: '100%',
-                        flex: 1,
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.88rem',
-                        outline: 'none',
-                        resize: 'none'
-                      }}
+                      rows={5}
+                      minHeight="140px"
+                      showZenFullscreen={true}
                     />
                   </div>
 

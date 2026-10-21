@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, MessageCircle, Share2, ShieldCheck, Check, Package, Tag, Clock } from 'lucide-react';
+import { FormattedText } from './RichTextarea';
 
 export interface TabletProductDetailSheetProps {
   product: any | null;
@@ -250,10 +251,13 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
             <div style={{
               fontSize: '0.88rem',
               color: 'var(--text-secondary)',
-              lineHeight: 1.6,
-              whiteSpace: 'pre-line'
+              lineHeight: 1.6
             }}>
-              {product.description || 'Penjual belum menyertakan deskripsi rinci untuk produk ini.'}
+              {product.description ? (
+                <FormattedText text={product.description} />
+              ) : (
+                'Penjual belum menyertakan deskripsi rinci untuk produk ini.'
+              )}
             </div>
           </div>
 
