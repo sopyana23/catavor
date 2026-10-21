@@ -60,6 +60,7 @@ interface TabletPlatformStoresViewProps {
   token: string;
   onNavigateToTab?: (tab: string) => void;
   hideHeader?: boolean;
+  onLogout?: () => void;
 }
 
 const formatBytes = (bytes: number): string => {
@@ -91,7 +92,8 @@ const formatCurrency = (val: number): string => {
 
 export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> = ({
   token,
-  hideHeader = false
+  hideHeader = false,
+  onLogout
 }) => {
   // Sub-tab: strictly separated Active Profiles vs Banned/Suspended Profiles
   const [subTab, setSubTab] = useState<'active' | 'banned'>('active');
@@ -170,6 +172,11 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
         }
       });
 
+      if (res.status === 401 || res.status === 403) {
+        onLogout?.();
+        return;
+      }
+
       if (!res.ok) {
         throw new Error(`Server status ${res.status}`);
       }
@@ -209,6 +216,10 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
           'Content-Type': 'application/json'
         }
       });
+      if (res.status === 401 || res.status === 403) {
+        onLogout?.();
+        return;
+      }
       const json = await res.json();
       if (json.success) {
         setStoreDetail(json);

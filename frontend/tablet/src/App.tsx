@@ -4,6 +4,7 @@ import {
   Mail,
   Store,
   ShieldCheck,
+  ShieldAlert,
   AlertCircle
 } from 'lucide-react';
 import { TabletPublicLanding } from './components/TabletPublicLanding';
@@ -82,10 +83,10 @@ export const App: React.FC = () => {
               localStorage.setItem('catavor_active_slug', data.active_store.slug);
             }
           } else {
-            handleLogout();
+            handleUnauthorized();
           }
         } else if (res.status === 401 || res.status === 403) {
-          handleLogout();
+          handleUnauthorized();
         }
       } catch (err) {
         console.warn('Session verification error:', err);
@@ -127,13 +128,32 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
+  const isPlatformAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/') || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/');
+
+  // Industry-standard centralized 401/unauthorized session eviction handler
+  const handleUnauthorized = (msg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.', customRedirectUrl?: string) => {
+    const isStaff = isPlatformAdmin(currentUser);
+    const targetLoginUrl = customRedirectUrl || (isStaff || isPlatformAdminPath ? '/admin' : '/login');
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
     localStorage.removeItem('catavor_active_slug');
     setToken(null);
     setCurrentUser(null);
-    navigateTo('/');
+    setLoginError(msg);
+    navigateTo(targetLoginUrl);
+  };
+
+  // Safe logout with smart redirect to dedicated admin portal (/admin) or merchant login (/login)
+  const handleLogout = (customRedirectUrl?: string) => {
+    const isStaff = isPlatformAdmin(currentUser);
+    const targetLoginUrl = customRedirectUrl || (isStaff || isPlatformAdminPath ? '/admin' : '/login');
+    localStorage.removeItem('catavor_token');
+    localStorage.removeItem('catavor_user');
+    localStorage.removeItem('catavor_active_slug');
+    setToken(null);
+    setCurrentUser(null);
+    setLoginError(null);
+    navigateTo(targetLoginUrl);
   };
 
   // Perform Login
@@ -164,7 +184,12 @@ export const App: React.FC = () => {
         if (isPlatformAdmin(json.user)) {
           navigateTo('/admin?tab=dashboard');
         } else {
-          navigateTo('/admin');
+          const targetSlug = json.active_store?.slug || json.user?.store_slug || localStorage.getItem('catavor_active_slug');
+          if (targetSlug) {
+            navigateTo(`/${targetSlug}/admin`);
+          } else {
+            navigateTo('/catalogs');
+          }
         }
       } else {
         setLoginError(json.message || 'Email atau password tidak sesuai.');
@@ -212,7 +237,12 @@ export const App: React.FC = () => {
         if (isPlatformAdmin(data.user)) {
           navigateTo('/admin?tab=dashboard');
         } else {
-          navigateTo('/admin');
+          const targetSlug = data.active_store?.slug || data.user?.store_slug || localStorage.getItem('catavor_active_slug');
+          if (targetSlug) {
+            navigateTo(`/${targetSlug}/admin`);
+          } else {
+            navigateTo('/catalogs');
+          }
         }
       } else {
         setLoginError(data.message || 'Otentikasi Google gagal diproses.');
@@ -353,12 +383,17 @@ export const App: React.FC = () => {
   }, []);
 
   const isLoginRoute = currentPath === '/login';
-  const isPlatformPath = currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/');
-  const isAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/');
-  const isAnyAdminRoute = isAdminPath || isPlatformPath;
+  const isStoreAdminRoute = Boolean(activeSlug) && (currentPath === `/${activeSlug}/admin` || currentPath.startsWith(`/${activeSlug}/admin/`));
+  const merchantSlug =
+    (currentUser as any)?.store_slug ||
+    (currentUser as any)?.active_store?.slug ||
+    (currentUser as any)?.stores?.[0]?.slug ||
+    localStorage.getItem('catavor_active_slug') ||
+    activeSlug ||
+    '';
 
-  // 1. PUBLIC STORE CATALOG ROUTE (e.g. /:slug and not admin or login)
-  if (activeSlug && !isAnyAdminRoute && !isLoginRoute) {
+  // 1. PUBLIC STORE CATALOG ROUTE (e.g. /:slug and not admin, platform, ops, or login)
+  if (activeSlug && !isStoreAdminRoute && !isLoginRoute && !isPlatformAdminPath) {
     return (
       <TabletStoreCatalog
         slug={activeSlug}
@@ -367,8 +402,118 @@ export const App: React.FC = () => {
     );
   }
 
-  // 2. UNAUTHENTICATED LOGIN VIEW FOR TABLET
-  if (isLoginRoute || (isAnyAdminRoute && !token)) {
+  // 2. DEDICATED PLATFORM ADMIN CONSOLE & LOGIN (/admin, /platform, /ops)
+  if (isPlatformAdminPath) {
+    // 2A. Authenticated Platform Staff
+    if (token && isPlatformAdmin(currentUser)) {
+      return (
+        <TabletPlatformConsole
+          token={token}
+          currentUser={currentUser}
+          onLogout={() => handleLogout('/admin')}
+        />
+      );
+    }
+
+    // 2B. Authenticated but NON-PLATFORM STAFF (Merchant logged in attempting /admin access)
+    if (token && !isPlatformAdmin(currentUser)) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'var(--bg-deep)',
+          color: 'var(--text-primary)',
+          padding: '2rem'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '520px',
+            backgroundColor: 'var(--bg-card)',
+            borderRadius: '1.25rem',
+            border: '1px solid var(--border-light)',
+            padding: '2.5rem',
+            boxShadow: 'var(--shadow-premium)',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '1.15rem',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.28)',
+              color: '#ef4444',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.25rem'
+            }}>
+              <ShieldAlert size={30} />
+            </div>
+            <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+              Akses Dibatasi — Staf Platform
+            </h1>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: '0 0 1.5rem 0', lineHeight: 1.6 }}>
+              Akun Anda saat ini (<strong>{currentUser?.email || 'Merchant'}</strong>) terdaftar sebagai merchant/penjual, bukan staf pengelola platform Catavor.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => navigateTo(merchantSlug ? `/${merchantSlug}/admin` : '/')}
+                style={{
+                  minHeight: '48px',
+                  padding: '0.75rem 1.25rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Buka Dashboard Toko Saya
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLogout('/admin')}
+                style={{
+                  minHeight: '44px',
+                  padding: '0.75rem 1.25rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-light)',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Keluar &amp; Masuk Akun Pengelola
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateTo('/')}
+                style={{
+                  minHeight: '38px',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  border: 'none',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  marginTop: '0.25rem'
+                }}
+              >
+                &larr; Kembali ke Halaman Utama
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 2C. Unauthenticated on Platform Admin Route -> Dedicated Platform Staff Login Screen
     return (
       <div style={{
         minHeight: '100vh',
@@ -394,23 +539,21 @@ export const App: React.FC = () => {
               width: '56px',
               height: '56px',
               borderRadius: '1rem',
-              backgroundColor: isPlatformPath ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-              border: isPlatformPath ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-              color: isPlatformPath ? '#3b82f6' : '#10b981',
+              backgroundColor: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              color: '#3b82f6',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               marginBottom: '1rem'
             }}>
-              {isPlatformPath ? <ShieldCheck size={28} /> : <Lock size={28} />}
+              <ShieldCheck size={28} />
             </div>
             <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-              {isPlatformPath ? 'Masuk Konsol Pengelola Platform' : 'Masuk Konsol Tablet'}
+              Masuk Konsol Pengelola Platform
             </h1>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
-              {isPlatformPath
-                ? 'Portal otentikasi resmi staf kepatuhan, CS, dan eksekutif platform'
-                : 'Kelola katalog toko Anda atau akses konsol operasional'}
+              Portal otentikasi resmi staf kepatuhan, CS, keuangan, dan eksekutif platform
             </p>
           </div>
 
@@ -460,18 +603,18 @@ export const App: React.FC = () => {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
               </svg>
-              Masuk dengan Akun Google
+              Masuk Staf dengan Akun Google
             </button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0.25rem 0' }}>
               <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>atau email & sandi</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>atau email staf &amp; sandi</span>
               <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
             </div>
 
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                Alamat Email
+                Email Resmi Staf
               </label>
               <div style={{
                 display: 'flex',
@@ -486,7 +629,7 @@ export const App: React.FC = () => {
                 <input
                   type="email"
                   required
-                  placeholder="admin@email.com"
+                  placeholder="admin@catavor.id"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   style={{
@@ -553,6 +696,430 @@ export const App: React.FC = () => {
                 marginTop: '0.5rem'
               }}
             >
+              {loginLoading ? 'Memverifikasi...' : 'Masuk ke Konsol Pengelola'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigateTo('/')}
+              style={{
+                minHeight: '40px',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                border: 'none',
+                fontSize: '0.85rem',
+                cursor: 'pointer'
+              }}
+            >
+              &larr; Kembali ke Halaman Utama
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. STORE ADMIN ROUTE (/:slug/admin)
+  if (isStoreAdminRoute) {
+    if (!token) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'var(--bg-deep)',
+          color: 'var(--text-primary)',
+          padding: '2rem'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '460px',
+            backgroundColor: 'var(--bg-card)',
+            borderRadius: '1.25rem',
+            border: '1px solid var(--border-light)',
+            padding: '2.5rem',
+            boxShadow: 'var(--shadow-premium)'
+          }}>
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+              <div style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '1rem',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#10b981',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '1rem'
+              }}>
+                <Store size={28} />
+              </div>
+              <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+                Masuk Konsol Toko
+              </h1>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
+                Kelola katalog &amp; etalase untuk profil {activeSlug}
+              </p>
+            </div>
+
+            {loginError && (
+              <div style={{
+                padding: '0.75rem 1rem',
+                borderRadius: '0.5rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                fontSize: '0.85rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <AlertCircle size={16} />
+                {loginError}
+              </div>
+            )}
+
+            <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+              <button
+                type="button"
+                onClick={handleGoogleSSO}
+                disabled={loginLoading}
+                style={{
+                  minHeight: '48px',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.92rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.75rem',
+                  cursor: loginLoading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
+                Masuk dengan Akun Google
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0.25rem 0' }}>
+                <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>atau email &amp; sandi</span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  Alamat Email
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.65rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)'
+                }}>
+                  <Mail size={18} color="var(--text-muted)" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="merchant@email.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    style={{
+                      flex: 1,
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.92rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  Kata Sandi
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.65rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)'
+                }}>
+                  <Lock size={18} color="var(--text-muted)" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    style={{
+                      flex: 1,
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.92rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loginLoading}
+                style={{
+                  minHeight: '48px',
+                  padding: '0.75rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: loginLoading ? 'not-allowed' : 'pointer',
+                  marginTop: '0.5rem'
+                }}
+              >
+                {loginLoading ? 'Memproses...' : 'Masuk ke Konsol Toko'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigateTo(`/${activeSlug}`)}
+                style={{
+                  minHeight: '40px',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  border: 'none',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                &larr; Lihat Katalog Toko Publik
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <TabletMerchantAdmin
+        token={token}
+        currentUser={currentUser}
+        storeSlug={activeSlug || merchantSlug || 'my-store'}
+        onLogout={() => handleLogout('/login')}
+        onViewPublicCatalog={() => navigateTo(activeSlug ? `/${activeSlug}` : '/')}
+        onThemeChange={(newTheme) => setStoreTheme(newTheme)}
+      />
+    );
+  }
+
+  // 4. GENERAL LOGIN ROUTE (/login)
+  if (isLoginRoute) {
+    if (token) {
+      if (isPlatformAdmin(currentUser)) {
+        navigateTo('/admin');
+        return null;
+      }
+      navigateTo(merchantSlug ? `/${merchantSlug}/admin` : '/');
+      return null;
+    }
+
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'var(--bg-deep)',
+        color: 'var(--text-primary)',
+        padding: '2rem'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '460px',
+          backgroundColor: 'var(--bg-card)',
+          borderRadius: '1.25rem',
+          border: '1px solid var(--border-light)',
+          padding: '2.5rem',
+          boxShadow: 'var(--shadow-premium)'
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '1rem',
+              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#10b981',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1rem'
+            }}>
+              <Lock size={28} />
+            </div>
+            <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+              Masuk Konsol Tablet
+            </h1>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
+              Kelola katalog toko Anda atau akses konsol operasional
+            </p>
+          </div>
+
+          {loginError && (
+            <div style={{
+              padding: '0.75rem 1rem',
+              borderRadius: '0.5rem',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#ef4444',
+              fontSize: '0.85rem',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <AlertCircle size={16} />
+              {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+            <button
+              type="button"
+              onClick={handleGoogleSSO}
+              disabled={loginLoading}
+              style={{
+                minHeight: '48px',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)',
+                color: 'var(--text-primary)',
+                fontSize: '0.92rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.75rem',
+                cursor: loginLoading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              Masuk dengan Akun Google
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0.25rem 0' }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>atau email &amp; sandi</span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                Alamat Email
+              </label>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)'
+              }}>
+                <Mail size={18} color="var(--text-muted)" />
+                <input
+                  type="email"
+                  required
+                  placeholder="merchant@email.com"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.92rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                Kata Sandi
+              </label>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)'
+              }}>
+                <Lock size={18} color="var(--text-muted)" />
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.92rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+              style={{
+                minHeight: '48px',
+                padding: '0.75rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--primary)',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                cursor: loginLoading ? 'not-allowed' : 'pointer',
+                marginTop: '0.5rem'
+              }}
+            >
               {loginLoading ? 'Memproses...' : 'Masuk ke Konsol'}
             </button>
 
@@ -576,47 +1143,7 @@ export const App: React.FC = () => {
     );
   }
 
-  // 3. AUTHENTICATED ADMIN ROUTES:
-  if (isAnyAdminRoute && token) {
-    // A. PLATFORM ROLE PORTAL (Superadmin, Compliance, CS, Finance, Ops)
-    if (isPlatformAdmin(currentUser)) {
-      return (
-        <TabletPlatformConsole
-          token={token}
-          currentUser={currentUser}
-          onLogout={handleLogout}
-        />
-      );
-    }
-
-    // B. MERCHANT ADMIN DASHBOARD FOR TABLET
-    // Guard against non-platform merchant accessing /platform or /ops
-    if (isPlatformPath) {
-      navigateTo('/admin');
-      return null;
-    }
-
-    const merchantSlug =
-      (currentUser as any)?.store_slug ||
-      (currentUser as any)?.active_store?.slug ||
-      (currentUser as any)?.stores?.[0]?.slug ||
-      localStorage.getItem('catavor_active_slug') ||
-      activeSlug ||
-      '';
-
-    return (
-      <TabletMerchantAdmin
-        token={token}
-        currentUser={currentUser}
-        storeSlug={merchantSlug || 'my-store'}
-        onLogout={handleLogout}
-        onViewPublicCatalog={() => navigateTo(merchantSlug ? `/${merchantSlug}` : '/')}
-        onThemeChange={(newTheme) => setStoreTheme(newTheme)}
-      />
-    );
-  }
-
-  // 4. PUBLIC LANDING PAGE ROUTE FOR TABLET (Default)
+  // 5. PUBLIC LANDING PAGE ROUTE FOR TABLET (Default)
   return (
     <TabletPublicLanding
       onSelectStore={(slug) => navigateTo(`/${slug}`)}

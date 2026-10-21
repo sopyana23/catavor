@@ -117,12 +117,22 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [actionRequiredTicketsCount, setActionRequiredTicketsCount] = useState(0);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
 
+  // Centralized authenticated fetch with automatic 401/403 session eviction
+  const authFetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const res = await fetch(input, init);
+    if (res.status === 401 || res.status === 403) {
+      onLogout();
+      throw new Error('UNAUTHORIZED');
+    }
+    return res;
+  }, [onLogout]);
+
   // Load metrics from backend
   const loadPlatformStats = useCallback(async () => {
     if (!token) return;
     try {
       // 1. Dormancy metrics
-      const dormRes = await fetch('/api/admin/dormancy/metrics', {
+      const dormRes = await authFetch('/api/admin/dormancy/metrics', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (dormRes.ok) {
@@ -137,7 +147,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       }
 
       // 2. Pending reports count
-      const repRes = await fetch('/api/admin/reports?status=pending&limit=1', {
+      const repRes = await authFetch('/api/admin/reports?status=pending&limit=1', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (repRes.ok) {
@@ -146,7 +156,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       }
 
       // 3. Support tickets
-      const tckRes = await fetch('/api/admin/support/tickets?limit=50', {
+      const tckRes = await authFetch('/api/admin/support/tickets?limit=50', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (tckRes.ok) {
@@ -159,7 +169,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       }
 
       // 4. Pending billing orders
-      const ordRes = await fetch('/api/admin/subscription/orders', {
+      const ordRes = await authFetch('/api/admin/subscription/orders', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (ordRes.ok) {
@@ -171,7 +181,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     } catch {
       // Fail gracefully
     }
-  }, [token]);
+  }, [token, authFetch]);
 
   useEffect(() => {
     loadPlatformStats();
@@ -191,19 +201,21 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     setReportsLoading(true);
     try {
       const q = reportsFilter === 'all' ? '' : `?status=${reportsFilter}`;
-      const res = await fetch(`/api/admin/reports${q}`, {
+      const res = await authFetch(`/api/admin/reports${q}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const j = await res.json();
         setReports(j.data || []);
       }
-    } catch {
-      showToast('Gagal memuat antrean laporan', 'error');
+    } catch (e: any) {
+      if (e?.message !== 'UNAUTHORIZED') {
+        showToast('Gagal memuat antrean laporan', 'error');
+      }
     } finally {
       setReportsLoading(false);
     }
-  }, [token, reportsFilter]);
+  }, [token, reportsFilter, authFetch]);
 
   useEffect(() => {
     if (activeView === 'reports') {
@@ -217,7 +229,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   const handleUpdateReportStatus = async (reportId: number, status: string, notes?: string) => {
     try {
-      const res = await fetch(`/api/admin/reports/${reportId}`, {
+      const res = await authFetch(`/api/admin/reports/${reportId}`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -233,8 +245,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       } else {
         showToast('Gagal memperbarui laporan', 'error');
       }
-    } catch {
-      showToast('Terjadi kesalahan jaringan', 'error');
+    } catch (e: any) {
+      if (e?.message !== 'UNAUTHORIZED') {
+        showToast('Terjadi kesalahan jaringan', 'error');
+      }
     }
   };
 
@@ -250,7 +264,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const fetchTickets = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/admin/support/tickets?limit=50', {
+      const res = await authFetch('/api/admin/support/tickets?limit=50', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -260,7 +274,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     } catch {
       // Fail silently
     }
-  }, [token]);
+  }, [token, authFetch]);
 
   useEffect(() => {
     if (activeView === 'support') {
@@ -271,22 +285,24 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const fetchTicketDetail = async (id: number) => {
     setSelectedTicketId(id);
     try {
-      const res = await fetch(`/api/admin/support/tickets/${id}`, {
+      const res = await authFetch(`/api/admin/support/tickets/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const j = await res.json();
         setTicketDetail(j.data || j.ticket || j);
       }
-    } catch {
-      showToast('Gagal memuat rincian tiket', 'error');
+    } catch (e: any) {
+      if (e?.message !== 'UNAUTHORIZED') {
+        showToast('Gagal memuat rincian tiket', 'error');
+      }
     }
   };
 
   const handleSendTicketReply = async () => {
     if (!selectedTicketId || !ticketReply.trim()) return;
     try {
-      const res = await fetch(`/api/admin/support/tickets/${selectedTicketId}/reply`, {
+      const res = await authFetch(`/api/admin/support/tickets/${selectedTicketId}/reply`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -302,15 +318,17 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       } else {
         showToast('Gagal mengirim balasan', 'error');
       }
-    } catch {
-      showToast('Terjadi kesalahan koneksi', 'error');
+    } catch (e: any) {
+      if (e?.message !== 'UNAUTHORIZED') {
+        showToast('Terjadi kesalahan koneksi', 'error');
+      }
     }
   };
 
   const handleUpdateTicketStatus = async (status: string) => {
     if (!selectedTicketId) return;
     try {
-      const res = await fetch(`/api/admin/support/tickets/${selectedTicketId}/status`, {
+      const res = await authFetch(`/api/admin/support/tickets/${selectedTicketId}/status`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -338,7 +356,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const fetchOrders = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/admin/subscription/orders', {
+      const res = await authFetch('/api/admin/subscription/orders', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -370,7 +388,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const fetchStaff = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/admin/rbac/staff', {
+      const res = await authFetch('/api/admin/rbac/staff', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -392,7 +410,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     e.preventDefault();
     if (!newStaffEmail) return;
     try {
-      const res = await fetch('/api/admin/rbac/staff', {
+      const res = await authFetch('/api/admin/rbac/staff', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -415,7 +433,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   const handleRevokeStaff = async (staffId: number) => {
     try {
-      const res = await fetch('/api/admin/rbac/staff/revoke', {
+      const res = await authFetch('/api/admin/rbac/staff/revoke', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -440,7 +458,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const fetchAutomation = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/admin/automation/status', {
+      const res = await authFetch('/api/admin/automation/status', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -460,7 +478,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   const handleTriggerBot = async () => {
     try {
-      const res = await fetch('/api/admin/automation/trigger', {
+      const res = await authFetch('/api/admin/automation/trigger', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -481,7 +499,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const fetchAuditLogs = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/admin/audit-logs?limit=40', {
+      const res = await authFetch('/api/admin/audit-logs?limit=40', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -858,6 +876,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               token={token}
               onNavigateToTab={setActiveView}
               hideHeader={true}
+              onLogout={onLogout}
             />
           )}
 

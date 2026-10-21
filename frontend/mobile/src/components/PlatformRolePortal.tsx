@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { compactToastMessage } from './SwipeableToast';
 import {
   Shield,
@@ -249,6 +249,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   onOpenRBAC,
   onLogout
 }) => {
+  // Centralized authenticated fetch with automatic 401/403 session eviction
+  const fetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const res = await window.fetch(input, init);
+    if (res.status === 401 || res.status === 403) {
+      if (onLogout) {
+        onLogout();
+      }
+      throw new Error('UNAUTHORIZED');
+    }
+    return res;
+  }, [onLogout]);
   // Theme Mode: Strictly Light and Dark Mode only for Platform Admin
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('catavor_admin_theme_mode') as 'dark' | 'light') || 'dark';
