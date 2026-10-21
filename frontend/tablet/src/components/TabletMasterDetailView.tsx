@@ -82,6 +82,8 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
             {selectedId && onClearSelection && (
               <button
                 type="button"
+                id="btn-back-to-master"
+                data-testid="btn-back-to-master"
                 onClick={onClearSelection}
                 aria-label="Kembali ke daftar"
                 style={{

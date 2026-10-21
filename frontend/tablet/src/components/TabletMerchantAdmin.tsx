@@ -71,6 +71,7 @@ import { TabletAnalyticsView } from './TabletAnalyticsView';
 import { TabletSubscriptionModal, type StoreQuotaData } from './TabletSubscriptionModal';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface CatalogTypeOption {
   id: string;
@@ -423,6 +424,35 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<number | 'new' | null>(null);
   const [isSelectingProductType, setIsSelectingProductType] = useState<boolean>(false);
+
+  // Responsive Tablet Form-Factor Tracking (Tablet Mini < 880px vs Tablet Lebar >= 880px)
+  const [isNarrowScreen, setIsNarrowScreen] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 880);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsNarrowScreen(window.innerWidth < 880);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Back Interceptor for Tablet Mini Sub-views (Rule 1 & Rule 2)
+  useModalBackHandler({
+    isOpen: isNarrowScreen && selectedProductId !== null,
+    onClose: () => {
+      setSelectedProductId(null);
+      setIsSelectingProductType(false);
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('action');
+        url.searchParams.delete('type');
+        url.searchParams.delete('catalog_type');
+        window.history.pushState({}, '', url.toString());
+      } catch {}
+    },
+    modalId: 'tablet_item_detail'
+  });
+
   const [productSearch, setProductSearch] = useState<string>('');
   const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
@@ -553,7 +583,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const isUrlActionNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('action') === 'new';
         if (isUrlActionNew) {
           handleStartNewProduct();
-        } else if (list.length > 0 && selectedProductId === null) {
+        } else if (list.length > 0 && selectedProductId === null && !isNarrowScreen) {
           const first = list[0];
           setSelectedProductId(first.id);
           setIsSelectingProductType(false);
@@ -601,11 +631,18 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [token, storeSlug, selectedProductId, productStatusFilter, productCategoryFilter]);
+  }, [token, storeSlug, selectedProductId, productStatusFilter, productCategoryFilter, isNarrowScreen, handleStartNewProduct]);
 
   const handleSelectProduct = (prod: any) => {
     setSelectedProductId(prod.id);
     setIsSelectingProductType(false);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('action');
+      url.searchParams.delete('type');
+      url.searchParams.delete('catalog_type');
+      window.history.pushState({}, '', url.toString());
+    } catch {}
     const gallery = (prod.images || []).map((img: any) => img.image_url || img);
     const variants = (prod.variants || []).map((v: any) => ({
       variant_name: v.variant_name || '',
@@ -749,7 +786,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const json = await res.json();
         showToast(isNew ? 'Produk berhasil ditambahkan!' : 'Perubahan produk berhasil disimpan!');
         await fetchProducts(productPage, productSearch);
-        if (json.data?.id) {
+        if (isNarrowScreen) {
+          setSelectedProductId(null);
+          setIsSelectingProductType(false);
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('action');
+            url.searchParams.delete('type');
+            url.searchParams.delete('catalog_type');
+            window.history.pushState({}, '', url.toString());
+          } catch {}
+        } else if (json.data?.id) {
           setSelectedProductId(json.data.id);
           setIsSelectingProductType(false);
         }
@@ -844,7 +891,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const json = await res.json();
         const list = json.data || json.categories || [];
         setCategories(list);
-        if (list.length > 0 && selectedCategoryId === null) {
+        if (list.length > 0 && selectedCategoryId === null && !isNarrowScreen) {
           setSelectedCategoryId(list[0].id);
           setCategoryForm({ id: list[0].id, name: list[0].name });
         }
@@ -852,7 +899,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     } catch {
       // safe fallback
     }
-  }, [storeSlug, selectedCategoryId, getHeaders]);
+  }, [storeSlug, selectedCategoryId, getHeaders, isNarrowScreen]);
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1003,14 +1050,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const json = await res.json();
         const list = json.data || json.tickets || [];
         setTickets(list);
-        if (list.length > 0 && selectedTicketId === null) {
+        if (list.length > 0 && selectedTicketId === null && !isNarrowScreen) {
           setSelectedTicketId(list[0].id);
         }
       }
     } catch {
       // safe fallback
     }
-  }, [token, storeSlug, selectedTicketId]);
+  }, [token, storeSlug, selectedTicketId, isNarrowScreen]);
 
   const fetchTicketDetails = useCallback(async (ticketId: number) => {
     if (!token || !ticketId) return;
@@ -1630,7 +1677,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       return (
                         <div
                           key={prod.id}
+                          id={`product-item-${prod.id}`}
+                          data-testid={`product-item-${prod.id}`}
+                          role="button"
+                          tabIndex={0}
                           onClick={() => handleSelectProduct(prod)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleSelectProduct(prod);
+                            }
+                          }}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -3588,9 +3645,40 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   </div>
 
                   {/* Submit Footer */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)' }}>
+                    <button
+                      type="button"
+                      id="btn-batal-form-produk"
+                      data-testid="btn-batal-form-produk"
+                      onClick={() => {
+                        setSelectedProductId(null);
+                        setIsSelectingProductType(false);
+                        try {
+                          const url = new URL(window.location.href);
+                          url.searchParams.delete('action');
+                          url.searchParams.delete('type');
+                          url.searchParams.delete('catalog_type');
+                          window.history.pushState({}, '', url.toString());
+                        } catch {}
+                      }}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0.65rem 1.25rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid var(--border-light)',
+                        fontWeight: 600,
+                        fontSize: '0.88rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Batal
+                    </button>
                     <button
                       type="submit"
+                      id="btn-simpan-produk"
+                      data-testid="btn-simpan-produk"
                       disabled={saving}
                       style={{
                         minHeight: '44px',
