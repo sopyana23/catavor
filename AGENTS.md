@@ -225,7 +225,12 @@ Detail lengkap diatur pada [.agents/rules/03_clean_code_and_architecture.md](fil
 4. **Idempotensi & Concurrency Safety**:
    - Tombol submit/bayar wajib otomatis disable saat loading (`isSubmitting`), debounced, dan dikunci secara unik di backend untuk mencegah transaksi/pesanan duplikat.
 
+---
 
-
+## 11. Agent-B Specialization & Domain Ownership: Admin Pengelola (Platform Management Console)
+Detail operasional diatur pada [.agents/rules/07_agent_role_specialization.md](file:///c:/MyProject/DFauna/.agents/rules/07_agent_role_specialization.md):
+- **Mandat Utama**: Agent-B berfokus penuh dan terisolasi pada modul **Admin Pengelola (Platform Management Console / Platform Role Portal)** beserta seluruh fitur di dalamnya (Manajemen Toko & Merchant, Audit Logs, RBAC & Hak Akses Staf, Helpdesk Tiket, Finansial & Pemantauan Sistem).
+- **Zero Distraction**: Tidak mencampuri atau merombak fitur etalase/admin toko merchant (`/:slug/*`) milik agen lain tanpa kebutuhan integrasi antar-platform.
+- **Tri-Frontend Parity**: Seluruh fitur atau perbaikan pada antarmuka admin pengelola wajib diverifikasi di Desktop, Tablet, dan Mobile.
 
 
