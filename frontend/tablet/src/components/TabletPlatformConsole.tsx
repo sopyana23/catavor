@@ -19,6 +19,7 @@ import {
   Eye,
   Send,
   Lock,
+  Unlock,
   MessageSquare,
   Tag,
   ExternalLink,
@@ -40,7 +41,16 @@ import {
   Maximize2,
   ChevronRight,
   Filter,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Receipt,
+  Phone,
+  ShieldAlert,
+  XCircle,
+  Award,
+  HelpCircle,
+  BarChart3,
+  Bot,
+  Printer
 } from 'lucide-react';
 import { TabletRailNav } from './TabletRailNav';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
@@ -249,8 +259,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [reports, setReports] = useState<any[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
-  const [reportsFilter, setReportsFilter] = useState<'pending' | 'action_taken' | 'dismissed' | 'all'>('pending');
+  const [reportsFilter, setReportsFilter] = useState<'pending' | 'investigating' | 'action_taken' | 'banned' | 'resolved' | 'dismissed' | 'all'>('pending');
+  const [moderationStatus, setModerationStatus] = useState<string>('pending');
+  const [moderationAction, setModerationAction] = useState<string>('none');
   const [actionReason, setActionReason] = useState('');
+  const [isSubmittingModeration, setIsSubmittingModeration] = useState(false);
 
   const fetchReports = useCallback(async () => {
     if (!token) return;
@@ -283,7 +296,22 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     return reports.find(r => r.id === selectedReportId) || null;
   }, [reports, selectedReportId]);
 
-  const handleUpdateReportStatus = async (reportId: number, status: string, notes?: string) => {
+  useEffect(() => {
+    if (selectedReport) {
+      setModerationStatus(selectedReport.status === 'pending' ? 'investigating' : selectedReport.status);
+      setModerationAction(selectedReport.action_taken || 'none');
+      setActionReason(selectedReport.admin_notes || '');
+    }
+  }, [selectedReport]);
+
+  const handleUpdateReportStatus = async (
+    reportId: number,
+    status: string,
+    actionTaken: string = 'none',
+    notes?: string,
+    applyEnforcement: boolean = true
+  ) => {
+    setIsSubmittingModeration(true);
     try {
       const res = await authFetch(`/api/admin/reports/${reportId}`, {
         method: 'PUT',
@@ -291,21 +319,44 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ status, admin_notes: notes || actionReason || 'Tindakan penertiban oleh staf pengelola tablet' })
+        body: JSON.stringify({
+          status,
+          action_taken: actionTaken,
+          admin_notes: notes || actionReason || 'Tindakan penertiban oleh staf pengelola tablet',
+          apply_enforcement: applyEnforcement
+        })
       });
       if (res.ok) {
-        showToast(`Status laporan berhasil diubah ke: ${status}`);
-        setActionReason('');
+        showToast(`Tindakan moderasi (${status}) berhasil diterapkan!`, 'success');
         fetchReports();
         loadPlatformStats();
       } else {
-        showToast('Gagal memperbarui laporan', 'error');
+        showToast('Gagal memperbarui status laporan', 'error');
       }
     } catch (e: any) {
       if (e?.message !== 'UNAUTHORIZED') {
         showToast('Terjadi kesalahan jaringan', 'error');
       }
+    } finally {
+      setIsSubmittingModeration(false);
     }
+  };
+
+  const generateReportWhatsAppWarning = (rep: any) => {
+    const storeName = rep.target_store_name || `Store #${rep.target_store_id || rep.store_id}`;
+    const caseId = rep.id || rep.report_number;
+    const reason = rep.reason_category || 'Kepatuhan Etalase';
+    const text = `Halo Pengelola *${storeName}*,\n\nKami dari Tim Kepatuhan Platform Catavor ingin memberitahukan terkait laporan kepatuhan (Kasus #${caseId}) dengan kategori: *${reason}*.\n\nCatatan Investigasi: ${actionReason || rep.details || 'Harap tinjau etalase Anda agar senantiasa sesuai dengan ketentuan platform Catavor.'}\n\nMohon lakukan penyesuaian atau koordinasi melalui Pusat Bantuan di dashboard toko Anda.\n\nTerima kasih,\nTim Kepatuhan Catavor`;
+    return encodeURIComponent(text);
+  };
+
+  const handleCopyReportWarning = (rep: any) => {
+    const storeName = rep.target_store_name || `Store #${rep.target_store_id || rep.store_id}`;
+    const caseId = rep.id || rep.report_number;
+    const reason = rep.reason_category || 'Kepatuhan Etalase';
+    const text = `[PERINGATAN RESMI KEPATUHAN CATAVOR]\nKasus: #${caseId}\nTarget: ${storeName}\nKategori: ${reason}\nCatatan: ${actionReason || rep.details || 'Pemeriksaan kepatuhan produk'}\nStatus: ${moderationStatus.toUpperCase()}\nTindakan: ${moderationAction}\nTanggal: ${new Date().toLocaleString('id-ID')}`;
+    navigator.clipboard.writeText(text);
+    showToast('Format teks peringatan disalin ke clipboard', 'success');
   };
 
   // =========================================================================
@@ -315,7 +366,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [ticketDetail, setTicketDetail] = useState<any | null>(null);
   const [ticketReply, setTicketReply] = useState('');
-  const [supportFilter, setSupportFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved' | 'closed'>('all');
+  const [supportFilter, setSupportFilter] = useState<'all' | 'open' | 'in_progress' | 'waiting_user' | 'resolved' | 'closed'>('all');
+  const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
+  const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
   const [supportSearch, setSupportSearch] = useState('');
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [ticketAttachments, setTicketAttachments] = useState<string[]>([]);
@@ -432,7 +485,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         body: JSON.stringify({ status })
       });
       if (res.ok) {
-        showToast(`Status tiket diperbarui ke ${status}`);
+        showToast(`Status tiket diperbarui ke: ${status.toUpperCase()}`);
         fetchTicketDetail(selectedTicketId);
         fetchTickets();
         loadPlatformStats();
@@ -444,16 +497,46 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
+  const handleUpdateTicketPriority = async (ticketId: number, priority: string) => {
+    try {
+      const res = await authFetch(`/api/admin/support/tickets/${ticketId}/priority`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ priority })
+      });
+      if (res.ok) {
+        showToast(`Prioritas tiket diubah ke ${priority.toUpperCase()}`);
+        fetchTicketDetail(ticketId);
+        fetchTickets();
+      } else {
+        showToast('Gagal memperbarui prioritas tiket', 'error');
+      }
+    } catch {
+      showToast('Gagal memperbarui prioritas tiket', 'error');
+    }
+  };
+
+  const handleInsertCannedTemplate = (content: string) => {
+    setTicketReply(prev => (prev ? `${prev}\n\n${content}` : content));
+    setShowCannedModal(false);
+    showToast('Template balasan disisipkan ke pesan');
+  };
+
   const filteredTickets = useMemo(() => {
     return tickets.filter(t => {
       const matchStatus = supportFilter === 'all' || t.status === supportFilter;
+      const matchCategory = ticketCategoryFilter === 'all' || t.category === ticketCategoryFilter;
+      const matchPriority = ticketPriorityFilter === 'all' || t.priority === ticketPriorityFilter;
       const matchSearch = !supportSearch ||
         (t.subject || '').toLowerCase().includes(supportSearch.toLowerCase()) ||
         (t.user_name || '').toLowerCase().includes(supportSearch.toLowerCase()) ||
         (t.ticket_number || '').toLowerCase().includes(supportSearch.toLowerCase());
-      return matchStatus && matchSearch;
+      return matchStatus && matchCategory && matchPriority && matchSearch;
     });
-  }, [tickets, supportFilter, supportSearch]);
+  }, [tickets, supportFilter, ticketCategoryFilter, ticketPriorityFilter, supportSearch]);
 
   // =========================================================================
   // SUB-VIEW: FINANCE (Keuangan & Billing)
@@ -462,6 +545,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [financeFilter, setFinanceFilter] = useState<'all' | 'pending_verification' | 'pending_payment' | 'paid' | 'rejected'>('all');
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<any | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
   const fetchOrders = useCallback(async () => {
@@ -534,7 +618,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     type: 'info',
     message: '',
     action_label: '',
-    action_url: ''
+    action_url: '',
+    show_top_banner: false,
+    banner_color: 'blue'
   });
   const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
 
@@ -579,7 +665,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         message: broadcastForm.message,
         action_label: broadcastForm.action_label || undefined,
         action_url: broadcastForm.action_url || undefined,
-        notification_action_enabled: Boolean(broadcastForm.action_url)
+        notification_action_enabled: Boolean(broadcastForm.action_url),
+        show_top_banner: broadcastForm.show_top_banner,
+        banner_color: broadcastForm.banner_color
       };
       const res = await authFetch('/api/admin/notifications/broadcast', {
         method: 'POST',
@@ -598,7 +686,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           type: 'info',
           message: '',
           action_label: '',
-          action_url: ''
+          action_url: '',
+          show_top_banner: false,
+          banner_color: 'blue'
         });
         setBroadcastSubView('list');
         fetchBroadcasts();
@@ -632,13 +722,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   };
 
   // =========================================================================
-  // SUB-VIEW: AUTOMATION & BOT SENTINEL
+  // SUB-VIEW: AUTOMATION & BOT SENTINEL (11 BOTS MATRIX)
   // =========================================================================
   const [automationStatus, setAutomationStatus] = useState<any>(null);
   const [automationLogs, setAutomationLogs] = useState<any[]>([]);
-  const [automationSubView, setAutomationSubView] = useState<'status' | 'logs'>('status');
-  const [selectedBotFilter, setSelectedBotFilter] = useState<string>('all');
-  const [isTriggeringBot, setIsTriggeringBot] = useState(false);
+  const [automationSubView, setAutomationSubView] = useState<'overview' | 'bots' | 'logs' | 'sandbox'>('overview');
+  const [isTriggeringBot, setIsTriggeringBot] = useState<string | null>(null);
 
   const fetchAutomation = useCallback(async () => {
     if (!token) return;
@@ -667,7 +756,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   }, [activeView, fetchAutomation]);
 
   const handleTriggerSpecificBot = async (botId: string) => {
-    setIsTriggeringBot(true);
+    setIsTriggeringBot(botId);
     try {
       const res = await authFetch('/api/admin/automation/trigger', {
         method: 'POST',
@@ -678,7 +767,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         body: JSON.stringify({ bot_id: botId })
       });
       if (res.ok) {
-        showToast(`Bot ${botId} berhasil dipicu secara manual!`);
+        showToast(`Bot ${botId} berhasil dipicu secara manual!`, 'success');
         fetchAutomation();
       } else {
         showToast('Gagal memicu bot worker', 'error');
@@ -686,9 +775,122 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     } catch {
       showToast('Terjadi kesalahan jaringan', 'error');
     } finally {
-      setIsTriggeringBot(false);
+      setIsTriggeringBot(null);
     }
   };
+
+  const BOT_WORKERS_CATALOG = [
+    {
+      id: 'store_expiry',
+      name: 'Bot Kedaluwarsa & Paket Toko',
+      category: 'Lifecycle',
+      categoryColor: '#3b82f6',
+      freq: 'Setiap 1 Jam',
+      desc: 'Memeriksa masa aktif paket merchant (Free/Pro). Mengubah status toko menjadi expired dan otomatis mengirimkan pengumuman peringatan perpanjangan.',
+      icon: StoreIcon,
+      color: '#3b82f6'
+    },
+    {
+      id: 'dormancy_worker',
+      name: 'Engine Lifecycle Dormansi Toko',
+      category: 'Lifecycle',
+      categoryColor: '#8b5cf6',
+      freq: 'Setiap 1 Jam',
+      desc: 'Memindai akun free inaktif secara bertahap: Peringatan Hari ke-30, Pembekuan Hari ke-38, Pengarsipan Hari ke-45, dan Penghapusan Permanen Hari ke-60.',
+      icon: Clock,
+      color: '#8b5cf6'
+    },
+    {
+      id: 'promo_expiry',
+      name: 'Bot Kedaluwarsa Promo & Kupon',
+      category: 'Commerce',
+      categoryColor: '#10b981',
+      freq: 'Setiap 15 Menit',
+      desc: 'Memindai voucher diskon & banner promo katalog produk merchant yang telah melewati masa berlaku untuk dinonaktifkan otomatis.',
+      icon: Tag,
+      color: '#10b981'
+    },
+    {
+      id: 'flash_sale',
+      name: 'Bot Sinkronisasi Flash Sale Realtime',
+      category: 'Commerce',
+      categoryColor: '#ef4444',
+      freq: 'Setiap 5 Menit',
+      desc: 'Mengaktifkan sesi flash sale terjadwal dan menutup sesi promo diskon yang telah habis waktunya secara otomatis.',
+      icon: Zap,
+      color: '#ef4444'
+    },
+    {
+      id: 'support_lifecycle',
+      name: 'Bot Helpdesk SLA & Auto-Resolve',
+      category: 'Support',
+      categoryColor: '#06b6d4',
+      freq: 'Setiap 15 Menit',
+      desc: 'Mengirimkan pengingat tiket membeku (72 jam), auto-resolve tiket tanpa respon merchant (48 jam), auto-close (7 hari), dan deteksi pelanggaran SLA.',
+      icon: HelpCircle,
+      color: '#06b6d4'
+    },
+    {
+      id: 'ticket_retention_worker',
+      name: 'Bot Retensi & Pemusnahan Data PDP Tiket',
+      category: 'Compliance',
+      categoryColor: '#ec4899',
+      freq: 'Setiap 24 Jam (Retensi 30-60 Hari)',
+      desc: 'Memusnahkan tiket closed (billing/akun 30h, teknis 60h) beserta berkas lampiran fisik dari penyimpanan server sesuai regulasi PDP.',
+      icon: ShieldAlert,
+      color: '#ec4899'
+    },
+    {
+      id: 'item_retention_worker',
+      name: 'Bot Retensi & Pembersihan Item Moderasi',
+      category: 'Compliance',
+      categoryColor: '#f43f5e',
+      freq: 'Setiap 24 Jam (Retensi 30-90 Hari)',
+      desc: 'Memproses pengingat H-7 barang moderasi, pengarsipan otomatis hari ke-30, dan pembersihan total dari sistem pada hari ke-90.',
+      icon: FileText,
+      color: '#f43f5e'
+    },
+    {
+      id: 'cleaner_worker',
+      name: 'Worker Pembersih Notifikasi & Log',
+      category: 'System',
+      categoryColor: '#64748b',
+      freq: 'Setiap 1 Jam',
+      desc: 'Menghapus notifikasi kedaluwarsa dan riwayat terbaca > 30 hari secara berkala guna menjaga performa dan kapasitas penyimpanan basis data.',
+      icon: Trash2,
+      color: '#64748b'
+    },
+    {
+      id: 'weekly_summary',
+      name: 'Bot Ringkasan Mingguan Platform',
+      category: 'System',
+      categoryColor: '#f59e0b',
+      freq: 'Setiap Minggu 08:00 WIB',
+      desc: 'Mengompilasi statistik transaksi mingguan, pendaftaran merchant baru, kepatuhan, dan mempublikasikan ringkasan otomatis ke dashboard pengelola.',
+      icon: BarChart3,
+      color: '#f59e0b'
+    },
+    {
+      id: 'onboarding_engine',
+      name: 'Bot Panduan Onboarding Toko Baru',
+      category: 'Lifecycle',
+      categoryColor: '#10b981',
+      freq: 'Event-Driven Realtime',
+      desc: 'Secara instan menyuntikkan 3 artikel panduan starter kit katalog digital saat ada merchant baru yang menyelesaikan pendaftaran toko.',
+      icon: Award,
+      color: '#10b981'
+    },
+    {
+      id: 'sse_hub',
+      name: 'SSE Realtime Streaming Gateway',
+      category: 'Streaming',
+      categoryColor: '#38bdf8',
+      freq: 'Persistent Web Streaming',
+      desc: 'Melayani transmisi siaran, status pergerakan tiket CS, dan pembaruan notifikasi langsung tanpa polling ke seluruh aplikasi pengguna aktif.',
+      icon: Radio,
+      color: '#38bdf8'
+    }
+  ];
 
   // =========================================================================
   // SUB-VIEW: MONETIZATION (AdSense & GA4)
@@ -697,8 +899,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [googleSettings, setGoogleSettings] = useState<Record<string, string>>({
     ads_enabled: '0',
     adsense_client_id: '',
+    ads_auto_enabled: '0',
+    ads_test_mode: '0',
+    ads_slot_header: '',
+    ads_slot_infeed: '',
     ads_txt_content: 'google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0',
     ga4_measurement_id: '',
+    ga4_enabled: '0',
+    ga4_debug_mode: '0',
     rekber_enabled: '1',
     rekber_partner_name: 'Rekber Syariah',
     rekber_website_url: 'https://rekbersyariah.com',
@@ -760,6 +968,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // SUB-VIEW: MASTER DATA (Rekber, Domains, CS Templates)
   // =========================================================================
   const [masterSubTab, setMasterSubTab] = useState<'rekber' | 'domains' | 'templates'>('rekber');
+  const [selectedRekberCategory, setSelectedRekberCategory] = useState<string>('rekber_template_physical');
   const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
   const [templateFilter, setTemplateFilter] = useState<'all' | 'general' | 'order' | 'animal' | 'technical' | 'billing'>('all');
   const [showAddTemplateModal, setShowAddTemplateModal] = useState(false);
@@ -826,6 +1035,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       if (res.ok) {
         showToast('Template berhasil dihapus');
         fetchCannedTemplates();
+      } else {
+        showToast('Gagal menghapus template', 'error');
       }
     } catch {
       showToast('Gagal menghapus template', 'error');
@@ -842,6 +1053,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       if (res.ok) {
         showToast('Template balasan CS berhasil direset ke standar pabrik');
         fetchCannedTemplates();
+      } else {
+        showToast('Gagal mereset template', 'error');
       }
     } catch {
       showToast('Gagal mereset template', 'error');
@@ -1072,6 +1285,216 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         </div>
       )}
 
+      {/* Official Invoice Receipt Modal (Finance Tab Printable Voucher) */}
+      {selectedReceiptOrder && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.65)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '560px',
+            backgroundColor: 'var(--bg-card)',
+            borderRadius: '1.25rem',
+            border: '1px solid var(--border-light)',
+            padding: '2rem',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem'
+          }}>
+            {/* Printable Receipt Area */}
+            <div id="catavor-invoice-receipt" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px dashed var(--border-light)', paddingBottom: '1rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', letterSpacing: '0.05em' }}>
+                    CATAVOR PLATFORM &bull; TANDA TERIMA RESMI
+                  </div>
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 900, margin: '0.25rem 0 0 0' }}>
+                    Bukti Pelunasan Langganan
+                  </h2>
+                </div>
+                <div style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '999px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  fontSize: '0.75rem',
+                  fontWeight: 900
+                }}>
+                  LUNAS / TERVERIFIKASI
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.85rem', fontSize: '0.82rem' }}>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Nomor Invoice</div>
+                  <div style={{ fontWeight: 800, fontFamily: 'monospace' }}>#{selectedReceiptOrder.invoice_number || selectedReceiptOrder.id}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Tanggal Pembayaran</div>
+                  <div style={{ fontWeight: 700 }}>{new Date(selectedReceiptOrder.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Katalog Toko Penerima</div>
+                  <div style={{ fontWeight: 800 }}>{selectedReceiptOrder.store_name || `Store #${selectedReceiptOrder.store_id}`}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Paket Langganan</div>
+                  <div style={{ fontWeight: 800, color: '#10b981' }}>{selectedReceiptOrder.plan_name || selectedReceiptOrder.plan?.toUpperCase()}</div>
+                </div>
+              </div>
+
+              <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Biaya Langganan</span>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#10b981' }}>
+                    Rp {(selectedReceiptOrder.amount || selectedReceiptOrder.price || 0).toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                  Metode: {selectedReceiptOrder.payment_method || 'Transfer Bank Manual'} &bull; Diverifikasi oleh Admin Pengelola
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedReceiptOrder(null)}
+                style={{
+                  padding: '0.55rem 1rem',
+                  borderRadius: '0.55rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-muted)',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: '0.55rem',
+                  border: 'none',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <Printer size={15} />
+                <span>Cetak Tanda Terima</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CS Canned Template Macro Selector Modal */}
+      {showCannedModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.65)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '600px',
+            maxHeight: '80vh',
+            backgroundColor: 'var(--bg-card)',
+            borderRadius: '1.25rem',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }}>Template Respon Cepat CS</h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                  Pilih makro jawaban untuk disisipkan langsung ke balasan tiket
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCannedModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {cannedTemplates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                  Belum ada template balasan CS terdaftar
+                </div>
+              ) : (
+                cannedTemplates.map(tmpl => (
+                  <div
+                    key={tmpl.id}
+                    onClick={() => handleInsertCannedTemplate(tmpl.content)}
+                    style={{
+                      padding: '0.85rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)' }}>
+                        {tmpl.title} {tmpl.shortcut_code && `(${tmpl.shortcut_code})`}
+                      </span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)' }}>
+                        {tmpl.category?.toUpperCase() || 'UMUM'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                      {tmpl.content}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. Tablet Rail Navigation */}
       <TabletRailNav
         activeView={activeView}
@@ -1178,6 +1601,170 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           {activeView === 'dashboard' && (
             <div style={{ padding: '1.5rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
               <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                
+                {/* Executive Action Center: Perlu Tindakan Administrator */}
+                {(pendingReportsCount > 0 || urgentTicketsCount > 0 || pendingOrdersCount > 0) ? (
+                  <div style={{
+                    padding: '1.25rem 1.5rem',
+                    borderRadius: '1.25rem',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444', boxShadow: '0 0 10px #ef4444' }} />
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 800, margin: 0 }}>
+                          Perlu Tindakan Administrator Segera
+                        </h3>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Prioritas Pengawasan Platform
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.85rem' }}>
+                      {pendingReportsCount > 0 && (
+                        <div style={{
+                          padding: '1rem',
+                          borderRadius: '0.85rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <AlertOctagon size={20} color="#ef4444" />
+                            <div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ef4444' }}>
+                                {pendingReportsCount} Laporan Kepatuhan Baru
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                Dugaan satwa terlarang / pelanggaran etalase
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleSwitchView('reports')}
+                            style={{
+                              padding: '0.4rem 0.85rem',
+                              borderRadius: '0.55rem',
+                              border: 'none',
+                              backgroundColor: '#ef4444',
+                              color: '#ffffff',
+                              fontSize: '0.75rem',
+                              fontWeight: 800,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Tinjau
+                          </button>
+                        </div>
+                      )}
+
+                      {urgentTicketsCount > 0 && (
+                        <div style={{
+                          padding: '1rem',
+                          borderRadius: '0.85rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                          border: '1px solid rgba(245, 158, 11, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <LifeBuoy size={20} color="#f59e0b" />
+                            <div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b' }}>
+                                {urgentTicketsCount} Tiket CS Prioritas Mendesak
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                Kendala transaksi atau teknis merchant
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleSwitchView('support')}
+                            style={{
+                              padding: '0.4rem 0.85rem',
+                              borderRadius: '0.55rem',
+                              border: 'none',
+                              backgroundColor: '#f59e0b',
+                              color: '#ffffff',
+                              fontSize: '0.75rem',
+                              fontWeight: 800,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Buka
+                          </button>
+                        </div>
+                      )}
+
+                      {pendingOrdersCount > 0 && (
+                        <div style={{
+                          padding: '1rem',
+                          borderRadius: '0.85rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <CreditCard size={20} color="#10b981" />
+                            <div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>
+                                {pendingOrdersCount} Verifikasi Pembayaran Pro
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                Bukti transfer menunggu konfirmasi staf
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleSwitchView('finance')}
+                            style={{
+                              padding: '0.4rem 0.85rem',
+                              borderRadius: '0.55rem',
+                              border: 'none',
+                              backgroundColor: '#10b981',
+                              color: '#ffffff',
+                              fontSize: '0.75rem',
+                              fontWeight: 800,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Proses
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: '1rem 1.5rem',
+                    borderRadius: '1.25rem',
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                  }}>
+                    <CheckCircle2 size={18} color="#10b981" />
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#10b981' }}>
+                      Status Operasional Prima: Seluruh laporan kepatuhan, tiket bantuan CS, dan aktivasi billing tertangani dengan baik.
+                    </span>
+                  </div>
+                )}
+
                 {/* 4 Primary KPI Cards */}
                 <div style={{
                   display: 'grid',
@@ -1289,6 +1876,44 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   </div>
                 </div>
 
+                {/* Telemetry Vitals Row */}
+                <div style={{
+                  padding: '1.25rem 1.5rem',
+                  borderRadius: '1.25rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '1rem'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Status Daemon 24/7</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Cpu size={14} />
+                      <span>11 Bot Worker Aktif</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Realtime Streaming Hub</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#38bdf8', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Radio size={14} />
+                      <span>SSE Gateway Siaga</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Toko Berlangganan Pro</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
+                      {metrics.pro_stores} Toko Aktif
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Omset Langganan</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem' }}>
+                      Rp {metrics.total_revenue.toLocaleString('id-ID')}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Quick Nav Module Launcher Grid */}
                 <div style={{
                   padding: '1.5rem',
@@ -1367,7 +1992,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {/* Filter Pills */}
                   <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: '0.35rem', overflowX: 'auto' }}>
-                    {(['pending', 'action_taken', 'dismissed', 'all'] as const).map(tab => (
+                    {(['pending', 'investigating', 'action_taken', 'banned', 'resolved', 'dismissed', 'all'] as const).map(tab => (
                       <button
                         key={tab}
                         type="button"
@@ -1384,7 +2009,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           whiteSpace: 'nowrap'
                         }}
                       >
-                        {tab === 'pending' ? 'Perlu Investigasi' : tab === 'action_taken' ? 'Ditindak' : tab === 'dismissed' ? 'Ditolak' : 'Semua'}
+                        {tab === 'pending' ? 'Perlu Investigasi' : tab === 'investigating' ? 'Investigasi' : tab === 'action_taken' ? 'Ditindak' : tab === 'banned' ? 'Banned' : tab === 'resolved' ? 'Selesai' : tab === 'dismissed' ? 'Ditolak' : 'Semua'}
                       </button>
                     ))}
                   </div>
@@ -1401,6 +2026,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     ) : (
                       reports.map(rep => {
                         const isSelected = selectedReportId === rep.id;
+                        const isItem = rep.target_type === 'item';
                         return (
                           <div
                             key={rep.id}
@@ -1417,22 +2043,35 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#ef4444' }}>
-                                {rep.reason_category || 'PELANGGARAN'}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  fontWeight: 800,
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '4px',
+                                  backgroundColor: isItem ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                  color: isItem ? '#a855f7' : '#3b82f6'
+                                }}>
+                                  {isItem ? 'PRODUK' : 'TOKO'}
+                                </span>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#ef4444' }}>
+                                  {rep.reason_category || 'PELANGGARAN'}
+                                </span>
+                              </div>
                               <span style={{
                                 fontSize: '0.68rem',
                                 fontWeight: 700,
                                 padding: '0.15rem 0.5rem',
                                 borderRadius: '999px',
-                                backgroundColor: rep.status === 'pending' ? 'rgba(239, 68, 68, 0.12)' : rep.status === 'action_taken' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                                color: rep.status === 'pending' ? '#ef4444' : rep.status === 'action_taken' ? '#10b981' : '#94a3b8'
+                                backgroundColor: rep.status === 'pending' ? 'rgba(239, 68, 68, 0.12)' : rep.status === 'action_taken' ? 'rgba(244, 63, 94, 0.12)' : rep.status === 'resolved' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                color: rep.status === 'pending' ? '#ef4444' : rep.status === 'action_taken' ? '#f43f5e' : rep.status === 'resolved' ? '#10b981' : '#94a3b8'
                               }}>
-                                {rep.status === 'pending' ? 'PENDING' : rep.status === 'action_taken' ? 'DITINDAK' : 'DITUTUP'}
+                                {rep.status?.toUpperCase() || 'PENDING'}
                               </span>
                             </div>
                             <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                               {rep.target_store_name || `Toko #${rep.target_store_id || rep.store_id}`}
+                              {rep.target_item_title && ` &bull; ${rep.target_item_title}`}
                             </div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {rep.details || rep.description || 'Tidak ada catatan pelapor'}
@@ -1446,7 +2085,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               }
               detailPane={
                 selectedReport ? (
-                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
+                    {/* Header Card */}
                     <div style={{
                       padding: '1.25rem',
                       borderRadius: '1rem',
@@ -1454,9 +2094,21 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       border: '1px solid var(--border-light)'
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ef4444' }}>
-                          Kasus #{selectedReport.id} &bull; {selectedReport.reason_category || 'Pelanggaran'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '4px',
+                            backgroundColor: selectedReport.target_type === 'item' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                            color: selectedReport.target_type === 'item' ? '#a855f7' : '#3b82f6'
+                          }}>
+                            {selectedReport.target_type === 'item' ? 'MODERASI PRODUK' : 'MODERASI TOKO'}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ef4444' }}>
+                            Kasus #{selectedReport.id} &bull; {selectedReport.reason_category || 'Pelanggaran'}
+                          </span>
+                        </div>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                           {selectedReport.created_at ? new Date(selectedReport.created_at).toLocaleString('id-ID') : '-'}
                         </span>
@@ -1464,17 +2116,30 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
                       <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
                         Target: {selectedReport.target_store_name || `Store #${selectedReport.target_store_id || selectedReport.store_id}`}
+                        {selectedReport.target_item_title && ` / Item: ${selectedReport.target_item_title}`}
                       </h3>
 
+                      {/* Forensic Metadata Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', fontSize: '0.75rem', marginTop: '0.75rem', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)' }}>Pelapor Email: </span>
+                          <span style={{ fontWeight: 700 }}>{selectedReport.reporter_email || 'Anonim'}</span>
+                        </div>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)' }}>Alamat IP Pelapor: </span>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{selectedReport.reporter_ip || '127.0.0.1'}</span>
+                        </div>
+                      </div>
+
                       <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', marginTop: '0.75rem' }}>
-                        <div style={{ fontWeight: 800, marginBottom: '0.25rem', color: 'var(--text-primary)' }}>Laporan Pelapor:</div>
-                        {selectedReport.details || selectedReport.description || 'Tidak ada uraian laporan'}
+                        <div style={{ fontWeight: 800, marginBottom: '0.25rem', color: 'var(--text-primary)' }}>Uraian Laporan Masyarakat:</div>
+                        {selectedReport.details || selectedReport.description || 'Tidak ada uraian laporan tertulis'}
                       </div>
 
                       {/* Evidence Attachment */}
                       {selectedReport.evidence_image_url && (
                         <div style={{ marginTop: '1rem' }}>
-                          <div style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '0.4rem' }}>Bukti Lampiran Foto:</div>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '0.4rem' }}>Bukti Lampiran Foto Pelapor:</div>
                           <img
                             src={selectedReport.evidence_image_url}
                             alt="Bukti Laporan"
@@ -1495,83 +2160,175 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       )}
                     </div>
 
-                    {/* Action Form */}
+                    {/* Status & Enforcement Selector */}
                     <div style={{
                       padding: '1.25rem',
                       borderRadius: '1rem',
                       backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)'
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem'
                     }}>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                        Tindakan Administratif Staf
-                      </h4>
-                      <textarea
-                        rows={3}
-                        value={actionReason}
-                        onChange={e => setActionReason(e.target.value)}
-                        placeholder="Tuliskan catatan forensik / keputusan penertiban..."
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem',
-                          borderRadius: '0.5rem',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-card)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.85rem',
-                          boxSizing: 'border-box',
-                          outline: 'none',
-                          marginBottom: '0.85rem'
-                        }}
-                      />
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <div>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>
+                          Status Peninjauan Laporan
+                        </h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', marginTop: '0.5rem' }}>
+                          {[
+                            { value: 'investigating', label: 'Investigasi', color: '#f59e0b' },
+                            { value: 'action_taken', label: 'Ditindak', color: '#f43f5e' },
+                            { value: 'banned', label: 'Banned', color: '#ef4444' },
+                            { value: 'resolved', label: 'Selesai', color: '#10b981' },
+                            { value: 'dismissed', label: 'Ditolak', color: '#64748b' }
+                          ].map(st => (
+                            <button
+                              key={st.value}
+                              type="button"
+                              onClick={() => setModerationStatus(st.value)}
+                              style={{
+                                padding: '0.5rem',
+                                borderRadius: '0.55rem',
+                                border: `1.5px solid ${moderationStatus === st.value ? st.color : 'var(--border-light)'}`,
+                                backgroundColor: moderationStatus === st.value ? `${st.color}20` : 'var(--bg-card)',
+                                color: moderationStatus === st.value ? st.color : 'var(--text-muted)',
+                                fontWeight: 800,
+                                fontSize: '0.78rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {st.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Enforcement Action Selector */}
+                      <div>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>
+                          Tindakan Penegakan Sistem (Real-Time Enforcement)
+                        </h4>
+                        <select
+                          value={moderationAction}
+                          onChange={e => setModerationAction(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.55rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.85rem',
+                            fontWeight: 700
+                          }}
+                        >
+                          <option value="none">Tanpa Sanksi Otomatis (Hanya Catatan Investigasi)</option>
+                          <option value="warning_issued">Terbitkan Peringatan Resmi ke Merchant</option>
+                          {selectedReport.target_type === 'item' ? (
+                            <>
+                              <option value="item_needs_fix">Nonaktifkan Item: Beri Kesempatan Edit & Perbaiki</option>
+                              <option value="item_locked">Nonaktifkan & Kunci Item: Pelanggaran Keras</option>
+                              <option value="item_banned">Blokir & Hapus Item (Banned Permanen)</option>
+                              <option value="item_restored">Pulihkan & Aktifkan Kembali Item</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="catalog_suspended">Bekukan / Suspend Profil Katalog Toko</option>
+                              <option value="catalog_banned">Blokir / Banned Permanen Toko & Akun</option>
+                              <option value="catalog_reactivated">Pulihkan / Aktifkan Kembali Profil Toko</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Forensic Notes */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                          Catatan Forensik Staf Pengelola
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={actionReason}
+                          onChange={e => setActionReason(e.target.value)}
+                          placeholder="Tuliskan keputusan investigasi / alasan penindakan..."
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.5rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.85rem',
+                            boxSizing: 'border-box',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      {/* Action Execution Buttons */}
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                         <button
                           type="button"
-                          onClick={() => handleUpdateReportStatus(selectedReport.id, 'action_taken')}
+                          disabled={isSubmittingModeration}
+                          onClick={() => handleUpdateReportStatus(selectedReport.id, moderationStatus, moderationAction, actionReason)}
                           style={{
-                            padding: '0.55rem 1.15rem',
+                            padding: '0.65rem 1.25rem',
                             borderRadius: '0.55rem',
                             border: 'none',
-                            backgroundColor: '#10b981',
+                            backgroundColor: 'var(--primary)',
                             color: '#ffffff',
-                            fontWeight: 700,
+                            fontWeight: 800,
                             fontSize: '0.82rem',
                             cursor: 'pointer'
                           }}
                         >
-                          Tindak Pelanggaran
+                          {isSubmittingModeration ? 'Menerapkan...' : 'Terapkan Tindakan Moderasi'}
                         </button>
+
                         <button
                           type="button"
-                          onClick={() => handleUpdateReportStatus(selectedReport.id, 'dismissed')}
+                          onClick={() => handleCopyReportWarning(selectedReport)}
                           style={{
-                            padding: '0.55rem 1.15rem',
+                            padding: '0.65rem 1rem',
                             borderRadius: '0.55rem',
                             border: '1px solid var(--border-light)',
-                            backgroundColor: 'transparent',
-                            color: 'var(--text-muted)',
+                            backgroundColor: 'var(--bg-card)',
+                            color: 'var(--text-secondary)',
                             fontWeight: 700,
                             fontSize: '0.82rem',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
                           }}
                         >
-                          Tutup / Tolak Laporan
+                          <Copy size={14} />
+                          <span>Salin Format Peringatan</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateReportStatus(selectedReport.id, 'pending')}
-                          style={{
-                            padding: '0.55rem 1.15rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'transparent',
-                            color: '#ef4444',
-                            fontWeight: 700,
-                            fontSize: '0.82rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Kembalikan ke Pending
-                        </button>
+
+                        {selectedReport.target_store_slug && (
+                          <a
+                            href={`/${selectedReport.target_store_slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              padding: '0.65rem 1rem',
+                              borderRadius: '0.55rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-card)',
+                              color: 'var(--text-primary)',
+                              fontWeight: 700,
+                              fontSize: '0.82rem',
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}
+                          >
+                            <ExternalLink size={14} />
+                            <span>Buka Halaman Publik</span>
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1612,8 +2369,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         }}
                       />
                     </div>
+
+                    {/* Status Filter */}
                     <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto' }}>
-                      {(['all', 'open', 'in_progress', 'resolved', 'closed'] as const).map(st => (
+                      {(['all', 'open', 'in_progress', 'waiting_user', 'resolved', 'closed'] as const).map(st => (
                         <button
                           key={st}
                           type="button"
@@ -1631,6 +2390,30 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           }}
                         >
                           {st.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Priority & Category Pills */}
+                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto' }}>
+                      {(['all', 'urgent', 'high', 'medium', 'low'] as const).map(pr => (
+                        <button
+                          key={pr}
+                          type="button"
+                          onClick={() => setTicketPriorityFilter(pr)}
+                          style={{
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '999px',
+                            border: `1px solid ${ticketPriorityFilter === pr ? '#f59e0b' : 'var(--border-light)'}`,
+                            backgroundColor: ticketPriorityFilter === pr ? 'rgba(245, 158, 11, 0.12)' : 'transparent',
+                            color: ticketPriorityFilter === pr ? '#f59e0b' : 'var(--text-muted)',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {pr === 'all' ? 'SEMUA PRIORITAS' : pr.toUpperCase()}
                         </button>
                       ))}
                     </div>
@@ -1665,16 +2448,28 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               <span style={{ fontSize: '0.72rem', fontWeight: 800, color: t.priority === 'urgent' ? '#ef4444' : 'var(--primary)' }}>
                                 #{t.ticket_number || t.id}
                               </span>
-                              <span style={{
-                                fontSize: '0.68rem',
-                                fontWeight: 700,
-                                padding: '0.15rem 0.5rem',
-                                borderRadius: '999px',
-                                backgroundColor: t.status === 'open' ? 'rgba(239, 68, 68, 0.12)' : t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                                color: t.status === 'open' ? '#ef4444' : t.status === 'in_progress' ? '#f59e0b' : '#10b981'
-                              }}>
-                                {t.status?.toUpperCase() || 'OPEN'}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: t.priority === 'urgent' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                  color: t.priority === 'urgent' ? '#ef4444' : 'var(--text-muted)'
+                                }}>
+                                  {t.priority?.toUpperCase() || 'NORMAL'}
+                                </span>
+                                <span style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: t.status === 'open' ? 'rgba(239, 68, 68, 0.12)' : t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                                  color: t.status === 'open' ? '#ef4444' : t.status === 'in_progress' ? '#f59e0b' : '#10b981'
+                                }}>
+                                  {t.status?.toUpperCase() || 'OPEN'}
+                                </span>
+                              </div>
                             </div>
                             <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                               {t.subject || 'Pertanyaan Layanan'}
@@ -1710,6 +2505,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         </h3>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {/* Status selector */}
                         <select
                           value={ticketDetail.status || 'open'}
                           onChange={e => handleUpdateTicketStatus(e.target.value)}
@@ -1725,11 +2521,76 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         >
                           <option value="open">Open</option>
                           <option value="in_progress">In Progress</option>
+                          <option value="waiting_user">Waiting User</option>
                           <option value="resolved">Resolved</option>
                           <option value="closed">Closed</option>
                         </select>
+
+                        {/* Priority selector */}
+                        <select
+                          value={ticketDetail.priority || 'medium'}
+                          onChange={e => handleUpdateTicketPriority(ticketDetail.id, e.target.value)}
+                          style={{
+                            padding: '0.4rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card)',
+                            color: ticketDetail.priority === 'urgent' ? '#ef4444' : 'var(--text-primary)',
+                            fontSize: '0.78rem',
+                            fontWeight: 700
+                          }}
+                        >
+                          <option value="urgent">Urgent</option>
+                          <option value="high">High</option>
+                          <option value="medium">Medium</option>
+                          <option value="low">Low</option>
+                        </select>
                       </div>
                     </div>
+
+                    {/* Merchant Action Bar */}
+                    {(ticketDetail.user_phone || ticketDetail.store_slug) && (
+                      <div style={{ padding: '0.5rem 1.5rem', backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                        {ticketDetail.user_phone && (
+                          <a
+                            href={`https://wa.me/${ticketDetail.user_phone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.75rem',
+                              color: '#10b981',
+                              fontWeight: 700,
+                              textDecoration: 'none'
+                            }}
+                          >
+                            <Phone size={14} />
+                            <span>WhatsApp Merchant</span>
+                          </a>
+                        )}
+                        {ticketDetail.store_slug && (
+                          <a
+                            href={`/${ticketDetail.store_slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.75rem',
+                              color: 'var(--primary)',
+                              fontWeight: 700,
+                              textDecoration: 'none'
+                            }}
+                          >
+                            <ExternalLink size={14} />
+                            <span>Katalog Toko</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
 
                     {/* Messages Thread */}
                     <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1777,6 +2638,30 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
                     {/* Reply Bar */}
                     <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
+                      {/* Quick Macro & Canned button */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowCannedModal(true)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card)',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Zap size={13} color="#f59e0b" />
+                          <span>Gunakan Template CS</span>
+                        </button>
+                      </div>
+
                       {/* Attachments preview */}
                       {ticketAttachments.length > 0 && (
                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
@@ -1972,7 +2857,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               }
               detailPane={
                 selectedOrder ? (
-                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
                     <div style={{
                       padding: '1.25rem',
                       borderRadius: '1rem',
@@ -1983,16 +2868,38 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981' }}>
                           Invoice #{selectedOrder.invoice_number || selectedOrder.id}
                         </span>
-                        <span style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          padding: '0.2rem 0.6rem',
-                          borderRadius: '999px',
-                          backgroundColor: selectedOrder.status === 'active' || selectedOrder.status === 'paid' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                          color: selectedOrder.status === 'active' || selectedOrder.status === 'paid' ? '#10b981' : '#f59e0b'
-                        }}>
-                          {selectedOrder.status?.toUpperCase() || 'PENDING'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReceiptOrder(selectedOrder)}
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '0.45rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-card)',
+                              color: 'var(--text-secondary)',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}
+                          >
+                            <Receipt size={14} />
+                            <span>Tanda Terima</span>
+                          </button>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '999px',
+                            backgroundColor: selectedOrder.status === 'active' || selectedOrder.status === 'paid' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                            color: selectedOrder.status === 'active' || selectedOrder.status === 'paid' ? '#10b981' : '#f59e0b'
+                          }}>
+                            {selectedOrder.status?.toUpperCase() || 'PENDING'}
+                          </span>
+                        </div>
                       </div>
 
                       <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
@@ -2230,7 +3137,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     }
                     detailPane={
                       selectedBroadcast ? (
-                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
                           <div style={{
                             padding: '1.25rem',
                             borderRadius: '1rem',
@@ -2467,6 +3374,57 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         </div>
                       </div>
 
+                      {/* Announcement Top Banner Switch */}
+                      <div style={{
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>Tampilkan Banner Pengumuman di Atas Katalog Toko</span>
+                            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                              Menyematkan strip banner resmi di bagian paling atas halaman etalase publik merchant
+                            </p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={broadcastForm.show_top_banner}
+                            onChange={e => setBroadcastForm(prev => ({ ...prev, show_top_banner: e.target.checked }))}
+                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                          />
+                        </div>
+
+                        {broadcastForm.show_top_banner && (
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', paddingTop: '0.5rem' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Warna Aksen Banner:</span>
+                            {(['blue', 'emerald', 'amber', 'rose'] as const).map(c => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => setBroadcastForm(prev => ({ ...prev, banner_color: c }))}
+                                style={{
+                                  padding: '0.25rem 0.65rem',
+                                  borderRadius: '999px',
+                                  border: `1.5px solid ${broadcastForm.banner_color === c ? 'var(--primary)' : 'var(--border-light)'}`,
+                                  backgroundColor: c === 'blue' ? '#3b82f6' : c === 'emerald' ? '#10b981' : c === 'amber' ? '#f59e0b' : '#ef4444',
+                                  color: '#ffffff',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 800,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {c.toUpperCase()}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
                         <button
                           type="button"
@@ -2508,10 +3466,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             </div>
           )}
 
-          {/* TAB 8: AUTOMATION (MESIN OTOMATISASI & BOT) */}
+          {/* TAB 8: AUTOMATION (MESIN OTOMATISASI & 11 BOTS) */}
           {activeView === 'automation' && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              {/* Sub-Switch: Status vs Logs */}
+              {/* Sub-Switch: Overview vs Bots vs Logs */}
               <div style={{
                 padding: '0.75rem 1.5rem',
                 borderBottom: '1px solid var(--border-light)',
@@ -2521,44 +3479,36 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 backgroundColor: 'var(--bg-deep)'
               }}>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setAutomationSubView('status')}
-                    style={{
-                      padding: '0.45rem 1rem',
-                      borderRadius: '0.55rem',
-                      border: `1px solid ${automationSubView === 'status' ? 'var(--primary)' : 'var(--border-light)'}`,
-                      backgroundColor: automationSubView === 'status' ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
-                      color: automationSubView === 'status' ? 'var(--primary)' : 'var(--text-muted)',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Status & Kontrol Bot
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAutomationSubView('logs')}
-                    style={{
-                      padding: '0.45rem 1rem',
-                      borderRadius: '0.55rem',
-                      border: `1px solid ${automationSubView === 'logs' ? 'var(--primary)' : 'var(--border-light)'}`,
-                      backgroundColor: automationSubView === 'logs' ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
-                      color: automationSubView === 'logs' ? 'var(--primary)' : 'var(--text-muted)',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Riwayat Log Eksekusi ({automationLogs.length})
-                  </button>
+                  {[
+                    { key: 'overview', label: 'Ringkasan Daemon' },
+                    { key: 'bots', label: '11 Bot Platform' },
+                    { key: 'logs', label: `Riwayat Log (${automationLogs.length})` },
+                    { key: 'sandbox', label: 'Sandbox Simulator' }
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setAutomationSubView(tab.key as any)}
+                      style={{
+                        padding: '0.45rem 1rem',
+                        borderRadius: '0.55rem',
+                        border: `1px solid ${automationSubView === tab.key ? 'var(--primary)' : 'var(--border-light)'}`,
+                        backgroundColor: automationSubView === tab.key ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
+                        color: automationSubView === tab.key ? 'var(--primary)' : 'var(--text-muted)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleTriggerSpecificBot('all')}
-                  disabled={isTriggeringBot}
+                  disabled={Boolean(isTriggeringBot)}
                   style={{
                     padding: '0.45rem 1rem',
                     borderRadius: '0.55rem',
@@ -2570,120 +3520,163 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     cursor: 'pointer'
                   }}
                 >
-                  {isTriggeringBot ? 'Menjalankan...' : 'Jalankan Seluruh Bot'}
+                  {isTriggeringBot === 'all' ? 'Menjalankan...' : 'Jalankan Seluruh Bot'}
                 </button>
               </div>
 
-              {/* View 1: Status & Bot Cards */}
-              {automationSubView === 'status' && (
+              {/* Sub-Tab 1: Overview */}
+              {automationSubView === 'overview' && (
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
                   <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    {/* Bot Cards Grid */}
-                    {[
-                      {
-                        id: 'dormancy_check',
-                        name: 'Sentinel Dormansi Toko',
-                        desc: 'Memindai profil toko yang tidak aktif lebih dari 60 hari untuk memicu peringatan auto-archive.',
-                        schedule: 'Tiap Hari 00:00 UTC',
-                        status: 'Aktif'
-                      },
-                      {
-                        id: 'subscription_expire',
-                        name: 'Pemeriksa Masa Aktif Paket Pro',
-                        desc: 'Memindai langganan kedaluwarsa dan mengembalikan kuota toko ke batas gratis secara otomatis.',
-                        schedule: 'Tiap Jam',
-                        status: 'Aktif'
-                      },
-                      {
-                        id: 'ticket_retention_worker',
-                        name: 'Retensi SLA Tiket & Sampah Data',
-                        desc: 'Menutup otomatis tiket solved tanpa respon >7 hari dan membersihkan cache berkas usang.',
-                        schedule: 'Tiap 6 Jam',
-                        status: 'Aktif'
-                      },
-                      {
-                        id: 'token_cleanup',
-                        name: 'Pembersih Sesi & Token Usang',
-                        desc: 'Membersihkan refresh token dan sesi otentikasi kedaluwarsa demi performa database.',
-                        schedule: 'Tiap Hari 02:00 UTC',
-                        status: 'Aktif'
-                      }
-                    ].map(bot => (
-                      <div
-                        key={bot.id}
-                        style={{
-                          padding: '1.25rem',
-                          borderRadius: '1rem',
-                          backgroundColor: 'var(--bg-card)',
-                          border: '1px solid var(--border-light)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '1rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <div style={{
-                            width: '44px',
-                            height: '44px',
-                            borderRadius: '0.75rem',
-                            backgroundColor: 'rgba(249, 115, 22, 0.12)',
-                            color: '#f97316',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}>
-                            <Cpu size={22} />
-                          </div>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <span style={{ fontSize: '0.95rem', fontWeight: 800 }}>{bot.name}</span>
-                              <span style={{
-                                fontSize: '0.68rem',
-                                fontWeight: 800,
-                                padding: '0.15rem 0.5rem',
-                                borderRadius: '999px',
-                                backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                                color: '#10b981'
-                              }}>
-                                {bot.status}
-                              </span>
-                            </div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                              {bot.desc}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontFamily: 'monospace' }}>
-                              Jadwal: {bot.schedule}
-                            </div>
-                          </div>
+                    <div style={{
+                      padding: '1.5rem',
+                      borderRadius: '1.25rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 12px #10b981' }} />
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
+                            Status Mesin: 11 Bot Worker Aktif &amp; Terjadwal (24/7 Daemon)
+                          </h3>
                         </div>
-
                         <button
                           type="button"
-                          onClick={() => handleTriggerSpecificBot(bot.id)}
-                          disabled={isTriggeringBot}
+                          onClick={fetchAutomation}
                           style={{
-                            padding: '0.55rem 1rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.4rem 0.8rem',
                             borderRadius: '0.55rem',
                             border: '1px solid var(--border-light)',
                             backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.78rem',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.75rem',
                             fontWeight: 700,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
+                            cursor: 'pointer'
                           }}
                         >
-                          Picu Manual
+                          <RefreshCw size={13} />
+                          <span>Sinkronkan Mesin</span>
                         </button>
                       </div>
-                    ))}
+
+                      <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                        Mesin otomatisasi Catavor mengelola siklus hidup merchant (inaktivitas &amp; dormansi), kedaluwarsa kupon &amp; flash sale katalog, penegakan SLA tiket helpdesk, pemusnahan sampah berkas PDP, serta pengiriman siaran streaming SSE secara mandiri di latar belakang.
+                      </p>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', paddingTop: '0.5rem' }}>
+                        <div style={{ padding: '1rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Bot Terdaftar</div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--text-primary)', marginTop: '0.2rem' }}>11 Worker</div>
+                        </div>
+                        <div style={{ padding: '1rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Jadwal Siklus Terpendek</div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#f59e0b', marginTop: '0.2rem' }}>5 Menit</div>
+                        </div>
+                        <div style={{ padding: '1rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>SSE Gateway Streaming</div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#38bdf8', marginTop: '0.2rem' }}>Terhubung</div>
+                        </div>
+                        <div style={{ padding: '1rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Database Background Tasks</div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#10b981', marginTop: '0.2rem' }}>Optimal</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* View 2: Logs Table */}
+              {/* Sub-Tab 2: 11 Bot Matrix Cards */}
+              {automationSubView === 'bots' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
+                  <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {BOT_WORKERS_CATALOG.map(bot => {
+                      const Icon = bot.icon;
+                      const isRunning = isTriggeringBot === bot.id;
+                      return (
+                        <div
+                          key={bot.id}
+                          style={{
+                            padding: '1.25rem',
+                            borderRadius: '1rem',
+                            backgroundColor: 'var(--bg-card)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '1rem'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{
+                              width: '44px',
+                              height: '44px',
+                              borderRadius: '0.75rem',
+                              backgroundColor: `${bot.color}20`,
+                              color: bot.color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <Icon size={22} />
+                            </div>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.95rem', fontWeight: 800 }}>{bot.name}</span>
+                                <span style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 800,
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: `${bot.categoryColor}20`,
+                                  color: bot.categoryColor
+                                }}>
+                                  {bot.category}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem', lineHeight: 1.4 }}>
+                                {bot.desc}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontFamily: 'monospace' }}>
+                                Frekuensi: {bot.freq}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerSpecificBot(bot.id)}
+                            disabled={isRunning}
+                            style={{
+                              padding: '0.55rem 1.15rem',
+                              borderRadius: '0.55rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-deep)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {isRunning ? 'Menjalankan...' : 'Jalankan Sekarang'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-Tab 3: Logs Table */}
               {automationSubView === 'logs' && (
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
                   <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
@@ -2730,6 +3723,71 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           </div>
                         ))
                       )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-Tab 4: Sandbox Simulator */}
+              {automationSubView === 'sandbox' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
+                  <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+                    <div style={{
+                      padding: '1.5rem',
+                      borderRadius: '1.25rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Zap size={20} color="#f59e0b" />
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
+                          Sandbox Simulator &amp; Pengujian Bot
+                        </h3>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                        Gunakan konsol simulator ini untuk menguji pemicu notifikasi panduan toko baru atau simulasi evaluasi kedaluwarsa tanpa mempengaruhi data produksi riil.
+                      </p>
+
+                      <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 800 }}>Uji Pemicu Onboarding Engine Toko Baru</div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerSpecificBot('onboarding_engine')}
+                            style={{
+                              padding: '0.55rem 1rem',
+                              borderRadius: '0.55rem',
+                              border: 'none',
+                              backgroundColor: '#10b981',
+                              color: '#ffffff',
+                              fontSize: '0.82rem',
+                              fontWeight: 800,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Simulasikan Injeksi Starter Kit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerSpecificBot('support_lifecycle')}
+                            style={{
+                              padding: '0.55rem 1rem',
+                              borderRadius: '0.55rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'transparent',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Simulasikan Audit SLA Tiket
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2834,6 +3892,52 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             boxSizing: 'border-box'
                           }}
                         />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                            Header Banner Slot ID
+                          </label>
+                          <input
+                            type="text"
+                            value={googleSettings.ads_slot_header}
+                            onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_header: e.target.value }))}
+                            placeholder="Contoh: 1234567890"
+                            style={{
+                              width: '100%',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.55rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-deep)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.85rem',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                            In-Feed Catalog Slot ID
+                          </label>
+                          <input
+                            type="text"
+                            value={googleSettings.ads_slot_infeed}
+                            onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_infeed: e.target.value }))}
+                            placeholder="Contoh: 9876543210"
+                            style={{
+                              width: '100%',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.55rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-deep)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.85rem',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
                       </div>
 
                       <div>
@@ -3114,39 +4218,49 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         </div>
                       </div>
 
+                      {/* 7 WhatsApp Category Templates Selector */}
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                          Template WhatsApp Produk Fisik
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                          Pilih Template WhatsApp Berdasarkan Kategori Bisnis:
                         </label>
-                        <textarea
-                          rows={4}
-                          value={googleSettings.rekber_template_physical}
-                          onChange={e => setGoogleSettings(prev => ({ ...prev, rekber_template_physical: e.target.value }))}
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.82rem',
-                            boxSizing: 'border-box',
-                            lineHeight: 1.5
-                          }}
-                        />
-                      </div>
+                        <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', marginBottom: '0.75rem' }}>
+                          {[
+                            { key: 'rekber_template_physical', label: 'Produk Fisik' },
+                            { key: 'rekber_template_general', label: 'Barang Umum' },
+                            { key: 'rekber_template_food', label: 'Kuliner' },
+                            { key: 'rekber_template_digital', label: 'Digital' },
+                            { key: 'rekber_template_service', label: 'Jasa/Layanan' },
+                            { key: 'rekber_template_plant', label: 'Tanaman' },
+                            { key: 'rekber_template_fauna', label: 'Fauna/Satwa' }
+                          ].map(cat => (
+                            <button
+                              key={cat.key}
+                              type="button"
+                              onClick={() => setSelectedRekberCategory(cat.key)}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '999px',
+                                border: `1px solid ${selectedRekberCategory === cat.key ? '#10b981' : 'var(--border-light)'}`,
+                                backgroundColor: selectedRekberCategory === cat.key ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-deep)',
+                                color: selectedRekberCategory === cat.key ? '#10b981' : 'var(--text-muted)',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {cat.label}
+                            </button>
+                          ))}
+                        </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                          Template WhatsApp Satwa Legal / Fauna
-                        </label>
                         <textarea
-                          rows={4}
-                          value={googleSettings.rekber_template_fauna}
-                          onChange={e => setGoogleSettings(prev => ({ ...prev, rekber_template_fauna: e.target.value }))}
+                          rows={6}
+                          value={googleSettings[selectedRekberCategory] || ''}
+                          onChange={e => setGoogleSettings(prev => ({ ...prev, [selectedRekberCategory]: e.target.value }))}
                           style={{
                             width: '100%',
-                            padding: '0.65rem 0.85rem',
+                            padding: '0.75rem 0.85rem',
                             borderRadius: '0.55rem',
                             border: '1px solid var(--border-light)',
                             backgroundColor: 'var(--bg-deep)',
@@ -3156,6 +4270,34 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             lineHeight: 1.5
                           }}
                         />
+
+                        {/* Variables tag guide */}
+                        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Tag Dinamis:</span>
+                          {['{store_title}', '{item_name}', '{item_price}', '{rekber_website_domain}', '{rekber_wa_number}'].map(tag => (
+                            <span
+                              key={tag}
+                              onClick={() => {
+                                setGoogleSettings(prev => ({
+                                  ...prev,
+                                  [selectedRekberCategory]: `${prev[selectedRekberCategory] || ''} ${tag}`
+                                }));
+                              }}
+                              style={{
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: '4px',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                fontSize: '0.68rem',
+                                fontFamily: 'monospace',
+                                color: 'var(--primary)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
@@ -3403,7 +4545,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               }
               detailPane={
                 selectedAuditLog ? (
-                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
                     <div style={{
                       padding: '1.25rem',
                       borderRadius: '1rem',
@@ -3437,8 +4579,34 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       {/* Raw Payload JSON */}
                       {selectedAuditLog.payload && (
                         <div style={{ marginTop: '1.25rem' }}>
-                          <div style={{ fontSize: '0.78rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-                            Payload Data Forensik:
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 800 }}>
+                              Payload Data Forensik:
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const text = typeof selectedAuditLog.payload === 'string'
+                                  ? selectedAuditLog.payload
+                                  : JSON.stringify(selectedAuditLog.payload, null, 2);
+                                navigator.clipboard.writeText(text);
+                                showToast('Payload audit disalin ke clipboard');
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--primary)',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}
+                            >
+                              <Copy size={13} />
+                              <span>Salin JSON</span>
+                            </button>
                           </div>
                           <pre style={{
                             margin: 0,

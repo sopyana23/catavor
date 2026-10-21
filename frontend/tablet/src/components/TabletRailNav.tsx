@@ -156,7 +156,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
         <nav style={{ padding: '0.75rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeView === item.key;
+            const isActive = activeView === item.key || (item.key === 'staff' && activeView === 'rbac') || (item.key === 'master-data' && activeView === 'master_data');
             return (
               <button
                 key={item.key}

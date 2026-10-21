@@ -10712,8 +10712,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Subscription Plans & Merchant Quota Fetchers
   const fetchMyQuota = async () => {
-    // Only fetch quota when authenticated as active store owner
-    if (!token || !isStoreOwner || isSuspendedAccount) return;
+    // Only fetch quota when authenticated as active store owner with a valid store slug (NOT in platform admin console)
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    const isPlatformAdminPath = currentPath === '/admin' || (currentPath.startsWith('/admin/') && !isCatalogChooserRoute(currentPath)) || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/');
+    if (!token || !isStoreOwner || isSuspendedAccount || isPlatformAdminPath || !storeSlug || isReservedStoreSlug(storeSlug)) return;
     try {
       const res = await fetch(`${API_BASE}/subscription/my-quota`, {
         headers: getAuthHeaders()
@@ -10750,10 +10752,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   useEffect(() => {
     fetchSubscriptionPlans();
-    if (token && isStoreOwner && view === 'admin' && !isSuspendedAccount) {
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    const isPlatformAdminPath = currentPath === '/admin' || (currentPath.startsWith('/admin/') && !isCatalogChooserRoute(currentPath)) || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/');
+    if (token && isStoreOwner && view === 'admin' && !isSuspendedAccount && !isPlatformAdminPath && storeSlug && !isReservedStoreSlug(storeSlug)) {
       fetchMyQuota();
     }
-  }, [token, isStoreOwner, view, isSuspendedAccount]);
+  }, [token, isStoreOwner, view, isSuspendedAccount, storeSlug]);
 
   // Window Focus & Visibility Passive Revalidation (Industry Best Practice)
   // Dua tingkat: >60 detik segarkan kuota ringan; >5 menit resync penuh
@@ -10771,7 +10775,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
       if (away <= IDLE_LIGHT_MS) return;
       lastFocusSync = now;
 
-      if (token && isStoreOwner && view === 'admin' && !isSuspendedAccount) {
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+      const isPlatformAdminPath = currentPath === '/admin' || (currentPath.startsWith('/admin/') && !isCatalogChooserRoute(currentPath)) || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/');
+      if (token && isStoreOwner && view === 'admin' && !isSuspendedAccount && !isPlatformAdminPath && storeSlug && !isReservedStoreSlug(storeSlug)) {
         fetchMyQuota();
       }
 
@@ -34057,4 +34063,4 @@ Terima kasih atas perhatian dan kerja samanya.`;
   )
 }
 
-export default App
+export default App;
