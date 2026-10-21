@@ -52,7 +52,18 @@ import {
   DollarSign,
   Receipt,
   Crown,
-  HardDrive
+  HardDrive,
+  Utensils,
+  FileCode,
+  Wrench,
+  Sprout,
+  PawPrint,
+  Building2,
+  Home,
+  Award,
+  Compass,
+  Sun,
+  Droplets
 } from 'lucide-react';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
@@ -60,6 +71,106 @@ import { TabletAnalyticsView } from './TabletAnalyticsView';
 import { TabletSubscriptionModal, type StoreQuotaData } from './TabletSubscriptionModal';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
+
+export interface CatalogTypeOption {
+  id: string;
+  name: string;
+  categoryBadge: string;
+  tagline: string;
+  formHighlights: string;
+  icon: React.ComponentType<{ size?: number | string; color?: string; style?: React.CSSProperties }>;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  defaultUnit: string;
+}
+
+export const CATALOG_TYPE_OPTIONS: CatalogTypeOption[] = [
+  {
+    id: 'physical',
+    name: 'Barang Fisik',
+    categoryBadge: 'Fisik & Stok',
+    tagline: 'Pakaian, Aksesoris, Gadget, Kerajinan, & Produk Fisik.',
+    formHighlights: 'Stok, Kondisi, Berat, Merek, Varian',
+    icon: Package,
+    color: '#2563eb',
+    bgColor: 'rgba(37, 99, 235, 0.12)',
+    borderColor: 'rgba(37, 99, 235, 0.28)',
+    defaultUnit: 'Pcs'
+  },
+  {
+    id: 'food',
+    name: 'Menu Kuliner (F&B)',
+    categoryBadge: 'Kuliner & F&B',
+    tagline: 'Restoran, Kafe, Bakery, Katering, Camilan & Minuman Olahan.',
+    formHighlights: 'Porsi, Sertifikasi Halal, Level Rasa, Suhu Simpan',
+    icon: Utensils,
+    color: '#ea580c',
+    bgColor: 'rgba(234, 88, 12, 0.12)',
+    borderColor: 'rgba(234, 88, 12, 0.28)',
+    defaultUnit: 'Porsi / Pack'
+  },
+  {
+    id: 'digital',
+    name: 'Item Digital',
+    categoryBadge: 'File & Lisensi',
+    tagline: 'E-book, Template Desain, File PDF, Source Code, Lisensi & Unduhan.',
+    formHighlights: 'Format File, Ukuran File, & Tipe Lisensi',
+    icon: FileCode,
+    color: '#7c3aed',
+    bgColor: 'rgba(124, 58, 237, 0.12)',
+    borderColor: 'rgba(124, 58, 237, 0.28)',
+    defaultUnit: 'Lisensi'
+  },
+  {
+    id: 'service',
+    name: 'Jasa & Layanan',
+    categoryBadge: 'Jasa & Sesi',
+    tagline: 'Grooming, Desain, Servis, Kursus, Salon, Konsultan & Reparasi.',
+    formHighlights: 'Estimasi Durasi, Metode Layanan, & Area Jangkauan',
+    icon: Wrench,
+    color: '#d97706',
+    bgColor: 'rgba(217, 119, 6, 0.12)',
+    borderColor: 'rgba(217, 119, 6, 0.28)',
+    defaultUnit: 'Sesi'
+  },
+  {
+    id: 'plant',
+    name: 'Tanaman & Bibit',
+    categoryBadge: 'Tanaman & Florist',
+    tagline: 'Tanaman Hias, Bibit Buah, Aroid, Sukulen, Florist & Nursery.',
+    formHighlights: 'Kebutuhan Cahaya, Frekuensi Siram, Media Tanam, Ukuran',
+    icon: Sprout,
+    color: '#059669',
+    bgColor: 'rgba(5, 150, 105, 0.12)',
+    borderColor: 'rgba(5, 150, 105, 0.28)',
+    defaultUnit: 'Pot / Bibit'
+  },
+  {
+    id: 'fauna',
+    name: 'Satwa Peliharaan',
+    categoryBadge: 'Satwa & Hewan',
+    tagline: 'Pet Shop, Reptil, Burung, Ikan Hias, Aquascape, & Mamalia.',
+    formHighlights: 'Nama Latin, Habitat, Makanan/Diet, Masa Hidup, Bobot',
+    icon: PawPrint,
+    color: '#e11d48',
+    bgColor: 'rgba(225, 29, 72, 0.12)',
+    borderColor: 'rgba(225, 29, 72, 0.28)',
+    defaultUnit: 'Ekor'
+  },
+  {
+    id: 'property',
+    name: 'Properti & Real Estate',
+    categoryBadge: 'Properti & Lahan',
+    tagline: 'Rumah Tinggal, Ruko, Tanah Kavling, Villa, Apartemen & Sewa.',
+    formHighlights: 'Tipe Transaksi, Sertifikat SHM, Luas Tanah/Bangunan, KT/KM',
+    icon: Building2,
+    color: '#0891b2',
+    bgColor: 'rgba(8, 145, 178, 0.12)',
+    borderColor: 'rgba(8, 145, 178, 0.28)',
+    defaultUnit: 'Unit'
+  }
+];
 
 export type TabletMerchantTab =
   | 'items'
@@ -308,8 +419,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // =========================================================================
   // 2. PRODUCT MANAGEMENT STATE (Server-Side Filtered & Paginated)
   // =========================================================================
+  const [categories, setCategories] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<number | 'new' | null>(null);
+  const [isSelectingProductType, setIsSelectingProductType] = useState<boolean>(false);
   const [productSearch, setProductSearch] = useState<string>('');
   const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
@@ -324,6 +437,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     stock: 1,
     category_id: '',
     product_type: 'physical',
+    scientific_name: '',
     unit: 'Pcs',
     description: '',
     image_url: '',
@@ -333,13 +447,79 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     min_order: 1,
     max_order: '' as string | number,
     gallery_images: [] as string[],
-    variants: [] as Array<{ variant_name: string; sku: string; price_override?: number; stock_qty: number }>
+    variants: [] as Array<{ variant_name: string; sku: string; price_override?: number; stock_qty: number }>,
+    attributes: {} as Record<string, any>
   });
 
   const mainImageInputRef = useRef<HTMLInputElement | null>(null);
   const galleryImageInputRef = useRef<HTMLInputElement | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleStartNewProduct = useCallback((presetType?: string) => {
+    setSelectedProductId('new');
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const targetType = presetType || params?.get('type') || params?.get('catalog_type') || '';
+    const isValidType = CATALOG_TYPE_OPTIONS.some(t => t.id === targetType);
+    const chosenType = isValidType ? targetType : 'physical';
+    const typeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === chosenType);
+
+    const defaultAttrs: Record<string, any> = {};
+    if (chosenType === 'physical') defaultAttrs.condition = 'Baru';
+    if (chosenType === 'food') defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
+    if (chosenType === 'digital') defaultAttrs.license_type = 'Lisensi Personal';
+    if (chosenType === 'service') defaultAttrs.service_location = 'Datang ke Toko / Workshop';
+    if (chosenType === 'plant') {
+      defaultAttrs.sunlight = 'Partial Sun (Teduh Terang / Naungan Paranet)';
+      defaultAttrs.watering = 'Sedang (2-3 Hari Sekali)';
+      defaultAttrs.protection_status = 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)';
+    }
+    if (chosenType === 'fauna') {
+      defaultAttrs.conservation_status = 'Tersedia (Ready Stock)';
+    }
+    if (chosenType === 'property') {
+      defaultAttrs.transaction_type = 'Dijual (Jual Putus)';
+      defaultAttrs.certificate = 'SHM (Sertifikat Hak Milik)';
+      defaultAttrs.furnishing = 'Semi-Furnished';
+      defaultAttrs.facing = 'Timur';
+    }
+
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'items');
+      url.searchParams.set('action', 'new');
+      if (isValidType) {
+        url.searchParams.set('type', targetType);
+      } else {
+        url.searchParams.delete('type');
+        url.searchParams.delete('catalog_type');
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch {}
+
+    setProductForm({
+      id: 0,
+      name: '',
+      price: 0,
+      stock: 1,
+      category_id: categories.length > 0 ? String(categories[0].id) : '',
+      product_type: chosenType,
+      scientific_name: '',
+      unit: typeDef?.defaultUnit || 'Pcs',
+      description: '',
+      image_url: '',
+      video_url: '',
+      is_active: true,
+      is_shipping_available: true,
+      min_order: 1,
+      max_order: '',
+      gallery_images: [],
+      variants: [],
+      attributes: defaultAttrs
+    });
+
+    setIsSelectingProductType(!isValidType);
+  }, [categories]);
 
   const fetchProducts = useCallback(async (page: number, search: string = '', status = productStatusFilter, catId = productCategoryFilter) => {
     setLoading(true);
@@ -370,9 +550,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setProductTotalPages(json.totalPages || Math.ceil((json.total || list.length) / 15) || 1);
         setProductTotalRecords(json.total || list.length);
 
-        if (list.length > 0 && selectedProductId === null) {
+        const isUrlActionNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('action') === 'new';
+        if (isUrlActionNew) {
+          handleStartNewProduct();
+        } else if (list.length > 0 && selectedProductId === null) {
           const first = list[0];
           setSelectedProductId(first.id);
+          setIsSelectingProductType(false);
           const gallery = (first.images || []).map((img: any) => img.image_url || img);
           const variants = (first.variants || []).map((v: any) => ({
             variant_name: v.variant_name || '',
@@ -381,6 +565,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             stock_qty: v.stock_qty || 0
           }));
 
+          let rawAttrs: Record<string, any> = {};
+          if (first.attributes) {
+            if (typeof first.attributes === 'string') {
+              try { rawAttrs = JSON.parse(first.attributes); } catch {}
+            } else if (typeof first.attributes === 'object') {
+              rawAttrs = { ...first.attributes };
+            }
+          }
+
           setProductForm({
             id: first.id,
             name: first.name || '',
@@ -388,6 +581,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             stock: first.stock !== undefined ? first.stock : 1,
             category_id: first.category_id || '',
             product_type: first.product_type || 'physical',
+            scientific_name: first.scientific_name || rawAttrs.scientific_name || '',
             unit: first.unit || 'Pcs',
             description: first.description || '',
             image_url: first.image_url || '',
@@ -397,7 +591,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             min_order: first.min_order || 1,
             max_order: first.max_order || '',
             gallery_images: gallery,
-            variants: variants
+            variants: variants,
+            attributes: rawAttrs
           });
         }
       }
@@ -410,6 +605,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const handleSelectProduct = (prod: any) => {
     setSelectedProductId(prod.id);
+    setIsSelectingProductType(false);
     const gallery = (prod.images || []).map((img: any) => img.image_url || img);
     const variants = (prod.variants || []).map((v: any) => ({
       variant_name: v.variant_name || '',
@@ -418,6 +614,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       stock_qty: v.stock_qty || 0
     }));
 
+    let rawAttrs: Record<string, any> = {};
+    if (prod.attributes) {
+      if (typeof prod.attributes === 'string') {
+        try { rawAttrs = JSON.parse(prod.attributes); } catch {}
+      } else if (typeof prod.attributes === 'object') {
+        rawAttrs = { ...prod.attributes };
+      }
+    }
+
     setProductForm({
       id: prod.id,
       name: prod.name || '',
@@ -425,6 +630,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       stock: prod.stock !== undefined ? prod.stock : 1,
       category_id: prod.category_id || '',
       product_type: prod.product_type || 'physical',
+      scientific_name: prod.scientific_name || rawAttrs.scientific_name || '',
       unit: prod.unit || 'Pcs',
       description: prod.description || '',
       image_url: prod.image_url || '',
@@ -434,30 +640,62 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       min_order: prod.min_order || 1,
       max_order: prod.max_order || '',
       gallery_images: gallery,
-      variants: variants
+      variants: variants,
+      attributes: rawAttrs
     });
   };
 
-  const handleStartNewProduct = () => {
-    setSelectedProductId('new');
-    setProductForm({
-      id: 0,
-      name: '',
-      price: 0,
-      stock: 1,
-      category_id: categories.length > 0 ? String(categories[0].id) : '',
-      product_type: 'physical',
-      unit: 'Pcs',
-      description: '',
-      image_url: '',
-      video_url: '',
-      is_active: true,
-      is_shipping_available: true,
-      min_order: 1,
-      max_order: '',
-      gallery_images: [],
-      variants: []
+  const handleSelectProductType = (typeId: string) => {
+    const typeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === typeId);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'items');
+      url.searchParams.set('action', 'new');
+      url.searchParams.set('type', typeId);
+      window.history.pushState({}, '', url.toString());
+    } catch {}
+    setProductForm(prev => {
+      const defaultAttrs: Record<string, any> = { ...(prev.attributes || {}) };
+      if (typeId === 'physical' && !defaultAttrs.condition) defaultAttrs.condition = 'Baru';
+      if (typeId === 'food' && !defaultAttrs.halal_status) defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
+      if (typeId === 'digital' && !defaultAttrs.license_type) defaultAttrs.license_type = 'Lisensi Personal';
+      if (typeId === 'service' && !defaultAttrs.service_location) defaultAttrs.service_location = 'Datang ke Toko / Workshop';
+      if (typeId === 'plant') {
+        if (!defaultAttrs.sunlight) defaultAttrs.sunlight = 'Partial Sun (Teduh Terang / Naungan Paranet)';
+        if (!defaultAttrs.watering) defaultAttrs.watering = 'Sedang (2-3 Hari Sekali)';
+        if (!defaultAttrs.protection_status) defaultAttrs.protection_status = 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)';
+      }
+      if (typeId === 'fauna') {
+        if (!defaultAttrs.conservation_status) defaultAttrs.conservation_status = 'Tersedia (Ready Stock)';
+      }
+      if (typeId === 'property') {
+        if (!defaultAttrs.transaction_type) defaultAttrs.transaction_type = 'Dijual (Jual Putus)';
+        if (!defaultAttrs.certificate) defaultAttrs.certificate = 'SHM (Sertifikat Hak Milik)';
+        if (!defaultAttrs.furnishing) defaultAttrs.furnishing = 'Semi-Furnished';
+        if (!defaultAttrs.facing) defaultAttrs.facing = 'Timur';
+      }
+
+      const isDefaultUnit = !prev.unit || prev.unit === 'Pcs' || CATALOG_TYPE_OPTIONS.some(o => o.defaultUnit === prev.unit);
+      const shouldUpdateUnit = prev.id === 0 && isDefaultUnit;
+
+      return {
+        ...prev,
+        product_type: typeId,
+        unit: shouldUpdateUnit ? (typeDef?.defaultUnit || 'Pcs') : prev.unit,
+        attributes: defaultAttrs
+      };
     });
+    setIsSelectingProductType(false);
+  };
+
+  const updateProductAttribute = (field: string, value: any) => {
+    setProductForm(prev => ({
+      ...prev,
+      attributes: {
+        ...(prev.attributes || {}),
+        [field]: value
+      }
+    }));
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -478,6 +716,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         stock: Number(productForm.stock),
         category_id: productForm.category_id ? Number(productForm.category_id) : undefined,
         product_type: productForm.product_type,
+        scientific_name: productForm.scientific_name || (productForm.attributes?.scientific_name) || undefined,
         unit: productForm.unit,
         description: productForm.description,
         image_url: productForm.image_url,
@@ -492,7 +731,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           sku: v.sku,
           price_override: v.price_override !== undefined && v.price_override !== null && v.price_override > 0 ? Number(v.price_override) : null,
           stock_qty: Number(v.stock_qty) || 0
-        }))
+        })),
+        attributes: productForm.attributes || {}
       };
 
       const res = await fetch(url, {
@@ -511,6 +751,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         await fetchProducts(productPage, productSearch);
         if (json.data?.id) {
           setSelectedProductId(json.data.id);
+          setIsSelectingProductType(false);
         }
       } else {
         const err = await res.json();
@@ -592,7 +833,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // =========================================================================
   // 3. CATEGORIES STATE
   // =========================================================================
-  const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'new' | null>(null);
   const [categoryForm, setCategoryForm] = useState({ id: 0, name: '' });
 
@@ -1246,8 +1486,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             subtitle={`${productTotalRecords} total item`}
             headerAction={
               <button
+                id="btn-tambah-produk"
+                data-testid="btn-tambah-produk"
                 type="button"
-                onClick={handleStartNewProduct}
+                onClick={() => handleStartNewProduct()}
                 style={{
                   minHeight: '44px',
                   padding: '0.55rem 1.15rem',
@@ -1268,7 +1510,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               </button>
             }
             selectedId={selectedProductId}
-            onClearSelection={() => setSelectedProductId(null)}
+            onClearSelection={() => {
+              setSelectedProductId(null);
+              setIsSelectingProductType(false);
+              try {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('action');
+                window.history.pushState({}, '', url.toString());
+              } catch {}
+            }}
             masterPane={
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 {/* Search & Category Filter */}
@@ -1463,309 +1713,1481 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               </div>
             }
             detailPane={
-              selectedProductId !== null ? (
-                <form onSubmit={handleSaveProduct} style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  height: '100%',
-                  padding: '1.5rem',
-                  gap: '1.25rem',
-                  overflowY: 'auto'
-                }}>
-                  {/* Header Actions */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottom: '1px solid var(--border-light)',
-                    paddingBottom: '1rem',
-                    flexWrap: 'wrap',
-                    gap: '0.5rem'
-                  }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
-                        {selectedProductId === 'new' ? 'Tambah Produk Baru' : 'Edit Detail Produk'}
-                      </h3>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                        Lengkapi foto, variasi harga, serta batas pemesanan produk
-                      </p>
-                    </div>
+              selectedProductId !== null ? (() => {
+                const activeTypeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === productForm.product_type) || CATALOG_TYPE_OPTIONS[0];
+                const ActiveTypeIcon = activeTypeDef.icon;
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      {/* Active Toggle Switch */}
-                      <button
-                        type="button"
-                        onClick={() => setProductForm(p => ({ ...p, is_active: !p.is_active }))}
-                        style={{
-                          minHeight: '38px',
-                          padding: '0.4rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: productForm.is_active ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                          color: productForm.is_active ? '#10b981' : '#ef4444',
-                          fontWeight: 700,
-                          fontSize: '0.82rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.4rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {productForm.is_active ? <Eye size={15} /> : <EyeOff size={15} />}
-                        {productForm.is_active ? 'Status: Aktif di Etalase' : 'Status: Diarsipkan'}
-                      </button>
+                if (isSelectingProductType) {
+                  return (
+                    /* =========================================================================
+                       STEP 1: PILIH TIPE KATALOG PRODUK (CARD SELECTION GRID)
+                       ========================================================================= */
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
+                      padding: '1.25rem 1.5rem',
+                      overflowY: 'auto',
+                      backgroundColor: 'var(--bg-deep)',
+                      gap: '1rem'
+                    }}>
+                      {/* Header Bar */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderBottom: '1px solid var(--border-light)',
+                        paddingBottom: '0.85rem'
+                      }}>
+                        <div>
+                          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                            Pilih Tipe Item Katalog
+                          </h3>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            Step 1 dari 2: Tentukan format spesialisasi katalog sebelum mengisi formulir
+                          </span>
+                        </div>
 
-                      {selectedProductId !== 'new' && (
                         <button
                           type="button"
-                          onClick={() => handleDeleteProduct(Number(selectedProductId))}
+                          id="btn-batal-pilih-tipe"
+                          onClick={() => {
+                            if (selectedProductId === 'new') {
+                              setSelectedProductId(null);
+                              setIsSelectingProductType(false);
+                            } else {
+                              setIsSelectingProductType(false);
+                            }
+                            try {
+                              const url = new URL(window.location.href);
+                              url.searchParams.delete('action');
+                              window.history.pushState({}, '', url.toString());
+                            } catch {}
+                          }}
+                          style={{
+                            padding: '0.4rem 0.85rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'var(--bg-card)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Batal
+                        </button>
+                      </div>
+
+                      {/* Hero Card */}
+                      <div style={{
+                        padding: '1.15rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                      }}>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.2rem 0.6rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                          border: '1px solid rgba(37, 99, 235, 0.25)',
+                          color: 'var(--primary)',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          marginBottom: '0.45rem'
+                        }}>
+                          <Sparkles size={12} />
+                          <span>Spesialisasi Format Katalog</span>
+                        </div>
+                        <h2 style={{ fontSize: '1.12rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
+                          Mau Menambahkan Item Apa Hari Ini?
+                        </h2>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+                          Pilih tipe katalog di bawah agar struktur formulir, bidang input, satuan unit, dan atribut spesifik disesuaikan secara otomatis.
+                        </p>
+                      </div>
+
+                      {/* 7 Cards List */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                        {CATALOG_TYPE_OPTIONS.map((opt) => {
+                          const OptIcon = opt.icon;
+                          const isCurrentlyChosen = productForm.product_type === opt.id;
+                          return (
+                            <div
+                              key={opt.id}
+                              id={`catalog-type-${opt.id}`}
+                              data-testid={`catalog-type-${opt.id}`}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => handleSelectProductType(opt.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  handleSelectProductType(opt.id);
+                                }
+                              }}
+                              style={{
+                                padding: '0.95rem 1.15rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: isCurrentlyChosen ? 'rgba(30, 58, 138, 0.08)' : 'var(--bg-card)',
+                                border: isCurrentlyChosen ? `1.5px solid ${opt.color}` : '1px solid var(--border-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '1rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <div style={{
+                                width: '46px',
+                                height: '46px',
+                                borderRadius: '0.75rem',
+                                backgroundColor: opt.bgColor,
+                                border: `1px solid ${opt.borderColor}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: opt.color,
+                                flexShrink: 0
+                              }}>
+                                <OptIcon size={24} />
+                              </div>
+
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                                  <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                                    {opt.name}
+                                  </h4>
+                                  <span style={{
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    padding: '0.12rem 0.5rem',
+                                    borderRadius: '0.4rem',
+                                    backgroundColor: opt.bgColor,
+                                    color: opt.color,
+                                    border: `1px solid ${opt.borderColor}`
+                                  }}>
+                                    {opt.categoryBadge}
+                                  </span>
+                                </div>
+                                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.35rem 0', lineHeight: 1.35 }}>
+                                  {opt.tagline}
+                                </p>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                                  ⚡ Form: {opt.formHighlights}
+                                </div>
+                              </div>
+
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                backgroundColor: opt.bgColor,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: opt.color,
+                                flexShrink: 0
+                              }}>
+                                <ChevronRight size={17} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  /* =========================================================================
+                     STEP 2: FORMULIR INPUT DATA PRODUK LENGKAP
+                     ========================================================================= */
+                  <form onSubmit={handleSaveProduct} style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    padding: '1.5rem',
+                    gap: '1.25rem',
+                    overflowY: 'auto'
+                  }}>
+                    {/* Active Type Banner with Ganti Tipe Button */}
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: activeTypeDef.bgColor,
+                      border: `1.5px solid ${activeTypeDef.borderColor}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: `1px solid ${activeTypeDef.borderColor}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: activeTypeDef.color,
+                          flexShrink: 0
+                        }}>
+                          <ActiveTypeIcon size={22} />
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: activeTypeDef.color }}>
+                              Tipe Katalog Aktif
+                            </span>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '999px', backgroundColor: 'var(--bg-card)', border: `1px solid ${activeTypeDef.borderColor}`, color: 'var(--text-secondary)' }}>
+                              {activeTypeDef.categoryBadge}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.1rem' }}>
+                            {activeTypeDef.name}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        id="btn-ganti-tipe"
+                        data-testid="btn-ganti-tipe"
+                        onClick={() => {
+                          setIsSelectingProductType(true);
+                          try {
+                            const url = new URL(window.location.href);
+                            url.searchParams.delete('type');
+                            url.searchParams.delete('catalog_type');
+                            window.history.pushState({}, '', url.toString());
+                          } catch {}
+                        }}
+                        style={{
+                          minHeight: '36px',
+                          padding: '0.4rem 0.85rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'var(--bg-card)',
+                          border: `1px solid ${activeTypeDef.borderColor}`,
+                          color: activeTypeDef.color,
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          cursor: 'pointer',
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                        }}
+                        title="Ganti format tipe katalog"
+                      >
+                        <RefreshCw size={13} />
+                        <span>Ganti Tipe</span>
+                      </button>
+                    </div>
+
+                    {/* Header Actions */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderBottom: '1px solid var(--border-light)',
+                      paddingBottom: '1rem',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem'
+                    }}>
+                      <div>
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
+                          {selectedProductId === 'new' ? 'Tambah Produk Baru' : 'Edit Detail Produk'}
+                        </h3>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                          Lengkapi foto, atribut spesifik, serta batas pemesanan produk
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        {/* Active Toggle Switch */}
+                        <button
+                          type="button"
+                          onClick={() => setProductForm(p => ({ ...p, is_active: !p.is_active }))}
                           style={{
                             minHeight: '38px',
                             padding: '0.4rem 0.85rem',
                             borderRadius: '0.5rem',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                            color: '#ef4444',
-                            fontWeight: 600,
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: productForm.is_active ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                            color: productForm.is_active ? '#10b981' : '#ef4444',
+                            fontWeight: 700,
                             fontSize: '0.82rem',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.35rem',
+                            gap: '0.4rem',
                             cursor: 'pointer'
                           }}
                         >
-                          <Trash2 size={15} />
-                          Hapus
+                          {productForm.is_active ? <Eye size={15} /> : <EyeOff size={15} />}
+                          {productForm.is_active ? 'Status: Aktif di Etalase' : 'Status: Diarsipkan'}
                         </button>
+
+                        {selectedProductId !== 'new' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(Number(selectedProductId))}
+                            style={{
+                              minHeight: '38px',
+                              padding: '0.4rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                              color: '#ef4444',
+                              fontWeight: 600,
+                              fontSize: '0.82rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Trash2 size={15} />
+                            Hapus
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Basic Information Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                          Nama Produk *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={productForm.name}
+                          onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                          placeholder="Contoh: Kucing Persia Peaknose"
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                          Harga Satuan Dasar (Rp) *
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          value={productForm.price}
+                          onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
+                          placeholder="0"
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                          Kategori Produk
+                        </label>
+                        <select
+                          value={productForm.category_id}
+                          onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value="">Pilih Kategori...</option>
+                          {categories.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                          Format Spesialisasi
+                        </label>
+                        <div
+                          onClick={() => setIsSelectingProductType(true)}
+                          style={{
+                            width: '100%',
+                            minHeight: '42px',
+                            padding: '0.55rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer'
+                          }}
+                          title="Klik untuk mengubah tipe katalog"
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <ActiveTypeIcon size={16} color={activeTypeDef.color} />
+                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {activeTypeDef.name}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: activeTypeDef.color }}>
+                            Ubah
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                          Jumlah Stok
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={productForm.stock}
+                          onChange={(e) => setProductForm({ ...productForm, stock: Number(e.target.value) })}
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                          Satuan Unit
+                        </label>
+                        <input
+                          type="text"
+                          value={productForm.unit}
+                          onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
+                          placeholder="Contoh: Pcs, Ekor, Kg, Paket"
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                          Minimal Pemesanan
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={productForm.min_order}
+                          onChange={(e) => setProductForm({ ...productForm, min_order: Number(e.target.value) || 1 })}
+                          placeholder="1"
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                          Maksimal Pemesanan (Opsional)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={productForm.max_order}
+                          onChange={(e) => setProductForm({ ...productForm, max_order: e.target.value === '' ? '' : Number(e.target.value) })}
+                          placeholder="Tidak dibatasi"
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Shipping toggle */}
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Dukungan Pengiriman / Kurir Ekspedisi</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Aktifkan jika item dapat dikirim via kurir ekspedisi</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setProductForm(p => ({ ...p, is_shipping_available: !p.is_shipping_available }))}
+                        style={{
+                          minHeight: '36px',
+                          padding: '0.35rem 0.85rem',
+                          borderRadius: '999px',
+                          border: 'none',
+                          backgroundColor: productForm.is_shipping_available ? 'var(--primary)' : 'var(--bg-card)',
+                          color: productForm.is_shipping_available ? '#ffffff' : 'var(--text-muted)',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {productForm.is_shipping_available ? 'Dapat Dikirim' : 'Ambil di Toko / Khusus'}
+                      </button>
+                    </div>
+
+                    {/* Dynamic Type-Specific Attributes Card */}
+                    <div style={{
+                      padding: '1.25rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '0.5rem',
+                          backgroundColor: activeTypeDef.bgColor,
+                          border: `1px solid ${activeTypeDef.borderColor}`,
+                          color: activeTypeDef.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <ActiveTypeIcon size={18} />
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            Spesifikasi & Atribut: {activeTypeDef.name}
+                          </h4>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                            {activeTypeDef.formHighlights}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 1. BARANG FISIK */}
+                      {productForm.product_type === 'physical' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Kondisi Barang *
+                            </label>
+                            <select
+                              value={productForm.attributes.condition || 'Baru'}
+                              onChange={(e) => updateProductAttribute('condition', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Baru">Baru (100% Baru & Tersegel)</option>
+                              <option value="Bekas">Bekas / Second (Pre-owned)</option>
+                              <option value="Refurbished">Refurbished (Rekondisi Resmi)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Berat Pengiriman (Gram)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={productForm.attributes.weight || ''}
+                              onChange={(e) => updateProductAttribute('weight', Number(e.target.value) || 0)}
+                              placeholder="Contoh: 500"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Merek / Brand (Opsional)
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.brand || ''}
+                              onChange={(e) => updateProductAttribute('brand', e.target.value)}
+                              placeholder="Contoh: Nike / Asus / Custom"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Varian / Ukuran Ringkas (Opsional)
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.variant || ''}
+                              onChange={(e) => updateProductAttribute('variant', e.target.value)}
+                              placeholder="Contoh: Hitam, Putih / S, M, L"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 2. KULINER & F&B */}
+                      {productForm.product_type === 'food' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Sertifikasi / Status Halal *
+                            </label>
+                            <select
+                              value={productForm.attributes.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)'}
+                              onChange={(e) => updateProductAttribute('halal_status', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Bersertifikat Halal Resmi (BPJPH / MUI)">Bersertifikat Halal Resmi (BPJPH / MUI)</option>
+                              <option value="Halal (Bahan Baku Halal & Thayyib)">Halal (Bahan Baku Halal & Thayyib)</option>
+                              <option value="Dalam Proses Sertifikasi Halal">Dalam Proses Sertifikasi Halal</option>
+                              <option value="Non-Halal">Non-Halal</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Level Rasa / Varian Porsi (Opsional)
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.variant || ''}
+                              onChange={(e) => updateProductAttribute('variant', e.target.value)}
+                              placeholder="Contoh: Pedas Sedang, Manis Gurih / 500gr"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Suhu Penyimpanan
+                            </label>
+                            <select
+                              value={productForm.attributes.storage_temp || 'Suhu Ruang (Kering & Sejuk)'}
+                              onChange={(e) => updateProductAttribute('storage_temp', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Suhu Ruang (Kering & Sejuk)">Suhu Ruang (Kering & Sejuk)</option>
+                              <option value="Chiller / Lemari Pendingin (2°C - 8°C)">Chiller / Dingin (2°C - 8°C)</option>
+                              <option value="Freezer / Beku (-18°C)">Freezer / Beku (-18°C)</option>
+                              <option value="Hangat / Siap Santap">Hangat / Siap Santap Langsung</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Masa Simpan / Daya Tahan
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.expired_info || ''}
+                              onChange={(e) => updateProductAttribute('expired_info', e.target.value)}
+                              placeholder="Contoh: Fresh Daily / 3 Hari Chiller / 3 Bulan Freezer"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3. ITEM DIGITAL */}
+                      {productForm.product_type === 'digital' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Format Berkas / File *
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.file_format || ''}
+                              onChange={(e) => updateProductAttribute('file_format', e.target.value)}
+                              placeholder="Contoh: PDF / EPUB / ZIP / Figma"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Ukuran Berkas File
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.file_size || ''}
+                              onChange={(e) => updateProductAttribute('file_size', e.target.value)}
+                              placeholder="Contoh: 15 MB / 250 MB"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Tipe Lisensi Digital *
+                            </label>
+                            <select
+                              value={productForm.attributes.license_type || 'Lisensi Personal'}
+                              onChange={(e) => updateProductAttribute('license_type', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Lisensi Personal">Lisensi Personal (Pemakaian Pribadi)</option>
+                              <option value="Lisensi Komersial">Lisensi Komersial (Bisnis & Komersial)</option>
+                              <option value="Extended License / Resale Rights">Extended License / Resale Rights (Boleh Dijual Ulang)</option>
+                              <option value="Open Source / Bebas">Open Source / Bebas Royalti</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 4. JASA & LAYANAN */}
+                      {productForm.product_type === 'service' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Estimasi Durasi Layanan *
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.duration || ''}
+                              onChange={(e) => updateProductAttribute('duration', e.target.value)}
+                              placeholder="Contoh: 1 Jam / 1 Sesi / 2 Hari Kerja"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Metode Pelaksanaan Layanan *
+                            </label>
+                            <select
+                              value={productForm.attributes.service_location || 'Datang ke Toko / Workshop'}
+                              onChange={(e) => updateProductAttribute('service_location', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Datang ke Toko / Workshop">Datang ke Toko / Workshop</option>
+                              <option value="Home Visit (Kunjungan ke Rumah)">Home Visit (Kunjungan ke Rumah)</option>
+                              <option value="Online / Jarak Jauh">Online / Jarak Jauh</option>
+                            </select>
+                          </div>
+
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Area Jangkauan Layanan *
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.service_area || ''}
+                              onChange={(e) => updateProductAttribute('service_area', e.target.value)}
+                              placeholder="Contoh: Jabodetabek / Kota Bandung / Seluruh Indonesia"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 5. TANAMAN & BIBIT */}
+                      {productForm.product_type === 'plant' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Nama Ilmiah / Botani (Latin) <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Opsional)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.scientific_name || ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setProductForm(p => ({ ...p, scientific_name: v, attributes: { ...(p.attributes || {}), scientific_name: v } }));
+                              }}
+                              placeholder="Contoh: Monstera deliciosa, Sansevieria..."
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                fontStyle: 'italic',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              <Sun size={13} style={{ color: '#f59e0b' }} />
+                              <span>Kebutuhan Cahaya *</span>
+                            </label>
+                            <select
+                              value={productForm.attributes.sunlight || 'Partial Sun (Teduh Terang / Naungan Paranet)'}
+                              onChange={(e) => updateProductAttribute('sunlight', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Full Sun (Matahari Langsung 6+ Jam)">Full Sun (Matahari Langsung 6+ Jam)</option>
+                              <option value="Partial Sun (Teduh Terang / Naungan Paranet)">Partial Sun (Teduh Terang)</option>
+                              <option value="Low Light / Indoor (Cahaya Rendah Ruangan)">Low Light / Indoor (Cahaya Rendah)</option>
+                              <option value="Fleksibel (Indoor / Outdoor)">Fleksibel (Indoor / Outdoor)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              <Droplets size={13} style={{ color: '#0ea5e9' }} />
+                              <span>Frekuensi Penyiraman *</span>
+                            </label>
+                            <select
+                              value={productForm.attributes.watering || 'Sedang (2-3 Hari Sekali)'}
+                              onChange={(e) => updateProductAttribute('watering', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Banyak (Rutin Setiap Hari)">Banyak (Rutin Setiap Hari)</option>
+                              <option value="Sedang (2-3 Hari Sekali)">Sedang (2-3 Hari Sekali)</option>
+                              <option value="Sedikit (1-2 Minggu Sekali / Sukulen)">Sedikit (1-2 Minggu Sekali / Sukulen)</option>
+                              <option value="Khusus / Hidroponik & Tanaman Air">Khusus / Hidroponik & Air</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Media Tanam
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.planting_medium || ''}
+                              onChange={(e) => updateProductAttribute('planting_medium', e.target.value)}
+                              placeholder="Contoh: Sekam Bakar, Pasir Malang, Humus"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Ukuran / Tinggi Tanaman
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.plant_size || ''}
+                              onChange={(e) => updateProductAttribute('plant_size', e.target.value)}
+                              placeholder="Contoh: Tinggi 25-35 cm, Pot D15"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Status Legalitas Bibit *
+                            </label>
+                            <select
+                              value={productForm.attributes.protection_status || 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)'}
+                              onChange={(e) => updateProductAttribute('protection_status', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Non-Dilindungi (Aman & Bebas Diperjualbelikan)">Non-Dilindungi (Aman & Bebas Diperjualbelikan)</option>
+                              <option value="Hasil Budidaya Nursery Resmi">Hasil Budidaya Nursery Resmi</option>
+                              <option value="Dilindungi (Wajib Izin Khusus / CITES)">Dilindungi (Wajib Izin Khusus / CITES)</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 6. SATWA PELIHARAAN */}
+                      {productForm.product_type === 'fauna' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Nama Ilmiah / Taksonomi (Latin) <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Opsional)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.scientific_name || ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setProductForm(p => ({ ...p, scientific_name: v, attributes: { ...(p.attributes || {}), scientific_name: v } }));
+                              }}
+                              placeholder="Contoh: Scleropages formosus, Felis catus..."
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                fontStyle: 'italic',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Habitat Asli
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.habitat || ''}
+                              onChange={(e) => updateProductAttribute('habitat', e.target.value)}
+                              placeholder="Contoh: Air Tawar / Darat / Hutan Hujan"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Makanan / Diet
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.diet || ''}
+                              onChange={(e) => updateProductAttribute('diet', e.target.value)}
+                              placeholder="Contoh: Pelet / Karnivora / Omnivora"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Asal Wilayah Persebaran
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.native_region || ''}
+                              onChange={(e) => updateProductAttribute('native_region', e.target.value)}
+                              placeholder="Contoh: Kalimantan / Amerika Selatan"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Estimasi Masa Hidup
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.lifespan || ''}
+                              onChange={(e) => updateProductAttribute('lifespan', e.target.value)}
+                              placeholder="Contoh: 5 - 8 Tahun"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Status Ketersediaan *
+                            </label>
+                            <select
+                              value={productForm.attributes.conservation_status || 'Tersedia (Ready Stock)'}
+                              onChange={(e) => updateProductAttribute('conservation_status', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Tersedia (Ready Stock)">Tersedia (Ready Stock / Siap Adopsi)</option>
+                              <option value="Pre-Order (PO)">Pre-Order (PO / Inden Khusus)</option>
+                              <option value="Koleksi / Display Showcase">Koleksi / Display Showcase (Tanya Penjual)</option>
+                              <option value="Habis Terjual (Sold Out)">Habis Terjual (Sold Out)</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 7. PROPERTI & REAL ESTATE */}
+                      {productForm.product_type === 'property' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Tipe Transaksi *
+                            </label>
+                            <select
+                              value={productForm.attributes.transaction_type || 'Dijual (Jual Putus)'}
+                              onChange={(e) => updateProductAttribute('transaction_type', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Dijual (Jual Putus)">Dijual (Jual Putus)</option>
+                              <option value="Disewakan (Tahunan)">Disewakan (Tahunan)</option>
+                              <option value="Disewakan (Bulanan)">Disewakan (Bulanan)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Legalitas / Sertifikat *
+                            </label>
+                            <select
+                              value={productForm.attributes.certificate || 'SHM (Sertifikat Hak Milik)'}
+                              onChange={(e) => updateProductAttribute('certificate', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="SHM (Sertifikat Hak Milik)">SHM (Sertifikat Hak Milik)</option>
+                              <option value="HGB (Hak Guna Bangunan)">HGB (Hak Guna Bangunan)</option>
+                              <option value="Strata Title / SHMRS">Strata Title / SHMRS (Apartemen)</option>
+                              <option value="AJB (Akta Jual Beli)">AJB (Akta Jual Beli)</option>
+                              <option value="Girik / Letter C">Girik / Letter C</option>
+                              <option value="Lainnya">Lainnya</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Luas Tanah (m²) *
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.land_area || ''}
+                              onChange={(e) => updateProductAttribute('land_area', e.target.value)}
+                              placeholder="Contoh: 120"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Luas Bangunan (m²)
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.building_area || ''}
+                              onChange={(e) => updateProductAttribute('building_area', e.target.value)}
+                              placeholder="Contoh: 90 (0 jika tanah kavling)"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Kamar Tidur (KT)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={productForm.attributes.bedrooms ?? ''}
+                              onChange={(e) => updateProductAttribute('bedrooms', Number(e.target.value) || 0)}
+                              placeholder="Contoh: 3"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Kamar Mandi (KM)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={productForm.attributes.bathrooms ?? ''}
+                              onChange={(e) => updateProductAttribute('bathrooms', Number(e.target.value) || 0)}
+                              placeholder="Contoh: 2"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Kondisi Perabotan
+                            </label>
+                            <select
+                              value={productForm.attributes.furnishing || 'Semi-Furnished'}
+                              onChange={(e) => updateProductAttribute('furnishing', e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="Unfurnished (Kosong)">Unfurnished (Kosong)</option>
+                              <option value="Semi-Furnished">Semi-Furnished</option>
+                              <option value="Fully Furnished (Lengkap)">Fully Furnished (Lengkap Siap Huni)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Lokasi / Wilayah Properti *
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.property_location || ''}
+                              onChange={(e) => updateProductAttribute('property_location', e.target.value)}
+                              placeholder="Contoh: BSD City, Serpong, Tangerang Selatan"
+                              style={{
+                                width: '100%',
+                                minHeight: '40px',
+                                padding: '0.55rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </div>
-
-                  {/* Basic Information Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Nama Produk *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={productForm.name}
-                        onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                        placeholder="Contoh: Kucing Persia Peaknose"
-                        style={{
-                          width: '100%',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Harga Satuan Dasar (Rp) *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        value={productForm.price}
-                        onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
-                        placeholder="0"
-                        style={{
-                          width: '100%',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Kategori Produk
-                      </label>
-                      <select
-                        value={productForm.category_id}
-                        onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      >
-                        <option value="">Pilih Kategori...</option>
-                        {categories.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Tipe Produk / Format
-                      </label>
-                      <select
-                        value={productForm.product_type}
-                        onChange={(e) => setProductForm({ ...productForm, product_type: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      >
-                        <option value="physical">Produk Fisik (Pcs)</option>
-                        <option value="fauna">Satwa & Hewan (Ekor)</option>
-                        <option value="food">Makanan & Kuliner (Porsi)</option>
-                        <option value="service">Layanan & Jasa (Sesi)</option>
-                        <option value="property">Properti & Lahan (Unit)</option>
-                        <option value="digital">File & Aset Digital (Lisensi)</option>
-                        <option value="plant">Tanaman & Bibit (Pot)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Jumlah Stok
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={productForm.stock}
-                        onChange={(e) => setProductForm({ ...productForm, stock: Number(e.target.value) })}
-                        style={{
-                          width: '100%',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Satuan Unit
-                      </label>
-                      <input
-                        type="text"
-                        value={productForm.unit}
-                        onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
-                        placeholder="Contoh: Pcs, Ekor, Kg, Paket"
-                        style={{
-                          width: '100%',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Minimal Pemesanan
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={productForm.min_order}
-                        onChange={(e) => setProductForm({ ...productForm, min_order: Number(e.target.value) || 1 })}
-                        placeholder="1"
-                        style={{
-                          width: '100%',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Maksimal Pemesanan (Opsional)
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={productForm.max_order}
-                        onChange={(e) => setProductForm({ ...productForm, max_order: e.target.value === '' ? '' : Number(e.target.value) })}
-                        placeholder="Tidak dibatasi"
-                        style={{
-                          width: '100%',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Shipping toggle */}
-                  <div style={{
-                    padding: '0.85rem 1rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
-                    <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Dukungan Pengiriman / Kurir Ekspedisi</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Aktifkan jika item dapat dikirim via kurir ekspedisi</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setProductForm(p => ({ ...p, is_shipping_available: !p.is_shipping_available }))}
-                      style={{
-                        minHeight: '36px',
-                        padding: '0.35rem 0.85rem',
-                        borderRadius: '999px',
-                        border: 'none',
-                        backgroundColor: productForm.is_shipping_available ? 'var(--primary)' : 'var(--bg-card)',
-                        color: productForm.is_shipping_available ? '#ffffff' : 'var(--text-muted)',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {productForm.is_shipping_available ? 'Dapat Dikirim' : 'Ambil di Toko / Khusus'}
-                    </button>
-                  </div>
 
                   {/* Primary Photo with Direct Upload */}
                   <div style={{
@@ -2190,8 +3612,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </button>
                   </div>
                 </form>
-              ) : null
-            }
+              );
+            })() : null}
           />
         )}
 
