@@ -631,7 +631,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         query.set('category_id', catId);
       }
 
-      const res = await fetch(`/api/products?${query.toString()}`, {
+      const endpoint = storeSlug
+        ? `/api/u/${encodeURIComponent(storeSlug)}/products?view=merchant&${query.toString()}`
+        : `/api/products?${query.toString()}`;
+
+      const res = await fetch(endpoint, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Store-Slug': storeSlug,
@@ -642,10 +646,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (res.ok) {
         const json = await res.json();
         const list = json.data || json.products || [];
+        const pagination = json.pagination;
+        const totalItems = pagination?.total_items ?? json.total ?? list.length;
+        const totalPages = pagination?.total_pages ?? json.totalPages ?? Math.max(1, Math.ceil(totalItems / 15));
         setProducts(list);
         setProductPage(page);
-        setProductTotalPages(json.totalPages || Math.ceil((json.total || list.length) / 15) || 1);
-        setProductTotalRecords(json.total || list.length);
+        setProductTotalPages(totalPages);
+        setProductTotalRecords(totalItems);
 
         const isUrlActionNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('action') === 'new';
         if (isUrlActionNew) {
