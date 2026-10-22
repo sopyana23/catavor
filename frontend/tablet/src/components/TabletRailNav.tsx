@@ -48,7 +48,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
   const navItems = [
     { key: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard },
     { key: 'staff', label: 'Staf & RBAC', icon: ShieldCheck },
-    { key: 'stores', label: 'Direktori Toko', icon: Store },
+    { key: 'stores', label: 'Direktori Merchant', icon: Store },
     {
       key: 'reports',
       label: 'Kepatuhan & Laporan',

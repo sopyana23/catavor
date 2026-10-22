@@ -108,7 +108,7 @@ const STORE_PLAN_OPTIONS: TabletSelectOption[] = [
 const STORE_VIOLATION_OPTIONS: TabletSelectOption[] = [
   { value: 'all', label: 'Semua Sanksi' },
   { value: 'moderation', label: 'Moderasi Konten', description: 'Pelanggaran pedoman listing' },
-  { value: 'dormancy', label: 'Inaktif / Dormancy', description: 'Toko lama tidak aktif' },
+  { value: 'dormancy', label: 'Inaktif / Dormancy', description: 'Merchant lama tidak aktif' },
   { value: 'blacklisted', label: 'Blacklist Permanen', description: 'Sanksi keras pelanggaran berat' },
   { value: 'suspended', label: 'Suspended Sementara', description: 'Penangguhan akses profil' },
   { value: 'purged', label: 'Dihapus Sistem', description: 'Data telah dibersihkan' },
@@ -116,8 +116,8 @@ const STORE_VIOLATION_OPTIONS: TabletSelectOption[] = [
 
 const STORE_PRODUCT_OPTIONS: TabletSelectOption[] = [
   { value: 'all', label: 'Semua Item' },
-  { value: 'has_products', label: 'Ada Item (>0)', description: 'Toko sudah upload produk' },
-  { value: 'no_products', label: 'Belum Ada Item (0)', description: 'Toko belum memiliki item' },
+  { value: 'has_products', label: 'Ada Item (>0)', description: 'Merchant sudah upload item' },
+  { value: 'no_products', label: 'Belum Ada Item (0)', description: 'Merchant belum memiliki item' },
 ];
 
 const STORE_SORT_ACTIVE_OPTIONS: TabletSelectOption[] = [
@@ -761,7 +761,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                 minWidth: '128px'
               }}
               menuWidth={200}
-              ariaLabel="Filter Status Item Toko"
+              ariaLabel="Filter Status Item Merchant"
             />
 
             <TabletCustomSelect
@@ -781,7 +781,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                 minWidth: '155px'
               }}
               menuWidth={220}
-              ariaLabel="Urutkan Profil Toko"
+              ariaLabel="Urutkan Profil Merchant"
             />
 
             {/* Reset Filter Button (Only when filters active) */}
@@ -1987,7 +1987,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                     {subTab === 'active' ? 'Filter Detail Katalog' : 'Filter Detail Pelanggaran'}
                   </h3>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    Pilih kriteria penyaringan data toko terdaftar
+                    Pilih kriteria penyaringan data merchant terdaftar
                   </div>
                 </div>
               </div>
@@ -2040,7 +2040,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                   {(subTab === 'active'
                     ? [
                         { key: 'created_at_desc', label: 'Terbaru Terdaftar' },
-                        { key: 'products_desc', label: 'Produk Terbanyak' },
+                        { key: 'products_desc', label: 'Item Terbanyak' },
                         { key: 'activity_desc', label: 'Terakhir Aktif' },
                         { key: 'created_at_asc', label: 'Terlama Terdaftar' },
                         { key: 'title_asc', label: 'Nama (A - Z)' },
@@ -2206,7 +2206,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                         letterSpacing: '0.04em'
                       }}
                     >
-                      Kesehatan Toko (Dormancy)
+                      Kesehatan Merchant (Dormancy)
                     </span>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
                       {[
@@ -2838,7 +2838,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                           <Package size={15} color="#10b981" />
                           Metrik & Kapasitas
                         </div>
-                        <div>Total Produk: <strong style={{ color: '#10b981' }}>{storeDetail.products_count} Item</strong></div>
+                        <div>Total Item: <strong style={{ color: '#10b981' }}>{storeDetail.products_count} Item</strong></div>
                         <div>Total Kategori: <strong>{storeDetail.categories_count}</strong></div>
                         <div>Storage Digunakan: <strong>{formatBytes(s.storage_used_bytes)}</strong></div>
                         <div>Terdaftar: {formatDate(s.created_at)}</div>
@@ -2848,7 +2848,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                       {storeDetail.top_products && storeDetail.top_products.length > 0 && (
                         <div>
                           <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                            Produk Teratas ({storeDetail.top_products.length})
+                            Item Teratas ({storeDetail.top_products.length})
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                             {storeDetail.top_products.map((p: any) => (
@@ -2878,7 +2878,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                 })()
               ) : (
                 <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  Gagal memuat detail toko.
+                  Gagal memuat detail merchant.
                 </div>
               )}
             </div>

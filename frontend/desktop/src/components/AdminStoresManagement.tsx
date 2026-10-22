@@ -2114,7 +2114,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
         </div>
       </div>
 
-      {/* 6. Centered Modal Inspeksi Detail Toko (Rule 7.A: Centered Modal on Desktop) */}
+      {/* 6. Centered Modal Inspeksi Detail Merchant (Rule 7.A: Centered Modal on Desktop) */}
       {selectedStoreID !== null && (
         <div
           style={{
@@ -2336,7 +2336,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
 
                       {/* 2-Column Grid: Owner Details & Metrics */}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        {/* Box 1: Data Pemilik Toko */}
+                        {/* Box 1: Data Pemilik Merchant */}
                         <div
                           style={{
                             padding: '1rem',

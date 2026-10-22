@@ -98,8 +98,8 @@ import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
-  rekber_template_physical: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
-  rekber_template_general: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_physical: "Halo *{store_title}*, saya berminat membeli item berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_general: "Halo *{store_title}*, saya berminat membeli item berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
   rekber_template_food: "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n\n*Menu:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
   rekber_template_digital: "Halo *{store_title}*, saya ingin membeli item digital berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan lisensi terlindungi secara aman.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
   rekber_template_service: "Halo *{store_title}*, saya ingin memesan layanan jasa berikut:\n\n*Layanan:* {item_name}\n*Tarif:* {item_price}\n\nSaya ingin bertransaksi menggunakan perlindungan escrow *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
@@ -223,7 +223,7 @@ const getStoreDisplayName = (ticket: any) => {
   if (ticket?.store_name) return ticket.store_name;
   if (ticket?.store?.slug) return ticket.store.slug;
   if (ticket?.store_slug) return ticket.store_slug;
-  return 'Katalog Toko';
+  return 'Katalog Merchant';
 };
 
 const getStorePlanBadge = (ticket: any) => {
@@ -941,7 +941,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const handleApplyTemplate = (tmpl: any) => {
     if (!tmpl) return;
     const merchantName = getMerchantDisplayName(selectedTicket);
-    const storeName = selectedTicket?.store?.name || selectedTicket?.store_name || 'Toko Anda';
+    const storeName = selectedTicket?.store?.name || selectedTicket?.store_name || 'Merchant Anda';
     const ticketNum = selectedTicket?.ticket_number || `#TCK-${selectedTicket?.id}`;
     const agentName = currentUser?.name || 'Staf CS';
 
@@ -1078,7 +1078,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       case 'physical':
         return 'Barang Fisik';
       case 'digital':
-        return 'Produk Digital';
+        return 'Item Digital';
       case 'service':
         return 'Jasa & Layanan';
       case 'food':
@@ -1836,7 +1836,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 combined.push({
                   type: 'store',
                   id: s.id,
-                  name: s.store_title || s.name || s.slug || `Toko #${s.id}`,
+                  name: s.store_title || s.name || s.slug || `Merchant #${s.id}`,
                   slug: s.slug,
                   plan: s.plan || 'free',
                   email: s.user_email || s.email
@@ -2943,7 +2943,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         return;
       }
     } else if (broadcastForm.target_type === 'single_store' && (!broadcastForm.target_id || broadcastForm.target_id === 0)) {
-      showToast('Silakan pilih toko target terlebih dahulu', 'error');
+      showToast('Silakan pilih merchant target terlebih dahulu', 'error');
       return;
     } else if (broadcastForm.target_type === 'single_user' && (!broadcastForm.target_id || broadcastForm.target_id === 0)) {
       showToast('Silakan pilih user target terlebih dahulu', 'error');
@@ -3581,13 +3581,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         return {
           showMenu: true,
           title: `Pesanan #${selectedProofOrder.id}`,
-          subtitle: `${selectedProofOrder.store_name || 'Toko'} • Rp ${(selectedProofOrder.amount || 99000).toLocaleString('id-ID')}`,
+          subtitle: `${selectedProofOrder.store_name || 'Merchant'} • Rp ${(selectedProofOrder.amount || 99000).toLocaleString('id-ID')}`,
           items: [
             ...(selectedProofOrder.status === 'pending' ? [
               {
                 id: 'approve_payment',
                 label: 'Setujui & Aktifkan Paket',
-                description: 'Verifikasi transfer & aktifkan langganan toko',
+                description: 'Verifikasi transfer & aktifkan langganan merchant',
                 icon: <CheckCircle2 size={18} />,
                 iconBg: 'rgba(16, 185, 129, 0.15)',
                 iconColor: '#10b981',
@@ -3769,7 +3769,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             onClick: () => {
               const summary = `Ringkasan Merchant: ${dormancyMetrics?.active_stores || 1} aktif, ${dormancyMetrics?.dormant_stores || 0} dorman.`;
               navigator.clipboard.writeText(summary);
-              showToast('Ringkasan toko disalin', 'success');
+              showToast('Ringkasan merchant disalin', 'success');
             }
           }
         ],
@@ -4203,7 +4203,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         const subStatusText = 
           activeView === 'monetization' ? 'Google AdSense & GA4' :
           activeView === 'rbac' ? 'Matriks & Izin Staf' :
-          activeView === 'stores' ? `${dormancyMetrics?.active_stores || 1} Toko Terdaftar` :
+          activeView === 'stores' ? `${dormancyMetrics?.active_stores || 1} Merchant Terdaftar` :
           activeView === 'reports' ? `${pendingReportsCount} Laporan Pending` :
           activeView === 'support' ? (actionRequiredTicketsCount > 0 ? `${actionRequiredTicketsCount} Perlu Respon Tim` : (tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length > 0 ? `${tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length} Tiket Aktif` : `${tickets.length} Total Tiket`)) :
           activeView === 'finance' ? `${pendingOrdersCount} Order Pending` :
@@ -4686,7 +4686,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* Quick Metrics Strip */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.45rem' }}>
             <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Toko</span>
+              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Merchant</span>
               <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>{dormancyMetrics?.active_stores || 1}</strong>
             </div>
             <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
@@ -5054,7 +5054,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. MODULE 2: TATA KELOLA TOKO & DORMANSI                                  */}
+      {/* 4. MODULE 2: TATA KELOLA MERCHANT & DORMANSI                                  */}
       {/* ========================================================================= */}
       {activeView === 'stores' && canAccessCompliance && (
         <AdminStoresManagement
@@ -5400,7 +5400,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {[
                   { value: 'investigating', label: 'Investigasi Aktif', color: '#f59e0b', desc: 'Audit sedang berjalan & verifikasi bukti' },
                   { value: 'action_taken', label: 'Sanksi Ditindak', color: '#f43f5e', desc: 'Sanksi sementara/teguran dijatuhkan' },
-                  { value: 'banned', label: 'Banned Permanen', color: '#ef4444', desc: 'Blokir permanen seluruh akses toko/item' },
+                  { value: 'banned', label: 'Banned Permanen', color: '#ef4444', desc: 'Blokir permanen seluruh akses merchant/item' },
                   { value: 'resolved', label: 'Diselesaikan', color: '#10b981', desc: 'Ditutup/dipulihkan tanpa sanksi lanjutan' },
                   { value: 'dismissed', label: 'Ditolak (Dismiss)', color: '#64748b', desc: 'Laporan tidak valid atau palsu' }
                 ].map(opt => {
@@ -5751,7 +5751,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               }}>
                 <Info size={16} style={{ color: isDark ? '#38bdf8' : '#0284c7', flexShrink: 0 }} />
                 <span style={{ fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                  Eksekusi sanksi bersifat seketika (*instant*). Pemilik toko akan melihat status item/katalog terbarui di portal mereka.
+                  Eksekusi sanksi bersifat seketika (*instant*). Pemilik merchant akan melihat status item/katalog terbarui di portal mereka.
                 </span>
               </div>
             </div>
@@ -5916,7 +5916,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
             <input
               type="text"
-              placeholder="Cari nomor tiket (#RPT-...), toko, item, atau email..."
+              placeholder="Cari nomor tiket (#RPT-...), merchant, item, atau email..."
               value={reportsSearchQuery}
               onChange={(e) => setReportsSearchQuery(e.target.value)}
               style={{
@@ -5984,7 +5984,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {[
               { id: 'all', label: 'Semua Target' },
               { id: 'item', label: 'Hanya Item' },
-              { id: 'catalog', label: 'Katalog Toko' },
+              { id: 'catalog', label: 'Katalog Merchant' },
             ].map(tf => (
               <button
                 key={tf.id}
@@ -6042,7 +6042,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <ShieldCheck size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
               <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Laporan Ditemukan</h4>
               <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>
-                {reportsSearchQuery ? 'Tidak ada laporan yang sesuai dengan kriteria pencarian.' : 'Seluruh toko dan item mematuhi aturan kepatuhan platform.'}
+                {reportsSearchQuery ? 'Tidak ada laporan yang sesuai dengan kriteria pencarian.' : 'Seluruh merchant dan item mematuhi aturan kepatuhan platform.'}
               </p>
             </div>
           ) : (
@@ -6218,7 +6218,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.25 }}>
                             {isCatalog 
                               ? (r.store_title || `Katalog /${r.store_slug}`) 
-                              : (r.item_name || 'Item Produk')}
+                              : (r.item_name || 'Item')}
                           </h4>
                           <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
                             {isCatalog ? `/${r.store_slug || '-'}` : (r.store_title ? `${r.store_title} (/${r.store_slug || '-'})` : `/${r.store_slug || '-'}`)}
@@ -6281,7 +6281,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }}>
                         <RefreshCw size={13} color="#10b981" />
                         <span style={{ fontSize: '0.72rem', color: isDark ? '#34d399' : '#059669', fontWeight: 600 }}>
-                          Pemilik toko telah mengajukan perbaikan item/katalog dan siap ditinjau ulang.
+                          Pemilik merchant telah mengajukan perbaikan item/katalog dan siap ditinjau ulang.
                         </span>
                       </div>
                     )}
@@ -6561,7 +6561,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   {
                     selectedTicket.category === 'billing' ? 'Keuangan & Langganan' :
                     selectedTicket.category === 'technical' ? 'Kendala Teknis & Bug' :
-                    selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog & Produk' :
+                    selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog & Item' :
                     selectedTicket.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
                   }
                 </span>
@@ -7555,7 +7555,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 className={`search-input ${isDark ? 'dark-input' : 'light-input'}`}
                 value={ticketSearchQuery}
                 onChange={(e) => setTicketSearchQuery(e.target.value)}
-                placeholder="Cari No Tiket (#TCK), Toko, Subjek, Email..."
+                placeholder="Cari No Tiket (#TCK), Merchant, Subjek, Email..."
                 style={{
                   width: '100%',
                   padding: '0.65rem 2.2rem 0.65rem 2.5rem',
@@ -7929,7 +7929,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           letterSpacing: '-0.01em', 
                           lineHeight: 1.35 
                         }}>
-                          {t.subject || 'Pertanyaan Layanan Toko'}
+                          {t.subject || 'Pertanyaan Layanan Merchant'}
                         </h4>
 
                         {/* Streamlined Meta Info (Category, Priority, SLA, CSAT, Time) */}
@@ -8477,7 +8477,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </strong>
                 </div>
                 <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                  Iklan hanya akan disuntikkan pada katalog toko <strong>Versi Gratis (Free)</strong>. Toko yang berlangganan <strong>Paket Pro</strong> dijamin 100% bebas iklan.
+                  Iklan hanya akan disuntikkan pada katalog merchant <strong>Versi Gratis (Free)</strong>. Merchant yang berlangganan <strong>Paket Pro</strong> dijamin 100% bebas iklan.
                 </p>
               </div>
 
@@ -8625,7 +8625,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {/* Slot 1: Header Banner */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    1. Header Banner Slot ID (Di Bawah Search Bar Toko)
+                    1. Header Banner Slot ID (Di Bawah Search Bar Merchant)
                   </label>
                   <input
                     type="text"
@@ -8648,7 +8648,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {/* Slot 2: In-Feed Product Catalog */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    2. In-Feed Catalog Slot ID (Di Sela-Sela Produk)
+                    2. In-Feed Catalog Slot ID (Di Sela-Sela Item)
                   </label>
                   <input
                     type="text"
@@ -8671,7 +8671,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {/* Slot 3: Product Detail View */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    3. Product Detail Slot ID (Di Bawah Spesifikasi Produk)
+                    3. Product Detail Slot ID (Di Bawah Spesifikasi Item)
                   </label>
                   <input
                     type="text"
@@ -8907,8 +8907,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <div style={{ fontWeight: 800, color: theme.textPrimary, marginBottom: '0.2rem' }}>
                     Event Otomatis yang Terkirim:
                   </div>
-                  <div>&bull; `page_view` saat pengunjung berpindah halaman toko.</div>
-                  <div>&bull; `view_item` saat detail produk katalog dilihat.</div>
+                  <div>&bull; `page_view` saat pengunjung berpindah halaman merchant.</div>
+                  <div>&bull; `view_item` saat detail item katalog dilihat.</div>
                 </div>
               </div>
 
@@ -9024,8 +9024,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         selectedValue: broadcastForm.target_type,
                         options: [
                           { value: 'all', label: 'Semua Merchant & Pengguna (Global)', desc: 'Siaran broadcast massal untuk seluruh ekosistem Catavor', badge: 'GLOBAL', icon: Globe },
-                          { value: 'plan', label: 'Berdasarkan Paket Langganan Toko', desc: 'Filter target berdasarkan tier langganan toko aktif', badge: 'PAKET', icon: Award },
-                          { value: 'specific', label: 'Spesifik ke Beberapa Merchant / User', desc: 'Pilih dan tambahkan satu atau banyak toko/user spesifik', badge: 'SPESIFIK', icon: Users },
+                          { value: 'plan', label: 'Berdasarkan Paket Langganan Merchant', desc: 'Filter target berdasarkan tier langganan merchant aktif', badge: 'PAKET', icon: Award },
+                          { value: 'specific', label: 'Spesifik ke Beberapa Merchant / User', desc: 'Pilih dan tambahkan satu atau banyak merchant/user spesifik', badge: 'SPESIFIK', icon: Users },
                         ],
                         onSelect: (val) => {
                           setBroadcastForm(prev => ({ ...prev, target_type: val, target_id: 0, target_name: '' }));
@@ -9056,7 +9056,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       {['specific', 'single_store', 'single_user'].includes(broadcastForm.target_type) && <Users size={16} color="#3b82f6" />}
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {broadcastForm.target_type === 'all' && 'Semua Merchant & Pengguna (Global)'}
-                        {broadcastForm.target_type === 'plan' && 'Berdasarkan Paket Langganan Toko'}
+                        {broadcastForm.target_type === 'plan' && 'Berdasarkan Paket Langganan Merchant'}
                         {['specific', 'single_store', 'single_user'].includes(broadcastForm.target_type) && 'Spesifik ke Beberapa Merchant / User'}
                       </span>
                     </div>
@@ -9075,13 +9075,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       onClick={() => {
                         setCrudDropdownPicker({
                           title: 'Pilih Paket Target',
-                          subtitle: 'Hanya toko dengan paket ini yang menerima siaran',
+                          subtitle: 'Hanya merchant dengan paket ini yang menerima siaran',
                           icon: Award,
                           selectedValue: broadcastForm.target_plan_code,
                           options: [
-                            { value: 'free', label: 'Paket Gratis (Free / Starter)', desc: 'Toko pemula dengan paket standard bawaan', badge: 'FREE', badgeColor: '#94a3b8' },
-                            { value: 'pro', label: 'Paket Pro (Aktif)', desc: 'Toko aktif berlangganan paket Pro', badge: 'PRO', badgeColor: '#f59e0b' },
-                            { value: 'enterprise', label: 'Paket Enterprise', desc: 'Toko mitra korporat prioritas', badge: 'ENTERPRISE', badgeColor: '#8b5cf6' },
+                            { value: 'free', label: 'Paket Gratis (Free / Starter)', desc: 'Merchant pemula dengan paket standard bawaan', badge: 'FREE', badgeColor: '#94a3b8' },
+                            { value: 'pro', label: 'Paket Pro (Aktif)', desc: 'Merchant aktif berlangganan paket Pro', badge: 'PRO', badgeColor: '#f59e0b' },
+                            { value: 'enterprise', label: 'Paket Enterprise', desc: 'Merchant mitra korporat prioritas', badge: 'ENTERPRISE', badgeColor: '#8b5cf6' },
                           ],
                           onSelect: (val) => setBroadcastForm(prev => ({ ...prev, target_plan_code: val }))
                         });
@@ -9135,7 +9135,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         <Search size={15} color={theme.textMuted} />
                         <input
                           type="text"
-                          placeholder="Ketik ID Toko, nama, @slug, atau email..."
+                          placeholder="Ketik ID Merchant, nama, @slug, atau email..."
                           value={targetRecipientSearch}
                           onChange={e => setTargetRecipientSearch(e.target.value)}
                           style={{
@@ -9233,7 +9233,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                     backgroundColor: item.type === 'store' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(236, 72, 153, 0.15)',
                                     color: item.type === 'store' ? '#3b82f6' : '#ec4899'
                                   }}>
-                                    {item.type === 'store' ? 'TOKO' : 'USER'}
+                                    {item.type === 'store' ? 'MERCHANT' : 'USER'}
                                   </span>
                                   {isAlreadySelected ? (
                                     <span style={{ fontSize: '0.66rem', color: '#10b981', fontWeight: 700 }}>✓ Ditambahkan</span>
@@ -9526,7 +9526,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     rows={3}
                     required
                     maxLength={250}
-                    placeholder="Tuliskan pesan singkat yang akan tampil di bilah lonceng notifikasi & banner toko..."
+                    placeholder="Tuliskan pesan singkat yang akan tampil di bilah lonceng notifikasi & banner merchant..."
                     value={broadcastForm.message}
                     onChange={e => setBroadcastForm(prev => ({ ...prev, message: e.target.value }))}
                     style={{
@@ -9689,12 +9689,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               icon: Layers,
                               selectedValue: broadcastForm.link_sub_tab,
                               options: [
-                                { value: 'settings', label: 'Pengaturan Toko', desc: 'Tab konfigurasi profil & tampilan toko', badge: 'Settings', icon: Settings },
-                                { value: 'items', label: 'Inventaris & Produk', desc: 'Manajemen katalog produk toko', badge: 'Items', icon: Layers },
-                                { value: 'subscription', label: 'Paket & Langganan Pro', desc: 'Halaman billing & upgrade paket toko', badge: 'Pro', icon: Award },
+                                { value: 'settings', label: 'Pengaturan Merchant', desc: 'Tab konfigurasi profil & tampilan merchant', badge: 'Settings', icon: Settings },
+                                { value: 'items', label: 'Inventaris & Item', desc: 'Manajemen katalog item merchant', badge: 'Items', icon: Layers },
+                                { value: 'subscription', label: 'Paket & Langganan Pro', desc: 'Halaman billing & upgrade paket merchant', badge: 'Pro', icon: Award },
                                 { value: 'help', label: 'Pusat Bantuan & Tiket', desc: 'Helpdesk support & tiket pelanggan', badge: 'Help', icon: HelpCircle },
-                                { value: 'share', label: 'Bagikan Katalog & QR', desc: 'Halaman share & QR code toko', badge: 'Share', icon: ExternalLink },
-                                { value: 'analytics', label: 'Dashboard Analitik', desc: 'Grafik kunjungan & performa toko', badge: 'Analytics', icon: BarChart3 },
+                                { value: 'share', label: 'Bagikan Katalog & QR', desc: 'Halaman share & QR code merchant', badge: 'Share', icon: ExternalLink },
+                                { value: 'analytics', label: 'Dashboard Analitik', desc: 'Grafik kunjungan & performa merchant', badge: 'Analytics', icon: BarChart3 },
                               ],
                               onSelect: (val) => setBroadcastForm(prev => ({ ...prev, link_sub_tab: val }))
                             });
@@ -9715,8 +9715,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           }}
                         >
                           <span>
-                            {broadcastForm.link_sub_tab === 'settings' && 'Pengaturan Toko'}
-                            {broadcastForm.link_sub_tab === 'items' && 'Inventaris & Produk'}
+                            {broadcastForm.link_sub_tab === 'settings' && 'Pengaturan Merchant'}
+                            {broadcastForm.link_sub_tab === 'items' && 'Inventaris & Item'}
                             {broadcastForm.link_sub_tab === 'subscription' && 'Paket & Langganan Pro'}
                             {broadcastForm.link_sub_tab === 'help' && 'Pusat Bantuan & Tiket'}
                             {broadcastForm.link_sub_tab === 'share' && 'Bagikan Katalog & QR'}
@@ -9833,7 +9833,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         icon: Clock,
                         selectedValue: broadcastForm.expires_in_hours,
                         options: [
-                          { value: 0, label: 'Selamanya (Tidak Kedaluwarsa)', desc: 'Tetap aktif dan tersimpan di riwayat toko', badge: 'Permanen' },
+                          { value: 0, label: 'Selamanya (Tidak Kedaluwarsa)', desc: 'Tetap aktif dan tersimpan di riwayat merchant', badge: 'Permanen' },
                           { value: 24, label: '24 Jam (1 Hari)', desc: 'Kedaluwarsa otomatis dalam 1 hari', badge: '1 Hari' },
                           { value: 72, label: '3 Hari (72 Jam)', desc: 'Kedaluwarsa otomatis dalam 3 hari', badge: '3 Hari' },
                           { value: 168, label: '7 Hari (1 Minggu)', desc: 'Kedaluwarsa otomatis dalam 7 hari', badge: '7 Hari' },
@@ -10094,7 +10094,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', color: '#3b82f6', fontWeight: 700 }}>
                   <Eye size={14} />
-                  <span>{selectedBroadcastDetail.read_count || 0} Toko Telah Membaca</span>
+                  <span>{selectedBroadcastDetail.read_count || 0} Merchant Telah Membaca</span>
                 </div>
               </div>
 
@@ -10268,13 +10268,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 if (actionType === 'navigate') {
                   const getMenuLabel = (tab: string) => {
                     switch (tab) {
-                      case 'settings': return '⚙️ Pengaturan Profil & Tampilan Toko (settings)';
-                      case 'items': return '📦 Manajemen Inventaris & Produk (items)';
-                      case 'subscription': return '👑 Paket Langganan & Billing (subscription)';
-                      case 'help': return '💬 Pusat Bantuan & Tiket (help)';
-                      case 'share': return '🔗 Bagikan Katalog & QR Toko (share)';
-                      case 'analytics': return '📊 Dashboard Analitik Toko (analytics)';
-                      default: return tab ? `🧭 Menu ${tab}` : 'Pengaturan Toko';
+                      case 'settings': return 'Pengaturan Profil & Tampilan Merchant (settings)';
+                      case 'items': return 'Manajemen Inventaris & Item (items)';
+                      case 'subscription': return 'Paket Langganan & Billing (subscription)';
+                      case 'help': return 'Pusat Bantuan & Tiket (help)';
+                      case 'share': return 'Bagikan Katalog & QR Merchant (share)';
+                      case 'analytics': return 'Dashboard Analitik Merchant (analytics)';
+                      default: return tab ? `Menu ${tab}` : 'Pengaturan Merchant';
                     }
                   };
 
@@ -10658,11 +10658,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           color: isTargetAll ? '#10b981' : (isTargetTier ? '#6366f1' : '#ec4899'),
                           fontWeight: 800
                         }}>
-                          {isTargetAll && '🌐 SEMUA'}
-                          {b.target_type === 'tier_free' && '🏷️ FREE TIER'}
-                          {b.target_type === 'tier_pro' && '⭐ PRO TIER'}
-                          {b.target_type === 'single_store' && `🏬 ${b.target_name || 'TOKO'}`}
-                          {b.target_type === 'single_user' && `👤 ${b.target_name || 'USER'}`}
+                          {isTargetAll && 'SEMUA'}
+                          {b.target_type === 'tier_free' && 'FREE TIER'}
+                          {b.target_type === 'tier_pro' && 'PRO TIER'}
+                          {b.target_type === 'single_store' && (b.target_name || 'MERCHANT')}
+                          {b.target_type === 'single_user' && (b.target_name || 'USER')}
                         </span>
                       </div>
 
@@ -11054,7 +11054,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => handleTriggerBot('store_expiry', 'Kedaluwarsa Toko')}
+                    onClick={() => handleTriggerBot('store_expiry', 'Kedaluwarsa Merchant')}
                     disabled={isTriggeringBot !== null}
                     style={{
                       padding: '0.6rem 0.75rem',
@@ -11072,7 +11072,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     }}
                   >
                     <Store size={13} />
-                    <span>Pindai Toko &amp; Paket</span>
+                    <span>Pindai Merchant &amp; Paket</span>
                   </button>
 
                   <button
@@ -11165,17 +11165,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               {[
                 {
                   id: 'store_expiry',
-                  name: 'Bot Kedaluwarsa & Paket Toko',
+                  name: 'Bot Kedaluwarsa & Paket Merchant',
                   category: 'Lifecycle',
                   categoryColor: '#3b82f6',
                   freq: 'Setiap 1 Jam',
-                  desc: 'Memeriksa masa aktif paket merchant (Free/Pro). Mengubah status toko menjadi expired dan otomatis mengirimkan pengumuman peringatan perpanjangan.',
+                  desc: 'Memeriksa masa aktif paket merchant (Free/Pro). Mengubah status merchant menjadi expired dan otomatis mengirimkan pengumuman peringatan perpanjangan.',
                   icon: <Store size={18} color="#3b82f6" />,
                   color: '#3b82f6'
                 },
                 {
                   id: 'dormancy_worker',
-                  name: 'Engine Lifecycle Dormansi Toko',
+                  name: 'Engine Lifecycle Dormansi Merchant',
                   category: 'Lifecycle',
                   categoryColor: '#8b5cf6',
                   freq: 'Setiap 1 Jam',
@@ -11189,7 +11189,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   category: 'Commerce',
                   categoryColor: '#10b981',
                   freq: 'Setiap 15 Menit',
-                  desc: 'Memindai voucher diskon & banner promo katalog produk merchant yang telah melewati masa berlaku untuk dinonaktifkan otomatis.',
+                  desc: 'Memindai voucher diskon & banner promo katalog item merchant yang telah melewati masa berlaku untuk dinonaktifkan otomatis.',
                   icon: <Tag size={18} color="#10b981" />,
                   color: '#10b981'
                 },
@@ -11255,11 +11255,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 },
                 {
                   id: 'onboarding_engine',
-                  name: 'Bot Panduan Onboarding Toko Baru',
+                  name: 'Bot Panduan Onboarding Merchant Baru',
                   category: 'Lifecycle',
                   categoryColor: '#10b981',
                   freq: 'Event-Driven Realtime',
-                  desc: 'Secara instan menyuntikkan 3 artikel panduan starter kit katalog digital saat ada merchant baru yang menyelesaikan pendaftaran toko.',
+                  desc: 'Secara instan menyuntikkan 3 artikel panduan starter kit katalog digital saat ada merchant baru yang menyelesaikan pendaftaran merchant.',
                   icon: <Award size={18} color="#10b981" />,
                   color: '#10b981'
                 },
@@ -11424,7 +11424,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   { id: 'ticket_retention_worker', label: 'Retensi PDP Tiket' },
                   { id: 'item_retention_worker', label: 'Retensi Item' },
                   { id: 'support_lifecycle', label: 'Support SLA' },
-                  { id: 'store_expiry', label: 'Toko Expired' },
+                  { id: 'store_expiry', label: 'Merchant Expired' },
                   { id: 'dormancy_worker', label: 'Dormansi' },
                   { id: 'promo_expiry', label: 'Promo' },
                   { id: 'flash_sale', label: 'Flash Sale' },
@@ -11643,7 +11643,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   color: theme.textSecondary,
                   lineHeight: 1.45
                 }}>
-                  💡 <strong>Petunjuk:</strong> Modul sandbox memungkinkan Superadmin untuk menguji jalur transmisi SSE, validasi logic siklus toko/promo, dan memastikan antrean bot berjalan tanpa bottleneck.
+                  <strong>Petunjuk:</strong> Modul sandbox memungkinkan Superadmin untuk menguji jalur transmisi SSE, validasi logic siklus merchant/promo, dan memastikan antrean bot berjalan tanpa bottleneck.
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', marginTop: '0.35rem' }}>
@@ -11684,7 +11684,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <button
                       type="button"
                       disabled={isTriggeringBot !== null}
-                      onClick={() => handleTriggerBot('store_expiry', 'Kedaluwarsa Toko')}
+                      onClick={() => handleTriggerBot('store_expiry', 'Kedaluwarsa Merchant')}
                       style={{
                         padding: '0.6rem 0.75rem',
                         borderRadius: '0.75rem',
@@ -11701,13 +11701,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }}
                     >
                       <Store size={13} color="#3b82f6" />
-                      <span>Simulasi Toko Expired</span>
+                      <span>Simulasi Merchant Expired</span>
                     </button>
 
                     <button
                       type="button"
                       disabled={isTriggeringBot !== null}
-                      onClick={() => handleTriggerBot('dormancy_worker', 'Dormansi Toko')}
+                      onClick={() => handleTriggerBot('dormancy_worker', 'Dormansi Merchant')}
                       style={{
                         padding: '0.6rem 0.75rem',
                         borderRadius: '0.75rem',
@@ -13087,7 +13087,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         { code: '{item_name}', desc: 'Nama Item/Barang/Jasa', icon: <ShoppingBag size={11} /> },
                         { code: '{item_price}', desc: 'Harga / Tarif / Biaya', icon: <DollarSign size={11} /> },
                         { code: '{item_type_label}', desc: 'Tipe Katalog', icon: <Layers size={11} /> },
-                        { code: '{store_title}', desc: 'Nama Toko / Usaha', icon: <Store size={11} /> },
+                        { code: '{store_title}', desc: 'Nama Merchant / Usaha', icon: <Store size={11} /> },
                         { code: '{rekber_website_url}', desc: 'URL Website Rekber', icon: <Globe size={11} /> },
                         { code: '{rekber_website_domain}', desc: 'Domain Rekber', icon: <LinkIcon size={11} /> },
                         { code: '{rekber_wa_number}', desc: 'No. WA Admin Rekber', icon: <PhoneCall size={11} /> },
@@ -14289,7 +14289,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', color: theme.textSecondary }}>
-              <span>Toko: <strong style={{ color: theme.textPrimary }}>{selectedProofOrder.store_name}</strong></span>
+              <span>Merchant: <strong style={{ color: theme.textPrimary }}>{selectedProofOrder.store_name}</strong></span>
               <span>Nominal: <strong style={{ color: isDark ? '#34d399' : '#059669' }}>Rp {(selectedProofOrder.amount || 99000).toLocaleString('id-ID')}</strong></span>
             </div>
 
@@ -15613,8 +15613,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {/* Variable Tag Inserters */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.45rem' }}>
                   {[
-                    { tag: '{{merchant_name}}', label: 'Merchant' },
-                    { tag: '{{store_name}}', label: 'Toko' },
+                    { tag: '{{merchant_name}}', label: 'Pengelola' },
+                    { tag: '{{store_name}}', label: 'Merchant' },
                     { tag: '{{ticket_number}}', label: 'No Tiket' },
                     { tag: '{{agent_name}}', label: 'Staf CS' }
                   ].map(v => (
@@ -15854,7 +15854,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {(() => {
               const isItemConfirm = (bannedConfirmModalReport?.target_type === 'item') || (moderationModalReport?.target_type === 'item') || (moderationAction === 'item_banned');
               const itemName = bannedConfirmModalReport?.item_name || bannedConfirmModalReport?.target_title || moderationModalReport?.item_name || moderationModalReport?.target_title;
-              const storeTitle = bannedConfirmModalReport?.store_title || moderationModalReport?.store_title || 'Toko Katalog';
+              const storeTitle = bannedConfirmModalReport?.store_title || moderationModalReport?.store_title || 'Merchant Katalog';
               const storeSlug = bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug;
 
               return (
@@ -15899,7 +15899,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         </div>
                         {isItemConfirm ? (
                           <div style={{ fontSize: '0.76rem', color: theme.textSecondary, lineHeight: 1.3 }}>
-                            Dari Toko: <strong>{storeTitle}</strong> {storeSlug && <span style={{ fontFamily: 'monospace' }}>({storeSlug})</span>}
+                            Dari Merchant: <strong>{storeTitle}</strong> {storeSlug && <span style={{ fontFamily: 'monospace' }}>({storeSlug})</span>}
                           </div>
                         ) : storeSlug && (
                           <div style={{ fontSize: '0.76rem', color: theme.textSecondary, fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.3 }}>
@@ -15920,11 +15920,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         <>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
                             <Trash2 size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
-                            <span><strong>Soft-Delete &amp; Lenyap dari Inventaris Toko:</strong> Item langsung dinonaktifkan dan dihapus dari etalase publik serta dashboard inventaris merchant (tidak akan tampil di tab Semua, Aktif, maupun Diarsipkan).</span>
+                            <span><strong>Soft-Delete &amp; Lenyap dari Inventaris Merchant:</strong> Item langsung dinonaktifkan dan dihapus dari etalase publik serta dashboard inventaris merchant (tidak akan tampil di tab Semua, Aktif, maupun Diarsipkan).</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
                             <CheckCircle2 size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
-                            <span><strong>Pemulihan Kuota &amp; Storage Seketika:</strong> Kuota item toko langsung kembali tersedia dan beban kapasitas storage dibebaskan (0 byte terhitung untuk merchant) sehingga toko tidak dirugikan kuotanya.</span>
+                            <span><strong>Pemulihan Kuota &amp; Storage Seketika:</strong> Kuota item merchant langsung kembali tersedia dan beban kapasitas storage dibebaskan (0 byte terhitung untuk merchant) sehingga merchant tidak dirugikan kuotanya.</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
                             <Database size={15} style={{ color: '#38bdf8', flexShrink: 0, marginTop: '2px' }} />
@@ -15932,14 +15932,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           </div>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
                             <Lock size={15} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
-                            <span><strong>Keputusan Final Tanpa Banding:</strong> Pemilik toko menerima notifikasi penetapan sanksi fatal tanpa hak pengajuan banding (<em>No Right to Appeal</em>).</span>
+                            <span><strong>Keputusan Final Tanpa Banding:</strong> Pemilik merchant menerima notifikasi penetapan sanksi fatal tanpa hak pengajuan banding (<em>No Right to Appeal</em>).</span>
                           </div>
                         </>
                       ) : (
                         <>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
                             <Trash2 size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
-                            <span><strong>Purge Data Profil &amp; Produk:</strong> Seluruh data produk, etalase, galeri foto, dan media fisik katalog akan dihapus/dibersihkan dari platform.</span>
+                            <span><strong>Purge Data Profil &amp; Item:</strong> Seluruh data item, etalase, galeri foto, dan media fisik katalog akan dihapus/dibersihkan dari platform.</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
                             <Lock size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />

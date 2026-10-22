@@ -227,7 +227,7 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
       case 'stores':
         return { title: 'Tata Kelola Merchant & Dormansi', subtitle: 'Monitoring kepatuhan, keaktifan katalog merchant, dan penegakan sanksi' };
       case 'reports':
-        return { title: 'Kepatuhan & Laporan Masyarakat', subtitle: 'Investigasi laporan pelanggaran toko, satwa dilindungi, dan barang terlarang' };
+        return { title: 'Kepatuhan & Laporan Masyarakat', subtitle: 'Investigasi laporan pelanggaran merchant, satwa dilindungi, dan barang terlarang' };
       case 'support':
         return { title: 'Pusat Bantuan & Helpdesk', subtitle: 'Penanganan tiket kendala merchant, eskalasi, dan percakapan interaktif' };
       case 'finance':

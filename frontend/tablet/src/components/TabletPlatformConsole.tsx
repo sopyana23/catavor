@@ -63,10 +63,10 @@ import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelec
 import { type UserRBACInfo, getRoleBadge, isSuperAdmin, hasPermission } from '../utils/rbac';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
-  rekber_template_physical: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
-  rekber_template_general: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_physical: "Halo *{store_title}*, saya berminat membeli item berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_general: "Halo *{store_title}*, saya berminat membeli item berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
   rekber_template_food: "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n\n*Menu:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin menggunakan layanan *Rekber Syariah ({rekber_website_domain})* demi keamanan transaksi.\n\nMohon diproses via {rekber_website_url} atau hubungi WA Rekber *+{rekber_wa_number}*.\n\nTerima kasih.",
-  rekber_template_digital: "Halo *{store_title}*, saya berminat membeli produk digital berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi via *Rekber Syariah ({rekber_website_domain})*.\n\nMohon bantuannya via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih.",
+  rekber_template_digital: "Halo *{store_title}*, saya berminat membeli item digital berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi via *Rekber Syariah ({rekber_website_domain})*.\n\nMohon bantuannya via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih.",
   rekber_template_service: "Halo *{store_title}*, saya ingin menggunakan jasa berikut:\n\n*Layanan:* {item_name}\n*Biaya:* {item_price}\n\nSaya ingin menggunakan proteksi *Rekber Syariah ({rekber_website_domain})*.\n\nSilakan konfirmasi via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih.",
   rekber_template_plant: "Halo *{store_title}*, saya berminat membeli tanaman berikut:\n\n*Tanaman:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin menggunakan layanan *Rekber Syariah ({rekber_website_domain})*.\n\nMohon diproses via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih.",
   rekber_template_fauna: "Halo *{store_title}*, saya berminat mengadopsi satwa legal berikut:\n\n*Satwa:* {item_name}\n*Mahar/Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman via *Rekber Syariah ({rekber_website_domain})*.\n\nMohon bantuannya via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih."
@@ -95,11 +95,11 @@ const BROADCAST_CATEGORY_OPTIONS: TabletSelectOption[] = [
 ];
 
 const BROADCAST_TARGET_OPTIONS: TabletSelectOption[] = [
-  { value: 'all', label: 'Semua Toko Merchant', description: 'Terkirim ke seluruh merchant terdaftar' },
-  { value: 'pro', label: 'Hanya Toko Paket Pro', description: 'Eksklusif merchant Pro Starter & Pro Business' },
-  { value: 'free', label: 'Hanya Toko Paket Free', description: 'Merchant paket gratis/dasar' },
-  { value: 'active', label: 'Hanya Toko Aktif', description: 'Toko dengan aktivitas katalog aktif' },
-  { value: 'dormant', label: 'Toko Indikasi Dormansi', description: 'Toko yang lama tidak aktif atau belum ada item' },
+  { value: 'all', label: 'Semua Merchant', description: 'Terkirim ke seluruh merchant terdaftar' },
+  { value: 'pro', label: 'Hanya Merchant Paket Pro', description: 'Eksklusif merchant Pro Starter & Pro Business' },
+  { value: 'free', label: 'Hanya Merchant Paket Free', description: 'Merchant paket gratis/dasar' },
+  { value: 'active', label: 'Hanya Merchant Aktif', description: 'Merchant dengan aktivitas katalog aktif' },
+  { value: 'dormant', label: 'Merchant Indikasi Dormansi', description: 'Merchant yang lama tidak aktif atau belum ada item' },
 ];
 
 export interface TabletPlatformConsoleProps {
@@ -167,7 +167,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       case 'staff':
         return { title: 'Staf & Role RBAC', subtitle: 'Matriks izin akses dan penugasan staf pengelola' };
       case 'stores':
-        return { title: 'Tata Kelola Profil Toko', subtitle: 'Direktori katalog terdaftar dan kepatuhan akun' };
+        return { title: 'Tata Kelola Profil Merchant', subtitle: 'Direktori katalog terdaftar dan kepatuhan akun' };
       case 'reports':
         return { title: 'Kepatuhan & Laporan Masyarakat', subtitle: 'Antrean penertiban satwa dilindungi dan barang terlarang' };
       case 'support':
@@ -377,7 +377,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     const storeName = rep.target_store_name || `Store #${rep.target_store_id || rep.store_id}`;
     const caseId = rep.id || rep.report_number;
     const reason = rep.reason_category || 'Kepatuhan Etalase';
-    const text = `Halo Pengelola *${storeName}*,\n\nKami dari Tim Kepatuhan Platform Catavor ingin memberitahukan terkait laporan kepatuhan (Kasus #${caseId}) dengan kategori: *${reason}*.\n\nCatatan Investigasi: ${actionReason || rep.details || 'Harap tinjau etalase Anda agar senantiasa sesuai dengan ketentuan platform Catavor.'}\n\nMohon lakukan penyesuaian atau koordinasi melalui Pusat Bantuan di dashboard toko Anda.\n\nTerima kasih,\nTim Kepatuhan Catavor`;
+    const text = `Halo Pengelola *${storeName}*,\n\nKami dari Tim Kepatuhan Platform Catavor ingin memberitahukan terkait laporan kepatuhan (Kasus #${caseId}) dengan kategori: *${reason}*.\n\nCatatan Investigasi: ${actionReason || rep.details || 'Harap tinjau etalase Anda agar senantiasa sesuai dengan ketentuan platform Catavor.'}\n\nMohon lakukan penyesuaian atau koordinasi melalui Pusat Bantuan di dashboard merchant Anda.\n\nTerima kasih,\nTim Kepatuhan Catavor`;
     return encodeURIComponent(text);
   };
 
@@ -385,7 +385,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     const storeName = rep.target_store_name || `Store #${rep.target_store_id || rep.store_id}`;
     const caseId = rep.id || rep.report_number;
     const reason = rep.reason_category || 'Kepatuhan Etalase';
-    const text = `[PERINGATAN RESMI KEPATUHAN CATAVOR]\nKasus: #${caseId}\nTarget: ${storeName}\nKategori: ${reason}\nCatatan: ${actionReason || rep.details || 'Pemeriksaan kepatuhan produk'}\nStatus: ${moderationStatus.toUpperCase()}\nTindakan: ${moderationAction}\nTanggal: ${new Date().toLocaleString('id-ID')}`;
+    const text = `[PERINGATAN RESMI KEPATUHAN CATAVOR]\nKasus: #${caseId}\nTarget: ${storeName}\nKategori: ${reason}\nCatatan: ${actionReason || rep.details || 'Pemeriksaan kepatuhan item'}\nStatus: ${moderationStatus.toUpperCase()}\nTindakan: ${moderationAction}\nTanggal: ${new Date().toLocaleString('id-ID')}`;
     navigator.clipboard.writeText(text);
     showToast('Format teks peringatan disalin ke clipboard', 'success');
   };
@@ -813,17 +813,17 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const BOT_WORKERS_CATALOG = [
     {
       id: 'store_expiry',
-      name: 'Bot Kedaluwarsa & Paket Toko',
+      name: 'Bot Kedaluwarsa & Paket Merchant',
       category: 'Lifecycle',
       categoryColor: '#3b82f6',
       freq: 'Setiap 1 Jam',
-      desc: 'Memeriksa masa aktif paket merchant (Free/Pro). Mengubah status toko menjadi expired dan otomatis mengirimkan pengumuman peringatan perpanjangan.',
+      desc: 'Memeriksa masa aktif paket merchant (Free/Pro). Mengubah status merchant menjadi expired dan otomatis mengirimkan pengumuman peringatan perpanjangan.',
       icon: StoreIcon,
       color: '#3b82f6'
     },
     {
       id: 'dormancy_worker',
-      name: 'Engine Lifecycle Dormansi Toko',
+      name: 'Engine Lifecycle Dormansi Merchant',
       category: 'Lifecycle',
       categoryColor: '#8b5cf6',
       freq: 'Setiap 1 Jam',
@@ -837,7 +837,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       category: 'Commerce',
       categoryColor: '#10b981',
       freq: 'Setiap 15 Menit',
-      desc: 'Memindai voucher diskon & banner promo katalog produk merchant yang telah melewati masa berlaku untuk dinonaktifkan otomatis.',
+      desc: 'Memindai voucher diskon & banner promo katalog item merchant yang telah melewati masa berlaku untuk dinonaktifkan otomatis.',
       icon: Tag,
       color: '#10b981'
     },
@@ -903,11 +903,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     },
     {
       id: 'onboarding_engine',
-      name: 'Bot Panduan Onboarding Toko Baru',
+      name: 'Bot Panduan Onboarding Merchant Baru',
       category: 'Lifecycle',
       categoryColor: '#10b981',
       freq: 'Event-Driven Realtime',
-      desc: 'Secara instan menyuntikkan 3 artikel panduan starter kit katalog digital saat ada merchant baru yang menyelesaikan pendaftaran toko.',
+      desc: 'Secara instan menyuntikkan 3 artikel panduan starter kit katalog digital saat ada merchant baru yang menyelesaikan pendaftaran merchant.',
       icon: Award,
       color: '#10b981'
     },
@@ -1404,7 +1404,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   <div style={{ fontWeight: 700 }}>{new Date(selectedReceiptOrder.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}</div>
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Katalog Toko Penerima</div>
+                  <div style={{ color: 'var(--text-muted)' }}>Katalog Merchant Penerima</div>
                   <div style={{ fontWeight: 800 }}>{selectedReceiptOrder.store_name || `Store #${selectedReceiptOrder.store_id}`}</div>
                 </div>
                 <div>
@@ -1826,7 +1826,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
                   gap: '1rem'
                 }}>
-                  {/* Card 1: Direktori Toko */}
+                  {/* Card 1: Direktori Merchant */}
                   <div
                     onClick={() => handleSwitchView('stores')}
                     style={{
@@ -1839,7 +1839,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Direktori Toko</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Direktori Merchant</span>
                       <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <StoreIcon size={18} />
                       </div>
@@ -1848,7 +1848,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       {metrics.active_stores || metrics.total_stores || 1}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>
-                      &bull; {metrics.dormant_stores || 0} Toko Terindikasi Dormansi
+                      &bull; {metrics.dormant_stores || 0} Merchant Terindikasi Dormansi
                     </div>
                   </div>
 
@@ -1956,9 +1956,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Toko Berlangganan Pro</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Merchant Berlangganan Pro</div>
                     <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
-                      {metrics.pro_stores} Toko Aktif
+                      {metrics.pro_stores} Merchant Aktif
                     </div>
                   </div>
                   <div>
@@ -1985,7 +1985,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     gap: '0.85rem'
                   }}>
                     {[
-                      { key: 'stores', label: 'Direktori Toko', desc: 'Audit & kepatuhan katalog', icon: StoreIcon, color: '#3b82f6' },
+                      { key: 'stores', label: 'Direktori Merchant', desc: 'Audit & kepatuhan katalog', icon: StoreIcon, color: '#3b82f6' },
                       { key: 'reports', label: 'Kepatuhan & Laporan', desc: 'Investigasi satwa terlarang', icon: AlertOctagon, color: '#ef4444' },
                       { key: 'support', label: 'Bantuan CS', desc: 'Respon tiket merchant', icon: LifeBuoy, color: '#06b6d4' },
                       { key: 'finance', label: 'Keuangan & Billing', desc: 'Verifikasi aktivasi paket Pro', icon: CreditCard, color: '#10b981' },
@@ -2108,7 +2108,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   backgroundColor: isItem ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
                                   color: isItem ? '#a855f7' : '#3b82f6'
                                 }}>
-                                  {isItem ? 'PRODUK' : 'TOKO'}
+                                  {isItem ? 'ITEM' : 'MERCHANT'}
                                 </span>
                                 <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#ef4444' }}>
                                   {rep.reason_category || 'PELANGGARAN'}
@@ -2126,7 +2126,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </span>
                             </div>
                             <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                              {rep.target_store_name || `Toko #${rep.target_store_id || rep.store_id}`}
+                              {rep.target_store_name || `Merchant #${rep.target_store_id || rep.store_id}`}
                               {rep.target_item_title && ` &bull; ${rep.target_item_title}`}
                             </div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -2159,7 +2159,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             backgroundColor: selectedReport.target_type === 'item' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
                             color: selectedReport.target_type === 'item' ? '#a855f7' : '#3b82f6'
                           }}>
-                            {selectedReport.target_type === 'item' ? 'MODERASI PRODUK' : 'MODERASI TOKO'}
+                            {selectedReport.target_type === 'item' ? 'MODERASI ITEM' : 'MODERASI MERCHANT'}
                           </span>
                           <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ef4444' }}>
                             Kasus #{selectedReport.id} &bull; {selectedReport.reason_category || 'Pelanggaran'}
@@ -2280,9 +2280,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               : [
                                   { value: 'none', label: 'Tanpa Sanksi Otomatis', description: 'Hanya catatan investigasi forensik' },
                                   { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi ke Merchant', description: 'Kirim teguran resmi pengelola' },
-                                  { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog Toko', description: 'Toko dinonaktifkan sementara' },
-                                  { value: 'catalog_banned', label: 'Blokir / Banned Permanen Toko & Akun', description: 'Blacklist toko & akun pemilik' },
-                                  { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Kembali Profil Toko', description: 'Aktivasi ulang katalog toko' },
+                                  { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog Merchant', description: 'Merchant dinonaktifkan sementara' },
+                                  { value: 'catalog_banned', label: 'Blokir / Banned Permanen Merchant & Akun', description: 'Blacklist merchant & akun pemilik' },
+                                  { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Kembali Profil Merchant', description: 'Aktivasi ulang katalog merchant' },
                                 ]
                           }
                           ariaLabel="Tindakan Penegakan Moderasi"
@@ -2630,7 +2630,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             }}
                           >
                             <ExternalLink size={14} />
-                            <span>Katalog Toko</span>
+                            <span>Katalog Merchant</span>
                           </a>
                         )}
                       </div>
@@ -3415,7 +3415,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>Tampilkan Banner Pengumuman di Atas Katalog Toko</span>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>Tampilkan Banner Pengumuman di Atas Katalog Merchant</span>
                             <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                               Menyematkan strip banner resmi di bagian paling atas halaman etalase publik merchant
                             </p>
@@ -3757,11 +3757,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         </h3>
                       </div>
                       <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                        Gunakan konsol simulator ini untuk menguji pemicu notifikasi panduan toko baru atau simulasi evaluasi kedaluwarsa tanpa mempengaruhi data produksi riil.
+                        Gunakan konsol simulator ini untuk menguji pemicu notifikasi panduan merchant baru atau simulasi evaluasi kedaluwarsa tanpa mempengaruhi data produksi riil.
                       </p>
 
                       <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 800 }}>Uji Pemicu Onboarding Engine Toko Baru</div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 800 }}>Uji Pemicu Onboarding Engine Merchant Baru</div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button
                             type="button"
@@ -4234,7 +4234,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         </label>
                         <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', marginBottom: '0.75rem' }}>
                           {[
-                            { key: 'rekber_template_physical', label: 'Produk Fisik' },
+                            { key: 'rekber_template_physical', label: 'Item Fisik' },
                             { key: 'rekber_template_general', label: 'Barang Umum' },
                             { key: 'rekber_template_food', label: 'Kuliner' },
                             { key: 'rekber_template_digital', label: 'Digital' },
