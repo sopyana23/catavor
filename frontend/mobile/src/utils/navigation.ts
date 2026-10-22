@@ -3,7 +3,7 @@
  * Conforms to Catavor Platform Navigation Guidelines (AGENTS.md)
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 /**
  * Global registry for active modals/drawers/bottom-sheets in LIFO order.
@@ -18,6 +18,15 @@ const modalStack: ModalEntry[] = [];
 let isPopstateListenerActive = false;
 let isInternalBackTriggered = false;
 
+function notifyModalStackChange() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent('catavor:modal-stack-change', {
+      detail: { count: modalStack.length, isOpen: modalStack.length > 0 }
+    })
+  );
+}
+
 function ensurePopstateListener() {
   if (isPopstateListenerActive || typeof window === 'undefined') return;
 
@@ -26,6 +35,7 @@ function ensurePopstateListener() {
     if (modalStack.length > 0) {
       const topModal = modalStack.pop();
       if (topModal) {
+        notifyModalStackChange();
         isInternalBackTriggered = true;
         window.__catavor_is_modal_popping = true;
         try {
@@ -200,12 +210,14 @@ export function useModalBackHandler({
       },
     };
     modalStack.push(entry);
+    notifyModalStackChange();
 
     return () => {
       // Cleanup when unmounting or modal closes
       const index = modalStack.findIndex((m) => m.stateKey === uniqueKey);
       if (index !== -1) {
         modalStack.splice(index, 1);
+        notifyModalStackChange();
       }
 
       // If closed by UI action (click ✕ or backdrop, not via popstate), pop the dummy history entry
@@ -239,11 +251,13 @@ export function setupModalBackInterceptor(onClose: () => void, modalId: string =
     onClose,
   };
   modalStack.push(entry);
+  notifyModalStackChange();
 
   return () => {
     const index = modalStack.findIndex((m) => m.stateKey === uniqueKey);
     if (index !== -1) {
       modalStack.splice(index, 1);
+      notifyModalStackChange();
     }
     if (!isInternalBackTriggered && window.history.state?.modalKey === uniqueKey) {
       window.__catavor_is_modal_popping = true;
@@ -255,4 +269,34 @@ export function setupModalBackInterceptor(onClose: () => void, modalId: string =
     isInternalBackTriggered = false;
   };
 }
+
+/**
+ * Checks whether any modal, bottom sheet, or drawer is currently active.
+ */
+export function isAnyModalOpen(): boolean {
+  return modalStack.length > 0;
+}
+
+/**
+ * Reactive React Hook to track whether any modal, bottom sheet, or drawer is currently open.
+ * Use this to conditionally hide page-level floating elements (e.g. Scroll to Top button).
+ */
+export function useIsAnyModalOpen(): boolean {
+  const [isOpen, setIsOpen] = useState(() => (typeof window !== 'undefined' ? modalStack.length > 0 : false));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (e: any) => {
+      setIsOpen(e.detail?.isOpen ?? (modalStack.length > 0));
+    };
+    window.addEventListener('catavor:modal-stack-change', handler);
+    setIsOpen(modalStack.length > 0);
+    return () => {
+      window.removeEventListener('catavor:modal-stack-change', handler);
+    };
+  }, []);
+
+  return isOpen;
+}
+
 

@@ -22,18 +22,21 @@ import {
   type AdminStaffUser,
   getRoleBadge,
 } from '../utils/rbac';
+import { DesktopCustomSelect } from './DesktopCustomSelect';
 
 interface AdminRBACManagementProps {
   token: string;
   currentUserEmail?: string;
   onClose?: () => void;
   themeMode?: 'dark' | 'light';
+  hideHeader?: boolean;
 }
 
 export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   token,
   currentUserEmail,
   onClose,
+  hideHeader = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'staff' | 'matrix' | 'create_role'>('staff');
   const [loading, setLoading] = useState(false);
@@ -280,45 +283,47 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   return (
     <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '1rem', margin: '1rem 0' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '0.5rem', backgroundColor: 'rgba(244, 63, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
-            <Shield size={22} />
+      {/* Header (Only rendered when not embedded with a parent header) */}
+      {!hideHeader && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '0.5rem', backgroundColor: 'rgba(244, 63, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
+              <Shield size={22} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                Tata Kelola Staf & RBAC Platform
+              </h2>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Manajemen peran berjenjang, pemisahan tugas (*Separation of Duties*), dan matriks izin dinamis.
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-              Tata Kelola Staf & RBAC Platform
-            </h2>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-              Manajemen peran berjenjang, pemisahan tugas (*Separation of Duties*), dan matriks izin dinamis.
-            </p>
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            type="button"
-            onClick={fetchRBACData}
-            disabled={loading}
-            className="btn-secondary"
-            style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-          >
-            <RefreshCw size={14} className={loading ? 'spin' : ''} />
-            <span>Segarkan</span>
-          </button>
-          {onClose && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button
               type="button"
-              onClick={onClose}
+              onClick={fetchRBACData}
+              disabled={loading}
               className="btn-secondary"
-              style={{ padding: '0.45rem 0.65rem' }}
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
             >
-              <X size={16} />
+              <RefreshCw size={14} className={loading ? 'spin' : ''} />
+              <span>Segarkan</span>
             </button>
-          )}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-secondary"
+                style={{ padding: '0.45rem 0.65rem' }}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Alerts */}
       {errorMsg && (
@@ -777,18 +782,17 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem' }}>
                   Pilih Role Platform
                 </label>
-                <select
+                <DesktopCustomSelect
                   value={selectedRoleSlug}
-                  onChange={(e) => setSelectedRoleSlug(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%', fontSize: '0.85rem' }}
-                >
-                  {roles.map((r) => (
-                    <option key={r.slug} value={r.slug}>
-                      {r.name} ({r.slug})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedRoleSlug(val)}
+                  options={roles.map((r) => ({
+                    value: r.slug,
+                    label: `${r.name} (${r.slug})`
+                  }))}
+                  placeholder="Pilih Role Platform..."
+                  style={{ width: '100%' }}
+                  triggerStyle={{ height: '42px' }}
+                />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>

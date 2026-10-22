@@ -154,7 +154,15 @@ Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewaki
        3. Intersepsi tombol hardware/browser back (`useModalBackHandler`),
        4. Tombol aksi yang jelas di footer jika ada (misal: "Batal", "Tutup", "Reset", "Terapkan").
      - **Pilihan Opsi Ramah Sentuhan**: Pilihan opsi disajikan dalam touch pills / buttons (touch target $\ge 44\text{px}$) dengan indikator centang (`Check`) dan highlight warna aksen.
-
+   - **Standar Tombol Mengambang & Scroll-to-Top (MANDATORY)**:
+     - **Deteksi Intensi Arah Scroll (Intent-Based Directional Detection)**:
+       - **Sembunyi saat Scroll ke Bawah**: Saat pengguna men-scroll ke bawah (*scrolling down*), tombol Scroll-to-Top **WAJIB DISEMBUNYIKAN SEKETIKA** agar tidak menindih konten, tabel, list, maupun tombol aksi bawah/paginasi (*zero clutter & zero overlap*).
+       - **Hanya Muncul saat Scroll ke Atas**: Tombol hanya muncul jika terdeteksi gerakan scroll ke atas (*scrolling up* $\ge 25\text{px}$) saat posisi $scrollY > 150\text{px}$ (menandakan intensi nyata pengguna ingin kembali ke atas). Otomatis sembunyi saat mencapai pucuk halaman ($scrollY \le 150\text{px}$).
+     - **Posisi Ergonomis Standar di Bawah**:
+       - Pada Main Tabs (dengan Persistent Bottom Nav): `bottom: calc(72px + safe-area)`.
+       - Pada Sub-Pages (tanpa Bottom Nav): `bottom: calc(20px + safe-area)` (posisi standar pojok kanan bawah yang ramah sentuhan jempol / *Thumb Zone*).
+     - **Supresi Mutlak saat Modal/Sheet Terbuka**: Tombol kembali ke atas dan aksi melayang sejenis **HARAM MUNCUL / TEMBUS** saat ada modal, bottom sheet, dialog, atau lightbox yang sedang aktif. Wajib diproteksi oleh pemantauan tumpukan modal global (`useIsAnyModalOpen()`) serta modal state lokal (`!isAnyOverlayActive`).
+     - **Pembatasan Z-Index Tingkat Halaman**: Tombol aksi mengambang wajib dibatasi pada `zIndex: 40`, sehingga selalu berada di bawah backdrop modal (`zIndex: 50` s/d `10000`) dan di bawah Bottom Navigation Bar (`zIndex: 9998`).
 
 ### B. Single Source of Truth & Database Consistency (MANDATORY)
 - **Tabel & API yang Sama**: Seluruh transaksi, operasi data, pembacaan, dan penulisan dari ketiga device **wajib menggunakan endpoint API Go yang sama dan tersimpan ke tabel PostgreSQL yang sama**. Tidak boleh ada skema database terpisah antar-device.

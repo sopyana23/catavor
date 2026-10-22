@@ -2279,16 +2279,6 @@ func (h *StoreHandler) AdminListStores(c *fiber.Ctx) error {
 			if dormancyLevelFilter != "" && dormancyLevelFilter != "all" {
 				tx = tx.Where("stores.dormancy_status = ?", dormancyLevelFilter)
 			}
-			if productFilter == "has_products" {
-				tx = tx.Where("(SELECT COUNT(*) FROM products WHERE products.store_id = stores.id AND products.deleted_at IS NULL) > 0")
-			} else if productFilter == "no_products" {
-				tx = tx.Where("(SELECT COUNT(*) FROM products WHERE products.store_id = stores.id AND products.deleted_at IS NULL) = 0")
-			}
-			if customDomainFilter == "with_domain" {
-				tx = tx.Where("stores.custom_domain IS NOT NULL AND stores.custom_domain != ''")
-			} else if customDomainFilter == "no_domain" {
-				tx = tx.Where("(stores.custom_domain IS NULL OR stores.custom_domain = '')")
-			}
 		} else if statusFilter == "banned" {
 			tx = tx.Where("(stores.dormancy_status IN ('banned', 'suspended', 'purged') OR stores.is_suspended = true OR stores.is_blacklisted = true)")
 			if violationTypeFilter == "moderation" {
@@ -2302,6 +2292,23 @@ func (h *StoreHandler) AdminListStores(c *fiber.Ctx) error {
 			} else if violationTypeFilter == "purged" {
 				tx = tx.Where("stores.dormancy_status = 'purged'")
 			}
+			if planStatusFilter != "" && planStatusFilter != "all" {
+				tx = tx.Where("stores.plan_status = ?", planStatusFilter)
+			}
+		}
+
+		// Apply Product/Item Filter:
+		if productFilter == "has_products" {
+			tx = tx.Where("(SELECT COUNT(*) FROM products WHERE products.store_id = stores.id AND products.deleted_at IS NULL) > 0")
+		} else if productFilter == "no_products" {
+			tx = tx.Where("(SELECT COUNT(*) FROM products WHERE products.store_id = stores.id AND products.deleted_at IS NULL) = 0")
+		}
+
+		// Apply Custom Domain Filter:
+		if customDomainFilter == "with_domain" || customDomainFilter == "has_domain" {
+			tx = tx.Where("stores.custom_domain IS NOT NULL AND stores.custom_domain != ''")
+		} else if customDomainFilter == "no_domain" {
+			tx = tx.Where("(stores.custom_domain IS NULL OR stores.custom_domain = '')")
 		}
 
 		// Apply Plan Filter:
@@ -2425,6 +2432,9 @@ func (h *StoreHandler) AdminGetStoreDetail(c *fiber.Ctx) error {
 	h.db.Where("store_id = ? AND deleted_at IS NULL", store.ID).
 		Order("created_at desc").Limit(5).Find(&topProducts)
 
+	// Cache-Control Header (always fresh with validation)
+	c.Set("Cache-Control", "private, no-cache, must-revalidate")
+
 	return c.JSON(fiber.Map{
 		"success":          true,
 		"data":             store,
@@ -2433,3 +2443,4 @@ func (h *StoreHandler) AdminGetStoreDetail(c *fiber.Ctx) error {
 		"top_products":     topProducts,
 	})
 }
+

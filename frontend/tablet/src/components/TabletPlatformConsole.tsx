@@ -1145,6 +1145,36 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     return auditLogs.find(l => (l.id || l.created_at) === selectedAuditLogId) || null;
   }, [auditLogs, selectedAuditLogId]);
 
+  // Unified Platform & Active View Data Refresh Handler
+  const [isRefreshingData, setIsRefreshingData] = useState(false);
+
+  const handleRefreshData = async () => {
+    setIsRefreshingData(true);
+    try {
+      await loadPlatformStats();
+      if (activeView === 'stores' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('catavor:refresh-stores'));
+      } else if (activeView === 'reports') {
+        await fetchReports();
+      } else if (activeView === 'support') {
+        await fetchTickets();
+      } else if (activeView === 'finance') {
+        await fetchOrders();
+      } else if (activeView === 'broadcast') {
+        await fetchBroadcasts();
+      } else if (activeView === 'automation') {
+        await fetchAutomation();
+      } else if (activeView === 'audit') {
+        await fetchAuditLogs();
+      }
+      showToast('Data berhasil diperbarui', 'success');
+    } catch {
+      showToast('Gagal menyegarkan data', 'error');
+    } finally {
+      setIsRefreshingData(false);
+    }
+  };
+
   // Role info badge
   const roleInfo = getRoleBadge(currentUser?.platform_role || (currentUser?.is_superadmin ? 'superadmin' : 'admin'));
 
@@ -1504,11 +1534,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         isDark={isDark}
         toggleTheme={toggleTheme}
         onLogout={onLogout}
-        onRefresh={() => {
-          loadPlatformStats();
-          showToast('Data metrik platform disegarkan', 'success');
-        }}
-        isRefreshing={loading}
         pendingReportsCount={pendingReportsCount}
         urgentTicketsCount={urgentTicketsCount}
         actionRequiredTicketsCount={actionRequiredTicketsCount}
@@ -1554,10 +1579,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
             <button
               type="button"
-              onClick={() => {
-                loadPlatformStats();
-                showToast('Data berhasil diperbarui');
-              }}
+              onClick={handleRefreshData}
+              disabled={isRefreshingData}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1566,15 +1589,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 borderRadius: '0.6rem',
                 border: '1px solid var(--border-light)',
                 backgroundColor: 'var(--bg-deep)',
-                color: 'var(--text-secondary)',
+                color: isRefreshingData ? 'var(--text-muted)' : 'var(--text-secondary)',
                 fontSize: '0.78rem',
                 fontWeight: 700,
-                cursor: 'pointer'
+                cursor: isRefreshingData ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s ease'
               }}
-              title="Segarkan Metrik"
+              title="Segarkan Data Portal"
             >
-              <RefreshCw size={14} />
-              <span>Segarkan</span>
+              <RefreshCw size={14} className={isRefreshingData ? 'animate-spin' : ''} />
+              <span>{isRefreshingData ? 'Menyegarkan...' : 'Segarkan'}</span>
             </button>
 
             <div style={{
@@ -1976,6 +2000,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           {activeView === 'stores' && (
             <TabletPlatformStoresView
               token={token}
+              hideHeader={true}
               onLogout={onLogout}
             />
           )}
@@ -3544,26 +3569,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             Status Mesin: 11 Bot Worker Aktif &amp; Terjadwal (24/7 Daemon)
                           </h3>
                         </div>
-                        <button
-                          type="button"
-                          onClick={fetchAutomation}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            padding: '0.4rem 0.8rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <RefreshCw size={13} />
-                          <span>Sinkronkan Mesin</span>
-                        </button>
                       </div>
 
                       <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>

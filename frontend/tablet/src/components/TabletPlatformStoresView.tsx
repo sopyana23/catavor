@@ -15,7 +15,14 @@ import {
   Clock,
   ArrowUpDown,
   User,
-  HardDrive
+  HardDrive,
+  RotateCcw,
+  SlidersHorizontal,
+  Check,
+  Globe,
+  ArrowRightLeft,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { useModalBackHandler } from '../utils/navigation';
@@ -92,17 +99,35 @@ const formatCurrency = (val: number): string => {
 
 export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> = ({
   token,
-  hideHeader = false,
+  hideHeader = true,
   onLogout
 }) => {
   // Sub-tab: strictly separated Active Profiles vs Banned/Suspended Profiles
   const [subTab, setSubTab] = useState<'active' | 'banned'>('active');
 
+  // View mode: Table List (default) vs Card Grid (Tablet Native)
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [planFilter, setPlanFilter] = useState('all');
+  const [planStatusFilter, setPlanStatusFilter] = useState('all');
+  const [dormancyLevelFilter, setDormancyLevelFilter] = useState('all');
+  const [productFilter, setProductFilter] = useState('all');
+  const [customDomainFilter, setCustomDomainFilter] = useState('all');
+  const [violationTypeFilter, setViolationTypeFilter] = useState('all');
   const [sortFilter, setSortFilter] = useState('created_at_desc');
+
+  // Filter Side Sheet state (Tablet Native)
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [tempPlan, setTempPlan] = useState('all');
+  const [tempPlanStatus, setTempPlanStatus] = useState('all');
+  const [tempDormancyLevel, setTempDormancyLevel] = useState('all');
+  const [tempProductFilter, setTempProductFilter] = useState('all');
+  const [tempCustomDomain, setTempCustomDomain] = useState('all');
+  const [tempViolationType, setTempViolationType] = useState('all');
+  const [tempSort, setTempSort] = useState('created_at_desc');
 
   // Server-Side Numbered Pagination state
   const [page, setPage] = useState(1);
@@ -140,6 +165,13 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
     }
   });
 
+  useModalBackHandler({
+    isOpen: isFilterSheetOpen,
+    onClose: () => {
+      setIsFilterSheetOpen(false);
+    }
+  });
+
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -159,7 +191,12 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
         page: page.toString(),
         limit: limit.toString(),
         sort: sortFilter,
-        plan: planFilter
+        plan: planFilter,
+        plan_status: planStatusFilter,
+        dormancy_level: dormancyLevelFilter,
+        product_filter: productFilter,
+        custom_domain: customDomainFilter,
+        violation_type: violationTypeFilter
       });
       if (debouncedSearch) {
         queryParams.set('q', debouncedSearch);
@@ -198,10 +235,34 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
     } finally {
       setLoading(false);
     }
-  }, [token, subTab, page, limit, sortFilter, planFilter, debouncedSearch]);
+  }, [
+    token,
+    subTab,
+    page,
+    limit,
+    sortFilter,
+    planFilter,
+    planStatusFilter,
+    dormancyLevelFilter,
+    productFilter,
+    customDomainFilter,
+    violationTypeFilter,
+    debouncedSearch
+  ]);
 
   useEffect(() => {
     fetchStores();
+  }, [fetchStores]);
+
+  // Listen to platform-wide refresh trigger from Top Header
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchStores();
+    };
+    window.addEventListener('catavor:refresh-stores', handleRefresh);
+    return () => {
+      window.removeEventListener('catavor:refresh-stores', handleRefresh);
+    };
   }, [fetchStores]);
 
   // Fetch store detail for side sheet
@@ -236,7 +297,80 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
     setSubTab(newTab);
     setPage(1);
     setSearchQuery('');
+    setPlanFilter('all');
+    setPlanStatusFilter('all');
+    setDormancyLevelFilter('all');
+    setProductFilter('all');
+    setCustomDomainFilter('all');
+    setViolationTypeFilter('all');
+    setSortFilter('created_at_desc');
   };
+
+  const openFilterSheet = () => {
+    setTempPlan(planFilter);
+    setTempPlanStatus(planStatusFilter);
+    setTempDormancyLevel(dormancyLevelFilter);
+    setTempProductFilter(productFilter);
+    setTempCustomDomain(customDomainFilter);
+    setTempViolationType(violationTypeFilter);
+    setTempSort(sortFilter);
+    setIsFilterSheetOpen(true);
+  };
+
+  const applyFilters = () => {
+    setPlanFilter(tempPlan);
+    setPlanStatusFilter(tempPlanStatus);
+    setDormancyLevelFilter(tempDormancyLevel);
+    setProductFilter(tempProductFilter);
+    setCustomDomainFilter(tempCustomDomain);
+    setViolationTypeFilter(tempViolationType);
+    setSortFilter(tempSort);
+    setPage(1);
+    setIsFilterSheetOpen(false);
+  };
+
+  const resetTempFilters = () => {
+    setTempPlan('all');
+    setTempPlanStatus('all');
+    setTempDormancyLevel('all');
+    setTempProductFilter('all');
+    setTempCustomDomain('all');
+    setTempViolationType('all');
+    setTempSort('created_at_desc');
+  };
+
+  const clearAllFilters = () => {
+    setPlanFilter('all');
+    setPlanStatusFilter('all');
+    setDormancyLevelFilter('all');
+    setProductFilter('all');
+    setCustomDomainFilter('all');
+    setViolationTypeFilter('all');
+    setSortFilter('created_at_desc');
+    setPage(1);
+  };
+
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (subTab === 'active') {
+      if (planFilter !== 'all') count++;
+      if (planStatusFilter !== 'all') count++;
+      if (dormancyLevelFilter !== 'all') count++;
+      if (productFilter !== 'all') count++;
+      if (customDomainFilter !== 'all') count++;
+      if (sortFilter !== 'created_at_desc') count++;
+    } else {
+      if (violationTypeFilter !== 'all') count++;
+      if (planFilter !== 'all') count++;
+      if (planStatusFilter !== 'all') count++;
+      if (productFilter !== 'all') count++;
+      if (customDomainFilter !== 'all') count++;
+      if (sortFilter !== 'created_at_desc') count++;
+    }
+    return count;
+  };
+
+  const activeFilterCount = getActiveFilterCount();
 
   const getStorageQuota = (plan: string): number => {
     switch (plan) {
@@ -270,11 +404,11 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
               <Store size={20} color="#10b981" />
               <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                Direktori Profil Toko
+                Direktori Profil Merchant
               </h2>
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Daftar profil katalog terdaftar dan tata kelola akun kepatuhan.
+              Daftar profil merchant terdaftar dan tata kelola akun kepatuhan.
             </div>
           </div>
 
@@ -329,51 +463,112 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
           flexShrink: 0
         }}
       >
-        {/* Segmented Sub-Tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            onClick={() => handleTabChange('active')}
-            style={{
-              minHeight: '44px',
-              padding: '0 1.25rem',
-              borderRadius: '0.65rem',
-              border: 'none',
-              backgroundColor: subTab === 'active' ? '#10b981' : 'var(--bg-card)',
-              color: subTab === 'active' ? '#ffffff' : 'var(--text-secondary)',
-              fontWeight: 700,
-              fontSize: '0.88rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <CheckCircle2 size={17} />
-            Profil Katalog Aktif ({stats.total_active})
-          </button>
+        {/* Segmented Sub-Tabs & View Mode Switcher */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.65rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              onClick={() => handleTabChange('active')}
+              style={{
+                minHeight: '44px',
+                padding: '0 1.25rem',
+                borderRadius: '0.65rem',
+                border: 'none',
+                backgroundColor: subTab === 'active' ? '#10b981' : 'var(--bg-card)',
+                color: subTab === 'active' ? '#ffffff' : 'var(--text-secondary)',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <CheckCircle2 size={17} />
+              Profil Merchant Aktif ({stats.total_active})
+            </button>
 
-          <button
-            onClick={() => handleTabChange('banned')}
+            <button
+              onClick={() => handleTabChange('banned')}
+              style={{
+                minHeight: '44px',
+                padding: '0 1.25rem',
+                borderRadius: '0.65rem',
+                border: 'none',
+                backgroundColor: subTab === 'banned' ? '#ef4444' : 'var(--bg-card)',
+                color: subTab === 'banned' ? '#ffffff' : 'var(--text-secondary)',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <ShieldAlert size={17} />
+              Pelanggaran & Banned ({stats.total_banned})
+            </button>
+          </div>
+
+          {/* View Mode Toggle: Table List vs Card Grid */}
+          <div
             style={{
-              minHeight: '44px',
-              padding: '0 1.25rem',
-              borderRadius: '0.65rem',
-              border: 'none',
-              backgroundColor: subTab === 'banned' ? '#ef4444' : 'var(--bg-card)',
-              color: subTab === 'banned' ? '#ffffff' : 'var(--text-secondary)',
-              fontWeight: 700,
-              fontSize: '0.88rem',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '0.65rem',
+              padding: '3px'
             }}
           >
-            <ShieldAlert size={17} />
-            Pelanggaran & Banned ({stats.total_banned})
-          </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              title="Tampilan Tabel Data"
+              style={{
+                minHeight: '38px',
+                padding: '0 0.85rem',
+                borderRadius: '0.5rem',
+                border: 'none',
+                backgroundColor: viewMode === 'table' ? (subTab === 'active' ? '#10b981' : '#ef4444') : 'transparent',
+                color: viewMode === 'table' ? '#ffffff' : 'var(--text-secondary)',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <List size={16} />
+              <span>Tabel</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              title="Tampilan Kartu Grid"
+              style={{
+                minHeight: '38px',
+                padding: '0 0.85rem',
+                borderRadius: '0.5rem',
+                border: 'none',
+                backgroundColor: viewMode === 'grid' ? (subTab === 'active' ? '#10b981' : '#ef4444') : 'transparent',
+                color: viewMode === 'grid' ? '#ffffff' : 'var(--text-secondary)',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <LayoutGrid size={16} />
+              <span>Kartu</span>
+            </button>
+          </div>
         </div>
 
         {/* Search & Filter Controls */}
@@ -381,7 +576,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
           <div
             style={{
               flex: 1,
-              minWidth: '240px',
+              minWidth: '220px',
               minHeight: '44px',
               display: 'flex',
               alignItems: 'center',
@@ -395,7 +590,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             <Search size={18} color="var(--text-muted)" />
             <input
               type="text"
-              placeholder="Cari toko, slug, pemilik, WhatsApp..."
+              placeholder="Cari nama merchant, slug, pemilik, WhatsApp..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -417,11 +612,108 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             )}
           </div>
 
-          {/* Plan Filter */}
+          {/* Filter Detail Trigger Button */}
+          <button
+            type="button"
+            onClick={openFilterSheet}
+            style={{
+              minHeight: '44px',
+              padding: '0 1rem',
+              borderRadius: '0.65rem',
+              border: activeFilterCount > 0
+                ? `1.5px solid ${subTab === 'active' ? '#10b981' : '#ef4444'}`
+                : '1px solid var(--border-light)',
+              backgroundColor: activeFilterCount > 0
+                ? (subTab === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)')
+                : 'var(--bg-card)',
+              color: activeFilterCount > 0
+                ? (subTab === 'active' ? '#10b981' : '#ef4444')
+                : 'var(--text-primary)',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <SlidersHorizontal size={16} />
+            <span>Filter Detail</span>
+            {activeFilterCount > 0 && (
+              <span
+                style={{
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: '9999px',
+                  backgroundColor: subTab === 'active' ? '#10b981' : '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '0.72rem',
+                  fontWeight: 800
+                }}
+              >
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {/* Quick Filter: Plan (Active) vs Sanksi (Banned) */}
+          {subTab === 'active' ? (
+            <select
+              value={planFilter}
+              onChange={(e) => {
+                setPlanFilter(e.target.value);
+                setPage(1);
+              }}
+              style={{
+                minHeight: '44px',
+                padding: '0 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-card)',
+                border: `1px solid ${planFilter !== 'all' ? '#10b981' : 'var(--border-light)'}`,
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="all">Semua Paket</option>
+              <option value="free">Gratis</option>
+              <option value="pro_starter">Pro Starter</option>
+              <option value="pro_business">Pro Business</option>
+            </select>
+          ) : (
+            <select
+              value={violationTypeFilter}
+              onChange={(e) => {
+                setViolationTypeFilter(e.target.value);
+                setPage(1);
+              }}
+              style={{
+                minHeight: '44px',
+                padding: '0 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-card)',
+                border: `1px solid ${violationTypeFilter !== 'all' ? '#ef4444' : 'var(--border-light)'}`,
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="all">Semua Sanksi</option>
+              <option value="moderation">Moderasi Konten</option>
+              <option value="dormancy">Inaktif / Dormancy</option>
+              <option value="blacklisted">Blacklist Permanen</option>
+              <option value="suspended">Suspended Sementara</option>
+              <option value="purged">Dihapus Sistem</option>
+            </select>
+          )}
+
+          {/* Quick Filter: Item Status */}
           <select
-            value={planFilter}
+            value={productFilter}
             onChange={(e) => {
-              setPlanFilter(e.target.value);
+              setProductFilter(e.target.value);
               setPage(1);
             }}
             style={{
@@ -429,20 +721,19 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
               padding: '0 0.85rem',
               borderRadius: '0.65rem',
               backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-light)',
+              border: `1px solid ${productFilter !== 'all' ? (subTab === 'active' ? '#10b981' : '#ef4444') : 'var(--border-light)'}`,
               color: 'var(--text-primary)',
               fontSize: '0.85rem',
               outline: 'none',
               cursor: 'pointer'
             }}
           >
-            <option value="all">Semua Paket</option>
-            <option value="free">Gratis</option>
-            <option value="pro_starter">Pro Starter</option>
-            <option value="pro_business">Pro Business</option>
+            <option value="all">Semua Item</option>
+            <option value="has_products">Ada Item (&gt;0)</option>
+            <option value="no_products">Belum Ada Item (0)</option>
           </select>
 
-          {/* Sort Filter */}
+          {/* Sort Filter (Dynamic Active vs Banned) */}
           <select
             value={sortFilter}
             onChange={(e) => {
@@ -454,50 +745,310 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
               padding: '0 0.85rem',
               borderRadius: '0.65rem',
               backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-light)',
+              border: `1px solid ${sortFilter !== 'created_at_desc' ? (subTab === 'active' ? '#10b981' : '#ef4444') : 'var(--border-light)'}`,
               color: 'var(--text-primary)',
               fontSize: '0.85rem',
               outline: 'none',
               cursor: 'pointer'
             }}
           >
-            <option value="created_at_desc">Terbaru</option>
-            <option value="created_at_asc">Terlama</option>
-            <option value="products_desc">Produk Terbanyak</option>
-            <option value="title_asc">Nama (A-Z)</option>
-            <option value="activity_desc">Aktivitas Terakhir</option>
+            {subTab === 'active' ? (
+              <>
+                <option value="created_at_desc">Terbaru Terdaftar</option>
+                <option value="products_desc">Item Terbanyak</option>
+                <option value="activity_desc">Aktivitas Terakhir</option>
+                <option value="created_at_asc">Terlama Terdaftar</option>
+                <option value="title_asc">Nama (A - Z)</option>
+                <option value="title_desc">Nama (Z - A)</option>
+              </>
+            ) : (
+              <>
+                <option value="created_at_desc">Terbaru Disanksi</option>
+                <option value="created_at_asc">Terlama Disanksi</option>
+                <option value="products_desc">Item Terbanyak</option>
+                <option value="title_asc">Nama (A - Z)</option>
+                <option value="title_desc">Nama (Z - A)</option>
+              </>
+            )}
           </select>
 
-          {/* Refresh button */}
+          {/* Reset Filter Button (Replaces duplicate Refresh button) */}
           <button
-            onClick={fetchStores}
-            disabled={loading}
-            title="Muat Ulang"
+            type="button"
+            onClick={clearAllFilters}
+            disabled={activeFilterCount === 0}
+            title={activeFilterCount > 0 ? "Atur ulang seluruh filter" : "Tidak ada filter aktif"}
             style={{
-              minWidth: '44px',
               minHeight: '44px',
+              padding: '0 0.95rem',
+              borderRadius: '0.65rem',
+              border: activeFilterCount > 0
+                ? (subTab === 'active' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)')
+                : '1px solid var(--border-light)',
+              backgroundColor: activeFilterCount > 0
+                ? (subTab === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)')
+                : 'var(--bg-card)',
+              color: activeFilterCount > 0
+                ? (subTab === 'active' ? '#10b981' : '#ef4444')
+                : 'var(--text-muted)',
+              fontWeight: 700,
+              fontSize: '0.85rem',
               display: 'inline-flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-light)',
-              color: 'var(--text-primary)',
-              cursor: loading ? 'not-allowed' : 'pointer'
+              gap: '0.45rem',
+              cursor: activeFilterCount > 0 ? 'pointer' : 'not-allowed',
+              transition: 'all 0.15s ease'
             }}
           >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            <RotateCcw size={15} />
+            <span>Reset</span>
+            {activeFilterCount > 0 && (
+              <span
+                style={{
+                  padding: '0.12rem 0.45rem',
+                  borderRadius: '999px',
+                  backgroundColor: subTab === 'active' ? '#10b981' : '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '0.7rem',
+                  fontWeight: 800
+                }}
+              >
+                {activeFilterCount}
+              </span>
+            )}
           </button>
         </div>
+
+        {/* Active Filter Chips Row (Rule Parity with Mobile & Desktop) */}
+        {activeFilterCount > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              flexWrap: 'wrap',
+              paddingTop: '0.25rem'
+            }}
+          >
+            <button
+              onClick={clearAllFilters}
+              style={{
+                minHeight: '36px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0 0.75rem',
+                borderRadius: '9999px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                color: '#ef4444',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <RotateCcw size={13} />
+              Reset Semua ({activeFilterCount})
+            </button>
+
+            {planFilter !== 'all' && (
+              <span
+                style={{
+                  minHeight: '36px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0 0.75rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Paket: {planFilter === 'free' ? 'Gratis' : planFilter === 'pro_starter' ? 'Pro Starter' : 'Pro Business'}
+                <button
+                  type="button"
+                  onClick={() => { setPlanFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {planStatusFilter !== 'all' && (
+              <span
+                style={{
+                  minHeight: '36px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0 0.75rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Status: {planStatusFilter === 'active' ? 'Aktif Normal' : planStatusFilter === 'grace_period' ? 'Masa Tenggang' : 'Kedaluwarsa'}
+                <button
+                  type="button"
+                  onClick={() => { setPlanStatusFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {dormancyLevelFilter !== 'all' && (
+              <span
+                style={{
+                  minHeight: '36px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0 0.75rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Kesehatan: {dormancyLevelFilter === 'active' ? 'Sehat' : dormancyLevelFilter === 'warning_1' ? 'Peringatan 1' : 'Peringatan 2'}
+                <button
+                  type="button"
+                  onClick={() => { setDormancyLevelFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {productFilter !== 'all' && (
+              <span
+                style={{
+                  minHeight: '36px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0 0.75rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Item: {productFilter === 'has_products' ? 'Ada Item (>0)' : 'Belum Ada Item (0)'}
+                <button
+                  type="button"
+                  onClick={() => { setProductFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {customDomainFilter !== 'all' && (
+              <span
+                style={{
+                  minHeight: '36px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0 0.75rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Domain: {customDomainFilter === 'with_domain' ? 'Custom Domain' : 'Subdomain'}
+                <button
+                  type="button"
+                  onClick={() => { setCustomDomainFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {violationTypeFilter !== 'all' && (
+              <span
+                style={{
+                  minHeight: '36px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0 0.75rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  color: '#ef4444'
+                }}
+              >
+                Sanksi: {violationTypeFilter === 'moderation' ? 'Moderasi Konten' : violationTypeFilter === 'dormancy' ? 'Dormancy' : violationTypeFilter === 'blacklisted' ? 'Blacklist Permanen' : violationTypeFilter === 'suspended' ? 'Suspended' : 'Dihapus'}
+                <button
+                  type="button"
+                  onClick={() => { setViolationTypeFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {sortFilter !== 'created_at_desc' && (
+              <span
+                style={{
+                  minHeight: '36px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0 0.75rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Urut: {sortFilter === 'products_desc' ? 'Item Terbanyak' : sortFilter === 'title_asc' ? 'Nama A-Z' : sortFilter === 'title_desc' ? 'Nama Z-A' : sortFilter === 'activity_desc' ? 'Terakhir Aktif' : 'Terlama'}
+                <button
+                  type="button"
+                  onClick={() => { setSortFilter('created_at_desc'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* 3. Tablet Content Area: Adaptive Touch Card Grid */}
+      {/* 3. Tablet Content Area: Table List View vs Touch Card Grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.5rem' }}>
         {loading ? (
           <div style={{ padding: '4rem 1rem', textAlign: 'center' }}>
             <RefreshCw size={32} className="animate-spin" color="#10b981" style={{ margin: '0 auto 1rem auto' }} />
             <div style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-              Memuat profil katalog...
+              Memuat profil merchant...
             </div>
           </div>
         ) : stores.length === 0 ? (
@@ -512,17 +1063,631 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
           >
             <Store size={44} color="var(--text-muted)" style={{ margin: '0 auto 1rem auto' }} />
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.4rem 0' }}>
-              Tidak Ada Profil Katalog
+              Tidak Ada Profil Merchant
             </h3>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
               {debouncedSearch
                 ? `Tidak ditemukan profil yang sesuai dengan "${debouncedSearch}".`
                 : subTab === 'active'
-                ? 'Belum ada profil toko aktif yang terdaftar.'
-                : 'Tidak ada profil toko yang sedang ditangguhkan.'}
+                ? 'Belum ada profil merchant aktif yang terdaftar.'
+                : 'Tidak ada profil merchant yang sedang ditangguhkan.'}
             </p>
           </div>
+        ) : viewMode === 'table' ? (
+          /* TABLE LIST VIEW (TABLET NATIVE WITH HORIZONTAL SCROLL) */
+          <div>
+            {/* Scroll Hint Banner */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.65rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                marginBottom: '0.85rem',
+                fontSize: '0.78rem',
+                color: 'var(--text-secondary)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ArrowRightLeft size={14} color={subTab === 'active' ? '#10b981' : '#ef4444'} />
+                <span>
+                  Geser tabel ke samping untuk melihat kolom kontak, kuota, aktivitas & status lengkap
+                </span>
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                {pagination.total} merchant
+              </span>
+            </div>
+
+            {/* Scrollable Container with Custom Elegant Scrollbar */}
+            <div
+              className="catavor-table-scrollbar"
+              style={{
+                width: '100%',
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                borderRadius: '0.85rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+              }}
+            >
+              <table
+                style={{
+                  width: '100%',
+                  minWidth: '1240px',
+                  borderCollapse: 'separate',
+                  borderSpacing: 0,
+                  textAlign: 'left',
+                  fontSize: '0.85rem'
+                }}
+              >
+                <thead>
+                  <tr style={{ backgroundColor: 'var(--bg-deep)' }}>
+                    {/* Sticky Left Header: Profil Merchant */}
+                    <th
+                      style={{
+                        padding: '0.95rem 1.25rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.78rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        left: 0,
+                        top: 0,
+                        zIndex: 20,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        borderRight: '1px solid var(--border-light)',
+                        boxShadow: '4px 0 10px rgba(0,0,0,0.06)',
+                        width: '280px',
+                        minWidth: '280px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Profil Merchant
+                    </th>
+
+                    {/* Pemilik & Kontak */}
+                    <th
+                      style={{
+                        padding: '0.95rem 1.25rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.78rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        borderBottom: '1px solid var(--border-light)',
+                        width: '230px',
+                        minWidth: '230px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Pemilik & Kontak
+                    </th>
+
+                    {/* Paket & Kuota */}
+                    <th
+                      style={{
+                        padding: '0.95rem 1.25rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.78rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        borderBottom: '1px solid var(--border-light)',
+                        width: '190px',
+                        minWidth: '190px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Paket & Kuota
+                    </th>
+
+                    {/* Item */}
+                    <th
+                      style={{
+                        padding: '0.95rem 1.25rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.78rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        textAlign: 'center',
+                        borderBottom: '1px solid var(--border-light)',
+                        width: '120px',
+                        minWidth: '120px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Item
+                    </th>
+
+                    {/* Terdaftar / Terakhir Aktif */}
+                    <th
+                      style={{
+                        padding: '0.95rem 1.25rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.78rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        borderBottom: '1px solid var(--border-light)',
+                        width: '200px',
+                        minWidth: '200px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Terdaftar / Terakhir Aktif
+                    </th>
+
+                    {/* Status Kepatuhan */}
+                    <th
+                      style={{
+                        padding: '0.95rem 1.25rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.78rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        borderBottom: '1px solid var(--border-light)',
+                        width: '190px',
+                        minWidth: '190px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Status Kepatuhan
+                    </th>
+
+                    {/* Sticky Right Header: Aksi */}
+                    <th
+                      style={{
+                        padding: '0.95rem 1.25rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.78rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        textAlign: 'right',
+                        position: 'sticky',
+                        right: 0,
+                        top: 0,
+                        zIndex: 20,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        borderLeft: '1px solid var(--border-light)',
+                        boxShadow: '-4px 0 10px rgba(0,0,0,0.06)',
+                        width: '120px',
+                        minWidth: '120px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Aksi
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stores.map((item) => {
+                    const quotaBytes = getStorageQuota(item.plan);
+                    const storagePercent = Math.min(
+                      100,
+                      Math.round(((item.storage_used_bytes || 0) / quotaBytes) * 100)
+                    );
+
+                    return (
+                      <tr
+                        key={item.id}
+                        style={{
+                          borderBottom: '1px solid var(--border-light)',
+                          transition: 'background-color 0.15s ease'
+                        }}
+                      >
+                        {/* 1. Profil Merchant (Sticky Left) */}
+                        <td
+                          style={{
+                            padding: '1rem 1.25rem',
+                            verticalAlign: 'middle',
+                            position: 'sticky',
+                            left: 0,
+                            zIndex: 10,
+                            backgroundColor: 'var(--bg-card)',
+                            borderRight: '1px solid var(--border-light)',
+                            borderBottom: '1px solid var(--border-light)',
+                            boxShadow: '4px 0 10px rgba(0,0,0,0.05)',
+                            transition: 'background-color 0.15s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                            <div
+                              style={{
+                                width: '44px',
+                                height: '44px',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifySelf: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                flexShrink: 0
+                              }}
+                            >
+                              {item.store_logo_url ? (
+                                <img
+                                  src={item.store_logo_url}
+                                  alt={item.store_title}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <Store size={22} color="var(--text-muted)" />
+                              )}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontWeight: 700,
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.92rem',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  maxWidth: '200px'
+                                }}
+                                title={item.store_title}
+                              >
+                                {item.store_title}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.15rem' }}>
+                                <a
+                                  href={`/${item.slug}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    color: '#10b981',
+                                    textDecoration: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.2rem',
+                                    fontWeight: 600,
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  /{item.slug}
+                                  <ExternalLink size={12} />
+                                </a>
+                              </div>
+                              {item.store_slogan && (
+                                <div
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    color: 'var(--text-muted)',
+                                    marginTop: '0.15rem',
+                                    maxWidth: '200px',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                  }}
+                                  title={item.store_slogan}
+                                >
+                                  {item.store_slogan}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 2. Pemilik & Kontak */}
+                        <td
+                          style={{
+                            padding: '1rem 1.25rem',
+                            verticalAlign: 'middle',
+                            borderBottom: '1px solid var(--border-light)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {item.user_name || 'Tanpa Nama'}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: '0.78rem',
+                                color: 'var(--text-muted)',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {item.user_email}
+                            </div>
+                            {item.whatsapp_number && (
+                              <a
+                                href={`https://wa.me/${item.whatsapp_number.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  fontSize: '0.78rem',
+                                  color: '#10b981',
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  marginTop: '0.1rem',
+                                  fontWeight: 600,
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                <Phone size={12} />
+                                +{item.whatsapp_number}
+                              </a>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 3. Paket & Kuota */}
+                        <td
+                          style={{
+                            padding: '1rem 1.25rem',
+                            verticalAlign: 'middle',
+                            borderBottom: '1px solid var(--border-light)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <div>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '0.45rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  whiteSpace: 'nowrap',
+                                  backgroundColor:
+                                    item.plan === 'pro_business'
+                                      ? 'rgba(168, 85, 247, 0.15)'
+                                      : item.plan === 'pro_starter'
+                                      ? 'rgba(59, 130, 246, 0.15)'
+                                      : 'var(--bg-deep)',
+                                  color:
+                                    item.plan === 'pro_business'
+                                      ? '#a855f7'
+                                      : item.plan === 'pro_starter'
+                                      ? '#3b82f6'
+                                      : 'var(--text-muted)'
+                                }}
+                              >
+                                {item.plan === 'pro_business'
+                                  ? 'Pro Business'
+                                  : item.plan === 'pro_starter'
+                                  ? 'Pro Starter'
+                                  : 'Gratis'}
+                              </span>
+                            </div>
+                            {/* Storage meter */}
+                            <div style={{ width: '130px' }}>
+                              <div
+                                style={{
+                                  height: '5px',
+                                  borderRadius: '3px',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  overflow: 'hidden'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    height: '100%',
+                                    width: `${storagePercent}%`,
+                                    backgroundColor:
+                                      storagePercent > 85 ? '#ef4444' : '#10b981'
+                                  }}
+                                />
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: '0.7rem',
+                                  color: 'var(--text-muted)',
+                                  marginTop: '0.2rem',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                {formatBytes(item.storage_used_bytes)} / {formatBytes(quotaBytes)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 4. Item */}
+                        <td
+                          style={{
+                            padding: '1rem 1.25rem',
+                            verticalAlign: 'middle',
+                            textAlign: 'center',
+                            borderBottom: '1px solid var(--border-light)'
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              fontWeight: 700,
+                              fontSize: '0.82rem',
+                              color: 'var(--text-primary)',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <Package size={14} color="#10b981" />
+                            {item.products_count || 0} Item
+                          </div>
+                        </td>
+
+                        {/* 5. Terdaftar / Terakhir Aktif */}
+                        <td
+                          style={{
+                            padding: '1rem 1.25rem',
+                            verticalAlign: 'middle',
+                            borderBottom: '1px solid var(--border-light)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', whiteSpace: 'nowrap' }}>
+                            <div
+                              style={{
+                                fontSize: '0.8rem',
+                                color: 'var(--text-primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                fontWeight: 500
+                              }}
+                            >
+                              <Calendar size={13} color="var(--text-muted)" />
+                              {formatDate(item.created_at)}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: '0.74rem',
+                                color: 'var(--text-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <Clock size={12} />
+                              Aktif: {item.last_activity_at ? formatDate(item.last_activity_at) : 'Baru'}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 6. Status Kepatuhan */}
+                        <td
+                          style={{
+                            padding: '1rem 1.25rem',
+                            verticalAlign: 'middle',
+                            borderBottom: '1px solid var(--border-light)'
+                          }}
+                        >
+                          {subTab === 'active' ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.3rem 0.7rem',
+                                borderRadius: '0.5rem',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap',
+                                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                color: '#10b981',
+                                border: '1px solid rgba(16, 185, 129, 0.3)'
+                              }}
+                            >
+                              <CheckCircle2 size={13} />
+                              Aktif & Terdaftar
+                            </span>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', whiteSpace: 'nowrap' }}>
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  padding: '0.3rem 0.7rem',
+                                  borderRadius: '0.5rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                  color: '#ef4444',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                                }}
+                              >
+                                <ShieldAlert size={13} />
+                                {item.is_suspended ? 'Ditangguhkan' : 'Banned / Dorman'}
+                              </span>
+                              {item.suspension_reason && (
+                                <div
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    color: '#ef4444',
+                                    maxWidth: '180px',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                  }}
+                                  title={item.suspension_reason}
+                                >
+                                  {item.suspension_reason}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 7. Aksi (Sticky Right) */}
+                        <td
+                          style={{
+                            padding: '1rem 1.25rem',
+                            verticalAlign: 'middle',
+                            textAlign: 'right',
+                            position: 'sticky',
+                            right: 0,
+                            zIndex: 10,
+                            backgroundColor: 'var(--bg-card)',
+                            borderLeft: '1px solid var(--border-light)',
+                            borderBottom: '1px solid var(--border-light)',
+                            boxShadow: '-4px 0 10px rgba(0,0,0,0.05)',
+                            transition: 'background-color 0.15s ease',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <button
+                            onClick={() => fetchStoreDetail(item.id)}
+                            style={{
+                              minHeight: '44px',
+                              minWidth: '44px',
+                              padding: '0 0.95rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                              border: '1px solid rgba(16, 185, 129, 0.35)',
+                              color: '#10b981',
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Eye size={16} />
+                            Detail
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
+          /* TOUCH CARD GRID VIEW (ALTERNATIVE VIEW) */
           <div
             style={{
               display: 'grid',
@@ -610,7 +1775,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                                   ? 'rgba(168, 85, 247, 0.15)'
                                   : item.plan === 'pro_starter'
                                   ? 'rgba(59, 130, 246, 0.15)'
-                                  : 'rgba(255,255,255,0.08)',
+                                  : 'var(--bg-deep)',
                               color:
                                 item.plan === 'pro_business'
                                   ? '#a855f7'
@@ -682,7 +1847,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Katalog:</span>
                         <span style={{ color: '#10b981', fontWeight: 700 }}>
-                          {item.products_count} Produk
+                          {item.products_count} Item
                         </span>
                       </div>
                     </div>
@@ -733,7 +1898,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                     <button
                       onClick={() => fetchStoreDetail(item.id)}
                       style={{
-                        minHeight: '40px',
+                        minHeight: '44px',
                         padding: '0 0.95rem',
                         borderRadius: '0.55rem',
                         backgroundColor: 'rgba(16, 185, 129, 0.15)',
@@ -768,6 +1933,731 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
           isLoading={loading}
         />
       </div>
+
+      {/* 4.5 Tablet Filter Side Sheet (Rule 7.A: Side Sheet on Tablet, Rule 2: Modal Back Interceptor) */}
+      {isFilterSheetOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)'
+          }}
+          onClick={() => setIsFilterSheetOpen(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              height: '100%',
+              backgroundColor: 'var(--bg-card)',
+              borderLeft: '1px solid var(--border-light)',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '-8px 0 32px rgba(0,0,0,0.3)',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Sheet Header */}
+            <div
+              style={{
+                padding: '1.25rem 1.5rem',
+                borderBottom: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexShrink: 0
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <SlidersHorizontal size={20} color={subTab === 'active' ? '#10b981' : '#ef4444'} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {subTab === 'active' ? 'Filter Detail Katalog' : 'Filter Detail Pelanggaran'}
+                  </h3>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Pilih kriteria penyaringan data toko terdaftar
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsFilterSheetOpen(false)}
+                style={{
+                  minWidth: '40px',
+                  minHeight: '40px',
+                  borderRadius: '0.55rem',
+                  border: 'none',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Sheet Body with Options */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '1.25rem 1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem'
+              }}
+            >
+              {/* SECTION: URUTKAN BERDASARKAN */}
+              <div>
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    color: 'var(--text-muted)',
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  Urutkan Berdasarkan
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                  {(subTab === 'active'
+                    ? [
+                        { key: 'created_at_desc', label: 'Terbaru Terdaftar' },
+                        { key: 'products_desc', label: 'Produk Terbanyak' },
+                        { key: 'activity_desc', label: 'Terakhir Aktif' },
+                        { key: 'created_at_asc', label: 'Terlama Terdaftar' },
+                        { key: 'title_asc', label: 'Nama (A - Z)' },
+                        { key: 'title_desc', label: 'Nama (Z - A)' }
+                      ]
+                    : [
+                        { key: 'created_at_desc', label: 'Terbaru Disanksi' },
+                        { key: 'created_at_asc', label: 'Terlama Disanksi' },
+                        { key: 'title_asc', label: 'Nama (A - Z)' },
+                        { key: 'title_desc', label: 'Nama (Z - A)' }
+                      ]
+                  ).map((opt) => {
+                    const isSelected = tempSort === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setTempSort(opt.key)}
+                        style={{
+                          padding: '0.55rem 0.75rem',
+                          borderRadius: '0.65rem',
+                          fontSize: '0.82rem',
+                          fontWeight: isSelected ? 800 : 500,
+                          minHeight: '44px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          textAlign: 'left',
+                          border: isSelected
+                            ? `1.5px solid ${subTab === 'active' ? '#10b981' : '#ef4444'}`
+                            : '1px solid var(--border-light)',
+                          backgroundColor: isSelected
+                            ? (subTab === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)')
+                            : 'var(--bg-deep)',
+                          color: isSelected
+                            ? (subTab === 'active' ? '#10b981' : '#ef4444')
+                            : 'var(--text-primary)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt.label}</span>
+                        {isSelected && <Check size={15} strokeWidth={3} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {subTab === 'active' ? (
+                <>
+                  {/* SECTION: PAKET LANGGANAN */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Paket Langganan
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Paket' },
+                        { key: 'free', label: 'Gratis (Free)' },
+                        { key: 'pro_starter', label: 'Pro Starter' },
+                        { key: 'pro_business', label: 'Pro Business' }
+                      ].map((opt) => {
+                        const isSelected = tempPlan === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempPlan(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.75rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.82rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected ? '1.5px solid #10b981' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#10b981' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && <Check size={15} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION: STATUS MASA AKTIF PAKET */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Status Masa Aktif Akun (Plan Status)
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Status' },
+                        { key: 'active', label: 'Aktif Normal' },
+                        { key: 'grace_period', label: 'Masa Tenggang' },
+                        { key: 'expired', label: 'Kedaluwarsa' }
+                      ].map((opt) => {
+                        const isSelected = tempPlanStatus === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempPlanStatus(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.75rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.82rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected ? '1.5px solid #10b981' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#10b981' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && <Check size={15} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION: TINGKAT DORMANCY */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Kesehatan Toko (Dormancy)
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Tingkat' },
+                        { key: 'active', label: 'Sehat & Aktif' },
+                        { key: 'warning_1', label: 'Peringatan 1 (30 Hari)' },
+                        { key: 'warning_2', label: 'Peringatan 2 (60 Hari)' }
+                      ].map((opt) => {
+                        const isSelected = tempDormancyLevel === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempDormancyLevel(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.75rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.82rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected ? '1.5px solid #10b981' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#10b981' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt.label}</span>
+                            {isSelected && <Check size={15} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION: KETERSEDIAAN ITEM */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Ketersediaan Item
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua' },
+                        { key: 'has_products', label: 'Ada Item (>0)' },
+                        { key: 'no_products', label: 'Belum Ada (0)' }
+                      ].map((opt) => {
+                        const isSelected = tempProductFilter === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempProductFilter(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.5rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.8rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              border: isSelected ? '1.5px solid #10b981' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#10b981' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* SECTION: CUSTOM DOMAIN */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Penggunaan Domain
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua' },
+                        { key: 'with_domain', label: 'Custom Domain' },
+                        { key: 'no_domain', label: 'Subdomain' }
+                      ].map((opt) => {
+                        const isSelected = tempCustomDomain === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempCustomDomain(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.5rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.8rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              border: isSelected ? '1.5px solid #10b981' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#10b981' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* KHUSUS TAB PELANGGARAN & BANNED */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Jenis & Kategori Pelanggaran
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Pelanggaran' },
+                        { key: 'moderation', label: 'Moderasi Konten' },
+                        { key: 'dormancy', label: 'Inaktif / Dormancy' },
+                        { key: 'blacklisted', label: 'Blacklist Permanen' },
+                        { key: 'suspended', label: 'Suspended Sementara' },
+                        { key: 'purged', label: 'Dihapus Sistem' }
+                      ].map((opt) => {
+                        const isSelected = tempViolationType === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempViolationType(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.75rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.82rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected ? '1.5px solid #ef4444' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#ef4444' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt.label}</span>
+                            {isSelected && <Check size={15} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Paket Akun Terakhir
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Paket' },
+                        { key: 'free', label: 'Gratis (Free)' },
+                        { key: 'pro_starter', label: 'Pro Starter' },
+                        { key: 'pro_business', label: 'Pro Business' }
+                      ].map((opt) => {
+                        const isSelected = tempPlan === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempPlan(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.75rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.82rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected ? '1.5px solid #ef4444' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#ef4444' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && <Check size={15} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* BANNED: STATUS MASA AKTIF TERAKHIR */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Masa Aktif Akun Terakhir
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Status' },
+                        { key: 'active', label: 'Aktif Normal' },
+                        { key: 'grace_period', label: 'Masa Tenggang' },
+                        { key: 'expired', label: 'Kedaluwarsa' }
+                      ].map((opt) => {
+                        const isSelected = tempPlanStatus === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempPlanStatus(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.75rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.82rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected ? '1.5px solid #ef4444' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#ef4444' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && <Check size={15} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* BANNED: RIWAYAT KATALOG ITEM */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Riwayat Item Katalog
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua' },
+                        { key: 'has_products', label: 'Ada Item (>0)' },
+                        { key: 'no_products', label: 'Belum Ada (0)' }
+                      ].map((opt) => {
+                        const isSelected = tempProductFilter === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempProductFilter(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.5rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.8rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              border: isSelected ? '1.5px solid #ef4444' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#ef4444' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* BANNED: DOMAIN SEBELUMNYA */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        color: 'var(--text-muted)',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Domain Sebelumnya
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua' },
+                        { key: 'with_domain', label: 'Custom Domain' },
+                        { key: 'no_domain', label: 'Subdomain' }
+                      ].map((opt) => {
+                        const isSelected = tempCustomDomain === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempCustomDomain(opt.key)}
+                            style={{
+                              padding: '0.55rem 0.5rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.8rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              border: isSelected ? '1.5px solid #ef4444' : '1px solid var(--border-light)',
+                              backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                              color: isSelected ? '#ef4444' : 'var(--text-primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Sticky Sheet Footer */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.75rem',
+                padding: '1rem 1.5rem',
+                borderTop: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                flexShrink: 0
+              }}
+            >
+              <button
+                type="button"
+                onClick={resetTempFilters}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  borderRadius: '0.65rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <RotateCcw size={15} />
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={applyFilters}
+                style={{
+                  flex: 2,
+                  minHeight: '44px',
+                  borderRadius: '0.65rem',
+                  border: 'none',
+                  backgroundColor: subTab === 'active' ? '#10b981' : '#ef4444',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '0.88rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  cursor: 'pointer',
+                  boxShadow: subTab === 'active'
+                    ? '0 4px 14px rgba(16, 185, 129, 0.35)'
+                    : '0 4px 14px rgba(239, 68, 68, 0.35)'
+                }}
+              >
+                <Check size={16} strokeWidth={3} />
+                Terapkan Filter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 5. Tablet Side Sheet for Detailed Store Inspection (Rule 7.A: Side Sheet on Tablet) */}
       {selectedStoreID !== null && (

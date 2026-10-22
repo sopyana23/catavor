@@ -131,7 +131,7 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
         },
         {
           id: 'stores',
-          label: 'Direktori Toko',
+          label: 'Direktori Merchant',
           sublabel: 'Tata Kelola & Dormansi',
           icon: <Store size={18} strokeWidth={1.75} />,
           badge: 0,
@@ -225,7 +225,7 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
       case 'rbac':
         return { title: 'Staf & Role RBAC', subtitle: 'Pengaturan akun staf admin, penugasan role, dan matriks izin' };
       case 'stores':
-        return { title: 'Tata Kelola Toko & Dormansi', subtitle: 'Monitoring kepatuhan, keaktifan katalog, dan penegakan sanksi toko' };
+        return { title: 'Tata Kelola Merchant & Dormansi', subtitle: 'Monitoring kepatuhan, keaktifan katalog merchant, dan penegakan sanksi' };
       case 'reports':
         return { title: 'Kepatuhan & Laporan Masyarakat', subtitle: 'Investigasi laporan pelanggaran toko, satwa dilindungi, dan barang terlarang' };
       case 'support':

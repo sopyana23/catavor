@@ -15,8 +15,7 @@ import {
   Moon,
   LogOut,
   ChevronRight,
-  ChevronLeft,
-  RefreshCw
+  ChevronLeft
 } from 'lucide-react';
 
 export interface TabletRailNavProps {
@@ -27,8 +26,6 @@ export interface TabletRailNavProps {
   isDark?: boolean;
   toggleTheme?: () => void;
   onLogout: () => void;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
   pendingReportsCount?: number;
   urgentTicketsCount?: number;
   actionRequiredTicketsCount?: number;
@@ -42,8 +39,6 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
   isDark = false,
   toggleTheme,
   onLogout,
-  onRefresh,
-  isRefreshing = false,
   pendingReportsCount = 0,
   urgentTicketsCount = 0,
   actionRequiredTicketsCount = 0
@@ -257,7 +252,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
         </nav>
       </div>
 
-      {/* Bottom Actions: Theme, Refresh, User Profile, Logout */}
+      {/* Bottom Actions: Theme, User Profile, Logout */}
       <div style={{
         padding: '0.75rem 0.5rem',
         borderTop: '1px solid var(--border-light)',
@@ -265,32 +260,6 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
         flexDirection: 'column',
         gap: '0.4rem'
       }}>
-        {onRefresh && (
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            title="Segarkan Data"
-            style={{
-              width: '100%',
-              height: '42px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              padding: isExpanded ? '0 0.85rem' : '0',
-              justifyContent: isExpanded ? 'flex-start' : 'center',
-              borderRadius: '0.65rem',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'transparent',
-              color: 'var(--text-secondary)',
-              cursor: isRefreshing ? 'not-allowed' : 'pointer'
-            }}
-          >
-            <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} style={{ flexShrink: 0 }} />
-            {isExpanded && <span>Segarkan Data</span>}
-          </button>
-        )}
-
         {toggleTheme && (
           <button
             type="button"

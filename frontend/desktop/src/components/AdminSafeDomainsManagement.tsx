@@ -23,6 +23,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { loadDynamicSafeDomains } from '../utils/urlSecurity';
+import { DesktopCustomSelect } from './DesktopCustomSelect';
 
 export interface SafeDomainItem {
   id: number;
@@ -40,6 +41,7 @@ interface AdminSafeDomainsManagementProps {
   token: string;
   themeMode?: 'dark' | 'light';
   onClose?: () => void;
+  hideHeaderTitle?: boolean;
 }
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -56,7 +58,8 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
 export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProps> = ({
   token,
   themeMode = 'dark',
-  onClose
+  onClose,
+  hideHeaderTitle = false
 }) => {
   const isDark = themeMode === 'dark';
 
@@ -329,51 +332,53 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
         </div>
       )}
 
-      {/* Header Banner */}
+      {/* Header Banner & Metric Badges */}
       <div style={{
-        padding: '1.25rem',
+        padding: hideHeaderTitle ? '0.85rem 1rem' : '1.25rem',
         borderRadius: '1rem',
         backgroundColor: theme.surface,
         border: `1px solid ${theme.border}`,
         boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.25)' : '0 2px 10px rgba(0,0,0,0.04)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.85rem'
+        gap: hideHeaderTitle ? '0.5rem' : '0.85rem'
       }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '0.85rem',
-              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-              border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.2)'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: isDark ? '#38bdf8' : '#0284c7',
-              flexShrink: 0
-            }}>
-              <Globe size={22} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.02em' }}>
-                Master Whitelist Domain Aman
-              </h3>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.4 }}>
-                Konfigurasi domain resmi &amp; mitra yang dibuka instan tanpa peringatan perantara
-              </p>
+        {!hideHeaderTitle && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '0.85rem',
+                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.2)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: isDark ? '#38bdf8' : '#0284c7',
+                flexShrink: 0
+              }}>
+                <Globe size={22} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.02em' }}>
+                  Master Whitelist Domain Aman
+                </h3>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.4 }}>
+                  Konfigurasi domain resmi &amp; mitra yang dibuka instan tanpa peringatan perantara
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Metric Badges */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
           gap: '0.6rem',
-          paddingTop: '0.65rem',
-          borderTop: `1px solid ${theme.border}`
+          paddingTop: hideHeaderTitle ? '0' : '0.65rem',
+          borderTop: hideHeaderTitle ? 'none' : `1px solid ${theme.border}`
         }}>
           <div style={{ padding: '0.6rem 0.75rem', borderRadius: '0.65rem', backgroundColor: theme.cardAlt, border: `1px solid ${theme.border}` }}>
             <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', fontWeight: 700 }}>TOTAL DOMAIN</span>
@@ -898,30 +903,27 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                 <label style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textSecondary, display: 'block', marginBottom: '0.3rem' }}>
                   Kategori Domain
                 </label>
-                <select
+                <DesktopCustomSelect
                   value={formData.category}
-                  onChange={e => setFormData({ ...formData, category: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem 0.8rem',
-                    borderRadius: '0.65rem',
+                  onChange={(val) => setFormData({ ...formData, category: val })}
+                  options={[
+                    { value: 'Google', label: 'Google Ecosystem' },
+                    { value: 'Komunikasi', label: 'Komunikasi & Chat' },
+                    { value: 'Media Sosial', label: 'Media Sosial' },
+                    { value: 'Platform', label: 'Platform Catavor' },
+                    { value: 'Produktivitas', label: 'Produktivitas & Dev' },
+                    { value: 'Finansial', label: 'Finansial & Bank' },
+                    { value: 'Mitra', label: 'Mitra Resmi' },
+                    { value: 'Umum', label: 'Umum / Lainnya' },
+                  ]}
+                  placeholder="Pilih Kategori Domain..."
+                  style={{ width: '100%' }}
+                  triggerStyle={{
                     backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
-                    color: theme.textPrimary,
-                    fontSize: '0.82rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
+                    borderColor: theme.border,
+                    height: '42px'
                   }}
-                >
-                  <option value="Google">Google Ecosystem</option>
-                  <option value="Komunikasi">Komunikasi &amp; Chat</option>
-                  <option value="Media Sosial">Media Sosial</option>
-                  <option value="Platform">Platform Catavor</option>
-                  <option value="Produktivitas">Produktivitas &amp; Dev</option>
-                  <option value="Finansial">Finansial &amp; Bank</option>
-                  <option value="Mitra">Mitra Resmi</option>
-                  <option value="Umum">Umum / Lainnya</option>
-                </select>
+                />
               </div>
 
               <div>

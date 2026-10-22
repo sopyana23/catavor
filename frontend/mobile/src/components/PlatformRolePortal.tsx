@@ -105,7 +105,7 @@ export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
   rekber_template_fauna: "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n\n*Satwa/Hewan:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
 };
 import { apiClient } from '../utils/apiClient';
-import { useModalBackHandler } from '../utils/navigation';
+import { useModalBackHandler, useIsAnyModalOpen } from '../utils/navigation';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
 
@@ -740,18 +740,52 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [showTemplateFormModal]);
 
-  // Floating Scroll to Top button state & listener
+  // Floating Scroll to Top button: Intent-Based Directional Detection (Only shows on scroll UP intent)
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const lastScrollY = useRef(0);
+  const scrollUpDistance = useRef(0);
+
   useEffect(() => {
+    let ticking = false;
+
     const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 200);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentY = window.pageYOffset || window.scrollY || document.documentElement.scrollTop || 0;
+          const diff = currentY - lastScrollY.current;
+
+          // Jika berada di dekat puncak atas halaman (<= 150px), sembunyikan tombol
+          if (currentY <= 150) {
+            setShowScrollTop(false);
+            scrollUpDistance.current = 0;
+          } else if (diff > 4) {
+            // User sedang scroll ke bawah -> sembunyikan tombol seketika (zero clutter / anti-overlap)
+            setShowScrollTop(false);
+            scrollUpDistance.current = 0;
+          } else if (diff < -4) {
+            // User sedang scroll ke atas -> akumulasi jarak geser ke atas
+            scrollUpDistance.current += Math.abs(diff);
+            // Begitu terdeteksi intensi nyata scroll ke atas (akumulasi >= 25px), munculkan tombol
+            if (scrollUpDistance.current >= 25) {
+              setShowScrollTop(true);
+            }
+          }
+
+          lastScrollY.current = currentY;
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setShowScrollTop(false);
+    scrollUpDistance.current = 0;
   };
 
   const fetchCannedTemplates = async (
@@ -1442,6 +1476,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   const [selectedProofOrder, setSelectedProofOrder] = useState<any | null>(null);
+
+  // Deteksi status seluruh overlay/modal aktif (baik global modal stack maupun modal lokal)
+  const isGlobalModalOpen = useIsAnyModalOpen();
+  const isAnyOverlayActive = isGlobalModalOpen || 
+    Boolean(moderationModalReport) || 
+    Boolean(showModerationConfirmModal) || 
+    Boolean(showTemplateModal) || 
+    Boolean(showTemplateFormModal) || 
+    Boolean(showFooterStatusMenu) || 
+    Boolean(showOptionsMenu) ||
+    Boolean(activeFilterModal) || 
+    Boolean(attachmentLightbox) ||
+    Boolean(docPreview?.isOpen) ||
+    Boolean(selectedProofOrder);
 
   // Swipe & Drag Bottom Sheet State for Proof Order Modal
   const [proofSheetDragY, setProofSheetDragY] = useState(0);
@@ -15894,16 +15942,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
-      {/* Floating Scroll to Top Button (Only on ticket queue/dashboard, hidden in chat room, master data, create broadcast form & kelola tindakan) */}
-      {showScrollTop && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && broadcastSubView === 'create') && !moderationModalReport && (
+      {/* Floating Scroll to Top Button (Intent-Based: Hanya muncul saat intensi scroll ke atas, sembunyi saat scroll ke bawah) */}
+      {showScrollTop && !isAnyOverlayActive && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && broadcastSubView === 'create') && (
         <button
           type="button"
           onClick={scrollToTop}
           style={{
             position: 'fixed',
             right: '16px',
-            bottom: !isSubPage ? '76px' : '24px',
-            zIndex: 9999,
+            bottom: !isSubPage ? 'calc(72px + env(safe-area-inset-bottom, 0px))' : 'calc(20px + env(safe-area-inset-bottom, 0px))',
+            zIndex: 40,
             width: '42px',
             height: '42px',
             borderRadius: '50%',
@@ -15917,6 +15965,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
+            animation: 'scaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
             transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
           title="Kembali ke Atas"

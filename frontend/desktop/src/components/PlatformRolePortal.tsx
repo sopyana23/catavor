@@ -93,6 +93,7 @@ import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { AdminStoresManagement } from './AdminStoresManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { DesktopCustomSelect } from './DesktopCustomSelect';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
 
@@ -3209,7 +3210,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const allModules: Record<ActiveView, { title: string; subtitle: string }> = {
     dashboard: { title: 'Dashboard', subtitle: 'Pusat Ringkasan Eksekutif' },
     rbac: { title: 'Staf & RBAC', subtitle: 'Matriks & Izin Akses' },
-    stores: { title: 'Tata Kelola Toko', subtitle: `${dormancyMetrics?.active_stores || 1} Toko Terdaftar` },
+    stores: { title: 'Tata Kelola Merchant', subtitle: `${dormancyMetrics?.active_stores || 1} Merchant Terdaftar` },
     reports: { title: 'Laporan Masuk', subtitle: `${pendingReportsCount} Laporan Pending` },
     support: { 
       title: 'Helpdesk Tiket', 
@@ -3250,7 +3251,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     },
     {
       id: 'stores' as ActiveView,
-      title: 'Tata Kelola Toko',
+      title: 'Direktori Merchant',
       subtitle: 'Status Kepatuhan & Dormansi',
       icon: <Store size={20} />,
       color: '#3b82f6',
@@ -3743,30 +3744,30 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     if (activeView === 'stores') {
       return {
         showMenu: true,
-        title: 'Tata Kelola Toko',
+        title: 'Tata Kelola Merchant',
         subtitle: 'Kepatuhan & direktori merchant',
         items: [
           {
             id: 'refresh_stores',
-            label: 'Segarkan Data Toko',
+            label: 'Segarkan Data Merchant',
             description: 'Perbarui data merchant dan dormansi',
             icon: <RefreshCw size={18} />,
             iconBg: 'rgba(56, 189, 248, 0.15)',
             iconColor: '#38bdf8',
             onClick: () => {
               loadData();
-              showToast('Data direktori toko diperbarui', 'success');
+              showToast('Data direktori merchant diperbarui', 'success');
             }
           },
           {
             id: 'copy_stores_summary',
-            label: 'Salin Ringkasan Toko',
-            description: 'Rekap toko aktif dan status dorman',
+            label: 'Salin Ringkasan Merchant',
+            description: 'Rekap merchant aktif dan status dorman',
             icon: <Copy size={18} />,
             iconBg: 'rgba(16, 185, 129, 0.15)',
             iconColor: '#10b981',
             onClick: () => {
-              const summary = `Ringkasan Toko: ${dormancyMetrics?.active_stores || 1} aktif, ${dormancyMetrics?.dormant_stores || 0} dorman.`;
+              const summary = `Ringkasan Merchant: ${dormancyMetrics?.active_stores || 1} aktif, ${dormancyMetrics?.dormant_stores || 0} dorman.`;
               navigator.clipboard.writeText(summary);
               showToast('Ringkasan toko disalin', 'success');
             }
@@ -5048,6 +5049,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           token={token}
           currentUserEmail={currentUser?.email}
           themeMode={themeMode}
+          hideHeader={true}
         />
       )}
 
@@ -5058,6 +5060,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         <AdminStoresManagement
           token={token}
           themeMode={themeMode}
+          hideHeader={true}
           onNavigateToTab={(tab: string) => setActiveView(tab as any)}
         />
       )}
@@ -7689,66 +7692,64 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {(availableCategories.length > 1 || availablePriorities.length > 1 || (ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSearchQuery)) && (
               <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 
-                {/* Category Bottom Sheet Trigger (Only when > 1 category types exist) */}
+                {/* Category Dropdown (Desktop Native) */}
                 {availableCategories.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFilterSearchQuery('');
-                      setActiveFilterModal('category');
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.4rem 0.65rem',
-                      borderRadius: '0.65rem',
-                      fontSize: '0.72rem',
+                  <DesktopCustomSelect
+                    value={ticketCategoryFilter}
+                    onChange={(val) => setTicketCategoryFilter(val)}
+                    icon={<Tag size={12} />}
+                    highlight={ticketCategoryFilter !== 'all'}
+                    options={[
+                      { value: 'all', label: 'Semua Kategori' },
+                      ...availableCategories.map((c) => ({
+                        value: c.id,
+                        label: c.label,
+                        count: c.count
+                      }))
+                    ]}
+                    placeholder="Semua Kategori"
+                    style={{ width: 'auto', minWidth: '160px' }}
+                    triggerStyle={{
+                      height: '34px',
+                      padding: '0 0.65rem',
+                      fontSize: '0.74rem',
                       fontWeight: 700,
                       backgroundColor: ticketCategoryFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
-                      border: `1px solid ${ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.border}`,
-                      color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textPrimary,
-                      cursor: 'pointer',
-                      boxShadow: theme.cardShadow,
-                      transition: 'all 0.15s ease',
-                      whiteSpace: 'nowrap'
+                      borderColor: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.border,
+                      color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
                     }}
-                  >
-                    <Tag size={12} style={{ color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textSecondary, flexShrink: 0 }} />
-                    <span>{ticketCategoryFilter === 'all' ? 'Semua Kategori' : (CATEGORY_LABELS[ticketCategoryFilter] || ticketCategoryFilter)}</span>
-                    <ChevronDown size={12} style={{ color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textSecondary, flexShrink: 0 }} />
-                  </button>
+                    dropdownStyle={{ minWidth: '190px' }}
+                  />
                 )}
 
-                {/* Priority Bottom Sheet Trigger (Only when > 1 priority types exist) */}
+                {/* Priority Dropdown (Desktop Native) */}
                 {availablePriorities.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFilterSearchQuery('');
-                      setActiveFilterModal('priority');
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.4rem 0.65rem',
-                      borderRadius: '0.65rem',
-                      fontSize: '0.72rem',
+                  <DesktopCustomSelect
+                    value={ticketPriorityFilter}
+                    onChange={(val) => setTicketPriorityFilter(val)}
+                    icon={<AlertCircle size={12} />}
+                    highlight={ticketPriorityFilter !== 'all'}
+                    options={[
+                      { value: 'all', label: 'Semua Prioritas' },
+                      ...availablePriorities.map((p) => ({
+                        value: p.id,
+                        label: p.label,
+                        count: p.count
+                      }))
+                    ]}
+                    placeholder="Semua Prioritas"
+                    style={{ width: 'auto', minWidth: '160px' }}
+                    triggerStyle={{
+                      height: '34px',
+                      padding: '0 0.65rem',
+                      fontSize: '0.74rem',
                       fontWeight: 700,
                       backgroundColor: ticketPriorityFilter !== 'all' ? (isDark ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.1)') : theme.surface,
-                      border: `1px solid ${ticketPriorityFilter !== 'all' ? '#ef4444' : theme.border}`,
-                      color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textPrimary,
-                      cursor: 'pointer',
-                      boxShadow: theme.cardShadow,
-                      transition: 'all 0.15s ease',
-                      whiteSpace: 'nowrap'
+                      borderColor: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.border,
+                      color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textPrimary
                     }}
-                  >
-                    <AlertCircle size={12} style={{ color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textSecondary, flexShrink: 0 }} />
-                    <span>{ticketPriorityFilter === 'all' ? 'Semua Prioritas' : (PRIORITY_META[ticketPriorityFilter]?.label || ticketPriorityFilter)}</span>
-                    <ChevronDown size={12} style={{ color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textSecondary, flexShrink: 0 }} />
-                  </button>
+                    dropdownStyle={{ minWidth: '190px' }}
+                  />
                 )}
 
                 {/* Active Filter Indicator & Reset Button */}
@@ -10449,24 +10450,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* 4C. BROADCAST LIST VIEW (CLEAN & DEDICATED)                           */
           /* ===================================================================== */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {/* Header Action Bar: Title & Dynamic Single "Buat Siaran Baru" button (shown only when data exists) */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '0 0.1rem'
-            }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Megaphone size={16} color="#f59e0b" />
-                  <span>Siaran Pengumuman</span>
-                </h4>
-                <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: theme.textSecondary }}>
-                  Kirim pengumuman massal &amp; notifikasi merchant
-                </p>
-              </div>
-            </div>
-
             {/* Quick Metrics Bar */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.55rem' }}>
               <div style={{ padding: '0.75rem 0.6rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, textAlign: 'center' }}>
@@ -10906,28 +10889,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       Status Mesin: 9 Worker Aktif &amp; Terjadwal (24/7 Daemon)
                     </span>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => fetchAutomationData()}
-                    disabled={isFetchingAutomation}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.35rem 0.65rem',
-                      borderRadius: '0.6rem',
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textSecondary,
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <RefreshCw size={13} className={isFetchingAutomation ? 'spin' : ''} />
-                    <span>{isFetchingAutomation ? 'Menyinkronkan...' : 'Segarkan'}</span>
-                  </button>
                 </div>
 
                 <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.5 }}>
@@ -11454,28 +11415,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <Activity size={14} color="#10b981" />
                   <span>Riwayat &amp; Log Eksekusi ({automationLogsTotal || automationLogs.length})</span>
                 </h4>
-
-                <button
-                  type="button"
-                  onClick={() => fetchAutomationData()}
-                  disabled={isFetchingAutomation}
-                  style={{
-                    padding: '0.25rem 0.6rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: theme.surface,
-                    border: `1px solid ${theme.border}`,
-                    color: theme.textSecondary,
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem'
-                  }}
-                >
-                  <RefreshCw size={11} className={isFetchingAutomation ? 'spin' : ''} />
-                  <span>Segarkan</span>
-                </button>
               </div>
 
               {/* Filter Chips by Bot */}
@@ -11846,9 +11785,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {activeView === 'audit' && canAccessAudit && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-          <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
-            System Audit Trail ({auditLogs.length})
-          </h4>
 
           {auditLogs.length === 0 ? (
             <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
@@ -11900,69 +11836,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* 1. MASTER HUB: MENU PILIHAN MASTER PLATFORM */}
           {masterSubView === 'menu' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {/* Header Hero Banner */}
-              <div style={{
-                padding: '1.1rem',
-                borderRadius: '1rem',
-                background: isDark
-                  ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(16, 185, 129, 0.08) 100%)'
-                  : 'linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)',
-                border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(2, 132, 199, 0.2)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.95rem',
-                boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.25)' : '0 2px 10px rgba(0,0,0,0.03)'
-              }}>
-                <div style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '0.9rem',
-                  background: isDark
-                    ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
-                    : 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
-                  flexShrink: 0
-                }}>
-                  <Database size={23} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                    <h4 style={{
-                      margin: 0,
-                      fontSize: '0.96rem',
-                      fontWeight: 800,
-                      color: theme.textPrimary,
-                      letterSpacing: '-0.01em'
-                    }}>
-                      Pusat Data Master Platform
-                    </h4>
-                    <span style={{
-                      fontSize: '0.64rem',
-                      padding: '0.1rem 0.5rem',
-                      borderRadius: '999px',
-                      fontWeight: 700,
-                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.12)',
-                      color: isDark ? '#38bdf8' : '#0284c7',
-                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.2)'}`
-                    }}>
-                      Pilihan Master
-                    </span>
-                  </div>
-                  <p style={{
-                    margin: '0.25rem 0 0 0',
-                    fontSize: '0.75rem',
-                    color: theme.textSecondary,
-                    lineHeight: 1.35
-                  }}>
-                    Pilih entitas data acuan atau konfigurasi master di bawah ini untuk dikelola.
-                  </p>
-                </div>
-              </div>
-
               {/* Grid of Master Cards */}
               <div style={{
                 display: 'grid',
@@ -12341,6 +12214,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <AdminSafeDomainsManagement
                 token={token}
                 themeMode={themeMode}
+                hideHeaderTitle={true}
                 onClose={() => {
                   setMasterSubView('menu');
                   updatePlatformUrl('master_data', null, null);
@@ -15705,27 +15579,24 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <label style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textSecondary, display: 'block', marginBottom: '0.3rem' }}>
                     Kategori
                   </label>
-                  <select
+                  <DesktopCustomSelect
                     value={templateForm.category}
-                    onChange={e => setTemplateForm({ ...templateForm, category: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.75rem',
-                      borderRadius: '0.65rem',
+                    onChange={(val) => setTemplateForm({ ...templateForm, category: val })}
+                    options={[
+                      { value: 'general', label: 'Umum & Greeting' },
+                      { value: 'billing', label: 'Keuangan & Billing' },
+                      { value: 'technical', label: 'Kendala Teknis' },
+                      { value: 'closing', label: 'Penutupan Tiket' },
+                      { value: 'account', label: 'Akun & Keamanan' },
+                    ]}
+                    placeholder="Pilih Kategori..."
+                    style={{ width: '100%' }}
+                    triggerStyle={{
                       backgroundColor: theme.cardAlt,
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.82rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
+                      borderColor: theme.border,
+                      height: '40px'
                     }}
-                  >
-                    <option value="general">Umum &amp; Greeting</option>
-                    <option value="billing">Keuangan &amp; Billing</option>
-                    <option value="technical">Kendala Teknis</option>
-                    <option value="closing">Penutupan Tiket</option>
-                    <option value="account">Akun &amp; Keamanan</option>
-                  </select>
+                  />
                 </div>
               </div>
 

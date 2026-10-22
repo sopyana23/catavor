@@ -721,3 +721,38 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   animation: discardFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Custom Elegant Table Horizontal Scrollbar */
+.catavor-table-scrollbar {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.catavor-table-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.catavor-table-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 9999px;
+  margin: 0 4px;
+}
+
+:root[data-theme="dark"] .catavor-table-scrollbar::-webkit-scrollbar-track,
+[data-theme="dark"] .catavor-table-scrollbar::-webkit-scrollbar-track,
+.dark .catavor-table-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.catavor-table-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.4);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.catavor-table-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+

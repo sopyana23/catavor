@@ -14,12 +14,16 @@ export interface DesktopCustomSelectProps {
   options: SelectOption[];
   placeholder?: string;
   icon?: React.ReactNode;
+  label?: string;
+  highlight?: boolean;
   disabled?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  triggerStyle?: React.CSSProperties;
   dropdownStyle?: React.CSSProperties;
   ariaLabel?: string;
   direction?: 'down' | 'up' | 'auto';
+  align?: 'left' | 'right' | 'auto';
   showCheckmark?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
@@ -32,12 +36,16 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
   options,
   placeholder = 'Pilih opsi...',
   icon,
+  label,
+  highlight = false,
   disabled = false,
   className = '',
   style,
+  triggerStyle,
   dropdownStyle,
   ariaLabel,
   direction = 'auto',
+  align = 'auto',
   showCheckmark = true,
   searchable,
   searchPlaceholder = 'Cari opsi...',
@@ -45,6 +53,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownDir, setDropdownDir] = useState<'down' | 'up'>('down');
+  const [dropdownAlign, setDropdownAlign] = useState<'left' | 'right'>('left');
   const [searchQuery, setSearchQuery] = useState('');
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
@@ -81,7 +90,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
     setCanScrollDown(hasBottom);
   };
 
-  // Auto-detect direction (up or down) to ensure it stays in viewport
+  // Auto-detect direction (up or down) and alignment (left or right) to ensure it stays in viewport
   useEffect(() => {
     if (!isOpen) {
       setSearchQuery('');
@@ -103,6 +112,19 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
       }
     }
 
+    if (align === 'right') {
+      setDropdownAlign('right');
+    } else if (align === 'left') {
+      setDropdownAlign('left');
+    } else if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      if (window.innerWidth - rect.right < 80 && rect.left > 120) {
+        setDropdownAlign('right');
+      } else {
+        setDropdownAlign('left');
+      }
+    }
+
     // Auto-focus search input if search is active
     if (isSearchEnabled) {
       setTimeout(() => {
@@ -117,7 +139,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
       }
       checkScrollState();
     }, 60);
-  }, [isOpen, direction, isSearchEnabled]);
+  }, [isOpen, direction, align, isSearchEnabled]);
 
   // Close when clicking outside or pressing Escape
   useEffect(() => {
@@ -171,7 +193,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        aria-label={ariaLabel || placeholder}
+        aria-label={ariaLabel || (label ? `${label}: ${selectedOption?.label || placeholder}` : placeholder)}
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className="desktop-select-trigger"
         style={{
@@ -180,46 +202,76 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
           justifyContent: 'space-between',
           width: '100%',
           minWidth: 0,
-          height: style?.height ? String(style.height) : '40px',
-          padding: style?.height && Number(style.height) <= 34 ? '0 0.6rem' : '0 0.85rem',
+          height: triggerStyle?.height ? String(triggerStyle.height) : style?.height ? String(style.height) : label ? '46px' : '40px',
+          padding: triggerStyle?.padding ? String(triggerStyle.padding) : style?.padding ? String(style.padding) : style?.height && Number(style.height) <= 34 ? '0 0.6rem' : '0 0.75rem',
           borderRadius: '0.6rem',
-          border: isOpen ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-          background: 'var(--bg-card)',
-          color: 'var(--text-primary)',
+          border: isOpen
+            ? '1px solid var(--primary, #10b981)'
+            : highlight
+            ? '1px solid var(--primary, #10b981)'
+            : '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+          background: 'var(--bg-card, #0f172a)',
+          color: 'var(--text-primary, #ffffff)',
           fontSize: style?.height && Number(style.height) <= 34 ? '0.78rem' : '0.84rem',
           fontWeight: 500,
           cursor: disabled ? 'not-allowed' : 'pointer',
           outline: 'none',
-          boxShadow: isOpen ? '0 0 0 2px var(--primary-glow)' : '0 1px 3px rgba(0,0,0,0.06)',
+          boxShadow: isOpen
+            ? '0 0 0 2px var(--primary-glow, rgba(16, 185, 129, 0.2))'
+            : highlight
+            ? '0 0 0 1px var(--primary-glow, rgba(16, 185, 129, 0.2))'
+            : '0 1px 3px rgba(0,0,0,0.06)',
           transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease',
           opacity: disabled ? 0.6 : 1,
           boxSizing: 'border-box',
-          gap: '0.5rem',
+          gap: '0.45rem',
+          ...triggerStyle,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1, overflow: 'hidden' }}>
           {icon && (
-            <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            <span style={{ color: highlight || isOpen ? 'var(--primary, #10b981)' : 'var(--text-secondary, #94a3b8)', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'color 0.2s ease' }}>
               {icon}
             </span>
           )}
-          <span
-            style={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              lineHeight: 1.4,
-              color: selectedOption ? 'var(--text-primary)' : 'var(--text-muted)',
-            }}
-          >
-            {selectedOption ? selectedOption.label : placeholder}
-          </span>
+          {label ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, flex: 1, overflow: 'hidden', textAlign: 'left' }}>
+              <span style={{ fontSize: '0.64rem', color: highlight ? 'var(--primary, #10b981)' : 'var(--text-muted, #94a3b8)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1, marginBottom: '2px' }}>
+                {label}
+              </span>
+              <span
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  lineHeight: 1.25,
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  color: selectedOption ? 'var(--text-primary, #ffffff)' : 'var(--text-muted, #94a3b8)',
+                }}
+              >
+                {selectedOption ? selectedOption.label : placeholder}
+              </span>
+            </div>
+          ) : (
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                lineHeight: 1.4,
+                color: selectedOption ? 'var(--text-primary, #ffffff)' : 'var(--text-muted, #94a3b8)',
+              }}
+            >
+              {selectedOption ? selectedOption.label : placeholder}
+            </span>
+          )}
           {selectedOption && typeof selectedOption.count === 'number' && (
             <span
               style={{
                 fontSize: '0.72rem',
                 fontWeight: 600,
-                color: 'var(--text-secondary)',
+                color: 'var(--text-secondary, #94a3b8)',
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 padding: '0.1rem 0.4rem',
                 borderRadius: '999px',
@@ -232,9 +284,9 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
         </div>
 
         <ChevronDown
-          size={15}
+          size={14}
           style={{
-            color: isOpen ? 'var(--primary)' : 'var(--text-secondary)',
+            color: isOpen ? 'var(--primary, #10b981)' : 'var(--text-secondary, #94a3b8)',
             transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.2s ease, color 0.2s ease',
             flexShrink: 0,
@@ -253,13 +305,14 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
             ...(dropdownDir === 'up'
               ? { bottom: 'calc(100% + 6px)', top: 'auto', boxShadow: '0 -12px 32px rgba(0, 0, 0, 0.45), 0 -2px 8px rgba(0, 0, 0, 0.25)' }
               : { top: 'calc(100% + 6px)', bottom: 'auto', boxShadow: '0 12px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2)' }),
-            left: 0,
-            right: 0,
+            ...(dropdownAlign === 'right'
+              ? { right: 0, left: 'auto' }
+              : { left: 0, right: 'auto' }),
             minWidth: '100%',
             borderRadius: '0.65rem',
-            border: '1px solid var(--border-light)',
-            background: 'var(--card-bg-gradient)',
-            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+            background: 'var(--card-bg-gradient, #0f172a)',
+            backgroundColor: 'var(--bg-card, #0f172a)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             zIndex: 1000,

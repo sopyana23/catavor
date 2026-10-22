@@ -25,9 +25,14 @@ import {
   ArrowUpRight,
   Layers,
   Clock,
-  ArrowUpDown
+  ArrowUpDown,
+  RotateCcw,
+  SlidersHorizontal,
+  Globe,
+  ArrowRightLeft
 } from 'lucide-react';
 import { useModalBackHandler } from '../utils/navigation';
+import { DesktopCustomSelect } from './DesktopCustomSelect';
 
 export interface AdminStoreItem {
   id: number;
@@ -69,6 +74,7 @@ interface AdminStoresManagementProps {
   token: string;
   themeMode?: 'dark' | 'light';
   onNavigateToTab?: (tab: string) => void;
+  hideHeader?: boolean;
 }
 
 const formatBytes = (bytes: number): string => {
@@ -100,7 +106,8 @@ const formatCurrency = (val: number): string => {
 
 export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
   token,
-  themeMode = 'dark'
+  themeMode = 'dark',
+  hideHeader = false
 }) => {
   const isDark = themeMode === 'dark';
 
@@ -111,6 +118,11 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [planFilter, setPlanFilter] = useState('all');
+  const [planStatusFilter, setPlanStatusFilter] = useState('all');
+  const [dormancyLevelFilter, setDormancyLevelFilter] = useState('all');
+  const [productFilter, setProductFilter] = useState('all');
+  const [customDomainFilter, setCustomDomainFilter] = useState('all');
+  const [violationTypeFilter, setViolationTypeFilter] = useState('all');
   const [sortFilter, setSortFilter] = useState('created_at_desc');
 
   // Server-Side Numbered Pagination state
@@ -169,7 +181,12 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
         page: page.toString(),
         limit: limit.toString(),
         sort: sortFilter,
-        plan: planFilter
+        plan: planFilter,
+        plan_status: planStatusFilter,
+        dormancy_level: dormancyLevelFilter,
+        product_filter: productFilter,
+        custom_domain: customDomainFilter,
+        violation_type: violationTypeFilter
       });
       if (debouncedSearch) {
         queryParams.set('q', debouncedSearch);
@@ -203,7 +220,20 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [token, subTab, page, limit, sortFilter, planFilter, debouncedSearch]);
+  }, [
+    token,
+    subTab,
+    page,
+    limit,
+    sortFilter,
+    planFilter,
+    planStatusFilter,
+    dormancyLevelFilter,
+    productFilter,
+    customDomainFilter,
+    violationTypeFilter,
+    debouncedSearch
+  ]);
 
   useEffect(() => {
     fetchStores();
@@ -237,7 +267,47 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
     setSubTab(newTab);
     setPage(1);
     setSearchQuery('');
+    setPlanFilter('all');
+    setPlanStatusFilter('all');
+    setDormancyLevelFilter('all');
+    setProductFilter('all');
+    setCustomDomainFilter('all');
+    setViolationTypeFilter('all');
+    setSortFilter('created_at_desc');
   };
+
+  const clearAllFilters = () => {
+    setPlanFilter('all');
+    setPlanStatusFilter('all');
+    setDormancyLevelFilter('all');
+    setProductFilter('all');
+    setCustomDomainFilter('all');
+    setViolationTypeFilter('all');
+    setSortFilter('created_at_desc');
+    setPage(1);
+  };
+
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (subTab === 'active') {
+      if (planFilter !== 'all') count++;
+      if (planStatusFilter !== 'all') count++;
+      if (dormancyLevelFilter !== 'all') count++;
+      if (productFilter !== 'all') count++;
+      if (customDomainFilter !== 'all') count++;
+      if (sortFilter !== 'created_at_desc') count++;
+    } else {
+      if (violationTypeFilter !== 'all') count++;
+      if (planFilter !== 'all') count++;
+      if (planStatusFilter !== 'all') count++;
+      if (productFilter !== 'all') count++;
+      if (customDomainFilter !== 'all') count++;
+      if (sortFilter !== 'created_at_desc') count++;
+    }
+    return count;
+  };
+
+  const activeFilterCount = getActiveFilterCount();
 
   const handleJumpPage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -324,124 +394,126 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* 1. Header & Summary Stats Bar */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          padding: '1.25rem 1.5rem',
-          borderRadius: '1rem',
-          backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
-          border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`,
-          boxShadow: isDark
-            ? '0 4px 20px rgba(0,0,0,0.2)'
-            : '0 2px 8px rgba(0,0,0,0.04)'
-        }}
-      >
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              marginBottom: '0.25rem'
-            }}
-          >
-            <Store size={22} color="#10b981" />
-            <h2
+      {/* 1. Header & Summary Stats Bar (Only rendered when not embedded with a parent header) */}
+      {!hideHeader && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem',
+            padding: '1.25rem 1.5rem',
+            borderRadius: '1rem',
+            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#ffffff',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`,
+            boxShadow: isDark
+              ? '0 4px 20px rgba(0,0,0,0.2)'
+              : '0 2px 8px rgba(0,0,0,0.04)'
+          }}
+        >
+          <div>
+            <div
               style={{
-                fontSize: '1.25rem',
-                fontWeight: 800,
-                color: isDark ? '#f3f4f6' : '#111827',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                marginBottom: '0.25rem'
+              }}
+            >
+              <Store size={22} color="#10b981" />
+              <h2
+                style={{
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  color: isDark ? '#f3f4f6' : '#111827',
+                  margin: 0
+                }}
+              >
+                Direktori Profil Merchant Terdaftar
+              </h2>
+            </div>
+            <p
+              style={{
+                fontSize: '0.85rem',
+                color: isDark ? '#9ca3af' : '#6b7280',
                 margin: 0
               }}
             >
-              Direktori Profil Katalog Terdaftar
-            </h2>
+              Tata kelola dan inspeksi profil merchant aktif serta riwayat penegakan akun merchant Catavor.
+            </p>
           </div>
-          <p
-            style={{
-              fontSize: '0.85rem',
-              color: isDark ? '#9ca3af' : '#6b7280',
-              margin: 0
-            }}
-          >
-            Tata kelola dan inspeksi profil katalog aktif serta riwayat pelanggaran akun toko Catavor.
-          </p>
-        </div>
 
-        {/* Global Stats Badges */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div
-            style={{
-              padding: '0.5rem 0.85rem',
-              borderRadius: '0.65rem',
-              backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <CheckCircle2 size={16} color="#10b981" />
-            <div>
-              <div style={{ fontSize: '0.7rem', color: isDark ? '#9ca3af' : '#6b7280', fontWeight: 600 }}>
-                Aktif
-              </div>
-              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#10b981' }}>
-                {stats.total_active}
+          {/* Global Stats Badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div
+              style={{
+                padding: '0.5rem 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <CheckCircle2 size={16} color="#10b981" />
+              <div>
+                <div style={{ fontSize: '0.7rem', color: isDark ? '#9ca3af' : '#6b7280', fontWeight: 600 }}>
+                  Aktif
+                </div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#10b981' }}>
+                  {stats.total_active}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div
-            style={{
-              padding: '0.5rem 0.85rem',
-              borderRadius: '0.65rem',
-              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <ShieldAlert size={16} color="#ef4444" />
-            <div>
-              <div style={{ fontSize: '0.7rem', color: isDark ? '#9ca3af' : '#6b7280', fontWeight: 600 }}>
-                Banned / Suspend
-              </div>
-              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#ef4444' }}>
-                {stats.total_banned}
+            <div
+              style={{
+                padding: '0.5rem 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <ShieldAlert size={16} color="#ef4444" />
+              <div>
+                <div style={{ fontSize: '0.7rem', color: isDark ? '#9ca3af' : '#6b7280', fontWeight: 600 }}>
+                  Banned / Suspend
+                </div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#ef4444' }}>
+                  {stats.total_banned}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div
-            style={{
-              padding: '0.5rem 0.85rem',
-              borderRadius: '0.65rem',
-              backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
-              border: '1px solid rgba(59, 130, 246, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <Sparkles size={16} color="#3b82f6" />
-            <div>
-              <div style={{ fontSize: '0.7rem', color: isDark ? '#9ca3af' : '#6b7280', fontWeight: 600 }}>
-                Pro Tier
-              </div>
-              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#3b82f6' }}>
-                {stats.total_pro_starter + stats.total_pro_business}
+            <div
+              style={{
+                padding: '0.5rem 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <Sparkles size={16} color="#3b82f6" />
+              <div>
+                <div style={{ fontSize: '0.7rem', color: isDark ? '#9ca3af' : '#6b7280', fontWeight: 600 }}>
+                  Pro Tier
+                </div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#3b82f6' }}>
+                  {stats.total_pro_starter + stats.total_pro_business}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 2. Strict Sub-Tab Navigation (Active Only vs Violations/Banned Only) */}
       <div
@@ -481,7 +553,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
           }}
         >
           <CheckCircle2 size={18} />
-          Profil Katalog Aktif
+          Profil Merchant Aktif
           <span
             style={{
               padding: '0.15rem 0.55rem',
@@ -544,35 +616,43 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '0.85rem',
+          flexDirection: 'column',
+          gap: '0.75rem',
           padding: '1rem',
           borderRadius: '0.85rem',
           backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : '#f9fafb',
           border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e5e7eb'}`
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: '280px' }}>
+        {/* Tier 1: Search Bar & Actions */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem'
+          }}
+        >
           {/* Search Box */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '0.65rem',
-              padding: '0.55rem 0.85rem',
+              padding: '0.55rem 0.95rem',
               borderRadius: '0.65rem',
               backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
               border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'}`,
               flex: 1,
-              maxWidth: '420px'
+              minWidth: '280px',
+              maxWidth: '480px'
             }}
           >
             <Search size={16} color={isDark ? '#9ca3af' : '#6b7280'} />
             <input
               type="text"
-              placeholder="Cari nama toko, slug, pemilik, WhatsApp..."
+              placeholder="Cari nama merchant, slug, pemilik, WhatsApp..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -600,89 +680,568 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
             )}
           </div>
 
-          {/* Plan Filter Dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span style={{ fontSize: '0.8rem', color: isDark ? '#9ca3af' : '#6b7280', fontWeight: 600 }}>
-              Paket:
-            </span>
-            <select
-              value={planFilter}
-              onChange={(e) => {
-                setPlanFilter(e.target.value);
-                setPage(1);
-              }}
+          {/* Quick Actions: Counter & Reset Filter Button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
               style={{
-                padding: '0.5rem 0.75rem',
-                borderRadius: '0.6rem',
-                backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
-                border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'}`,
-                color: isDark ? '#f3f4f6' : '#111827',
-                fontSize: '0.82rem',
-                outline: 'none',
-                cursor: 'pointer'
+                fontSize: '0.8rem',
+                color: isDark ? '#9ca3af' : '#6b7280',
+                fontWeight: 600
               }}
             >
-              <option value="all">Semua Paket</option>
-              <option value="free">Gratis (Free)</option>
-              <option value="pro_starter">Pro Starter</option>
-              <option value="pro_business">Pro Business</option>
-            </select>
-          </div>
+              Total {pagination.total} merchant {subTab === 'active' ? 'aktif' : 'disanksi'}
+            </div>
 
-          {/* Sort Dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <ArrowUpDown size={15} color={isDark ? '#9ca3af' : '#6b7280'} />
-            <select
-              value={sortFilter}
-              onChange={(e) => {
-                setSortFilter(e.target.value);
-                setPage(1);
-              }}
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              disabled={activeFilterCount === 0}
+              title={activeFilterCount > 0 ? "Atur ulang seluruh filter pencarian" : "Tidak ada filter aktif"}
               style={{
-                padding: '0.5rem 0.75rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.5rem 0.95rem',
                 borderRadius: '0.6rem',
-                backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
-                border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'}`,
-                color: isDark ? '#f3f4f6' : '#111827',
+                backgroundColor: activeFilterCount > 0
+                  ? (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)')
+                  : (isDark ? 'rgba(255,255,255,0.04)' : '#ffffff'),
+                border: `1px solid ${activeFilterCount > 0
+                  ? (isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)')
+                  : (isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db')}`,
+                color: activeFilterCount > 0 ? '#ef4444' : (isDark ? '#64748b' : '#9ca3af'),
                 fontSize: '0.82rem',
-                outline: 'none',
-                cursor: 'pointer'
+                fontWeight: 700,
+                cursor: activeFilterCount > 0 ? 'pointer' : 'not-allowed',
+                transition: 'all 0.15s ease'
               }}
             >
-              <option value="created_at_desc">Terbaru Terdaftar</option>
-              <option value="created_at_asc">Terlama Terdaftar</option>
-              <option value="products_desc">Produk Terbanyak</option>
-              <option value="title_asc">Nama Toko (A-Z)</option>
-              <option value="activity_desc">Aktivitas Terakhir</option>
-            </select>
+              <RotateCcw size={14} />
+              <span>Reset Filter</span>
+              {activeFilterCount > 0 && (
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    padding: '0.08rem 0.4rem',
+                    borderRadius: '999px',
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    fontWeight: 800
+                  }}
+                >
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Refresh Action */}
-        <button
-          onClick={fetchStores}
-          disabled={loading}
-          title="Muat ulang data terkini"
+        {/* Tier 2: Symmetrical Multi-Filter Bar with Clean Grid Alignment */}
+        <div
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.5rem 0.95rem',
-            borderRadius: '0.6rem',
-            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
-            border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'}`,
-            color: isDark ? '#e5e7eb' : '#374151',
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            cursor: loading ? 'not-allowed' : 'pointer'
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))',
+            gap: '0.65rem',
+            paddingTop: '0.5rem',
+            borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e5e7eb'}`
           }}
         >
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+          {subTab === 'active' ? (
+            <>
+              {/* Filter 1: Plan */}
+              <DesktopCustomSelect
+                label="Paket"
+                icon={<Sparkles size={14} />}
+                value={planFilter}
+                onChange={(val) => {
+                  setPlanFilter(val);
+                  setPage(1);
+                }}
+                highlight={planFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Paket' },
+                  { value: 'free', label: 'Gratis (Free)' },
+                  { value: 'pro_starter', label: 'Pro Starter' },
+                  { value: 'pro_business', label: 'Pro Business' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: planFilter !== 'all' ? '#10b981' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '190px' }}
+              />
+
+              {/* Filter 2: Masa Aktif */}
+              <DesktopCustomSelect
+                label="Masa Aktif"
+                icon={<Clock size={14} />}
+                value={planStatusFilter}
+                onChange={(val) => {
+                  setPlanStatusFilter(val);
+                  setPage(1);
+                }}
+                highlight={planStatusFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Status' },
+                  { value: 'active', label: 'Aktif Normal' },
+                  { value: 'grace_period', label: 'Masa Tenggang' },
+                  { value: 'expired', label: 'Kedaluwarsa' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: planStatusFilter !== 'all' ? '#10b981' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '190px' }}
+              />
+
+              {/* Filter 3: Kesehatan */}
+              <DesktopCustomSelect
+                label="Kesehatan"
+                icon={<ShieldCheck size={14} />}
+                value={dormancyLevelFilter}
+                onChange={(val) => {
+                  setDormancyLevelFilter(val);
+                  setPage(1);
+                }}
+                highlight={dormancyLevelFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Tingkat' },
+                  { value: 'active', label: 'Sehat & Aktif' },
+                  { value: 'warning_1', label: 'Peringatan 1 (30 Hari)' },
+                  { value: 'warning_2', label: 'Peringatan 2 (60 Hari)' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: dormancyLevelFilter !== 'all' ? '#10b981' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '200px' }}
+              />
+
+              {/* Filter 4: Item */}
+              <DesktopCustomSelect
+                label="Item"
+                icon={<Package size={14} />}
+                value={productFilter}
+                onChange={(val) => {
+                  setProductFilter(val);
+                  setPage(1);
+                }}
+                highlight={productFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Item' },
+                  { value: 'has_products', label: 'Memiliki Item (>0)' },
+                  { value: 'no_products', label: 'Tanpa Item (0)' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: productFilter !== 'all' ? '#10b981' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '190px' }}
+              />
+
+              {/* Filter 5: Domain */}
+              <DesktopCustomSelect
+                label="Domain"
+                icon={<Globe size={14} />}
+                value={customDomainFilter}
+                onChange={(val) => {
+                  setCustomDomainFilter(val);
+                  setPage(1);
+                }}
+                highlight={customDomainFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Domain' },
+                  { value: 'with_domain', label: 'Custom Domain' },
+                  { value: 'no_domain', label: 'Subdomain' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: customDomainFilter !== 'all' ? '#10b981' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '190px' }}
+              />
+
+              {/* Filter 6: Urutan */}
+              <DesktopCustomSelect
+                label="Urutan"
+                icon={<ArrowUpDown size={14} />}
+                value={sortFilter}
+                onChange={(val) => {
+                  setSortFilter(val);
+                  setPage(1);
+                }}
+                highlight={sortFilter !== 'created_at_desc'}
+                options={[
+                  { value: 'created_at_desc', label: 'Terbaru Terdaftar' },
+                  { value: 'products_desc', label: 'Item Terbanyak' },
+                  { value: 'activity_desc', label: 'Aktivitas Terakhir' },
+                  { value: 'created_at_asc', label: 'Terlama Terdaftar' },
+                  { value: 'title_asc', label: 'Nama Merchant (A - Z)' },
+                  { value: 'title_desc', label: 'Nama Merchant (Z - A)' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: sortFilter !== 'created_at_desc' ? '#10b981' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '200px' }}
+              />
+            </>
+          ) : (
+            <>
+              {/* Banned Filter 1: Kategori Sanksi */}
+              <DesktopCustomSelect
+                label="Kategori Sanksi"
+                icon={<ShieldAlert size={14} />}
+                value={violationTypeFilter}
+                onChange={(val) => {
+                  setViolationTypeFilter(val);
+                  setPage(1);
+                }}
+                highlight={violationTypeFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Pelanggaran' },
+                  { value: 'moderation', label: 'Moderasi Konten' },
+                  { value: 'dormancy', label: 'Inaktif / Dormancy' },
+                  { value: 'blacklisted', label: 'Blacklist Permanen' },
+                  { value: 'suspended', label: 'Suspended Sementara' },
+                  { value: 'purged', label: 'Dihapus Sistem' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: violationTypeFilter !== 'all' ? '#ef4444' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '210px' }}
+              />
+
+              {/* Banned Filter 2: Paket Terakhir */}
+              <DesktopCustomSelect
+                label="Paket Terakhir"
+                icon={<Sparkles size={14} />}
+                value={planFilter}
+                onChange={(val) => {
+                  setPlanFilter(val);
+                  setPage(1);
+                }}
+                highlight={planFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Paket' },
+                  { value: 'free', label: 'Gratis (Free)' },
+                  { value: 'pro_starter', label: 'Pro Starter' },
+                  { value: 'pro_business', label: 'Pro Business' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: planFilter !== 'all' ? '#ef4444' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '190px' }}
+              />
+
+              {/* Banned Filter 3: Masa Aktif */}
+              <DesktopCustomSelect
+                label="Masa Aktif"
+                icon={<Clock size={14} />}
+                value={planStatusFilter}
+                onChange={(val) => {
+                  setPlanStatusFilter(val);
+                  setPage(1);
+                }}
+                highlight={planStatusFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Status' },
+                  { value: 'active', label: 'Aktif Normal' },
+                  { value: 'grace_period', label: 'Masa Tenggang' },
+                  { value: 'expired', label: 'Kedaluwarsa' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: planStatusFilter !== 'all' ? '#ef4444' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '190px' }}
+              />
+
+              {/* Banned Filter 4: Riwayat Item */}
+              <DesktopCustomSelect
+                label="Riwayat Item"
+                icon={<Package size={14} />}
+                value={productFilter}
+                onChange={(val) => {
+                  setProductFilter(val);
+                  setPage(1);
+                }}
+                highlight={productFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Item' },
+                  { value: 'has_products', label: 'Memiliki Item (>0)' },
+                  { value: 'no_products', label: 'Tanpa Item (0)' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: productFilter !== 'all' ? '#ef4444' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '190px' }}
+              />
+
+              {/* Banned Filter 5: Domain Sebelumnya */}
+              <DesktopCustomSelect
+                label="Domain Sebelumnya"
+                icon={<Globe size={14} />}
+                value={customDomainFilter}
+                onChange={(val) => {
+                  setCustomDomainFilter(val);
+                  setPage(1);
+                }}
+                highlight={customDomainFilter !== 'all'}
+                options={[
+                  { value: 'all', label: 'Semua Domain' },
+                  { value: 'with_domain', label: 'Custom Domain' },
+                  { value: 'no_domain', label: 'Subdomain' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: customDomainFilter !== 'all' ? '#ef4444' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '200px' }}
+              />
+
+              {/* Banned Filter 6: Urutan Sanksi */}
+              <DesktopCustomSelect
+                label="Urutan Sanksi"
+                icon={<ArrowUpDown size={14} />}
+                value={sortFilter}
+                onChange={(val) => {
+                  setSortFilter(val);
+                  setPage(1);
+                }}
+                highlight={sortFilter !== 'created_at_desc'}
+                options={[
+                  { value: 'created_at_desc', label: 'Terbaru Disanksi' },
+                  { value: 'created_at_asc', label: 'Terlama Disanksi' },
+                  { value: 'products_desc', label: 'Item Terbanyak' },
+                  { value: 'title_asc', label: 'Nama Merchant (A - Z)' },
+                  { value: 'title_desc', label: 'Nama Merchant (Z - A)' }
+                ]}
+                triggerStyle={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: sortFilter !== 'created_at_desc' ? '#ef4444' : isDark ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                }}
+                dropdownStyle={{ minWidth: '200px' }}
+              />
+            </>
+          )}
+        </div>
+
+        {/* Active Filter Chips Bar (Rule Parity with Mobile) */}
+        {activeFilterCount > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              flexWrap: 'wrap',
+              paddingTop: '0.5rem',
+              borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e5e7eb'}`
+            }}
+          >
+            <button
+              onClick={clearAllFilters}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.3rem 0.75rem',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+                color: '#ef4444',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <RotateCcw size={13} />
+              Reset Semua ({activeFilterCount})
+            </button>
+
+            {planFilter !== 'all' && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                  color: isDark ? '#f3f4f6' : '#111827'
+                }}
+              >
+                Paket: {planFilter === 'free' ? 'Gratis' : planFilter === 'pro_starter' ? 'Pro Starter' : 'Pro Business'}
+                <button
+                  type="button"
+                  onClick={() => { setPlanFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {planStatusFilter !== 'all' && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                  color: isDark ? '#f3f4f6' : '#111827'
+                }}
+              >
+                Masa Aktif: {planStatusFilter === 'active' ? 'Aktif Normal' : planStatusFilter === 'grace_period' ? 'Masa Tenggang' : 'Kedaluwarsa'}
+                <button
+                  type="button"
+                  onClick={() => { setPlanStatusFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {dormancyLevelFilter !== 'all' && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                  color: isDark ? '#f3f4f6' : '#111827'
+                }}
+              >
+                Kesehatan: {dormancyLevelFilter === 'active' ? 'Sehat' : dormancyLevelFilter === 'warning_1' ? 'Peringatan 1' : 'Peringatan 2'}
+                <button
+                  type="button"
+                  onClick={() => { setDormancyLevelFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {productFilter !== 'all' && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                  color: isDark ? '#f3f4f6' : '#111827'
+                }}
+              >
+                Item: {productFilter === 'has_products' ? 'Memiliki Item (>0)' : 'Tanpa Item (0)'}
+                <button
+                  type="button"
+                  onClick={() => { setProductFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {customDomainFilter !== 'all' && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                  color: isDark ? '#f3f4f6' : '#111827'
+                }}
+              >
+                Domain: {customDomainFilter === 'with_domain' ? 'Custom Domain' : 'Subdomain'}
+                <button
+                  type="button"
+                  onClick={() => { setCustomDomainFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {violationTypeFilter !== 'all' && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2',
+                  color: '#ef4444'
+                }}
+              >
+                Sanksi: {violationTypeFilter === 'moderation' ? 'Moderasi Konten' : violationTypeFilter === 'dormancy' ? 'Dormancy' : violationTypeFilter === 'blacklisted' ? 'Blacklist Permanen' : violationTypeFilter === 'suspended' ? 'Suspended' : 'Dihapus'}
+                <button
+                  type="button"
+                  onClick={() => { setViolationTypeFilter('all'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+
+            {sortFilter !== 'created_at_desc' && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
+                  color: isDark ? '#f3f4f6' : '#111827'
+                }}
+              >
+                Urut: {sortFilter === 'products_desc' ? 'Item Terbanyak' : sortFilter === 'title_asc' ? 'Nama Merchant A-Z' : sortFilter === 'title_desc' ? 'Nama Merchant Z-A' : sortFilter === 'activity_desc' ? 'Terakhir Aktif' : sortFilter === 'created_at_asc' ? 'Terlama' : 'Terbaru'}
+                <button
+                  type="button"
+                  onClick={() => { setSortFilter('created_at_desc'); setPage(1); }}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* 4. Desktop Comprehensive Data Table */}
+      {/* 4. Desktop Comprehensive Data Table with Sticky Columns & Elegant Scroll */}
       <div
         style={{
           borderRadius: '1rem',
@@ -692,11 +1251,53 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
           boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.15)' : '0 2px 8px rgba(0,0,0,0.03)'
         }}
       >
-        <div style={{ overflowX: 'auto' }}>
+        {/* Horizontal Scroll Hint & Counter Bar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.65rem 1.25rem',
+            backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc',
+            borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
+            fontSize: '0.78rem',
+            color: isDark ? '#9ca3af' : '#64748b'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <ArrowRightLeft size={14} color="#10b981" />
+            <span style={{ fontWeight: 600 }}>
+              Geser tabel ke samping untuk melihat kolom kontak, kuota, aktivitas & status lengkap
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600 }}>
+            <span
+              style={{
+                width: '7px',
+                height: '7px',
+                borderRadius: '50%',
+                backgroundColor: '#10b981',
+                display: 'inline-block'
+              }}
+            />
+            <span>{stores.length} merchant dimuat</span>
+          </div>
+        </div>
+
+        {/* Scroll Container with Custom Elegant Scrollbar */}
+        <div
+          className="catavor-table-scrollbar"
+          style={{
+            overflowX: 'auto',
+            position: 'relative'
+          }}
+        >
           <table
             style={{
               width: '100%',
-              borderCollapse: 'collapse',
+              minWidth: '1320px',
+              borderCollapse: 'separate',
+              borderSpacing: 0,
               textAlign: 'left',
               fontSize: '0.85rem'
             }}
@@ -704,29 +1305,148 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
             <thead>
               <tr
                 style={{
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb',
-                  borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`
+                  backgroundColor: isDark ? '#0d131f' : '#f8fafc'
                 }}
               >
-                <th style={{ padding: '0.9rem 1rem', fontWeight: 700, color: isDark ? '#9ca3af' : '#6b7280' }}>
-                  Profil Katalog
+                {/* 1. Header: Profil Merchant (Sticky Left) */}
+                <th
+                  style={{
+                    padding: '0.95rem 1.25rem',
+                    fontWeight: 700,
+                    color: isDark ? '#9ca3af' : '#475569',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    position: 'sticky',
+                    left: 0,
+                    top: 0,
+                    zIndex: 20,
+                    backgroundColor: isDark ? '#0d131f' : '#f8fafc',
+                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                    borderRight: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                    boxShadow: isDark ? '4px 0 10px rgba(0,0,0,0.3)' : '4px 0 10px rgba(0,0,0,0.05)',
+                    width: '300px',
+                    minWidth: '300px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Profil Merchant
                 </th>
-                <th style={{ padding: '0.9rem 1rem', fontWeight: 700, color: isDark ? '#9ca3af' : '#6b7280' }}>
+
+                {/* 2. Header: Pemilik & Kontak */}
+                <th
+                  style={{
+                    padding: '0.95rem 1.25rem',
+                    fontWeight: 700,
+                    color: isDark ? '#9ca3af' : '#475569',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                    width: '240px',
+                    minWidth: '240px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
                   Pemilik & Kontak
                 </th>
-                <th style={{ padding: '0.9rem 1rem', fontWeight: 700, color: isDark ? '#9ca3af' : '#6b7280' }}>
+
+                {/* 3. Header: Paket & Kuota */}
+                <th
+                  style={{
+                    padding: '0.95rem 1.25rem',
+                    fontWeight: 700,
+                    color: isDark ? '#9ca3af' : '#475569',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                    width: '200px',
+                    minWidth: '200px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
                   Paket & Kuota
                 </th>
-                <th style={{ padding: '0.9rem 1rem', fontWeight: 700, color: isDark ? '#9ca3af' : '#6b7280', textAlign: 'center' }}>
-                  Produk
+
+                {/* 4. Header: Item */}
+                <th
+                  style={{
+                    padding: '0.95rem 1.25rem',
+                    fontWeight: 700,
+                    color: isDark ? '#9ca3af' : '#475569',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    textAlign: 'center',
+                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                    width: '130px',
+                    minWidth: '130px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Item
                 </th>
-                <th style={{ padding: '0.9rem 1rem', fontWeight: 700, color: isDark ? '#9ca3af' : '#6b7280' }}>
+
+                {/* 5. Header: Terdaftar / Terakhir Aktif */}
+                <th
+                  style={{
+                    padding: '0.95rem 1.25rem',
+                    fontWeight: 700,
+                    color: isDark ? '#9ca3af' : '#475569',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                    width: '210px',
+                    minWidth: '210px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
                   Terdaftar / Terakhir Aktif
                 </th>
-                <th style={{ padding: '0.9rem 1rem', fontWeight: 700, color: isDark ? '#9ca3af' : '#6b7280' }}>
-                  Status
+
+                {/* 6. Header: Status */}
+                <th
+                  style={{
+                    padding: '0.95rem 1.25rem',
+                    fontWeight: 700,
+                    color: isDark ? '#9ca3af' : '#475569',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                    width: '190px',
+                    minWidth: '190px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Status Kepatuhan
                 </th>
-                <th style={{ padding: '0.9rem 1rem', fontWeight: 700, color: isDark ? '#9ca3af' : '#6b7280', textAlign: 'right' }}>
+
+                {/* 7. Header: Aksi (Sticky Right) */}
+                <th
+                  style={{
+                    padding: '0.95rem 1.25rem',
+                    fontWeight: 700,
+                    color: isDark ? '#9ca3af' : '#475569',
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    textAlign: 'right',
+                    position: 'sticky',
+                    right: 0,
+                    top: 0,
+                    zIndex: 20,
+                    backgroundColor: isDark ? '#0d131f' : '#f8fafc',
+                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                    borderLeft: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                    boxShadow: isDark ? '-4px 0 10px rgba(0,0,0,0.3)' : '-4px 0 10px rgba(0,0,0,0.05)',
+                    width: '120px',
+                    minWidth: '120px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
                   Aksi
                 </th>
               </tr>
@@ -734,26 +1454,26 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
+                  <td colSpan={7} style={{ padding: '4rem 1rem', textAlign: 'center' }}>
                     <RefreshCw size={28} className="animate-spin" color="#10b981" style={{ margin: '0 auto 0.75rem auto' }} />
                     <div style={{ fontSize: '0.88rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
-                      Memuat daftar profil katalog dari server...
+                      Memuat daftar profil merchant dari server...
                     </div>
                   </td>
                 </tr>
               ) : stores.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
-                    <Store size={36} color={isDark ? 'rgba(255,255,255,0.2)' : '#d1d5db'} style={{ margin: '0 auto 0.75rem auto' }} />
+                  <td colSpan={7} style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+                    <Store size={38} color={isDark ? 'rgba(255,255,255,0.2)' : '#d1d5db'} style={{ margin: '0 auto 0.75rem auto' }} />
                     <div style={{ fontSize: '1rem', fontWeight: 700, color: isDark ? '#e5e7eb' : '#374151' }}>
-                      Tidak Ada Profil Katalog
+                      Tidak Ada Profil Merchant
                     </div>
                     <div style={{ fontSize: '0.82rem', color: isDark ? '#9ca3af' : '#6b7280', marginTop: '0.25rem' }}>
                       {debouncedSearch
-                        ? `Tidak ditemukan profil yang cocok dengan kata kunci "${debouncedSearch}".`
+                        ? `Tidak ditemukan profil merchant yang cocok dengan kata kunci "${debouncedSearch}".`
                         : subTab === 'active'
-                        ? 'Belum ada profil toko aktif yang terdaftar.'
-                        : 'Tidak ada toko yang sedang ditangguhkan atau di-banned.'}
+                        ? 'Belum ada profil merchant aktif yang terdaftar.'
+                        : 'Tidak ada merchant yang sedang ditangguhkan atau di-banned.'}
                     </div>
                   </td>
                 </tr>
@@ -769,28 +1489,48 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                     <tr
                       key={item.id}
                       style={{
-                        borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f3f4f6'}`,
+                        borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`,
                         transition: 'background-color 0.15s ease'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = isDark
-                          ? 'rgba(255,255,255,0.03)'
-                          : '#f9fafb';
+                        e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc';
+                        const stickyCells = e.currentTarget.querySelectorAll('.sticky-merchant-cell');
+                        stickyCells.forEach((c: any) => {
+                          c.style.backgroundColor = isDark ? '#141d30' : '#f8fafc';
+                        });
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = 'transparent';
+                        const stickyCells = e.currentTarget.querySelectorAll('.sticky-merchant-cell');
+                        stickyCells.forEach((c: any) => {
+                          c.style.backgroundColor = isDark ? '#0f172a' : '#ffffff';
+                        });
                       }}
                     >
-                      {/* 1. Profil Katalog */}
-                      <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {/* 1. Profil Merchant (Sticky Left) */}
+                      <td
+                        className="sticky-merchant-cell"
+                        style={{
+                          padding: '1rem 1.25rem',
+                          verticalAlign: 'middle',
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 10,
+                          backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                          borderRight: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`,
+                          boxShadow: isDark ? '4px 0 10px rgba(0,0,0,0.3)' : '4px 0 10px rgba(0,0,0,0.05)',
+                          transition: 'background-color 0.15s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                           <div
                             style={{
-                              width: '42px',
-                              height: '42px',
-                              borderRadius: '0.65rem',
-                              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f3f4f6',
-                              border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e5e7eb'}`,
+                              width: '44px',
+                              height: '44px',
+                              borderRadius: '0.75rem',
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
+                              border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -808,16 +1548,21 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                                 }}
                               />
                             ) : (
-                              <Store size={20} color={isDark ? '#9ca3af' : '#6b7280'} />
+                              <Store size={22} color={isDark ? '#9ca3af' : '#6b7280'} />
                             )}
                           </div>
-                          <div>
+                          <div style={{ minWidth: 0 }}>
                             <div
                               style={{
                                 fontWeight: 700,
-                                color: isDark ? '#f3f4f6' : '#111827',
-                                fontSize: '0.9rem'
+                                color: isDark ? '#f3f4f6' : '#0f172a',
+                                fontSize: '0.92rem',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: '210px'
                               }}
+                              title={item.store_title}
                             >
                               {item.store_title}
                             </div>
@@ -833,7 +1578,8 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '0.2rem',
-                                  fontWeight: 600
+                                  fontWeight: 600,
+                                  whiteSpace: 'nowrap'
                                 }}
                               >
                                 /{item.slug}
@@ -844,13 +1590,14 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                               <div
                                 style={{
                                   fontSize: '0.75rem',
-                                  color: isDark ? '#9ca3af' : '#6b7280',
+                                  color: isDark ? '#9ca3af' : '#64748b',
                                   marginTop: '0.15rem',
-                                  maxWidth: '220px',
+                                  maxWidth: '210px',
                                   whiteSpace: 'nowrap',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis'
                                 }}
+                                title={item.store_slogan}
                               >
                                 {item.store_slogan}
                               </div>
@@ -860,12 +1607,31 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                       </td>
 
                       {/* 2. Pemilik & Kontak */}
-                      <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                          <div style={{ fontWeight: 600, color: isDark ? '#e5e7eb' : '#374151' }}>
+                      <td
+                        style={{
+                          padding: '1rem 1.25rem',
+                          verticalAlign: 'middle',
+                          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              color: isDark ? '#e5e7eb' : '#1e293b',
+                              fontSize: '0.85rem',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
                             {item.user_name || 'Tanpa Nama'}
                           </div>
-                          <div style={{ fontSize: '0.78rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
+                          <div
+                            style={{
+                              fontSize: '0.78rem',
+                              color: isDark ? '#9ca3af' : '#64748b',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
                             {item.user_email}
                           </div>
                           {item.whatsapp_number && (
@@ -880,7 +1646,9 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '0.25rem',
-                                marginTop: '0.1rem'
+                                marginTop: '0.1rem',
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap'
                               }}
                             >
                               <Phone size={12} />
@@ -891,7 +1659,13 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                       </td>
 
                       {/* 3. Paket & Kuota */}
-                      <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle' }}>
+                      <td
+                        style={{
+                          padding: '1rem 1.25rem',
+                          verticalAlign: 'middle',
+                          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`
+                        }}
+                      >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                           <div>
                             <span
@@ -902,6 +1676,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                                 fontSize: '0.72rem',
                                 fontWeight: 700,
                                 textTransform: 'uppercase',
+                                whiteSpace: 'nowrap',
                                 backgroundColor:
                                   item.plan === 'pro_business'
                                     ? isDark
@@ -913,7 +1688,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                                       : '#eff6ff'
                                     : isDark
                                     ? 'rgba(255,255,255,0.08)'
-                                    : '#f3f4f6',
+                                    : '#f1f5f9',
                                 color:
                                   item.plan === 'pro_business'
                                     ? '#a855f7'
@@ -921,7 +1696,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                                     ? '#3b82f6'
                                     : isDark
                                     ? '#9ca3af'
-                                    : '#4b5563'
+                                    : '#64748b'
                               }}
                             >
                               {item.plan === 'pro_business'
@@ -937,7 +1712,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                               style={{
                                 height: '5px',
                                 borderRadius: '3px',
-                                backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#e5e7eb',
+                                backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
                                 overflow: 'hidden'
                               }}
                             >
@@ -953,8 +1728,9 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                             <div
                               style={{
                                 fontSize: '0.7rem',
-                                color: isDark ? '#9ca3af' : '#6b7280',
-                                marginTop: '0.2rem'
+                                color: isDark ? '#9ca3af' : '#64748b',
+                                marginTop: '0.2rem',
+                                whiteSpace: 'nowrap'
                               }}
                             >
                               {formatBytes(item.storage_used_bytes)} / {formatBytes(quotaBytes)}
@@ -963,47 +1739,63 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                         </div>
                       </td>
 
-                      {/* 4. Produk */}
-                      <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle', textAlign: 'center' }}>
+                      {/* 4. Item */}
+                      <td
+                        style={{
+                          padding: '1rem 1.25rem',
+                          verticalAlign: 'middle',
+                          textAlign: 'center',
+                          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`
+                        }}
+                      >
                         <div
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.35rem',
-                            padding: '0.3rem 0.65rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f3f4f6',
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
                             fontWeight: 700,
-                            color: isDark ? '#e5e7eb' : '#374151'
+                            fontSize: '0.82rem',
+                            color: isDark ? '#e5e7eb' : '#1e293b',
+                            whiteSpace: 'nowrap'
                           }}
                         >
                           <Package size={14} color="#10b981" />
-                          {item.products_count || 0}
+                          {item.products_count || 0} Item
                         </div>
                       </td>
 
                       {/* 5. Terdaftar / Terakhir Aktif */}
-                      <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <td
+                        style={{
+                          padding: '1rem 1.25rem',
+                          verticalAlign: 'middle',
+                          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', whiteSpace: 'nowrap' }}>
                           <div
                             style={{
-                              fontSize: '0.78rem',
-                              color: isDark ? '#e5e7eb' : '#374151',
+                              fontSize: '0.8rem',
+                              color: isDark ? '#e5e7eb' : '#1e293b',
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '0.3rem'
+                              gap: '0.35rem',
+                              fontWeight: 500
                             }}
                           >
-                            <Calendar size={13} color={isDark ? '#9ca3af' : '#6b7280'} />
+                            <Calendar size={13} color={isDark ? '#9ca3af' : '#64748b'} />
                             {formatDate(item.created_at)}
                           </div>
                           <div
                             style={{
-                              fontSize: '0.72rem',
-                              color: isDark ? '#9ca3af' : '#6b7280',
+                              fontSize: '0.74rem',
+                              color: isDark ? '#9ca3af' : '#64748b',
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '0.3rem'
+                              gap: '0.35rem'
                             }}
                           >
                             <Clock size={12} />
@@ -1013,17 +1805,24 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                       </td>
 
                       {/* 6. Status */}
-                      <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle' }}>
+                      <td
+                        style={{
+                          padding: '1rem 1.25rem',
+                          verticalAlign: 'middle',
+                          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`
+                        }}
+                      >
                         {subTab === 'active' ? (
                           <span
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.35rem',
-                              padding: '0.25rem 0.6rem',
+                              padding: '0.3rem 0.7rem',
                               borderRadius: '0.5rem',
                               fontSize: '0.75rem',
                               fontWeight: 700,
+                              whiteSpace: 'nowrap',
                               backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5',
                               color: '#10b981',
                               border: '1px solid rgba(16, 185, 129, 0.3)'
@@ -1033,13 +1832,13 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                             Aktif & Terdaftar
                           </span>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', whiteSpace: 'nowrap' }}>
                             <span
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '0.35rem',
-                                padding: '0.25rem 0.6rem',
+                                padding: '0.3rem 0.7rem',
                                 borderRadius: '0.5rem',
                                 fontSize: '0.75rem',
                                 fontWeight: 700,
@@ -1061,6 +1860,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis'
                                 }}
+                                title={item.suspension_reason}
                               >
                                 {item.suspension_reason}
                               </div>
@@ -1069,21 +1869,37 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                         )}
                       </td>
 
-                      {/* 7. Aksi */}
-                      <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle', textAlign: 'right' }}>
+                      {/* 7. Aksi (Sticky Right) */}
+                      <td
+                        className="sticky-merchant-cell"
+                        style={{
+                          padding: '1rem 1.25rem',
+                          verticalAlign: 'middle',
+                          textAlign: 'right',
+                          position: 'sticky',
+                          right: 0,
+                          zIndex: 10,
+                          backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                          borderLeft: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
+                          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`,
+                          boxShadow: isDark ? '-4px 0 10px rgba(0,0,0,0.3)' : '-4px 0 10px rgba(0,0,0,0.05)',
+                          transition: 'background-color 0.15s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         <button
                           onClick={() => fetchStoreDetail(item.id)}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.4rem',
-                            padding: '0.45rem 0.85rem',
-                            borderRadius: '0.55rem',
+                            padding: '0.5rem 0.95rem',
+                            borderRadius: '0.6rem',
                             backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
                             border: '1px solid rgba(16, 185, 129, 0.3)',
                             color: '#10b981',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease'
                           }}
@@ -1115,33 +1931,34 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
         >
           {/* Rows per page & Counter summary */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontSize: '0.82rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span style={{ fontSize: '0.82rem', color: isDark ? '#9ca3af' : '#6b7280', whiteSpace: 'nowrap' }}>
                 Tampilkan:
               </span>
-              <select
-                value={limit}
-                onChange={(e) => {
-                  setLimit(parseInt(e.target.value, 10));
+              <DesktopCustomSelect
+                value={String(limit)}
+                onChange={(val) => {
+                  setLimit(parseInt(val, 10));
                   setPage(1);
                 }}
-                style={{
-                  padding: '0.35rem 0.65rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
-                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'}`,
-                  color: isDark ? '#f3f4f6' : '#111827',
+                options={[
+                  { value: '10', label: '10' },
+                  { value: '25', label: '25' },
+                  { value: '50', label: '50' },
+                  { value: '100', label: '100' }
+                ]}
+                direction="up"
+                style={{ width: '80px', minWidth: '80px' }}
+                triggerStyle={{
+                  height: '34px',
+                  padding: '0 0.55rem',
                   fontSize: '0.82rem',
-                  outline: 'none',
-                  cursor: 'pointer'
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : '#d1d5db'
                 }}
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span style={{ fontSize: '0.82rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
+                dropdownStyle={{ minWidth: '85px' }}
+              />
+              <span style={{ fontSize: '0.82rem', color: isDark ? '#9ca3af' : '#6b7280', whiteSpace: 'nowrap' }}>
                 baris
               </span>
             </div>
@@ -1350,7 +2167,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                       color: isDark ? '#f3f4f6' : '#111827'
                     }}
                   >
-                    Inspeksi Profil Katalog
+                    Inspeksi Profil Merchant
                   </h3>
                   <div style={{ fontSize: '0.75rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
                     ID: #{selectedStoreID}
@@ -1382,7 +2199,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                 <div style={{ padding: '3rem 1rem', textAlign: 'center' }}>
                   <RefreshCw size={28} className="animate-spin" color="#10b981" style={{ margin: '0 auto 0.75rem auto' }} />
                   <div style={{ fontSize: '0.85rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
-                    Memuat data detail toko...
+                    Memuat data detail merchant...
                   </div>
                 </div>
               ) : storeDetail?.data ? (
@@ -1540,7 +2357,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                             }}
                           >
                             <User size={16} color="#3b82f6" />
-                            Data Pemilik Akun
+                            Data Pemilik Merchant
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.82rem' }}>
                             <div>
@@ -1595,7 +2412,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.82rem' }}>
                             <div>
-                              <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Total Produk: </span>
+                              <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Total Item: </span>
                               <strong style={{ color: '#10b981' }}>
                                 {storeDetail.products_count || 0} Item
                               </strong>
@@ -1633,7 +2450,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                               marginBottom: '0.65rem'
                             }}
                           >
-                            Sampel Produk Terdaftar ({storeDetail.top_products.length})
+                            Sampel Item Terdaftar ({storeDetail.top_products.length})
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             {storeDetail.top_products.map((p: any) => (
@@ -1669,7 +2486,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                 })()
               ) : (
                 <div style={{ padding: '2rem 1rem', textAlign: 'center', color: isDark ? '#9ca3af' : '#6b7280' }}>
-                  Gagal memuat detail toko.
+                  Gagal memuat detail merchant.
                 </div>
               )}
             </div>
@@ -1704,7 +2521,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                     textDecoration: 'none'
                   }}
                 >
-                  Buka Katalog Publik
+                  Buka Katalog Merchant
                   <ExternalLink size={14} />
                 </a>
               )}
