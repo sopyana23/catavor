@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   History,
   Search,
@@ -14,6 +14,7 @@ import {
   Filter
 } from 'lucide-react';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
+import { createAuthFetch } from '../utils/auth';
 
 export interface ActivityLogItem {
   id: number;
@@ -35,13 +36,30 @@ export interface TabletAuditLogsViewProps {
   token: string;
   storeSlug: string;
   showToast: (msg: string, type?: 'success' | 'error') => void;
+  onLogout?: () => void;
+  onUnauthorized?: (msg?: string) => void;
 }
 
 export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
   token,
   storeSlug,
-  showToast
+  showToast,
+  onLogout,
+  onUnauthorized
 }) => {
+  // Centralized authenticated fetch with automatic 401/403 session eviction
+  const fetch = useMemo(() => {
+    return createAuthFetch({
+      getToken: () => token,
+      onUnauthorized: (msg) => {
+        if (onUnauthorized) {
+          onUnauthorized(msg);
+        } else if (onLogout) {
+          onLogout();
+        }
+      }
+    });
+  }, [token, onUnauthorized, onLogout]);
   const [logs, setLogs] = useState<ActivityLogItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [page, setPage] = useState<number>(1);

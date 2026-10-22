@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -16,18 +16,36 @@ import {
   CheckCircle2,
   Calendar
 } from 'lucide-react';
+import { createAuthFetch } from '../utils/auth';
 
 export interface TabletAnalyticsViewProps {
   token: string;
   storeSlug: string;
   showToast: (msg: string, type?: 'success' | 'error') => void;
+  onLogout?: () => void;
+  onUnauthorized?: (msg?: string) => void;
 }
 
 export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
   token,
   storeSlug,
-  showToast
+  showToast,
+  onLogout,
+  onUnauthorized
 }) => {
+  // Centralized authenticated fetch with automatic 401/403 session eviction
+  const fetch = useMemo(() => {
+    return createAuthFetch({
+      getToken: () => token,
+      onUnauthorized: (msg) => {
+        if (onUnauthorized) {
+          onUnauthorized(msg);
+        } else if (onLogout) {
+          onLogout();
+        }
+      }
+    });
+  }, [token, onUnauthorized, onLogout]);
   const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('7d');
   const [loading, setLoading] = useState<boolean>(false);
   const [data, setData] = useState<any | null>(null);
@@ -60,10 +78,10 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
           setData(json.data);
         }
       } else {
-        showToast('Gagal memuat data analitik toko', 'error');
+        showToast?.('Gagal memuat data analitik toko', 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan jaringan saat memuat analitik', 'error');
+      showToast?.('Terjadi kesalahan jaringan saat memuat analitik', 'error');
     } finally {
       setLoading(false);
     }

@@ -484,4 +484,58 @@ export const apiClient = {
   onUnauthorized: onApiUnauthorized
 };
 
+/**
+ * Global Network Interceptor on window.fetch
+ * Ensures all raw fetch calls across Mobile that receive 401 Unauthorized
+ * automatically trigger session eviction to the login screen.
+ */
+let isFetchInterceptorInstalled = false;
+export function setupGlobalAuthInterceptor() {
+  if (isFetchInterceptorInstalled || typeof window === 'undefined') return;
+  isFetchInterceptorInstalled = true;
+
+  const originalFetch = window.fetch;
+  window.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const res = await originalFetch.apply(this, arguments as any);
+
+    if (res.status === 401) {
+      const urlStr = typeof input === 'string'
+        ? input
+        : input instanceof URL
+        ? input.toString()
+        : (input as Request)?.url || '';
+
+      const isAuthAttempt = urlStr.includes('/api/login') ||
+                            urlStr.includes('/api/register') ||
+                            urlStr.includes('/api/auth/google') ||
+                            urlStr.includes('/api/auth/verify-registration-otp') ||
+                            urlStr.includes('/api/auth/forgot-password');
+      const hasToken = typeof localStorage !== 'undefined' && Boolean(localStorage.getItem('catavor_token'));
+
+      if (!isAuthAttempt && hasToken) {
+        try {
+          const clone = res.clone();
+          clone.json().then(data => {
+            const msg = data?.code === 'TOKEN_EXPIRED'
+              ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
+              : (data?.message || 'Sesi login tidak valid. Silakan login kembali.');
+            notifyUnauthorized(msg);
+          }).catch(() => {
+            notifyUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+          });
+        } catch {
+          notifyUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+        }
+      }
+    }
+
+    return res;
+  };
+}
+
+if (typeof window !== 'undefined') {
+  setupGlobalAuthInterceptor();
+}
+
 export default apiClient;
+

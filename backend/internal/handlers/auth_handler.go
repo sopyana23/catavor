@@ -1437,6 +1437,7 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 			"is_admin":            user.IsPlatformStaff(),
 			"permissions":         services.GetRBACService().GetUserPermissions(user),
 			"is_password_changed": user.IsPasswordChanged,
+			"has_custom_password": user.HasCustomPassword,
 			"store_slug":          activeStore.Slug,
 			"store_title":         activeStore.StoreTitle,
 			"store_theme":         activeStore.StoreTheme,

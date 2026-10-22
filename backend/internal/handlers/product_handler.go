@@ -70,18 +70,52 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 	var storeID uint
 	isMerchantView := false
 
+	targetSlug := strings.TrimSpace(c.Params("slug"))
+	if targetSlug == "" {
+		targetSlug = strings.TrimSpace(c.Get("X-Store-Slug"))
+	}
+	if targetSlug == "" {
+		targetSlug = strings.TrimSpace(c.Query("store_slug"))
+	}
+	if targetSlug == "" {
+		targetSlug = strings.TrimSpace(c.Query("slug"))
+	}
+
 	if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil {
 		storeID = storeVal.ID
 		isMerchantView = true
-	} else if slug := c.Params("slug"); slug != "" {
+	} else if targetSlug != "" {
 		var store models.Store
-		if err := h.db.Where("LOWER(slug) = ?", strings.ToLower(slug)).First(&store).Error; err != nil {
+		if err := h.db.Where("LOWER(slug) = ?", strings.ToLower(targetSlug)).First(&store).Error; err != nil {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success": false,
 				"message": "Toko tidak ditemukan.",
 			})
 		}
 		storeID = store.ID
+		claims := middleware.ExtractOptionalClaims(c, h.cfg)
+		if claims != nil {
+			if claims.StoreID == store.ID || strings.EqualFold(claims.StoreSlug, store.Slug) {
+				isMerchantView = true
+			} else {
+				var count int64
+				h.db.Model(&models.Store{}).Where("id = ? AND user_id = ?", store.ID, claims.UserID).Count(&count)
+				if count > 0 {
+					isMerchantView = true
+				} else {
+					var u models.User
+					if err := h.db.Select("id, platform_role").First(&u, claims.UserID).Error; err == nil && u.IsPlatformStaff() {
+						isMerchantView = true
+					}
+				}
+			}
+		}
+	} else {
+		claims := middleware.ExtractOptionalClaims(c, h.cfg)
+		if claims != nil && claims.StoreID > 0 {
+			storeID = claims.StoreID
+			isMerchantView = true
+		}
 	}
 
 	query := h.db.Model(&models.Product{}).Preload("Category").Preload("Images").Preload("Variants")
@@ -126,18 +160,55 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 		query = query.Where("products.habitat = ?", habitat)
 	}
 
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		total = 0
+	}
+
+	page := 1
+	limit := 15
+	if pStr := strings.TrimSpace(c.Query("page")); pStr != "" {
+		if pVal, err := strconv.Atoi(pStr); err == nil && pVal > 0 {
+			page = pVal
+		}
+	}
+	if lStr := strings.TrimSpace(c.Query("limit")); lStr != "" {
+		if lVal, err := strconv.Atoi(lStr); err == nil && lVal > 0 {
+			limit = lVal
+			if limit > 100 {
+				limit = 100
+			}
+		}
+	}
+
+	offset := (page - 1) * limit
 	var products []models.Product
-	if err := query.Order("products.id DESC").Find(&products).Error; err != nil {
+	if err := query.Order("products.id DESC").Offset(offset).Limit(limit).Find(&products).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mengambil data produk.",
 		})
 	}
 
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
 	return c.JSON(fiber.Map{
-		"success": true,
-		"count":   len(products),
-		"data":    products,
+		"success":    true,
+		"count":      len(products),
+		"total":      total,
+		"totalPages": totalPages,
+		"pagination": fiber.Map{
+			"current_page": page,
+			"per_page":     limit,
+			"total_items":  total,
+			"total_pages":  totalPages,
+			"has_next":     page < totalPages,
+			"has_prev":     page > 1,
+		},
+		"data": products,
 	})
 }
 
