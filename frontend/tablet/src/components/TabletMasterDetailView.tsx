@@ -145,9 +145,9 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
         {/* Left Pane: Master List */}
         {showMaster && (
           <div style={{
-            width: isNarrowTablet ? '100%' : isSpaciousTablet ? '35%' : '38%',
-            minWidth: isNarrowTablet ? '100%' : '270px',
-            maxWidth: isNarrowTablet ? '100%' : isSpaciousTablet ? '380px' : '320px',
+            width: isNarrowTablet ? '100%' : isSpaciousTablet ? '38%' : '42%',
+            minWidth: isNarrowTablet ? '100%' : '320px',
+            maxWidth: isNarrowTablet ? '100%' : isSpaciousTablet ? '420px' : '380px',
             height: '100%',
             display: 'flex',
             flexDirection: 'column',

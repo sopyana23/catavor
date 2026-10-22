@@ -160,6 +160,14 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 		query = query.Where("products.habitat = ?", habitat)
 	}
 
+	if stockStatus := strings.ToLower(strings.TrimSpace(c.Query("stock"))); stockStatus != "" && stockStatus != "all" {
+		if stockStatus == "in_stock" {
+			query = query.Where("products.stock > 0")
+		} else if stockStatus == "out_of_stock" {
+			query = query.Where("products.stock <= 0")
+		}
+	}
+
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		total = 0
@@ -181,9 +189,27 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 		}
 	}
 
+	orderClause := "products.id DESC"
+	switch strings.ToLower(strings.TrimSpace(c.Query("sort"))) {
+	case "oldest":
+		orderClause = "products.id ASC"
+	case "price_asc":
+		orderClause = "products.price ASC"
+	case "price_desc":
+		orderClause = "products.price DESC"
+	case "name_asc":
+		orderClause = "LOWER(products.name) ASC"
+	case "name_desc":
+		orderClause = "LOWER(products.name) DESC"
+	case "newest":
+		fallthrough
+	default:
+		orderClause = "products.id DESC"
+	}
+
 	offset := (page - 1) * limit
 	var products []models.Product
-	if err := query.Order("products.id DESC").Offset(offset).Limit(limit).Find(&products).Error; err != nil {
+	if err := query.Order(orderClause).Offset(offset).Limit(limit).Find(&products).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mengambil data produk.",

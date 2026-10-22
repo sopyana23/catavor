@@ -780,6 +780,12 @@ func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	var archivedItems int64
 	h.db.Model(&models.Product{}).Where("store_id = ? AND is_active = false AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&archivedItems)
 
+	var outOfStockItems int64
+	h.db.Model(&models.Product{}).Where("store_id = ? AND stock = 0 AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&outOfStockItems)
+
+	var lowStockItems int64
+	h.db.Model(&models.Product{}).Where("store_id = ? AND stock > 0 AND stock <= 5 AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&lowStockItems)
+
 	// By Product Type
 	var typeRows []CountResult
 	newBaseQuery().Select("COALESCE(NULLIF(product_type, ''), 'physical') as key, COUNT(*) as count").Group("key").Scan(&typeRows)
@@ -803,13 +809,15 @@ func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	responsePayload := fiber.Map{
 		"success": true,
 		"data": fiber.Map{
-			"total_items":      totalItems,
-			"active_items":     activeItems,
-			"archived_items":   archivedItems,
-			"total_categories": len(byCategory),
-			"total_value":      totalValue,
-			"by_type":          byType,
-			"by_category":      byCategory,
+			"total_items":        totalItems,
+			"active_items":       activeItems,
+			"archived_items":     archivedItems,
+			"out_of_stock_items": outOfStockItems,
+			"low_stock_items":    lowStockItems,
+			"total_categories":   len(byCategory),
+			"total_value":        totalValue,
+			"by_type":            byType,
+			"by_category":        byCategory,
 		},
 		"cached_at": time.Now().Format(time.RFC3339),
 	}

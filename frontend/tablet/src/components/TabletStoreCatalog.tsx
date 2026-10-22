@@ -15,6 +15,7 @@ import {
   Tag
 } from 'lucide-react';
 import { TabletProductDetailSheet } from './TabletProductDetailSheet';
+import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
 
 export interface TabletStoreCatalogProps {
   slug: string;
@@ -417,61 +418,27 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
           />
         </div>
 
-        {/* Category Filter Pills (Horizontal Touch Scroll) */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          overflowX: 'auto',
-          paddingBottom: '0.35rem',
-          scrollbarWidth: 'none'
-        }}>
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('all')}
-            style={{
-              minHeight: '40px',
-              padding: '0.45rem 1.15rem',
-              borderRadius: '999px',
-              border: selectedCategory === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-              backgroundColor: selectedCategory === 'all' ? 'var(--primary)' : 'var(--bg-card)',
-              color: selectedCategory === 'all' ? '#ffffff' : 'var(--text-secondary)',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            Semua Produk ({products.length})
-          </button>
-
-          {categories.map((cat) => {
-            const isSelected = selectedCategory === String(cat.id) || selectedCategory === cat.name;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(String(cat.id))}
-                style={{
-                  minHeight: '40px',
-                  padding: '0.45rem 1.15rem',
-                  borderRadius: '999px',
-                  border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                  backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
-                  color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {cat.name}
-              </button>
-            );
-          })}
-        </div>
+        {/* Category Filter Pills (Horizontal Touch Scroll with Floating Chevrons & Gradient Fade) */}
+        <TabletScrollableFilterTags
+          items={[
+            {
+              id: 'all',
+              label: 'Semua Produk',
+              count: products.length
+            },
+            ...categories.map((cat) => ({
+              id: String(cat.id),
+              label: cat.name,
+              count: products.filter(
+                (p) => String(p.category_id) === String(cat.id) || p.category_name?.toLowerCase() === cat.name.toLowerCase()
+              ).length
+            }))
+          ]}
+          selectedId={selectedCategory}
+          onSelect={(id) => setSelectedCategory(id)}
+          ariaLabel="Filter Kategori Toko"
+          containerBg="var(--bg-card)"
+        />
       </div>
 
       {/* 4. Product Catalog Grid (Tablet 3-Column Native) */}
