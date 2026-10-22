@@ -418,7 +418,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
           />
         </div>
 
-        {/* Category Filter Pills (Horizontal Touch Scroll with Floating Chevrons & Gradient Fade) */}
+        {/* Category Filter Pills (Horizontal Touch & Drag Scroll) */}
         <TabletScrollableFilterTags
           items={[
             {

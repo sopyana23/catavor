@@ -1,5 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
 
 export interface FilterTagItem {
   id: string;
@@ -27,43 +26,35 @@ export const TabletScrollableFilterTags: React.FC<TabletScrollableFilterTagsProp
   containerBg = 'var(--bg-deep)'
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState<boolean>(false);
-  const [canScrollRight, setCanScrollRight] = useState<boolean>(false);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+  const hasMovedRef = useRef(false);
 
-  const checkScroll = useCallback(() => {
+  // Mouse drag-to-scroll support for tablet trackpads & mice
+  const handleMouseDown = (e: React.MouseEvent) => {
     const el = scrollRef.current;
     if (!el) return;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    setCanScrollLeft(scrollLeft > 4);
-    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
-  }, []);
+    isDraggingRef.current = true;
+    hasMovedRef.current = false;
+    startXRef.current = e.pageX - el.offsetLeft;
+    scrollLeftRef.current = el.scrollLeft;
+  };
 
-  useEffect(() => {
-    checkScroll();
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - startXRef.current) * 1.3;
+    if (Math.abs(walk) > 4) {
+      hasMovedRef.current = true;
+    }
+    el.scrollLeft = scrollLeftRef.current - walk;
+  };
 
-    el.addEventListener('scroll', checkScroll, { passive: true });
-    window.addEventListener('resize', checkScroll);
-
-    const ro = new ResizeObserver(() => checkScroll());
-    ro.observe(el);
-
-    return () => {
-      el.removeEventListener('scroll', checkScroll);
-      window.removeEventListener('resize', checkScroll);
-      ro.disconnect();
-    };
-  }, [checkScroll, items]);
-
-  const handleScroll = (direction: 'left' | 'right') => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const scrollAmount = Math.max(180, Math.floor(el.clientWidth * 0.65));
-    el.scrollBy({
-      left: direction === 'left' ? -scrollAmount : scrollAmount,
-      behavior: 'smooth'
-    });
+  const handleMouseUpOrLeave = () => {
+    isDraggingRef.current = false;
   };
 
   // Scroll active item into view smoothly on change
@@ -74,7 +65,7 @@ export const TabletScrollableFilterTags: React.FC<TabletScrollableFilterTagsProp
     if (activeEl) {
       const containerRect = el.getBoundingClientRect();
       const activeRect = activeEl.getBoundingClientRect();
-      if (activeRect.left < containerRect.left + 36 || activeRect.right > containerRect.right - 36) {
+      if (activeRect.left < containerRect.left + 24 || activeRect.right > containerRect.right - 24) {
         activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       }
     }
@@ -87,68 +78,29 @@ export const TabletScrollableFilterTags: React.FC<TabletScrollableFilterTagsProp
       style={{
         position: 'relative',
         width: '100%',
-        display: 'flex',
-        alignItems: 'center',
         backgroundColor: containerBg,
         overflow: 'hidden'
       }}
     >
-      {/* Left Scroll Chevron & Gradient Fade Indicator */}
-      {canScrollLeft && (
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: '42px',
-            background: `linear-gradient(to right, ${containerBg} 65%, transparent 100%)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            paddingLeft: '0.25rem',
-            zIndex: 3
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => handleScroll('left')}
-            aria-label="Geser filter ke kiri"
-            title="Geser ke kiri"
-            style={{
-              width: '26px',
-              height: '26px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-light)',
-              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              padding: 0
-            }}
-          >
-            <ChevronLeft size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* Horizontal Scroll Track */}
+      {/* Horizontal Scroll Track without Chevron Indicators */}
       <div
         ref={scrollRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '0.4rem',
+          gap: '0.45rem',
           overflowX: 'auto',
-          padding: '0.35rem 0.6rem',
+          padding: '0.35rem 0.65rem',
           width: '100%',
-          scrollBehavior: 'smooth',
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
-          msOverflowStyle: 'none'
+          msOverflowStyle: 'none',
+          cursor: isDraggingRef.current ? 'grabbing' : 'default',
+          userSelect: 'none'
         }}
       >
         {items.map((item) => {
@@ -166,13 +118,16 @@ export const TabletScrollableFilterTags: React.FC<TabletScrollableFilterTagsProp
               key={item.id}
               type="button"
               data-tag-id={item.id}
-              onClick={() => onSelect(item.id)}
+              onClick={() => {
+                if (hasMovedRef.current) return;
+                onSelect(item.id);
+              }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.35rem',
                 minHeight: '34px',
-                padding: '0.28rem 0.7rem',
+                padding: '0.28rem 0.72rem',
                 borderRadius: '999px',
                 border: `1.5px solid ${itemBorder}`,
                 backgroundColor: itemBg,
@@ -215,48 +170,6 @@ export const TabletScrollableFilterTags: React.FC<TabletScrollableFilterTagsProp
           );
         })}
       </div>
-
-      {/* Right Scroll Chevron & Gradient Fade Indicator */}
-      {canScrollRight && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: '42px',
-            background: `linear-gradient(to left, ${containerBg} 65%, transparent 100%)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            paddingRight: '0.25rem',
-            zIndex: 3
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => handleScroll('right')}
-            aria-label="Geser filter ke kanan"
-            title="Geser ke kanan"
-            style={{
-              width: '26px',
-              height: '26px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-light)',
-              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              padding: 0
-            }}
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      )}
     </div>
   );
 };
