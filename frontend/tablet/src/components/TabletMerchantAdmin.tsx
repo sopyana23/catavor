@@ -992,6 +992,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // 4. NOTIFICATIONS STATE
   // =========================================================================
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifUnreadCount, setNotifUnreadCount] = useState<number>(0);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'security' | 'system'>('all');
   const [selectedNotif, setSelectedNotif] = useState<any | null>(null);
 
@@ -1008,6 +1009,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (res.ok) {
         const json = await res.json();
         setNotifications(json.data || []);
+        if (typeof json.unread_count === 'number') {
+          setNotifUnreadCount(json.unread_count);
+        }
       }
     } catch {
       // safe fallback
@@ -1016,16 +1020,23 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const handleMarkNotifRead = async (id: number | string) => {
     try {
+      setNotifications(prev => {
+        const item = prev.find(n => n.id === id);
+        if (item && !item.read) {
+          setNotifUnreadCount(c => Math.max(0, c - 1));
+        }
+        return prev.map(n => n.id === id ? { ...n, read: true } : n);
+      });
       await fetch(`/api/notifications/${id}/read`, { method: 'POST', headers: getHeaders() });
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     } catch {}
   };
 
   const handleMarkAllNotifsRead = async () => {
     try {
-      await fetch('/api/notifications/read-all', { method: 'POST', headers: getHeaders() });
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setNotifUnreadCount(0);
       showToast('Semua notifikasi ditandai telah dibaca');
+      await fetch('/api/notifications/read-all', { method: 'POST', headers: getHeaders() });
     } catch {}
   };
 
@@ -1116,6 +1127,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (res.ok) {
         const json = await res.json();
         setTicketDetails(json.data || json.ticket || null);
+        // Automatically clear unread status for this ticket in local list & support ping count
+        setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, unread_count: 0, has_unread: false } : t));
+        setSupportUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch {}
     finally {
@@ -1247,7 +1261,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
-  // 1. Initial Core Data Fetching (Run ONCE per store/token mount - Only essential store profile, categories, and products)
+  // 1. Initial Core Data Fetching (Run ONCE per store/token mount - Essential store profile, categories, products, notifications & tickets ping)
   const initialLoadedKeyRef = useRef<string>('');
   useEffect(() => {
     const key = `${storeSlug}_${token}`;
@@ -1257,7 +1271,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     fetchStoreProfile();
     fetchCategories();
     fetchProducts(1, '', 'all', 'all');
-  }, [storeSlug, token, fetchStoreProfile, fetchCategories, fetchProducts]);
+    fetchTicketsPing();
+    fetchNotifications();
+  }, [storeSlug, token, fetchStoreProfile, fetchCategories, fetchProducts, fetchTicketsPing, fetchNotifications]);
 
   // 2. Debounced Search & Filter Effect for Products (Only triggers fetchProducts, never refetches profile/other tabs)
   const [debouncedProductSearch, setDebouncedProductSearch] = useState<string>(productSearch);
@@ -1306,6 +1322,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   useEffect(() => {
     if (!token) return;
     fetchTicketsPing();
+    fetchNotifications();
 
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
@@ -1362,6 +1379,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     return tickets.find(t => t.id === selectedTicketId) || null;
   }, [tickets, selectedTicketId]);
 
+  // Real-time unread notifications count combining server unread_count and local items
+  const totalNotifUnread = useMemo(() => {
+    const localUnread = notifications.filter(n => !n.read).length;
+    return Math.max(notifUnreadCount, localUnread);
+  }, [notifUnreadCount, notifications]);
+
   // Real-time unread support count combining active tickets and ping
   const totalHelpUnread = useMemo(() => {
     const listCount = tickets.filter(t => Boolean(t.has_unread || (t.unread_count && t.unread_count > 0))).length;
@@ -1405,7 +1428,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     {
       title: 'BANTUAN & LAYANAN',
       items: [
-        { key: 'notifications', label: 'Pusat Notifikasi', icon: Bell, badge: notifications.filter(n => !n.read).length > 0 ? String(notifications.filter(n => !n.read).length) : undefined, badgeColor: '#ef4444' },
+        { key: 'notifications', label: 'Pusat Notifikasi', icon: Bell, badge: totalNotifUnread > 0 ? String(totalNotifUnread) : undefined, badgeColor: '#ef4444' },
         { key: 'help', label: 'Pusat Bantuan & Tiket', icon: HelpCircle, badge: totalHelpUnread > 0 ? String(totalHelpUnread) : undefined, badgeColor: '#ef4444' },
         { key: 'policies', label: 'Legal & Kebijakan', icon: FileText },
         { key: 'share', label: 'Bagikan Katalog', icon: Share2 }
@@ -5386,6 +5409,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 ) : (
                   tickets.map(tk => {
                     const isSelected = selectedTicketId === tk.id;
+                    const hasUnread = Boolean(tk.has_unread || (tk.unread_count && tk.unread_count > 0));
+                    const isResolved = tk.status === 'resolved' || tk.status === 'closed';
+                    const isWaitingUser = tk.status === 'waiting_user';
+
                     return (
                       <div
                         key={tk.id}
@@ -5395,21 +5422,51 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           borderRadius: '0.65rem',
                           backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
                           border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                          cursor: 'pointer'
+                          borderLeft: hasUnread ? '3.5px solid #ef4444' : (isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)'),
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>#{tk.ticket_number || tk.id}</span>
-                          <span style={{
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            padding: '0.1rem 0.45rem',
-                            borderRadius: '999px',
-                            backgroundColor: tk.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                            color: tk.status === 'resolved' ? '#10b981' : '#f59e0b'
-                          }}>
-                            {tk.status === 'resolved' ? 'Selesai' : 'Dalam Proses'}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            {hasUnread && (
+                              <span
+                                style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 800,
+                                  padding: '0.1rem 0.45rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: '#ef4444',
+                                  color: '#ffffff',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}
+                              >
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
+                                {tk.unread_count && tk.unread_count > 1 ? `${tk.unread_count} Balasan Baru` : 'Balasan Baru'}
+                              </span>
+                            )}
+                            <span style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '999px',
+                              backgroundColor: isResolved
+                                ? 'rgba(16, 185, 129, 0.15)'
+                                : isWaitingUser
+                                ? 'rgba(239, 68, 68, 0.12)'
+                                : 'rgba(245, 158, 11, 0.15)',
+                              color: isResolved
+                                ? '#10b981'
+                                : isWaitingUser
+                                ? '#ef4444'
+                                : '#f59e0b'
+                            }}>
+                              {isResolved ? 'Selesai' : isWaitingUser ? 'Perlu Respon Anda' : 'Dalam Proses'}
+                            </span>
+                          </div>
                         </div>
                         <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                           {tk.subject}

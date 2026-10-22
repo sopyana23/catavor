@@ -5,6 +5,7 @@ export interface TabletMasterDetailViewProps {
   title: string;
   subtitle?: string;
   hideHeaderTitle?: boolean;
+  hideBackButton?: boolean;
   headerAction?: ReactNode;
   masterPane: ReactNode;
   detailPane: ReactNode | null;
@@ -17,6 +18,7 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
   title,
   subtitle,
   hideHeaderTitle = false,
+  hideBackButton = false,
   headerAction,
   masterPane,
   detailPane,
@@ -55,6 +57,10 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
   const showMaster = !isNarrowTablet || !selectedId;
   const showDetail = !isNarrowTablet || Boolean(selectedId);
 
+  // Back button is only relevant in single-pane mode (narrow tablet) when a detail view is active,
+  // because on wide tablet both master list and detail pane are already visible side-by-side.
+  const showBackButton = !hideBackButton && isNarrowTablet && Boolean(selectedId && onClearSelection);
+
   return (
     <div
       ref={containerRef}
@@ -68,7 +74,7 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
       }}
     >
       {/* Top Tablet Sub-Header Toolbar */}
-      {(!hideHeaderTitle || (selectedId && onClearSelection) || headerAction) && (
+      {(!hideHeaderTitle || showBackButton || headerAction) && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -79,7 +85,7 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
           flexShrink: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {selectedId && onClearSelection && (
+            {showBackButton && (
               <button
                 type="button"
                 id="btn-back-to-master"
@@ -91,11 +97,11 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.35rem',
-                  padding: isNarrowTablet ? '0.45rem 0.85rem' : '0.45rem 0.65rem',
+                  padding: '0.45rem 0.85rem',
                   minHeight: '38px',
                   borderRadius: '0.5rem',
                   border: '1px solid var(--border-light)',
-                  backgroundColor: isNarrowTablet ? 'var(--bg-deep)' : 'transparent',
+                  backgroundColor: 'var(--bg-deep)',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
                   fontWeight: 600,
@@ -103,7 +109,7 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
                 }}
               >
                 <ArrowLeft size={18} />
-                {isNarrowTablet && <span>Kembali ke Daftar</span>}
+                <span>Kembali ke Daftar</span>
               </button>
             )}
             {!hideHeaderTitle && (
