@@ -397,6 +397,9 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
     } else {
       if (violationTypeFilter !== 'all') count++;
       if (planFilter !== 'all') count++;
+      if (planStatusFilter !== 'all') count++;
+      if (productFilter !== 'all') count++;
+      if (customDomainFilter !== 'all') count++;
       if (sortFilter !== 'created_at_desc') count++;
     }
     return count;
@@ -537,7 +540,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
         <Search size={16} color={isDark ? '#9ca3af' : '#6b7280'} />
         <input
           type="text"
-          placeholder="Cari nama toko, slug, pemilik..."
+          placeholder="Cari nama merchant, slug, pemilik..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{
@@ -752,7 +755,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                 flexShrink: 0
               }}
             >
-              {productFilter === 'has_products' ? 'Ada Produk' : 'Tanpa Produk'}
+              {productFilter === 'has_products' ? 'Ada Item' : 'Tanpa Item'}
               <button
                 type="button"
                 onClick={() => { setProductFilter('all'); setPage(1); }}
@@ -830,7 +833,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                 flexShrink: 0
               }}
             >
-              Urut: {sortFilter === 'products_desc' ? 'Produk Terbanyak' : sortFilter === 'title_asc' ? 'Nama A-Z' : sortFilter === 'title_desc' ? 'Nama Z-A' : sortFilter === 'activity_desc' ? 'Terakhir Aktif' : 'Terlama'}
+              Urut: {sortFilter === 'products_desc' ? 'Item Terbanyak' : sortFilter === 'title_asc' ? 'Nama A-Z' : sortFilter === 'title_desc' ? 'Nama Z-A' : sortFilter === 'activity_desc' ? 'Terakhir Aktif' : 'Terlama'}
               <button
                 type="button"
                 onClick={() => { setSortFilter('created_at_desc'); setPage(1); }}
@@ -870,8 +873,8 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
               {debouncedSearch
                 ? `Tidak ditemukan profil cocok dengan "${debouncedSearch}".`
                 : subTab === 'active'
-                ? 'Belum ada profil toko aktif yang terdaftar.'
-                : 'Tidak ada profil toko yang ditangguhkan.'}
+                ? 'Belum ada profil merchant aktif yang terdaftar.'
+                : 'Tidak ada profil merchant yang ditangguhkan.'}
             </div>
           </div>
         ) : (
@@ -1004,7 +1007,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Produk Terdaftar:</span>
+                  <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>Item Terdaftar:</span>
                   <span style={{ color: '#10b981', fontWeight: 700 }}>
                     {item.products_count} Item
                   </span>
@@ -1084,7 +1087,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
           <div style={{ textAlign: 'center', fontSize: '0.82rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
             Hal <strong style={{ color: isDark ? '#f3f4f6' : '#111827' }}>{page}</strong> dari{' '}
             <strong style={{ color: isDark ? '#f3f4f6' : '#111827' }}>{pagination.total_pages || 1}</strong>
-            <div style={{ fontSize: '0.72rem', opacity: 0.8 }}>({pagination.total} toko)</div>
+            <div style={{ fontSize: '0.72rem', opacity: 0.8 }}>({pagination.total} merchant)</div>
           </div>
 
           <button
@@ -1228,7 +1231,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                   {(subTab === 'active'
                     ? [
                         { key: 'created_at_desc', label: 'Terbaru Terdaftar' },
-                        { key: 'products_desc', label: 'Produk Terbanyak' },
+                        { key: 'products_desc', label: 'Item Terbanyak' },
                         { key: 'activity_desc', label: 'Terakhir Aktif' },
                         { key: 'created_at_asc', label: 'Terlama Terdaftar' },
                         { key: 'title_asc', label: 'Nama (A - Z)' },
@@ -1405,14 +1408,14 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                         letterSpacing: '0.04em'
                       }}
                     >
-                      Kesehatan Toko (Dormancy)
+                      Kesehatan Merchant (Dormancy)
                     </span>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
                       {[
                         { key: 'all', label: 'Semua Tingkat' },
                         { key: 'active', label: 'Sehat & Aktif' },
-                        { key: 'warning_1', label: 'Peringatan 1 (30 Hari Inaktif)' },
-                        { key: 'warning_2', label: 'Peringatan 2 (60 Hari Inaktif)' }
+                        { key: 'warning_1', label: 'Peringatan 1 (30 Hari)' },
+                        { key: 'warning_2', label: 'Peringatan 2 (60 Hari)' }
                       ].map((opt) => {
                         const isSelected = tempDormancyLevel === opt.key;
                         return (
@@ -1460,12 +1463,12 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                         letterSpacing: '0.04em'
                       }}
                     >
-                      Ketersediaan Produk
+                      Ketersediaan Item
                     </span>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
                       {[
                         { key: 'all', label: 'Semua' },
-                        { key: 'has_products', label: 'Ada Produk (>0)' },
+                        { key: 'has_products', label: 'Ada Item (>0)' },
                         { key: 'no_products', label: 'Belum Ada (0)' }
                       ].map((opt) => {
                         const isSelected = tempProductFilter === opt.key;
@@ -1628,7 +1631,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                         letterSpacing: '0.04em'
                       }}
                     >
-                      Paket Akun Sebelum Disanksi
+                      Paket Akun Terakhir
                     </span>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
                       {[
@@ -1664,6 +1667,169 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                           >
                             <span>{opt.label}</span>
                             {isSelected && <Check size={14} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* BANNED: STATUS MASA AKTIF TERAKHIR */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Masa Aktif Akun Terakhir
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua Status' },
+                        { key: 'active', label: 'Aktif Normal' },
+                        { key: 'grace_period', label: 'Masa Tenggang' },
+                        { key: 'expired', label: 'Kedaluwarsa' }
+                      ].map((opt) => {
+                        const isSelected = tempPlanStatus === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempPlanStatus(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.78rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              border: isSelected
+                                ? '1.5px solid #ef4444'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#ef4444' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && <Check size={14} strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* BANNED: RIWAYAT ITEM KATALOG */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Riwayat Item Katalog
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua' },
+                        { key: 'has_products', label: 'Ada Item (>0)' },
+                        { key: 'no_products', label: 'Belum Ada (0)' }
+                      ].map((opt) => {
+                        const isSelected = tempProductFilter === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempProductFilter(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.5rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.76rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              border: isSelected
+                                ? '1.5px solid #ef4444'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#ef4444' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* BANNED: DOMAIN SEBELUMNYA */}
+                  <div>
+                    <span
+                      style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#9ca3af' : '#4b5563',
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}
+                    >
+                      Domain Sebelumnya
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                      {[
+                        { key: 'all', label: 'Semua' },
+                        { key: 'with_domain', label: 'Custom Domain' },
+                        { key: 'no_domain', label: 'Subdomain' }
+                      ].map((opt) => {
+                        const isSelected = tempCustomDomain === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setTempCustomDomain(opt.key)}
+                            style={{
+                              padding: '0.5rem 0.5rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.76rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              border: isSelected
+                                ? '1.5px solid #ef4444'
+                                : `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e5e7eb'}`,
+                              backgroundColor: isSelected
+                                ? (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)')
+                                : (isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb'),
+                              color: isSelected ? '#ef4444' : (isDark ? '#e5e7eb' : '#374151'),
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>{opt.label}</span>
                           </button>
                         );
                       })}
@@ -1930,7 +2096,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                           <Package size={14} color="#10b981" />
                           Metrik & Kapasitas
                         </div>
-                        <div>Total Produk: <strong style={{ color: '#10b981' }}>{storeDetail.products_count} Item</strong></div>
+                        <div>Total Item: <strong style={{ color: '#10b981' }}>{storeDetail.products_count} Item</strong></div>
                         <div>Total Kategori: <strong>{storeDetail.categories_count}</strong></div>
                         <div>Storage: <strong>{formatBytes(s.storage_used_bytes)}</strong></div>
                         <div>Terdaftar: {formatDate(s.created_at)}</div>
@@ -1940,7 +2106,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                       {storeDetail.top_products && storeDetail.top_products.length > 0 && (
                         <div>
                           <div style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.4rem' }}>
-                            Sampel Produk ({storeDetail.top_products.length})
+                            Sampel Item ({storeDetail.top_products.length})
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                             {storeDetail.top_products.map((p: any) => (
@@ -1970,7 +2136,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                 })()
               ) : (
                 <div style={{ padding: '1.5rem', textAlign: 'center', color: isDark ? '#9ca3af' : '#6b7280' }}>
-                  Gagal memuat detail toko.
+                  Gagal memuat detail merchant.
                 </div>
               )}
             </div>

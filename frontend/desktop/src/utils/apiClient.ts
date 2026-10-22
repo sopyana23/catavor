@@ -189,6 +189,12 @@ export async function request<T = any>(
 
     // Global 401 Unauthorized Interception
     if (res.status === 401) {
+      const latestToken = getStoredToken();
+      if (token && latestToken && latestToken !== token) {
+        // The token has already been refreshed or renewed in localStorage!
+        // A stale request from a previous token must NOT invalidate the current active session.
+        throw new ApiError('Sesi akun telah diperbarui.', 401, 'STALE_SESSION');
+      }
       let data: any = {};
       try { data = await res.json(); } catch {}
       notifyUnauthorized(data?.message);
@@ -513,14 +519,23 @@ export function setupGlobalAuthInterceptor() {
       const hasToken = typeof localStorage !== 'undefined' && Boolean(localStorage.getItem('catavor_token'));
 
       if (!isAuthAttempt && hasToken) {
+        const tokenAtRequest = localStorage.getItem('catavor_token');
         try {
           const clone = res.clone();
           clone.json().then(data => {
+            const currentToken = localStorage.getItem('catavor_token');
+            if (tokenAtRequest && currentToken && tokenAtRequest !== currentToken) {
+              return; // Token rotated/renewed, ignore stale 401
+            }
             const msg = data?.code === 'TOKEN_EXPIRED'
               ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
               : (data?.message || 'Sesi login tidak valid. Silakan login kembali.');
             notifyUnauthorized(msg);
           }).catch(() => {
+            const currentToken = localStorage.getItem('catavor_token');
+            if (tokenAtRequest && currentToken && tokenAtRequest !== currentToken) {
+              return;
+            }
             notifyUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
           });
         } catch {

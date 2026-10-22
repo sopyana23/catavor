@@ -10319,13 +10319,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     }
 
-    // STRICT FLOW: Only enforce re-login if the user is explicitly the default seeded system admin
+    // STRICT FLOW: Flag password change requirement if the user is the default seeded admin
     if (token && localStorage.getItem('catavor_password_changed') === 'false' && adminUser?.email === 'admin@catavor.local') {
-      localStorage.removeItem('catavor_token')
-      localStorage.removeItem('catavor_user')
-      localStorage.removeItem('catavor_password_changed')
-      setToken(null)
-      setAdminUser(null)
       setIsPasswordChanged(false)
     }
   }, [adminUser, token])
@@ -10625,7 +10620,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
   };
 
   // Reset Auth & Industry-standard session expiration handler
-  const handleUnauthorized = (msg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.', preserveRedirect = true) => {
+  const handleUnauthorized = (
+    msg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.',
+    preserveRedirect = true,
+    shouldBroadcast = true
+  ) => {
     if (preserveRedirect && typeof window !== 'undefined') {
       try {
         const currentPath = window.location.pathname + window.location.search;
@@ -10662,7 +10661,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (typeof window !== 'undefined' && window.location.pathname !== targetUrl) {
       window.history.pushState({}, '', targetUrl);
     }
-    broadcastAuthEvent({ type: 'LOGOUT' });
+    if (shouldBroadcast) {
+      broadcastAuthEvent({ type: 'LOGOUT' });
+    }
     showToast(msg, 'error');
   };
 
@@ -10867,6 +10868,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       } catch {}
     } else if (response.status === 401) {
+      const activeToken = localStorage.getItem('catavor_token');
+      if (currentToken && activeToken && activeToken !== currentToken) {
+        setToken(activeToken);
+        return response;
+      }
       try {
         const clone = response.clone();
         const data = await clone.json();
@@ -10943,6 +10949,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           }
         } else if (res.status === 401) {
+          const activeToken = localStorage.getItem('catavor_token');
+          if (currentToken && activeToken && activeToken !== currentToken) {
+            setToken(activeToken);
+            return;
+          }
           const data = await res.json().catch(() => ({}));
           const msg = data.code === 'TOKEN_EXPIRED'
             ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
@@ -10983,15 +10994,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const unsubscribe = subscribeAuthSync((event) => {
       if (event.type === 'LOGOUT') {
         if (token) {
-          handleUnauthorized('Sesi akun telah keluar dari tab lain.', false);
+          // Pass shouldBroadcast = false so this tab DOES NOT re-broadcast LOGOUT back to other tabs!
+          handleUnauthorized('Sesi akun telah keluar dari tab lain.', false, false);
         }
       } else if (event.type === 'LOGIN_SUCCESS') {
-        const storedToken = localStorage.getItem('catavor_token');
+        const storedToken = localStorage.getItem('catavor_token') || event.token;
         if (storedToken && storedToken !== token) {
-          showToast('Sesi akun telah diperbarui di tab lain. Memuat ulang sesi...', 'info');
-          setTimeout(() => {
-            window.location.reload();
-          }, 500);
+          setToken(storedToken);
+          const rawUser = localStorage.getItem('catavor_user');
+          if (rawUser) {
+            try {
+              const u = JSON.parse(rawUser);
+              setAdminUser(u);
+            } catch {}
+          }
         }
       } else if (event.type === 'STORE_CHANGED') {
         if (event.slug && event.slug !== storeSlug) {
