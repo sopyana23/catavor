@@ -6428,7 +6428,7 @@ Terima kasih.`;
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('catavor_token');
   })
-  const [adminUser, setAdminUser] = useState<{id?: number, name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[], has_custom_password?: boolean} | null>(() => {
+  const [adminUser, setAdminUser] = useState<{id?: number, name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[], has_custom_password?: boolean, is_password_changed?: boolean} | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
       const raw = localStorage.getItem('catavor_user');
@@ -6438,9 +6438,20 @@ Terima kasih.`;
     }
   })
   const [isPasswordChanged, setIsPasswordChanged] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('catavor_password_changed') === 'true';
-  })
+    if (typeof window === 'undefined') return true;
+    try {
+      const savedUser = localStorage.getItem('catavor_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (u.email === 'admin@catavor.local' && u.is_password_changed === false) {
+          return false;
+        }
+      }
+    } catch {}
+    const saved = localStorage.getItem('catavor_password_changed');
+    if (saved !== null) return saved === 'true';
+    return true;
+  });
   const [userStores, setUserStores] = useState<UserStoreSummary[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -10404,9 +10415,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     }
 
-    // STRICT FLOW: If the user visits the admin page on mount but they haven't completed changing their password,
-    // force them to log in again with the default password.
-    if (token && localStorage.getItem('catavor_password_changed') === 'false') {
+    // STRICT FLOW: Only enforce re-login if the user is explicitly the default seeded system admin
+    if (token && localStorage.getItem('catavor_password_changed') === 'false' && adminUser?.email === 'admin@catavor.local') {
       localStorage.removeItem('catavor_token')
       localStorage.removeItem('catavor_user')
       localStorage.removeItem('catavor_password_changed')
@@ -11114,6 +11124,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
             if (data.user) {
               setAdminUser(data.user);
               localStorage.setItem('catavor_user', JSON.stringify(data.user));
+              const isPassChanged = Boolean(
+                data.user?.email === 'admin@catavor.local' && data.user?.is_password_changed === false
+                  ? false
+                  : true
+              );
+              setIsPasswordChanged(isPassChanged);
+              localStorage.setItem('catavor_password_changed', isPassChanged ? 'true' : 'false');
             }
           }
         }
@@ -12932,7 +12949,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
             dormancy_status: 'suspended'
           }));
         }
-        const isPassChanged = Boolean(data.is_password_changed ?? data.user?.is_password_changed ?? true);
+        const isPassChanged = Boolean(
+          data.user?.email === 'admin@catavor.local' && (data.is_password_changed === false || data.user?.is_password_changed === false)
+            ? false
+            : true
+        );
         localStorage.setItem('catavor_password_changed', isPassChanged ? 'true' : 'false');
         
         const loginTheme = data.active_store?.store_theme || data.user?.store_theme || 'navy';
@@ -23672,7 +23693,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 </button>
               </form>
             </div>
-          ) : !isPasswordChanged ? (
+          ) : (!isPasswordChanged && adminUser?.email === 'admin@catavor.local' && adminUser?.is_password_changed === false) ? (
             /* FIRST TIME PASSWORD (MOBILE) */
             <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', marginTop: '1.5rem' }}>
               <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
