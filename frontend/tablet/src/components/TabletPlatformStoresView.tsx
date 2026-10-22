@@ -25,6 +25,7 @@ import {
   List
 } from 'lucide-react';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
+import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import { useModalBackHandler } from '../utils/navigation';
 
 export interface AdminStoreItem {
@@ -96,6 +97,45 @@ const formatCurrency = (val: number): string => {
     maximumFractionDigits: 0
   }).format(val);
 };
+
+const STORE_PLAN_OPTIONS: TabletSelectOption[] = [
+  { value: 'all', label: 'Semua Paket' },
+  { value: 'free', label: 'Paket Gratis', description: 'Fitur standar katalog merchant' },
+  { value: 'pro_starter', label: 'Pro Starter', badge: 'Starter', description: 'Paket bertumbuh' },
+  { value: 'pro_business', label: 'Pro Business', badge: 'Business', description: 'Paket kapasitas penuh & domain' },
+];
+
+const STORE_VIOLATION_OPTIONS: TabletSelectOption[] = [
+  { value: 'all', label: 'Semua Sanksi' },
+  { value: 'moderation', label: 'Moderasi Konten', description: 'Pelanggaran pedoman listing' },
+  { value: 'dormancy', label: 'Inaktif / Dormancy', description: 'Toko lama tidak aktif' },
+  { value: 'blacklisted', label: 'Blacklist Permanen', description: 'Sanksi keras pelanggaran berat' },
+  { value: 'suspended', label: 'Suspended Sementara', description: 'Penangguhan akses profil' },
+  { value: 'purged', label: 'Dihapus Sistem', description: 'Data telah dibersihkan' },
+];
+
+const STORE_PRODUCT_OPTIONS: TabletSelectOption[] = [
+  { value: 'all', label: 'Semua Item' },
+  { value: 'has_products', label: 'Ada Item (>0)', description: 'Toko sudah upload produk' },
+  { value: 'no_products', label: 'Belum Ada Item (0)', description: 'Toko belum memiliki item' },
+];
+
+const STORE_SORT_ACTIVE_OPTIONS: TabletSelectOption[] = [
+  { value: 'created_at_desc', label: 'Terbaru Terdaftar' },
+  { value: 'products_desc', label: 'Item Terbanyak' },
+  { value: 'activity_desc', label: 'Aktivitas Terakhir' },
+  { value: 'created_at_asc', label: 'Terlama Terdaftar' },
+  { value: 'title_asc', label: 'Nama (A - Z)' },
+  { value: 'title_desc', label: 'Nama (Z - A)' },
+];
+
+const STORE_SORT_BANNED_OPTIONS: TabletSelectOption[] = [
+  { value: 'created_at_desc', label: 'Terbaru Disanksi' },
+  { value: 'created_at_asc', label: 'Terlama Disanksi' },
+  { value: 'products_desc', label: 'Item Terbanyak' },
+  { value: 'title_asc', label: 'Nama (A - Z)' },
+  { value: 'title_desc', label: 'Nama (Z - A)' },
+];
 
 export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> = ({
   token,
@@ -572,251 +612,218 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
         </div>
 
         {/* Search & Filter Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-          <div
-            style={{
-              flex: 1,
-              minWidth: '220px',
-              minHeight: '44px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.65rem',
-              padding: '0 0.85rem',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-light)'
-            }}
-          >
-            <Search size={18} color="var(--text-muted)" />
-            <input
-              type="text"
-              placeholder="Cari nama merchant, slug, pemilik, WhatsApp..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          {/* Top Line: Search Bar + Filter Detail Trigger */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
               style={{
                 flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: 'var(--text-primary)',
-                fontSize: '0.88rem'
+                minHeight: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: '0 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)'
               }}
+            >
+              <Search size={18} color="var(--text-muted)" />
+              <input
+                type="text"
+                placeholder="Cari nama merchant, slug, pemilik, WhatsApp..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.88rem'
+                }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Detail Trigger Button */}
+            <button
+              type="button"
+              onClick={openFilterSheet}
+              style={{
+                minHeight: '44px',
+                padding: '0 1rem',
+                borderRadius: '0.65rem',
+                border: activeFilterCount > 0
+                  ? `1px solid ${subTab === 'active' ? '#10b981' : '#ef4444'}`
+                  : '1px solid var(--border-light)',
+                backgroundColor: activeFilterCount > 0
+                  ? (subTab === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)')
+                  : 'var(--bg-card)',
+                color: activeFilterCount > 0
+                  ? (subTab === 'active' ? '#10b981' : '#ef4444')
+                  : 'var(--text-primary)',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <SlidersHorizontal size={16} />
+              <span>Filter Detail</span>
+              {activeFilterCount > 0 && (
+                <span
+                  style={{
+                    padding: '0.15rem 0.5rem',
+                    borderRadius: '9999px',
+                    backgroundColor: subTab === 'active' ? '#10b981' : '#ef4444',
+                    color: '#ffffff',
+                    fontSize: '0.72rem',
+                    fontWeight: 800
+                  }}
+                >
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Bottom Line: Quick Filter Dropdowns Side-by-Side */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+            {subTab === 'active' ? (
+              <TabletCustomSelect
+                value={planFilter}
+                onChange={(val) => {
+                  setPlanFilter(val);
+                  setPage(1);
+                }}
+                options={STORE_PLAN_OPTIONS}
+                variant="filter"
+                highlight={planFilter !== 'all'}
+                highlightColor="#10b981"
+                highlightBg="rgba(16, 185, 129, 0.10)"
+                triggerStyle={{
+                  minHeight: '42px',
+                  width: 'auto',
+                  minWidth: '135px'
+                }}
+                menuWidth={230}
+                ariaLabel="Filter Paket Merchant"
+              />
+            ) : (
+              <TabletCustomSelect
+                value={violationTypeFilter}
+                onChange={(val) => {
+                  setViolationTypeFilter(val);
+                  setPage(1);
+                }}
+                options={STORE_VIOLATION_OPTIONS}
+                variant="filter"
+                highlight={violationTypeFilter !== 'all'}
+                highlightColor="#ef4444"
+                highlightBg="rgba(239, 68, 68, 0.10)"
+                triggerStyle={{
+                  minHeight: '42px',
+                  width: 'auto',
+                  minWidth: '145px'
+                }}
+                menuWidth={250}
+                ariaLabel="Filter Kategori Sanksi"
+              />
+            )}
+
+            <TabletCustomSelect
+              value={productFilter}
+              onChange={(val) => {
+                setProductFilter(val);
+                setPage(1);
+              }}
+              options={STORE_PRODUCT_OPTIONS}
+              variant="filter"
+              highlight={productFilter !== 'all'}
+              highlightColor={subTab === 'active' ? '#10b981' : '#ef4444'}
+              highlightBg={subTab === 'active' ? 'rgba(16, 185, 129, 0.10)' : 'rgba(239, 68, 68, 0.10)'}
+              triggerStyle={{
+                minHeight: '42px',
+                width: 'auto',
+                minWidth: '128px'
+              }}
+              menuWidth={200}
+              ariaLabel="Filter Status Item Toko"
             />
-            {searchQuery && (
+
+            <TabletCustomSelect
+              value={sortFilter}
+              onChange={(val) => {
+                setSortFilter(val);
+                setPage(1);
+              }}
+              options={subTab === 'active' ? STORE_SORT_ACTIVE_OPTIONS : STORE_SORT_BANNED_OPTIONS}
+              variant="filter"
+              highlight={sortFilter !== 'created_at_desc'}
+              highlightColor={subTab === 'active' ? '#10b981' : '#ef4444'}
+              highlightBg={subTab === 'active' ? 'rgba(16, 185, 129, 0.10)' : 'rgba(239, 68, 68, 0.10)'}
+              triggerStyle={{
+                minHeight: '42px',
+                width: 'auto',
+                minWidth: '155px'
+              }}
+              menuWidth={220}
+              ariaLabel="Urutkan Profil Toko"
+            />
+
+            {/* Reset Filter Button (Only when filters active) */}
+            {activeFilterCount > 0 && (
               <button
-                onClick={() => setSearchQuery('')}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                type="button"
+                onClick={clearAllFilters}
+                title="Atur ulang seluruh filter"
+                style={{
+                  minHeight: '42px',
+                  padding: '0 0.85rem',
+                  borderRadius: '0.65rem',
+                  border: `1px solid ${subTab === 'active' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+                  backgroundColor: subTab === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                  color: subTab === 'active' ? '#10b981' : '#ef4444',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease'
+                }}
               >
-                <X size={16} />
+                <RotateCcw size={14} />
+                <span>Reset</span>
+                <span
+                  style={{
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '999px',
+                    backgroundColor: subTab === 'active' ? '#10b981' : '#ef4444',
+                    color: '#ffffff',
+                    fontSize: '0.7rem',
+                    fontWeight: 800
+                  }}
+                >
+                  {activeFilterCount}
+                </span>
               </button>
             )}
           </div>
-
-          {/* Filter Detail Trigger Button */}
-          <button
-            type="button"
-            onClick={openFilterSheet}
-            style={{
-              minHeight: '44px',
-              padding: '0 1rem',
-              borderRadius: '0.65rem',
-              border: activeFilterCount > 0
-                ? `1.5px solid ${subTab === 'active' ? '#10b981' : '#ef4444'}`
-                : '1px solid var(--border-light)',
-              backgroundColor: activeFilterCount > 0
-                ? (subTab === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)')
-                : 'var(--bg-card)',
-              color: activeFilterCount > 0
-                ? (subTab === 'active' ? '#10b981' : '#ef4444')
-                : 'var(--text-primary)',
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <SlidersHorizontal size={16} />
-            <span>Filter Detail</span>
-            {activeFilterCount > 0 && (
-              <span
-                style={{
-                  padding: '0.15rem 0.5rem',
-                  borderRadius: '9999px',
-                  backgroundColor: subTab === 'active' ? '#10b981' : '#ef4444',
-                  color: '#ffffff',
-                  fontSize: '0.72rem',
-                  fontWeight: 800
-                }}
-              >
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-
-          {/* Quick Filter: Plan (Active) vs Sanksi (Banned) */}
-          {subTab === 'active' ? (
-            <select
-              value={planFilter}
-              onChange={(e) => {
-                setPlanFilter(e.target.value);
-                setPage(1);
-              }}
-              style={{
-                minHeight: '44px',
-                padding: '0 0.85rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'var(--bg-card)',
-                border: `1px solid ${planFilter !== 'all' ? '#10b981' : 'var(--border-light)'}`,
-                color: 'var(--text-primary)',
-                fontSize: '0.85rem',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="all">Semua Paket</option>
-              <option value="free">Gratis</option>
-              <option value="pro_starter">Pro Starter</option>
-              <option value="pro_business">Pro Business</option>
-            </select>
-          ) : (
-            <select
-              value={violationTypeFilter}
-              onChange={(e) => {
-                setViolationTypeFilter(e.target.value);
-                setPage(1);
-              }}
-              style={{
-                minHeight: '44px',
-                padding: '0 0.85rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'var(--bg-card)',
-                border: `1px solid ${violationTypeFilter !== 'all' ? '#ef4444' : 'var(--border-light)'}`,
-                color: 'var(--text-primary)',
-                fontSize: '0.85rem',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="all">Semua Sanksi</option>
-              <option value="moderation">Moderasi Konten</option>
-              <option value="dormancy">Inaktif / Dormancy</option>
-              <option value="blacklisted">Blacklist Permanen</option>
-              <option value="suspended">Suspended Sementara</option>
-              <option value="purged">Dihapus Sistem</option>
-            </select>
-          )}
-
-          {/* Quick Filter: Item Status */}
-          <select
-            value={productFilter}
-            onChange={(e) => {
-              setProductFilter(e.target.value);
-              setPage(1);
-            }}
-            style={{
-              minHeight: '44px',
-              padding: '0 0.85rem',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--bg-card)',
-              border: `1px solid ${productFilter !== 'all' ? (subTab === 'active' ? '#10b981' : '#ef4444') : 'var(--border-light)'}`,
-              color: 'var(--text-primary)',
-              fontSize: '0.85rem',
-              outline: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            <option value="all">Semua Item</option>
-            <option value="has_products">Ada Item (&gt;0)</option>
-            <option value="no_products">Belum Ada Item (0)</option>
-          </select>
-
-          {/* Sort Filter (Dynamic Active vs Banned) */}
-          <select
-            value={sortFilter}
-            onChange={(e) => {
-              setSortFilter(e.target.value);
-              setPage(1);
-            }}
-            style={{
-              minHeight: '44px',
-              padding: '0 0.85rem',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--bg-card)',
-              border: `1px solid ${sortFilter !== 'created_at_desc' ? (subTab === 'active' ? '#10b981' : '#ef4444') : 'var(--border-light)'}`,
-              color: 'var(--text-primary)',
-              fontSize: '0.85rem',
-              outline: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            {subTab === 'active' ? (
-              <>
-                <option value="created_at_desc">Terbaru Terdaftar</option>
-                <option value="products_desc">Item Terbanyak</option>
-                <option value="activity_desc">Aktivitas Terakhir</option>
-                <option value="created_at_asc">Terlama Terdaftar</option>
-                <option value="title_asc">Nama (A - Z)</option>
-                <option value="title_desc">Nama (Z - A)</option>
-              </>
-            ) : (
-              <>
-                <option value="created_at_desc">Terbaru Disanksi</option>
-                <option value="created_at_asc">Terlama Disanksi</option>
-                <option value="products_desc">Item Terbanyak</option>
-                <option value="title_asc">Nama (A - Z)</option>
-                <option value="title_desc">Nama (Z - A)</option>
-              </>
-            )}
-          </select>
-
-          {/* Reset Filter Button (Replaces duplicate Refresh button) */}
-          <button
-            type="button"
-            onClick={clearAllFilters}
-            disabled={activeFilterCount === 0}
-            title={activeFilterCount > 0 ? "Atur ulang seluruh filter" : "Tidak ada filter aktif"}
-            style={{
-              minHeight: '44px',
-              padding: '0 0.95rem',
-              borderRadius: '0.65rem',
-              border: activeFilterCount > 0
-                ? (subTab === 'active' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)')
-                : '1px solid var(--border-light)',
-              backgroundColor: activeFilterCount > 0
-                ? (subTab === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)')
-                : 'var(--bg-card)',
-              color: activeFilterCount > 0
-                ? (subTab === 'active' ? '#10b981' : '#ef4444')
-                : 'var(--text-muted)',
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              cursor: activeFilterCount > 0 ? 'pointer' : 'not-allowed',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <RotateCcw size={15} />
-            <span>Reset</span>
-            {activeFilterCount > 0 && (
-              <span
-                style={{
-                  padding: '0.12rem 0.45rem',
-                  borderRadius: '999px',
-                  backgroundColor: subTab === 'active' ? '#10b981' : '#ef4444',
-                  color: '#ffffff',
-                  fontSize: '0.7rem',
-                  fontWeight: 800
-                }}
-              >
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
         </div>
 
         {/* Active Filter Chips Row (Rule Parity with Mobile & Desktop) */}

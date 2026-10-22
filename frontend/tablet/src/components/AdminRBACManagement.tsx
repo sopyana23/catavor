@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModalBackHandler } from '../utils/navigation';
+import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import {
   Shield,
   Users,
@@ -1173,25 +1174,25 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
                   Pilih Role Wewenang
                 </label>
-                <select
+                <TabletCustomSelect
                   value={selectedRoleSlug}
-                  onChange={e => setSelectedRoleSlug(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.65rem',
-                    borderRadius: '0.65rem',
+                  onChange={(val) => setSelectedRoleSlug(val)}
+                  options={roles.map(r => ({
+                    value: r.slug,
+                    label: `${r.name} (${r.slug})`,
+                    description: r.description || `Wewenang operasional role ${r.name}`,
+                  }))}
+                  searchable={roles.length >= 5}
+                  triggerStyle={{
+                    minHeight: '44px',
                     backgroundColor: theme.inputBg,
-                    border: `1px solid ${theme.inputBorder}`,
+                    borderColor: theme.inputBorder,
                     color: theme.textPrimary,
-                    fontSize: '0.8rem'
+                    fontSize: '0.82rem'
                   }}
-                >
-                  {roles.map(r => (
-                    <option key={r.slug} value={r.slug}>
-                      {r.name} ({r.slug})
-                    </option>
-                  ))}
-                </select>
+                  menuWidth={320}
+                  ariaLabel="Pilih Role Wewenang Staf"
+                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '0.65rem', marginTop: '0.65rem' }}>

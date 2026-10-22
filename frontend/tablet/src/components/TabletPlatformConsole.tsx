@@ -59,6 +59,7 @@ import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import { type UserRBACInfo, getRoleBadge, isSuperAdmin, hasPermission } from '../utils/rbac';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
@@ -70,6 +71,36 @@ export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
   rekber_template_plant: "Halo *{store_title}*, saya berminat membeli tanaman berikut:\n\n*Tanaman:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin menggunakan layanan *Rekber Syariah ({rekber_website_domain})*.\n\nMohon diproses via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih.",
   rekber_template_fauna: "Halo *{store_title}*, saya berminat mengadopsi satwa legal berikut:\n\n*Satwa:* {item_name}\n*Mahar/Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman via *Rekber Syariah ({rekber_website_domain})*.\n\nMohon bantuannya via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih."
 };
+
+const TICKET_STATUS_OPTIONS: TabletSelectOption[] = [
+  { value: 'open', label: 'Open', badge: 'Baru', badgeBg: 'rgba(59, 130, 246, 0.15)', badgeColor: '#3b82f6', description: 'Tiket baru menunggu respon' },
+  { value: 'in_progress', label: 'In Progress', badge: 'Proses', badgeBg: 'rgba(245, 158, 11, 0.15)', badgeColor: '#f59e0b', description: 'Sedang ditangani staf pengelola' },
+  { value: 'waiting_user', label: 'Waiting User', badge: 'Menunggu', badgeBg: 'rgba(139, 92, 246, 0.15)', badgeColor: '#8b5cf6', description: 'Menunggu tanggapan dari merchant' },
+  { value: 'resolved', label: 'Resolved', badge: 'Selesai', badgeBg: 'rgba(16, 185, 129, 0.15)', badgeColor: '#10b981', description: 'Kendala berhasil diselesaikan' },
+  { value: 'closed', label: 'Closed', badge: 'Tutup', badgeBg: 'rgba(100, 116, 139, 0.15)', badgeColor: '#64748b', description: 'Tiket telah ditutup permanen' },
+];
+
+const TICKET_PRIORITY_OPTIONS: TabletSelectOption[] = [
+  { value: 'urgent', label: 'Urgent', badge: 'Mendesak', badgeBg: 'rgba(239, 68, 68, 0.15)', badgeColor: '#ef4444', description: 'Kendala fatal / sistematis' },
+  { value: 'high', label: 'High', badge: 'Tinggi', badgeBg: 'rgba(249, 115, 22, 0.15)', badgeColor: '#f97316', description: 'Prioritas penanganan tinggi' },
+  { value: 'medium', label: 'Medium', badge: 'Sedang', badgeBg: 'rgba(245, 158, 11, 0.15)', badgeColor: '#f59e0b', description: 'Kendala operasional umum' },
+  { value: 'low', label: 'Low', badge: 'Rendah', badgeBg: 'rgba(16, 185, 129, 0.15)', badgeColor: '#10b981', description: 'Pertanyaan atau konsultasi' },
+];
+
+const BROADCAST_CATEGORY_OPTIONS: TabletSelectOption[] = [
+  { value: 'PENGUMUMAN', label: 'Pengumuman Resmi', description: 'Informasi umum platform untuk seluruh merchant' },
+  { value: 'PEMELIHARAAN', label: 'Jadwal Maintenance', description: 'Pemberitahuan pemeliharaan sistem berkala' },
+  { value: 'PROMO', label: 'Promosi & Diskon', description: 'Program penawaran atau promo fitur baru' },
+  { value: 'URGENT', label: 'Peringatan Kepatuhan', description: 'Pemberitahuan kritis tata tertib platform' },
+];
+
+const BROADCAST_TARGET_OPTIONS: TabletSelectOption[] = [
+  { value: 'all', label: 'Semua Toko Merchant', description: 'Terkirim ke seluruh merchant terdaftar' },
+  { value: 'pro', label: 'Hanya Toko Paket Pro', description: 'Eksklusif merchant Pro Starter & Pro Business' },
+  { value: 'free', label: 'Hanya Toko Paket Free', description: 'Merchant paket gratis/dasar' },
+  { value: 'active', label: 'Hanya Toko Aktif', description: 'Toko dengan aktivitas katalog aktif' },
+  { value: 'dormant', label: 'Toko Indikasi Dormansi', description: 'Toko yang lama tidak aktif atau belum ada item' },
+];
 
 export interface TabletPlatformConsoleProps {
   token: string;
@@ -2230,40 +2261,36 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
                       {/* Enforcement Action Selector */}
                       <div>
-                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.35rem 0' }}>
                           Tindakan Penegakan Sistem (Real-Time Enforcement)
                         </h4>
-                        <select
+                        <TabletCustomSelect
                           value={moderationAction}
-                          onChange={e => setModerationAction(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-card)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.85rem',
-                            fontWeight: 700
+                          onChange={(val) => setModerationAction(val)}
+                          options={
+                            selectedReport.target_type === 'item'
+                              ? [
+                                  { value: 'none', label: 'Tanpa Sanksi Otomatis', description: 'Hanya catatan investigasi forensik' },
+                                  { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi ke Merchant', description: 'Kirim notifikasi peringatan resmi' },
+                                  { value: 'item_needs_fix', label: 'Nonaktifkan Item: Beri Kesempatan Edit & Perbaiki', description: 'Beri waktu 24 jam untuk diperbaiki' },
+                                  { value: 'item_locked', label: 'Nonaktifkan & Kunci Item: Pelanggaran Keras', description: 'Item dikunci staf pengelola' },
+                                  { value: 'item_banned', label: 'Blokir & Hapus Item (Banned Permanen)', description: 'Satwa terlarang / barang ilegal' },
+                                  { value: 'item_restored', label: 'Pulihkan & Aktifkan Kembali Item', description: 'Item lolos audit kepatuhan' },
+                                ]
+                              : [
+                                  { value: 'none', label: 'Tanpa Sanksi Otomatis', description: 'Hanya catatan investigasi forensik' },
+                                  { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi ke Merchant', description: 'Kirim teguran resmi pengelola' },
+                                  { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog Toko', description: 'Toko dinonaktifkan sementara' },
+                                  { value: 'catalog_banned', label: 'Blokir / Banned Permanen Toko & Akun', description: 'Blacklist toko & akun pemilik' },
+                                  { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Kembali Profil Toko', description: 'Aktivasi ulang katalog toko' },
+                                ]
+                          }
+                          ariaLabel="Tindakan Penegakan Moderasi"
+                          triggerStyle={{
+                            minHeight: '44px',
+                            backgroundColor: 'var(--bg-card)'
                           }}
-                        >
-                          <option value="none">Tanpa Sanksi Otomatis (Hanya Catatan Investigasi)</option>
-                          <option value="warning_issued">Terbitkan Peringatan Resmi ke Merchant</option>
-                          {selectedReport.target_type === 'item' ? (
-                            <>
-                              <option value="item_needs_fix">Nonaktifkan Item: Beri Kesempatan Edit & Perbaiki</option>
-                              <option value="item_locked">Nonaktifkan & Kunci Item: Pelanggaran Keras</option>
-                              <option value="item_banned">Blokir & Hapus Item (Banned Permanen)</option>
-                              <option value="item_restored">Pulihkan & Aktifkan Kembali Item</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="catalog_suspended">Bekukan / Suspend Profil Katalog Toko</option>
-                              <option value="catalog_banned">Blokir / Banned Permanen Toko & Akun</option>
-                              <option value="catalog_reactivated">Pulihkan / Aktifkan Kembali Profil Toko</option>
-                            </>
-                          )}
-                        </select>
+                        />
                       </div>
 
                       {/* Forensic Notes */}
@@ -2529,47 +2556,39 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           {ticketDetail.subject}
                         </h3>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                         {/* Status selector */}
-                        <select
+                        <TabletCustomSelect
                           value={ticketDetail.status || 'open'}
-                          onChange={e => handleUpdateTicketStatus(e.target.value)}
-                          style={{
-                            padding: '0.4rem 0.75rem',
-                            borderRadius: '0.5rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-card)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.78rem',
-                            fontWeight: 700
+                          onChange={(val) => handleUpdateTicketStatus(val)}
+                          options={TICKET_STATUS_OPTIONS}
+                          variant="compact"
+                          triggerStyle={{
+                            minHeight: '40px',
+                            minWidth: '135px',
+                            fontSize: '0.8rem',
+                            padding: '0.35rem 0.65rem'
                           }}
-                        >
-                          <option value="open">Open</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="waiting_user">Waiting User</option>
-                          <option value="resolved">Resolved</option>
-                          <option value="closed">Closed</option>
-                        </select>
+                          menuWidth={240}
+                          ariaLabel="Perbarui Status Tiket"
+                        />
 
                         {/* Priority selector */}
-                        <select
+                        <TabletCustomSelect
                           value={ticketDetail.priority || 'medium'}
-                          onChange={e => handleUpdateTicketPriority(ticketDetail.id, e.target.value)}
-                          style={{
-                            padding: '0.4rem 0.75rem',
-                            borderRadius: '0.5rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-card)',
-                            color: ticketDetail.priority === 'urgent' ? '#ef4444' : 'var(--text-primary)',
-                            fontSize: '0.78rem',
-                            fontWeight: 700
+                          onChange={(val) => handleUpdateTicketPriority(ticketDetail.id, val)}
+                          options={TICKET_PRIORITY_OPTIONS}
+                          variant="compact"
+                          triggerStyle={{
+                            minHeight: '40px',
+                            minWidth: '125px',
+                            fontSize: '0.8rem',
+                            padding: '0.35rem 0.65rem',
+                            color: ticketDetail.priority === 'urgent' ? '#ef4444' : undefined
                           }}
-                        >
-                          <option value="urgent">Urgent</option>
-                          <option value="high">High</option>
-                          <option value="medium">Medium</option>
-                          <option value="low">Low</option>
-                        </select>
+                          menuWidth={230}
+                          ariaLabel="Perbarui Prioritas Tiket"
+                        />
                       </div>
                     </div>
 
@@ -3283,49 +3302,34 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
                             Kategori Siaran
                           </label>
-                          <select
+                          <TabletCustomSelect
                             value={broadcastForm.category}
-                            onChange={e => setBroadcastForm(prev => ({ ...prev, category: e.target.value }))}
-                            style={{
-                              width: '100%',
-                              padding: '0.65rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.85rem'
+                            onChange={(val) => setBroadcastForm(prev => ({ ...prev, category: val }))}
+                            options={BROADCAST_CATEGORY_OPTIONS}
+                            triggerStyle={{
+                              minHeight: '44px',
+                              backgroundColor: 'var(--bg-deep)'
                             }}
-                          >
-                            <option value="PENGUMUMAN">Pengumuman Resmi</option>
-                            <option value="PEMELIHARAAN">Jadwal Maintenance</option>
-                            <option value="PROMO">Promosi & Diskon</option>
-                            <option value="URGENT">Peringatan Kepatuhan</option>
-                          </select>
+                            menuWidth={280}
+                            ariaLabel="Pilih Kategori Siaran"
+                          />
                         </div>
 
                         <div>
                           <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
                             Target Sasaran Penerima
                           </label>
-                          <select
+                          <TabletCustomSelect
                             value={broadcastForm.target_type}
-                            onChange={e => setBroadcastForm(prev => ({ ...prev, target_type: e.target.value }))}
-                            style={{
-                              width: '100%',
-                              padding: '0.65rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.85rem'
+                            onChange={(val) => setBroadcastForm(prev => ({ ...prev, target_type: val }))}
+                            options={BROADCAST_TARGET_OPTIONS}
+                            triggerStyle={{
+                              minHeight: '44px',
+                              backgroundColor: 'var(--bg-deep)'
                             }}
-                          >
-                            <option value="all">Semua Toko Merchant</option>
-                            <option value="pro">Hanya Toko Paket Pro</option>
-                            <option value="free">Hanya Toko Paket Free</option>
-                            <option value="active">Hanya Toko Aktif</option>
-                            <option value="dormant">Toko Indikasi Dormansi</option>
-                          </select>
+                            menuWidth={280}
+                            ariaLabel="Pilih Target Sasaran Penerima"
+                          />
                         </div>
                       </div>
 

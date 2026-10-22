@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useModalBackHandler } from '../utils/navigation';
+import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import {
   Globe,
   Plus,
@@ -53,6 +54,17 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
   Mitra: { bg: 'rgba(99, 102, 241, 0.12)', text: '#6366f1', border: 'rgba(99, 102, 241, 0.3)' },
   Umum: { bg: 'rgba(100, 116, 139, 0.12)', text: '#94a3b8', border: 'rgba(100, 116, 139, 0.3)' }
 };
+
+const SAFE_DOMAIN_CATEGORY_OPTIONS: TabletSelectOption[] = [
+  { value: 'Google', label: 'Google Ecosystem', description: 'Workspace, Analytics, Maps, Search Console' },
+  { value: 'Komunikasi', label: 'Komunikasi & Chat', description: 'WhatsApp, Telegram, messaging API' },
+  { value: 'Media Sosial', label: 'Media Sosial', description: 'Instagram, TikTok, Facebook, YouTube' },
+  { value: 'Platform', label: 'Platform Catavor', description: 'Domain resmi & CDN ekosistem Catavor' },
+  { value: 'Produktivitas', label: 'Produktivitas & Dev', description: 'GitHub, Notion, Figma, Slack, tools' },
+  { value: 'Finansial', label: 'Finansial & Bank', description: 'Bank transfer & payment gateway resmi' },
+  { value: 'Mitra', label: 'Mitra Resmi', description: 'Partner resmi & afiliasi terverifikasi' },
+  { value: 'Umum', label: 'Umum / Lainnya', description: 'Kategori utilitas umum' },
+];
 
 export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProps> = ({
   token,
@@ -965,7 +977,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                   }}
                 />
                 <span style={{ fontSize: '0.66rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>
-                  💡 Protokol (https://) dan tanda garis miring (/) akan dibersihkan otomatis.
+                  Protokol (https://) dan tanda garis miring (/) akan dibersihkan otomatis.
                 </span>
               </div>
 
@@ -973,30 +985,20 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                 <label style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textSecondary, display: 'block', marginBottom: '0.3rem' }}>
                   Kategori Domain
                 </label>
-                <select
+                <TabletCustomSelect
                   value={formData.category}
-                  onChange={e => setFormData({ ...formData, category: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem 0.8rem',
-                    borderRadius: '0.65rem',
+                  onChange={(val) => setFormData({ ...formData, category: val })}
+                  options={SAFE_DOMAIN_CATEGORY_OPTIONS}
+                  triggerStyle={{
+                    minHeight: '44px',
                     backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
+                    borderColor: theme.border,
                     color: theme.textPrimary,
-                    fontSize: '0.82rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
+                    fontSize: '0.82rem'
                   }}
-                >
-                  <option value="Google">Google Ecosystem</option>
-                  <option value="Komunikasi">Komunikasi &amp; Chat</option>
-                  <option value="Media Sosial">Media Sosial</option>
-                  <option value="Platform">Platform Catavor</option>
-                  <option value="Produktivitas">Produktivitas &amp; Dev</option>
-                  <option value="Finansial">Finansial &amp; Bank</option>
-                  <option value="Mitra">Mitra Resmi</option>
-                  <option value="Umum">Umum / Lainnya</option>
-                </select>
+                  menuWidth={300}
+                  ariaLabel="Pilih Kategori Domain Aman"
+                />
               </div>
 
               <div>
