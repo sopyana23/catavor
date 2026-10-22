@@ -12,6 +12,7 @@ import { TabletStoreCatalog } from './components/TabletStoreCatalog';
 import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
 import { type UserRBACInfo, isPlatformAdmin } from './utils/rbac';
+import { isTokenExpired } from './utils/auth';
 
 export const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('catavor_token') || localStorage.getItem('token') || '');
@@ -63,6 +64,11 @@ export const App: React.FC = () => {
     if (!token) return;
     let isMounted = true;
     const verifySession = async () => {
+      if (!token) return;
+      if (isTokenExpired(token)) {
+        handleUnauthorized();
+        return;
+      }
       try {
         const res = await fetch('/api/auth/verify', {
           headers: {
@@ -931,6 +937,7 @@ export const App: React.FC = () => {
         currentUser={currentUser}
         storeSlug={activeSlug || merchantSlug || 'my-store'}
         onLogout={() => handleLogout('/login')}
+        onUnauthorized={(msg) => handleUnauthorized(msg, '/login')}
         onViewPublicCatalog={() => navigateTo(activeSlug ? `/${activeSlug}` : '/')}
         onThemeChange={handleThemeChange}
       />

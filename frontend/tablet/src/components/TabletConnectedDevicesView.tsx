@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShieldCheck,
   Laptop,
@@ -14,6 +14,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useModalBackHandler } from '../utils/navigation';
+import { createAuthFetch } from '../utils/auth';
 
 export interface UserSessionItem {
   id: number;
@@ -32,13 +33,32 @@ export interface TabletConnectedDevicesViewProps {
   token: string;
   showToast: (msg: string, type?: 'success' | 'error') => void;
   onLogoutCurrent?: () => void;
+  onLogout?: () => void;
+  onUnauthorized?: (msg?: string) => void;
 }
 
 export const TabletConnectedDevicesView: React.FC<TabletConnectedDevicesViewProps> = ({
   token,
   showToast,
-  onLogoutCurrent
+  onLogoutCurrent,
+  onLogout,
+  onUnauthorized
 }) => {
+  // Centralized authenticated fetch with automatic 401/403 session eviction
+  const fetch = useMemo(() => {
+    return createAuthFetch({
+      getToken: () => token,
+      onUnauthorized: (msg) => {
+        if (onUnauthorized) {
+          onUnauthorized(msg);
+        } else if (onLogoutCurrent) {
+          onLogoutCurrent();
+        } else if (onLogout) {
+          onLogout();
+        }
+      }
+    });
+  }, [token, onUnauthorized, onLogoutCurrent, onLogout]);
   const [sessions, setSessions] = useState<UserSessionItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [revokingId, setRevokingId] = useState<number | null>(null);

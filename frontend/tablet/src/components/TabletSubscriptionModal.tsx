@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X,
   Sparkles,
@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Receipt
 } from 'lucide-react';
+import { createAuthFetch } from '../utils/auth';
 
 export interface SubscriptionPlanData {
   id: number;
@@ -66,6 +67,8 @@ export interface TabletSubscriptionModalProps {
   currentQuota?: StoreQuotaData | null;
   onSuccessUpgrade?: () => void;
   showToast: (msg: string, type?: 'success' | 'error') => void;
+  onLogout?: () => void;
+  onUnauthorized?: (msg?: string) => void;
 }
 
 export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = ({
@@ -75,8 +78,23 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   storeSlug,
   currentQuota,
   onSuccessUpgrade,
-  showToast
+  showToast,
+  onLogout,
+  onUnauthorized
 }) => {
+  // Centralized authenticated fetch with automatic 401/403 session eviction
+  const fetch = useMemo(() => {
+    return createAuthFetch({
+      getToken: () => token,
+      onUnauthorized: (msg) => {
+        if (onUnauthorized) {
+          onUnauthorized(msg);
+        } else if (onLogout) {
+          onLogout();
+        }
+      }
+    });
+  }, [token, onUnauthorized, onLogout]);
   const [plans, setPlans] = useState<SubscriptionPlanData[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');

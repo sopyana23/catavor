@@ -10797,6 +10797,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setActiveTab('admin');
     setAdminSubTab('menu');
     setLoginForm({ email: '', password: '' });
+    setLoginError(msg);
+    const targetUrl = storeSlug && !isReservedStoreSlug(storeSlug) ? `/${storeSlug}/admin` : '/login';
+    if (typeof window !== 'undefined' && window.location.pathname !== targetUrl) {
+      window.history.pushState({}, '', targetUrl);
+    }
     broadcastAuthEvent({ type: 'LOGOUT' });
     showToast(msg, 'error');
   };

@@ -74,6 +74,7 @@ import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { useModalBackHandler } from '../utils/navigation';
+import { createAuthFetch, isTokenExpired } from '../utils/auth';
 
 export interface CatalogTypeOption {
   id: string;
@@ -193,6 +194,7 @@ export interface TabletMerchantAdminProps {
   currentUser: any;
   storeSlug: string;
   onLogout: () => void;
+  onUnauthorized?: (msg?: string) => void;
   onViewPublicCatalog: () => void;
   onThemeChange?: (newTheme: string) => void;
 }
@@ -202,9 +204,46 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   currentUser,
   storeSlug,
   onLogout,
+  onUnauthorized,
   onViewPublicCatalog,
   onThemeChange
 }) => {
+  // Centralized authenticated fetch with automatic 401/403 session eviction (matching admin pengelola standard)
+  const fetch = useMemo(() => {
+    return createAuthFetch({
+      getToken: () => token,
+      onUnauthorized: (msg) => {
+        if (onUnauthorized) {
+          onUnauthorized(msg);
+        } else {
+          onLogout();
+        }
+      }
+    });
+  }, [token, onUnauthorized, onLogout]);
+
+  // Proactive token expiration verification on mount and on idle focus/heartbeat
+  useEffect(() => {
+    const checkToken = () => {
+      const curToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('catavor_token') : null);
+      if (!curToken || isTokenExpired(curToken)) {
+        if (onUnauthorized) {
+          onUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+        } else {
+          onLogout();
+        }
+      }
+    };
+
+    checkToken();
+
+    window.addEventListener('focus', checkToken);
+    const interval = setInterval(checkToken, 30000);
+    return () => {
+      window.removeEventListener('focus', checkToken);
+      clearInterval(interval);
+    };
+  }, [token, onUnauthorized, onLogout]);
   const onThemeChangeRef = useRef(onThemeChange);
   useEffect(() => {
     onThemeChangeRef.current = onThemeChange;
@@ -4197,6 +4236,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             token={token}
             storeSlug={storeSlug}
             showToast={showToast}
+            onLogout={onLogout}
+            onUnauthorized={onUnauthorized}
           />
         )}
 
@@ -4503,6 +4544,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 fetchSubscriptionOrders();
               }}
               showToast={showToast}
+              onLogout={onLogout}
+              onUnauthorized={onUnauthorized}
             />
           </div>
         )}
@@ -5472,6 +5515,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               token={token}
               showToast={showToast}
               onLogoutCurrent={onLogout}
+              onLogout={onLogout}
+              onUnauthorized={onUnauthorized}
             />
           </div>
         )}
@@ -5484,6 +5529,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             token={token}
             storeSlug={storeSlug}
             showToast={showToast}
+            onLogout={onLogout}
+            onUnauthorized={onUnauthorized}
           />
         )}
 
