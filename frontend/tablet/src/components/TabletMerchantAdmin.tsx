@@ -205,6 +205,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   onViewPublicCatalog,
   onThemeChange
 }) => {
+  const onThemeChangeRef = useRef(onThemeChange);
+  useEffect(() => {
+    onThemeChangeRef.current = onThemeChange;
+  }, [onThemeChange]);
+  const appliedThemeRef = useRef<string>('');
+
   const [activeTab, setActiveTab] = useState<TabletMerchantTab>('items');
   const [isNavExpanded, setIsNavExpanded] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
@@ -327,14 +333,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           show_hours: data.show_hours !== undefined ? data.show_hours : true,
           is_paused: Boolean(data.is_suspended || data.is_dormant)
         });
-        if (onThemeChange) {
-          onThemeChange(newTheme);
+        if (newTheme && newTheme !== appliedThemeRef.current) {
+          appliedThemeRef.current = newTheme;
+          if (onThemeChangeRef.current) {
+            onThemeChangeRef.current(newTheme);
+          }
         }
       }
     } catch {
       // safe fallback
     }
-  }, [storeSlug, onThemeChange]);
+  }, [storeSlug]);
 
   const handleSaveSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -423,6 +432,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // 2. PRODUCT MANAGEMENT STATE (Server-Side Filtered & Paginated)
   // =========================================================================
   const [categories, setCategories] = useState<any[]>([]);
+  const categoriesRef = useRef(categories);
+  useEffect(() => {
+    categoriesRef.current = categories;
+  }, [categories]);
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<number | 'new' | null>(() => {
     if (typeof window !== 'undefined') {
@@ -487,7 +500,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     price: 0,
     stock: 1,
     category_id: '',
-    product_type: 'physical',
+    product_type: '',
     scientific_name: '',
     unit: 'Pcs',
     description: '',
@@ -512,8 +525,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const targetType = presetType || params?.get('type') || params?.get('catalog_type') || '';
     const isValidType = CATALOG_TYPE_OPTIONS.some(t => t.id === targetType);
-    const chosenType = isValidType ? targetType : 'physical';
-    const typeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === chosenType);
+    const chosenType = isValidType ? targetType : '';
+    const typeDef = chosenType ? CATALOG_TYPE_OPTIONS.find(t => t.id === chosenType) : undefined;
 
     const defaultAttrs: Record<string, any> = {};
     if (chosenType === 'physical') defaultAttrs.condition = 'Baru';
@@ -553,7 +566,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       name: '',
       price: 0,
       stock: 1,
-      category_id: categories.length > 0 ? String(categories[0].id) : '',
+      category_id: categoriesRef.current.length > 0 ? String(categoriesRef.current[0].id) : '',
       product_type: chosenType,
       scientific_name: '',
       unit: typeDef?.defaultUnit || 'Pcs',
@@ -570,9 +583,42 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     });
 
     setIsSelectingProductType(!isValidType);
-  }, [categories]);
+  }, []);
 
-  const fetchProducts = useCallback(async (page: number, search: string = '', status = productStatusFilter, catId = productCategoryFilter) => {
+  const handleCancelToProductTypeSelection = useCallback(() => {
+    setSelectedProductId('new');
+    setIsSelectingProductType(true);
+    setProductForm({
+      id: 0,
+      name: '',
+      price: 0,
+      stock: 1,
+      category_id: categoriesRef.current.length > 0 ? String(categoriesRef.current[0].id) : '',
+      product_type: '',
+      scientific_name: '',
+      unit: 'Pcs',
+      description: '',
+      image_url: '',
+      video_url: '',
+      is_active: true,
+      is_shipping_available: true,
+      min_order: 1,
+      max_order: '',
+      gallery_images: [],
+      variants: [],
+      attributes: {}
+    });
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'items');
+      url.searchParams.set('action', 'new');
+      url.searchParams.delete('type');
+      url.searchParams.delete('catalog_type');
+      window.history.pushState({}, '', url.toString());
+    } catch {}
+  }, []);
+
+  const fetchProducts = useCallback(async (page: number, search: string = '', status: string = 'all', catId: string = 'all') => {
     setLoading(true);
     try {
       const query = new URLSearchParams({
@@ -604,10 +650,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const isUrlActionNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('action') === 'new';
         if (isUrlActionNew) {
           handleStartNewProduct();
-        } else if (selectedProductId === null && !isNarrowScreen) {
-          // USER REQUIREMENT: In wide tablet (split master-detail), default right pane to "Tambah Produk Baru" (Step 1: Pilih Tipe)
-          // instead of auto-selecting the first existing product.
-          handleStartNewProduct();
+        } else if (!isNarrowScreen) {
+          setSelectedProductId(prev => {
+            if (prev === null) {
+              handleStartNewProduct();
+              return 'new';
+            }
+            return prev;
+          });
         }
       }
     } catch {
@@ -615,7 +665,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [token, storeSlug, selectedProductId, productStatusFilter, productCategoryFilter, isNarrowScreen, handleStartNewProduct]);
+  }, [token, storeSlug, isNarrowScreen, handleStartNewProduct]);
 
   const handleSelectProduct = (prod: any) => {
     setSelectedProductId(prod.id);
@@ -725,6 +775,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       showToast('Nama produk wajib diisi', 'error');
       return;
     }
+    if (!productForm.product_type) {
+      showToast('Silakan pilih tipe item katalog terlebih dahulu', 'error');
+      setIsSelectingProductType(true);
+      return;
+    }
     setSaving(true);
     try {
       const isNew = selectedProductId === 'new';
@@ -769,7 +824,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (res.ok) {
         const json = await res.json();
         showToast(isNew ? 'Produk berhasil ditambahkan!' : 'Perubahan produk berhasil disimpan!');
-        await fetchProducts(productPage, productSearch);
+        await fetchProducts(productPage, productSearch, productStatusFilter, productCategoryFilter);
         if (isNarrowScreen) {
           setSelectedProductId(null);
           setIsSelectingProductType(false);
@@ -808,7 +863,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (res.ok) {
         showToast('Produk berhasil dihapus');
         setSelectedProductId(null);
-        await fetchProducts(1, productSearch);
+        await fetchProducts(1, productSearch, productStatusFilter, productCategoryFilter);
       } else {
         showToast('Gagal menghapus produk', 'error');
       }
@@ -875,15 +930,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const json = await res.json();
         const list = json.data || json.categories || [];
         setCategories(list);
-        if (list.length > 0 && selectedCategoryId === null && !isNarrowScreen) {
-          setSelectedCategoryId(list[0].id);
-          setCategoryForm({ id: list[0].id, name: list[0].name });
+        if (list.length > 0 && !isNarrowScreen) {
+          setSelectedCategoryId(prev => {
+            if (prev === null) {
+              setCategoryForm({ id: list[0].id, name: list[0].name });
+              return list[0].id;
+            }
+            return prev;
+          });
         }
       }
     } catch {
       // safe fallback
     }
-  }, [storeSlug, selectedCategoryId, getHeaders, isNarrowScreen]);
+  }, [storeSlug, getHeaders, isNarrowScreen]);
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1034,14 +1094,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const json = await res.json();
         const list = json.data || json.tickets || [];
         setTickets(list);
-        if (list.length > 0 && selectedTicketId === null && !isNarrowScreen) {
-          setSelectedTicketId(list[0].id);
+        if (list.length > 0 && !isNarrowScreen) {
+          setSelectedTicketId(prev => (prev === null ? list[0].id : prev));
         }
       }
     } catch {
       // safe fallback
     }
-  }, [token, storeSlug, selectedTicketId, isNarrowScreen]);
+  }, [token, storeSlug, isNarrowScreen]);
 
   const fetchTicketDetails = useCallback(async (ticketId: number) => {
     if (!token || !ticketId) return;
@@ -1061,6 +1121,31 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     finally {
       setLoadingTicketDetail(false);
     }
+  }, [token, storeSlug]);
+
+  const [supportUnreadCount, setSupportUnreadCount] = useState<number>(0);
+
+  const fetchTicketsPing = useCallback(async () => {
+    if (!token) return;
+    try {
+      const queryParams = new URLSearchParams();
+      if (storeSlug) {
+        queryParams.set('store_slug', storeSlug);
+      }
+      const res = await fetch(`/api/support/tickets-ping?${queryParams.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {}),
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.success && typeof d.unread_count === 'number') {
+          setSupportUnreadCount(d.unread_count);
+        }
+      }
+    } catch {}
   }, [token, storeSlug]);
 
   const handleCreateTicket = async (e: React.FormEvent) => {
@@ -1162,30 +1247,126 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
-  // Initial Data Fetching
+  // 1. Initial Core Data Fetching (Run ONCE per store/token mount - Only essential store profile, categories, and products)
+  const initialLoadedKeyRef = useRef<string>('');
   useEffect(() => {
+    const key = `${storeSlug}_${token}`;
+    if (!storeSlug || initialLoadedKeyRef.current === key) return;
+    initialLoadedKeyRef.current = key;
+
     fetchStoreProfile();
     fetchCategories();
-    fetchProducts(1, productSearch, productStatusFilter, productCategoryFilter);
-    fetchNotifications();
-    fetchTickets();
-    fetchQuota();
-    fetchSubscriptionOrders();
-  }, [fetchStoreProfile, fetchCategories, fetchProducts, fetchNotifications, fetchTickets, fetchQuota, fetchSubscriptionOrders, productSearch, productStatusFilter, productCategoryFilter]);
+    fetchProducts(1, '', 'all', 'all');
+  }, [storeSlug, token, fetchStoreProfile, fetchCategories, fetchProducts]);
 
+  // 2. Debounced Search & Filter Effect for Products (Only triggers fetchProducts, never refetches profile/other tabs)
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState<string>(productSearch);
   useEffect(() => {
-    if (selectedTicketId && selectedTicketId !== 'new') {
+    const timer = setTimeout(() => {
+      setDebouncedProductSearch(productSearch);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [productSearch]);
+
+  const isInitialFilterMountRef = useRef<boolean>(true);
+  useEffect(() => {
+    if (isInitialFilterMountRef.current) {
+      isInitialFilterMountRef.current = false;
+      return;
+    }
+    fetchProducts(1, debouncedProductSearch, productStatusFilter, productCategoryFilter);
+  }, [debouncedProductSearch, productStatusFilter, productCategoryFilter, fetchProducts]);
+
+  // 3. Lazy Tab Loading (Only fetch on-demand when switching to the relevant tab)
+  const loadedTabsRef = useRef<Set<string>>(new Set(['items']));
+  useEffect(() => {
+    if (!loadedTabsRef.current.has(activeTab)) {
+      loadedTabsRef.current.add(activeTab);
+      if (activeTab === 'notifications') {
+        fetchNotifications();
+      } else if (activeTab === 'help') {
+        fetchTickets();
+      } else if (activeTab === 'subscription') {
+        fetchQuota();
+        fetchSubscriptionOrders();
+      }
+    }
+  }, [activeTab, fetchNotifications, fetchTickets, fetchQuota, fetchSubscriptionOrders]);
+
+  // 4. Ticket Details Fetching (Only when help tab is active and a ticket is selected)
+  useEffect(() => {
+    if (activeTab === 'help' && selectedTicketId && selectedTicketId !== 'new') {
       fetchTicketDetails(Number(selectedTicketId));
-    } else {
+    } else if (activeTab === 'help' && !selectedTicketId) {
       setTicketDetails(null);
     }
-  }, [selectedTicketId, fetchTicketDetails]);
+  }, [activeTab, selectedTicketId, fetchTicketDetails]);
+
+  // 5. Periodic Background Ping (Tickets Ping & Notifications Badge Sync every 60s with visibility guard)
+  useEffect(() => {
+    if (!token) return;
+    fetchTicketsPing();
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      fetchTicketsPing();
+      fetchNotifications();
+    }, 60000);
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchTicketsPing();
+        fetchNotifications();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [token, fetchTicketsPing, fetchNotifications]);
+
+  // 6. Active Support Chat Polling (every 45s while help tab is active)
+  useEffect(() => {
+    if (!token || activeTab !== 'help') return;
+
+    const intervalMs = 45000;
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (selectedTicketId && selectedTicketId !== 'new') {
+        fetchTicketDetails(Number(selectedTicketId));
+      }
+      fetchTickets();
+    }, intervalMs);
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && activeTab === 'help') {
+        if (selectedTicketId && selectedTicketId !== 'new') {
+          fetchTicketDetails(Number(selectedTicketId));
+        }
+        fetchTickets();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [activeTab, token, selectedTicketId, fetchTickets, fetchTicketDetails]);
 
   // Selected Ticket Reference
   const selectedTicket = useMemo(() => {
     if (selectedTicketId === 'new' || selectedTicketId === null) return null;
     return tickets.find(t => t.id === selectedTicketId) || null;
   }, [tickets, selectedTicketId]);
+
+  // Real-time unread support count combining active tickets and ping
+  const totalHelpUnread = useMemo(() => {
+    const listCount = tickets.filter(t => Boolean(t.has_unread || (t.unread_count && t.unread_count > 0))).length;
+    return Math.max(listCount, supportUnreadCount);
+  }, [tickets, supportUnreadCount]);
 
   // =========================================================================
   // NAVIGATION MENU GROUPS
@@ -1225,7 +1406,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       title: 'BANTUAN & LAYANAN',
       items: [
         { key: 'notifications', label: 'Pusat Notifikasi', icon: Bell, badge: notifications.filter(n => !n.read).length > 0 ? String(notifications.filter(n => !n.read).length) : undefined, badgeColor: '#ef4444' },
-        { key: 'help', label: 'Pusat Bantuan & Tiket', icon: HelpCircle },
+        { key: 'help', label: 'Pusat Bantuan & Tiket', icon: HelpCircle, badge: totalHelpUnread > 0 ? String(totalHelpUnread) : undefined, badgeColor: '#ef4444' },
         { key: 'policies', label: 'Legal & Kebijakan', icon: FileText },
         { key: 'share', label: 'Bagikan Katalog', icon: Share2 }
       ]
@@ -1521,7 +1702,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   id="btn-reset-form-produk"
                   data-testid="btn-reset-form-produk"
                   type="button"
-                  onClick={() => handleStartNewProduct()}
+                  onClick={() => handleCancelToProductTypeSelection()}
                   title="Mulai Ulang Formulir & Pilih Ulang Tipe Katalog"
                   style={{
                     minHeight: '44px',
@@ -1547,7 +1728,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   id="btn-tambah-produk"
                   data-testid="btn-tambah-produk"
                   type="button"
-                  onClick={() => handleStartNewProduct()}
+                  onClick={() => handleCancelToProductTypeSelection()}
                   style={{
                     minHeight: '44px',
                     padding: '0.55rem 1.15rem',
@@ -1571,13 +1752,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             }
             selectedId={selectedProductId}
             onClearSelection={() => {
-              setSelectedProductId(null);
-              setIsSelectingProductType(false);
-              try {
-                const url = new URL(window.location.href);
-                url.searchParams.delete('action');
-                window.history.pushState({}, '', url.toString());
-              } catch {}
+              if (isNarrowScreen) {
+                setSelectedProductId(null);
+                setIsSelectingProductType(false);
+                try {
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete('action');
+                  url.searchParams.delete('type');
+                  url.searchParams.delete('catalog_type');
+                  window.history.pushState({}, '', url.toString());
+                } catch {}
+              } else {
+                handleCancelToProductTypeSelection();
+              }
             }}
             masterPane={
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -1783,11 +1970,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               </div>
             }
             detailPane={
-              selectedProductId !== null ? (() => {
+              (selectedProductId !== null || !isNarrowScreen) ? (() => {
                 const activeTypeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === productForm.product_type) || CATALOG_TYPE_OPTIONS[0];
                 const ActiveTypeIcon = activeTypeDef.icon;
 
-                if (isSelectingProductType) {
+                const shouldShowStep1 = isSelectingProductType || (selectedProductId === 'new' && !productForm.product_type) || (selectedProductId === null && !isNarrowScreen);
+
+                if (shouldShowStep1) {
                   return (
                     /* =========================================================================
                        STEP 1: PILIH TIPE KATALOG PRODUK (CARD SELECTION GRID)
@@ -1822,15 +2011,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           type="button"
                           id="btn-batal-pilih-tipe"
                           onClick={() => {
-                            if (selectedProductId === 'new') {
+                            if (isNarrowScreen) {
                               setSelectedProductId(null);
                               setIsSelectingProductType(false);
+                            } else if (products.length > 0) {
+                              handleSelectProduct(products[0]);
                             } else {
-                              setIsSelectingProductType(false);
+                              handleCancelToProductTypeSelection();
                             }
                             try {
                               const url = new URL(window.location.href);
                               url.searchParams.delete('action');
+                              url.searchParams.delete('type');
+                              url.searchParams.delete('catalog_type');
                               window.history.pushState({}, '', url.toString());
                             } catch {}
                           }}
@@ -1885,7 +2078,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         {CATALOG_TYPE_OPTIONS.map((opt) => {
                           const OptIcon = opt.icon;
-                          const isCurrentlyChosen = productForm.product_type === opt.id;
                           return (
                             <div
                               key={opt.id}
@@ -1900,11 +2092,21 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   handleSelectProductType(opt.id);
                                 }
                               }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = opt.color;
+                                e.currentTarget.style.backgroundColor = 'var(--bg-subtle)';
+                                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = 'var(--border-light)';
+                                e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                                e.currentTarget.style.boxShadow = 'none';
+                              }}
                               style={{
                                 padding: '0.95rem 1.15rem',
                                 borderRadius: '0.85rem',
-                                backgroundColor: isCurrentlyChosen ? 'rgba(30, 58, 138, 0.08)' : 'var(--bg-card)',
-                                border: isCurrentlyChosen ? `1.5px solid ${opt.color}` : '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '1rem',
@@ -3654,15 +3856,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       id="btn-batal-form-produk"
                       data-testid="btn-batal-form-produk"
                       onClick={() => {
-                        setSelectedProductId(null);
-                        setIsSelectingProductType(false);
-                        try {
-                          const url = new URL(window.location.href);
-                          url.searchParams.delete('action');
-                          url.searchParams.delete('type');
-                          url.searchParams.delete('catalog_type');
-                          window.history.pushState({}, '', url.toString());
-                        } catch {}
+                        handleCancelToProductTypeSelection();
                       }}
                       style={{
                         minHeight: '44px',

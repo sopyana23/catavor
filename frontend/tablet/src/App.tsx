@@ -156,6 +156,10 @@ export const App: React.FC = () => {
     navigateTo(targetLoginUrl);
   };
 
+  const handleThemeChange = useCallback((newTheme: string) => {
+    setStoreTheme(prev => (prev === newTheme ? prev : newTheme));
+  }, []);
+
   // Perform Login
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -928,7 +932,7 @@ export const App: React.FC = () => {
         storeSlug={activeSlug || merchantSlug || 'my-store'}
         onLogout={() => handleLogout('/login')}
         onViewPublicCatalog={() => navigateTo(activeSlug ? `/${activeSlug}` : '/')}
-        onThemeChange={(newTheme) => setStoreTheme(newTheme)}
+        onThemeChange={handleThemeChange}
       />
     );
   }
