@@ -6,6 +6,8 @@ export interface UserRBACInfo {
   is_superadmin?: boolean;
   is_admin?: boolean;
   permissions?: string[];
+  is_password_changed?: boolean;
+  has_custom_password?: boolean;
 }
 
 export interface PlatformRole {

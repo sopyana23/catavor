@@ -1226,36 +1226,116 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   };
 
   // =========================================================================
-  // 7. USER PROFILE & PASSWORD
+  // 7. USER PROFILE & PASSWORD (Dual-Mode: SSO Backup vs Standard Change)
   // =========================================================================
+  const [hasCustomPassword, setHasCustomPassword] = useState<boolean>(() => {
+    if (currentUser?.has_custom_password !== undefined) {
+      return Boolean(currentUser.has_custom_password);
+    }
+    try {
+      const saved = localStorage.getItem('catavor_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.has_custom_password !== undefined) {
+          return Boolean(parsed.has_custom_password);
+        }
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (currentUser?.has_custom_password !== undefined) {
+      setHasCustomPassword(Boolean(currentUser.has_custom_password));
+    }
+  }, [currentUser?.has_custom_password]);
+
   const [passwordForm, setPasswordForm] = useState({ old_password: '', new_password: '', confirm_password: '' });
+  const [showOldPassword, setShowOldPassword] = useState<boolean>(false);
+  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordForm.new_password !== passwordForm.confirm_password) {
-      showToast('Konfirmasi kata sandi tidak cocok', 'error');
+    const newPass = passwordForm.new_password.trim();
+    const confirmPass = passwordForm.confirm_password.trim();
+    const oldPass = passwordForm.old_password.trim();
+
+    if (hasCustomPassword && !oldPass) {
+      showToast('Kata sandi saat ini wajib diisi', 'error');
       return;
     }
-    if (passwordForm.new_password.length < 8) {
+
+    if (newPass.length < 8) {
       showToast('Kata sandi baru minimal 8 karakter', 'error');
       return;
     }
+    if (!/[A-Z]/.test(newPass)) {
+      showToast('Kata sandi baru wajib mengandung minimal 1 huruf besar (A-Z)', 'error');
+      return;
+    }
+    if (!/[a-z]/.test(newPass)) {
+      showToast('Kata sandi baru wajib mengandung minimal 1 huruf kecil (a-z)', 'error');
+      return;
+    }
+    if (!/[0-9]/.test(newPass)) {
+      showToast('Kata sandi baru wajib mengandung minimal 1 angka (0-9)', 'error');
+      return;
+    }
+    if (!/[^a-zA-Z0-9\s]/.test(newPass)) {
+      showToast('Kata sandi baru wajib mengandung minimal 1 simbol unik (@, #, $, %, !, dll)', 'error');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      showToast('Konfirmasi kata sandi tidak cocok', 'error');
+      return;
+    }
+    if (hasCustomPassword && oldPass && newPass === oldPass) {
+      showToast('Kata sandi baru tidak boleh sama dengan kata sandi saat ini', 'error');
+      return;
+    }
+
     setSaving(true);
     try {
-      const res = await fetch('/api/profile/update-password', {
+      const res = await fetch('/api/profile', {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(passwordForm)
+        body: JSON.stringify({
+          name: currentUser?.name || 'Admin Toko',
+          current_password: hasCustomPassword ? oldPass : '',
+          password: newPass,
+          confirm_password: confirmPass
+        })
       });
-      if (res.ok) {
-        showToast('Kata sandi berhasil diperbarui');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.token) {
+          localStorage.setItem('catavor_token', data.token);
+        }
+        try {
+          const saved = localStorage.getItem('catavor_user');
+          const userObj = saved ? JSON.parse(saved) : {};
+          const merged = { ...userObj, ...(data.user || {}), has_custom_password: true, is_password_changed: true };
+          localStorage.setItem('catavor_user', JSON.stringify(merged));
+        } catch {
+          // ignore
+        }
+        setHasCustomPassword(true);
         setPasswordForm({ old_password: '', new_password: '', confirm_password: '' });
+        setShowOldPassword(false);
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
+        const successMsg = hasCustomPassword
+          ? 'Kata sandi berhasil diperbarui!'
+          : 'Kata sandi cadangan akun berhasil disimpan!';
+        showToast(successMsg, 'success');
       } else {
-        const err = await res.json();
-        showToast(err.message || 'Gagal mengubah kata sandi', 'error');
+        showToast(data.message || 'Gagal menyimpan kata sandi', 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan sistem', 'error');
+      showToast('Terjadi kesalahan sistem saat menghubungi server', 'error');
     } finally {
       setSaving(false);
     }
@@ -5152,50 +5232,199 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       Merchant Store Owner
                     </span>
                   </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.78rem' }}>Status Keamanan</span>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.2rem 0.55rem',
+                      borderRadius: '999px',
+                      backgroundColor: hasCustomPassword ? 'rgba(16, 185, 129, 0.12)' : 'rgba(37, 99, 235, 0.12)',
+                      color: hasCustomPassword ? '#10b981' : '#2563eb',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      marginTop: '0.2rem'
+                    }}>
+                      <ShieldCheck size={13} />
+                      {hasCustomPassword ? 'Kata Sandi Kustom Aktif' : 'Google SSO (Kata Sandi Manual Belum Disetel)'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Password Form Card */}
+              {/* Password Form Card (Dual-Mode: SSO Backup vs Standard Update) */}
               <form onSubmit={handleChangePassword} style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>
-                  Ubah Kata Sandi
-                </h3>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>Kata Sandi Saat Ini</label>
-                  <input
-                    type="password"
-                    required
-                    value={passwordForm.old_password}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                  />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {hasCustomPassword ? (
+                      <Lock size={18} style={{ color: 'var(--primary)' }} />
+                    ) : (
+                      <Key size={18} style={{ color: '#2563eb' }} />
+                    )}
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
+                      {hasCustomPassword ? 'Ubah Kata Sandi Akun' : 'Kata Sandi Cadangan (Opsional)'}
+                    </h3>
+                  </div>
+                  {!hasCustomPassword && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.2rem 0.55rem',
+                      borderRadius: '999px',
+                      backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                      color: '#2563eb',
+                      fontSize: '0.72rem',
+                      fontWeight: 700
+                    }}>
+                      <ShieldCheck size={12} />
+                      Google SSO
+                    </span>
+                  )}
                 </div>
+
+                {!hasCustomPassword ? (
+                  <div style={{
+                    padding: '0.75rem 0.85rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: 'rgba(37, 99, 235, 0.06)',
+                    border: '1px solid rgba(37, 99, 235, 0.2)',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.45,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem'
+                  }}>
+                    <ShieldAlert size={16} style={{ color: '#2563eb', flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                      Akun Anda terhubung dengan Google SSO. Anda dapat menyetel kata sandi manual untuk login alternatif jika layanan Google mengalami kendala.
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                      Kata Sandi Saat Ini
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showOldPassword ? 'text' : 'password'}
+                        required
+                        value={passwordForm.old_password}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
+                        placeholder="Masukkan kata sandi lama Anda"
+                        style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOldPassword(!showOldPassword)}
+                        aria-label="Tampilkan atau sembunyikan kata sandi saat ini"
+                        style={{
+                          position: 'absolute',
+                          right: '0.5rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted)',
+                          padding: '0.25rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {showOldPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>Kata Sandi Baru</label>
-                  <input
-                    type="password"
-                    required
-                    value={passwordForm.new_password}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                  />
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                    {hasCustomPassword ? 'Kata Sandi Baru' : 'Kata Sandi Baru Cadangan'}
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      value={passwordForm.new_password}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                      placeholder="Minimal 8 karakter (huruf besar, kecil, angka, simbol)"
+                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      aria-label="Tampilkan atau sembunyikan kata sandi baru"
+                      style={{
+                        position: 'absolute',
+                        right: '0.5rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        padding: '0.25rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
+
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>Konfirmasi Kata Sandi Baru</label>
-                  <input
-                    type="password"
-                    required
-                    value={passwordForm.confirm_password}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                  />
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                    Konfirmasi Kata Sandi Baru
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={passwordForm.confirm_password}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
+                      placeholder="Ketik ulang kata sandi baru"
+                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      aria-label="Tampilkan atau sembunyikan konfirmasi kata sandi baru"
+                      style={{
+                        position: 'absolute',
+                        right: '0.5rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        padding: '0.25rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
+
+                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.4, marginTop: '-0.2rem' }}>
+                  Kriteria: Min. 8 karakter, wajib kombinasi huruf besar (A-Z), huruf kecil (a-z), angka (0-9), dan simbol unik (@, #, $, dll).
+                </div>
+
                 <button
                   type="submit"
                   disabled={saving}
                   style={{
-                    minHeight: '40px',
-                    padding: '0.5rem',
+                    minHeight: '44px',
+                    padding: '0.6rem 1rem',
                     borderRadius: '0.5rem',
                     backgroundColor: 'var(--primary)',
                     color: '#ffffff',
@@ -5203,10 +5432,30 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     fontWeight: 700,
                     fontSize: '0.85rem',
                     cursor: saving ? 'not-allowed' : 'pointer',
-                    marginTop: '0.5rem'
+                    marginTop: '0.35rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                   }}
                 >
-                  {saving ? 'Menyimpan...' : 'Perbarui Kata Sandi'}
+                  {saving ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : hasCustomPassword ? (
+                    <>
+                      <Lock size={16} />
+                      <span>Perbarui Kata Sandi</span>
+                    </>
+                  ) : (
+                    <>
+                      <Key size={16} />
+                      <span>Simpan Kata Sandi Cadangan</span>
+                    </>
+                  )}
                 </button>
               </form>
             </div>
