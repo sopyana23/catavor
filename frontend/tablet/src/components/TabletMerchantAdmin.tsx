@@ -1383,8 +1383,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     {
       title: 'KATALOG & INVENTARIS',
       items: [
-        { key: 'items', label: 'Daftar Item Katalog', icon: Package, badge: productTotalRecords > 0 ? String(productTotalRecords) : undefined },
-        { key: 'categories', label: 'Kategori Etalase', icon: FolderTree, badge: categories.length > 0 ? String(categories.length) : undefined }
+        { key: 'items', label: 'Daftar Item Katalog', icon: Package },
+        { key: 'categories', label: 'Kategori Etalase', icon: FolderTree }
       ]
     },
     {
@@ -1595,24 +1595,53 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         position: 'relative'
                       }}
                     >
-                      <Icon size={20} strokeWidth={isActive ? 2.2 : 1.75} style={{ flexShrink: 0 }} />
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon size={20} strokeWidth={isActive ? 2.2 : 1.75} style={{ flexShrink: 0 }} />
+                        {!isNavExpanded && item.badge && (
+                          <span
+                            id={`indicator-dot-${item.key}`}
+                            data-testid={`indicator-dot-${item.key}`}
+                            style={{
+                              position: 'absolute',
+                              top: '-3px',
+                              right: '-4px',
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              backgroundColor: item.badgeColor || 'var(--primary)',
+                              border: '1.5px solid var(--bg-card)',
+                              boxShadow: '0 0 4px rgba(0,0,0,0.15)',
+                              flexShrink: 0
+                            }}
+                            title={`${item.label}: ${item.badge} data aktif`}
+                          />
+                        )}
+                      </div>
+
                       {isNavExpanded && (
-                        <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {item.label}
-                        </span>
-                      )}
-                      {item.badge && (
-                        <span style={{
-                          fontSize: '0.7rem',
-                          fontWeight: 700,
-                          padding: '0.1rem 0.45rem',
-                          borderRadius: '999px',
-                          backgroundColor: item.badgeColor || 'var(--primary)',
-                          color: '#ffffff',
-                          flexShrink: 0
-                        }}>
-                          {item.badge}
-                        </span>
+                        <>
+                          <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.label}
+                          </span>
+                          {item.badge && (
+                            <span
+                              id={`badge-detail-${item.key}`}
+                              data-testid={`badge-detail-${item.key}`}
+                              style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                padding: '0.12rem 0.5rem',
+                                borderRadius: '999px',
+                                backgroundColor: item.badgeColor || 'var(--primary)',
+                                color: '#ffffff',
+                                flexShrink: 0,
+                                marginLeft: 'auto'
+                              }}
+                            >
+                              {item.badge}
+                            </span>
+                          )}
+                        </>
                       )}
                     </button>
                   );
