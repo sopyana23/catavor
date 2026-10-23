@@ -6566,9 +6566,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           <TabletAnalyticsView
             token={token}
             storeSlug={storeSlug}
+            storeTitle={storeSettings.name}
             showToast={showToast}
             onLogout={onLogout}
             onUnauthorized={onUnauthorized}
+            onViewProduct={(pId) => {
+              setSelectedProductId(pId);
+              setIsSelectingProductType(false);
+              setActiveTab('items');
+            }}
           />
         )}
 

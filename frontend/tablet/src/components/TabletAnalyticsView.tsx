@@ -1,37 +1,181 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   BarChart3,
   TrendingUp,
   Users,
   Eye,
   MessageCircle,
-  RefreshCw,
-  Download,
-  ShoppingBag,
-  ExternalLink,
-  Layers,
-  Sparkles,
+  Calendar,
   ArrowUpRight,
+  Search,
+  RefreshCw,
+  Layers,
+  HelpCircle,
+  CheckCircle,
+  ExternalLink,
+  ShoppingBag,
+  Zap,
+  Target,
+  Shield,
+  Briefcase,
+  Download,
+  UtensilsCrossed,
+  Home,
+  Heart,
+  Sprout,
   ShieldCheck,
+  Video,
+  Lightbulb,
   CheckCircle2,
-  Calendar
+  AlertCircle,
+  Activity,
+  SlidersHorizontal,
+  Sparkles,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronDown,
+  Check,
+  X,
+  PackageSearch,
+  ArrowUpDown,
+  Globe
 } from 'lucide-react';
 import { createAuthFetch } from '../utils/auth';
+import { useModalBackHandler } from '../utils/navigation';
+import { MarketIntelligenceModal } from './MarketIntelligenceModal';
+
+export interface AnalyticsTrendPoint {
+  date: string;
+  store_views: number;
+  wa_clicks?: number;
+  direct_wa_clicks?: number;
+  marketplace_clicks?: number;
+  rekber_clicks?: number;
+  video_views?: number;
+  total_actions?: number;
+}
+
+export interface AnalyticsProductSummary {
+  id: number;
+  name: string;
+  image_url?: string;
+  price: number;
+  class?: string;
+  view_count: number;
+  wa_clicks_count: number;
+  marketplace_clicks_count?: number;
+  rekber_clicks_count?: number;
+  video_views_count?: number;
+  total_actions_count?: number;
+  conversion_rate_percent?: number;
+  product_type?: string;
+}
+
+export interface ProductTypeMetricSummary {
+  product_type: string;
+  type_name: string;
+  item_count: number;
+  views: number;
+  direct_wa_clicks: number;
+  marketplace_clicks: number;
+  rekber_clicks: number;
+  video_views: number;
+  total_actions: number;
+  conversion_rate_percent: number;
+}
+
+export interface CategoryMetricSummary {
+  category: string;
+  views: number;
+  total_actions?: number;
+  wa_clicks?: number;
+  items: number;
+}
+
+export interface SmartInsight {
+  type: 'success' | 'tip' | 'warning';
+  title: string;
+  description: string;
+}
+
+export interface TrafficSourceItem {
+  source: string;
+  name: string;
+  views: number;
+  total_actions: number;
+  percentage: number;
+  conversion_rate_percent: number;
+}
+
+export interface PeriodGrowthData {
+  store_views_growth_percent: number;
+  total_actions_growth_percent: number;
+  prev_store_views: number;
+  prev_total_actions: number;
+}
+
+export interface ConversionFunnelData {
+  store_views: number;
+  product_views: number;
+  total_actions: number;
+  view_to_product_rate: number;
+  product_to_action_rate: number;
+  overall_conversion_rate: number;
+}
+
+export interface DetailedAnalyticsData {
+  period: '7d' | '30d' | '90d';
+  days: number;
+  total_store_views: number;
+  total_product_views: number;
+  total_wa_clicks: number;
+  total_direct_wa?: number;
+  total_marketplace_clicks?: number;
+  total_rekber_clicks?: number;
+  total_video_views?: number;
+  total_actions?: number;
+  conversion_rate_percent: number;
+  peak_date?: string;
+  peak_views?: number;
+  trends: AnalyticsTrendPoint[];
+  top_products: AnalyticsProductSummary[];
+  categories?: CategoryMetricSummary[];
+  product_types?: ProductTypeMetricSummary[];
+  channels?: {
+    direct_wa: number;
+    marketplace: number;
+    rekber: number;
+    video: number;
+  };
+  insights?: SmartInsight[];
+  growth?: PeriodGrowthData;
+  traffic_sources?: TrafficSourceItem[];
+  funnel?: ConversionFunnelData;
+  bot_defense_active?: boolean;
+}
 
 export interface TabletAnalyticsViewProps {
   token: string;
   storeSlug: string;
+  storeTitle?: string;
   showToast: (msg: string, type?: 'success' | 'error') => void;
   onLogout?: () => void;
   onUnauthorized?: (msg?: string) => void;
+  onViewProduct?: (productId: number) => void;
 }
 
 export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
   token,
   storeSlug,
+  storeTitle,
   showToast,
   onLogout,
-  onUnauthorized
+  onUnauthorized,
+  onViewProduct
 }) => {
   // Centralized authenticated fetch with automatic 401/403 session eviction
   const fetch = useMemo(() => {
@@ -46,11 +190,97 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
       }
     });
   }, [token, onUnauthorized, onLogout]);
+
   const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('7d');
   const [loading, setLoading] = useState<boolean>(false);
-  const [data, setData] = useState<any | null>(null);
-  const cacheRef = useRef<Map<string, { data: any; timestamp: number }>>(new Map());
+  const [analyticsData, setAnalyticsData] = useState<DetailedAnalyticsData | null>(null);
+  const cacheRef = useRef<Map<string, { data: DetailedAnalyticsData; timestamp: number }>>(new Map());
 
+  // Chart visualizer states
+  const [chartType, setChartType] = useState<'area' | 'bar'>('area');
+  const [metricFocus, setMetricFocus] = useState<'all' | 'views' | 'actions'>('all');
+  const [scaleMode, setScaleMode] = useState<'linear' | 'adaptive'>('linear');
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState<number>(800);
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+
+  // Responsive chart container width tracking
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+    const updateWidth = () => {
+      if (chartContainerRef.current) {
+        const w = chartContainerRef.current.clientWidth;
+        if (w > 200) setChartWidth(w);
+      }
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(chartContainerRef.current);
+    window.addEventListener('resize', updateWidth);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateWidth);
+    };
+  }, []);
+
+  // Modals state
+  const [showMarketIntel, setShowMarketIntel] = useState<boolean>(false);
+  const [isExportingCsv, setIsExportingCsv] = useState<boolean>(false);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const [exportPeriod, setExportPeriod] = useState<'7d' | '30d' | '90d' | 'all'>('all');
+  const [exportType, setExportType] = useState<'full' | 'products' | 'daily'>('full');
+
+  // Intercept back action when export modal is open (Rule 2)
+  useModalBackHandler({
+    isOpen: showExportModal,
+    onClose: () => setShowExportModal(false),
+    modalId: 'tablet-export-analytics-modal'
+  });
+
+  // Server-side paginated products state
+  const [productSearch, setProductSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedProductType, setSelectedProductType] = useState<string>('all');
+  const [productSort, setProductSort] = useState<'views' | 'actions' | 'ctr' | 'price_desc' | 'price_asc'>('views');
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState<boolean>(false);
+  const sortDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [serverProducts, setServerProducts] = useState<AnalyticsProductSummary[] | null>(null);
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
+  const [serverTotalPages, setServerTotalPages] = useState<number>(1);
+  const [serverTypeCounts, setServerTypeCounts] = useState<Record<string, number> | null>(null);
+  const [productsLoading, setProductsLoading] = useState<boolean>(false);
+
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(productSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [productSearch]);
+
+  // Close sort dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setIsSortDropdownOpen(false);
+      }
+    };
+    if (isSortDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSortDropdownOpen]);
+
+  // Reset page to 1 when filters or sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedProductType, debouncedSearch, productSort, pageSize]);
+
+  // Main Analytics Data Fetcher
   const fetchAnalytics = useCallback(async (selectedPeriod: '7d' | '30d' | '90d' = period, force = false) => {
     if (!token || !storeSlug) return;
     const cacheKey = `${storeSlug}:${selectedPeriod}`;
@@ -58,7 +288,7 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
     const now = Date.now();
 
     if (!force && cached && (now - cached.timestamp < 60_000)) {
-      setData(cached.data);
+      setAnalyticsData(cached.data);
       return;
     }
 
@@ -75,7 +305,7 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
         const json = await res.json();
         if (json.success && json.data) {
           cacheRef.current.set(cacheKey, { data: json.data, timestamp: Date.now() });
-          setData(json.data);
+          setAnalyticsData(json.data);
         }
       } else {
         showToast?.('Gagal memuat data analitik toko', 'error');
@@ -85,373 +315,2230 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [token, storeSlug, period, showToast]);
+  }, [fetch, token, storeSlug, period, showToast]);
 
   useEffect(() => {
     fetchAnalytics(period);
   }, [fetchAnalytics, period]);
 
-  const handleExportCSV = () => {
-    const url = `/api/admin/analytics/export?period=${period}`;
-    window.open(url, '_blank');
+  // Server-side paginated products fetch with AbortController
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const fetchServerProducts = async () => {
+      if (!token || !storeSlug) return;
+      try {
+        setProductsLoading(true);
+        const params = new URLSearchParams({
+          page: String(currentPage ?? 1),
+          per_page: String(pageSize ?? 10),
+          search: debouncedSearch,
+          product_type: selectedProductType,
+          sort: productSort
+        });
+        const res = await fetch(`/api/admin/analytics/products?${params.toString()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-Store-Slug': storeSlug,
+            'Accept': 'application/json'
+          },
+          signal: controller.signal
+        });
+        if (!res.ok) throw new Error('Failed to fetch analytics products');
+        const json = await res.json();
+        if (isMounted && json.success && json.data) {
+          setServerProducts(json.data.products || []);
+          setServerTotal(json.data.total ?? 0);
+          setServerTotalPages(json.data.total_pages ?? 1);
+          if (json.data.type_counts) {
+            setServerTypeCounts(json.data.type_counts);
+          }
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.warn('Server-side analytics pagination fallback to local:', err);
+      } finally {
+        if (isMounted) setProductsLoading(false);
+      }
+    };
+
+    fetchServerProducts();
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [fetch, token, storeSlug, debouncedSearch, selectedProductType, productSort, currentPage, pageSize, analyticsData]);
+
+  // Export CSV Handler
+  const handleExportStoreCsv = async (p = exportPeriod, t = exportType) => {
+    try {
+      setIsExportingCsv(true);
+      const res = await fetch(`/api/admin/analytics/export?period=${p}&type=${t}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': storeSlug
+        }
+      });
+      if (!res.ok) throw new Error('Gagal mengekspor data');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `catavor-analytics-${storeSlug || 'store'}-${t}-${p}-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setShowExportModal(false);
+      showToast?.('Laporan CSV berhasil diunduh!');
+    } catch {
+      showToast?.('Gagal mengekspor laporan CSV', 'error');
+    } finally {
+      setIsExportingCsv(false);
+    }
   };
 
-  const totalStoreViews = data?.total_store_views ?? data?.store_views ?? 0;
-  const totalProductViews = data?.total_product_views ?? data?.product_views ?? 0;
-  const totalWaClicks = data?.total_wa_clicks ?? data?.wa_clicks ?? 0;
-  const totalActions = data?.total_actions ?? (totalWaClicks + (data?.channels?.marketplace || 0));
-  const conversionRate = data?.conversion_rate_percent ?? (totalStoreViews > 0 ? ((totalActions / totalStoreViews) * 100) : 0);
-  const topProducts = data?.top_products || [];
+  // Formatters
+  const formatPrice = (num?: number | string | null) => {
+    if (num === undefined || num === null || num === '') return 'Rp 0';
+    const parsed = typeof num === 'number' ? num : parseFloat(String(num));
+    if (isNaN(parsed)) return 'Rp 0';
+    return 'Rp ' + Math.round(parsed).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  const formatShortDate = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+
+        const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+        const today = new Date();
+        if (
+          d.getDate() === today.getDate() &&
+          d.getMonth() === today.getMonth() &&
+          d.getFullYear() === today.getFullYear()
+        ) {
+          return 'Hari Ini';
+        }
+
+        const dayName = dayNames[d.getDay()] || '';
+        const monthName = monthNames[month] || '';
+        return `${dayName}, ${day} ${monthName}`;
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatDetailedDate = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+
+        const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+        const today = new Date();
+        const isToday =
+          d.getDate() === today.getDate() &&
+          d.getMonth() === today.getMonth() &&
+          d.getFullYear() === today.getFullYear();
+
+        const dayName = dayNames[d.getDay()] || '';
+        const monthName = monthNames[month] || '';
+        return `${dayName}, ${day} ${monthName} ${year}${isToday ? ' (Hari Ini)' : ''}`;
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatCompactNumber = (num?: number | null): string => {
+    if (!num) return '0';
+    if (num < 1000) return num.toLocaleString('id-ID');
+    if (num < 1000000) {
+      const rb = num / 1000;
+      return rb % 1 === 0 ? `${rb} rb` : `${rb.toFixed(1).replace(/\.0$/, '').replace('.', ',')} rb`;
+    }
+    if (num < 1000000000) {
+      const jt = num / 1000000;
+      return jt % 1 === 0 ? `${jt} jt` : `${jt.toFixed(1).replace(/\.0$/, '').replace('.', ',')} jt`;
+    }
+    const m = num / 1000000000;
+    return m % 1 === 0 ? `${m} M` : `${m.toFixed(1).replace(/\.0$/, '').replace('.', ',')} M`;
+  };
+
+  const formatMetricTablet = (num?: number | null): string => {
+    if (!num) return '0';
+    if (num < 1000000) return num.toLocaleString('id-ID');
+    return formatCompactNumber(num);
+  };
+
+  // Metrics Data Extraction
+  const daysCount = period === '90d' ? 90 : period === '30d' ? 30 : 7;
+  const storeViews = analyticsData?.total_store_views ?? 0;
+  const productViews = analyticsData?.total_product_views ?? 0;
+  const directWa = analyticsData?.total_direct_wa ?? analyticsData?.total_wa_clicks ?? 0;
+  const marketplaceClicks = analyticsData?.total_marketplace_clicks ?? 0;
+  const rekberClicks = analyticsData?.total_rekber_clicks ?? 0;
+  const videoViews = analyticsData?.total_video_views ?? 0;
+  const totalActions = analyticsData?.total_actions ?? (directWa + marketplaceClicks + rekberClicks + videoViews);
+  const conversionRate = analyticsData?.conversion_rate_percent ?? 0;
+
+  const avgViewsPerDay = (storeViews / daysCount).toFixed(1);
+  const avgActionsPerDay = (totalActions / daysCount).toFixed(1);
+  const viewsPerVisitor = storeViews > 0 ? (productViews / storeViews).toFixed(1) : '0';
+
+  // Trends calculation
+  const trends = analyticsData?.trends || [];
+
+  // Outlier & Disparity Detection
+  const { isDisparityHigh, peakIndex, maxValViews, maxValActions } = useMemo(() => {
+    if (!trends.length) {
+      return { isDisparityHigh: false, peakRatio: 1, peakIndex: -1, maxValViews: 0, maxValActions: 0 };
+    }
+    
+    let maxV = 0;
+    let maxA = 0;
+    let peakIdx = 0;
+    let sumV = 0;
+    let nonZeroViews: number[] = [];
+
+    trends.forEach((t, idx) => {
+      const v = t.store_views || 0;
+      const a = t.total_actions ?? t.wa_clicks ?? 0;
+      sumV += v;
+      if (v > 0) nonZeroViews.push(v);
+      if (v > maxV) {
+        maxV = v;
+        peakIdx = idx;
+      }
+      if (a > maxA) {
+        maxA = a;
+      }
+    });
+
+    const avgV = trends.length ? sumV / trends.length : 0;
+    const ratio = avgV > 0 ? maxV / avgV : 1;
+    const minNonZero = nonZeroViews.length ? Math.min(...nonZeroViews) : 0;
+    const isHigh = maxV >= 15 && (ratio >= 3 || (minNonZero > 0 && maxV / minNonZero >= 15));
+
+    return {
+      isDisparityHigh: isHigh,
+      peakRatio: ratio,
+      peakIndex: peakIdx,
+      maxValViews: maxV,
+      maxValActions: maxA
+    };
+  }, [trends]);
+
+  // Dynamic max scale with clean step
+  const chartMaxVal = useMemo(() => {
+    if (!trends.length) return 4;
+    let maxVal = 0;
+    if (metricFocus === 'views') {
+      maxVal = maxValViews;
+    } else if (metricFocus === 'actions') {
+      maxVal = maxValActions;
+    } else {
+      maxVal = Math.max(maxValViews, maxValActions);
+    }
+
+    if (maxVal <= 0) return 4;
+    if (maxVal <= 2) return 3;
+    if (maxVal <= 4) return 5;
+    if (maxVal <= 6) return 8;
+    if (maxVal <= 10) return 12;
+    if (maxVal <= 15) return 18;
+    if (maxVal <= 20) return 24;
+    if (maxVal <= 30) return 36;
+    if (maxVal <= 50) return 60;
+    if (maxVal <= 80) return 100;
+    if (maxVal <= 120) return 150;
+
+    const exponent = Math.floor(Math.log10(maxVal));
+    const power = Math.pow(10, exponent);
+    const fraction = maxVal / power;
+    let niceFraction: number;
+    if (fraction <= 1.2) niceFraction = 1.4;
+    else if (fraction <= 1.8) niceFraction = 2.0;
+    else if (fraction <= 2.5) niceFraction = 3.0;
+    else if (fraction <= 4) niceFraction = 5.0;
+    else if (fraction <= 7) niceFraction = 8.0;
+    else niceFraction = 10.0;
+
+    return Math.ceil(niceFraction * power);
+  }, [trends, metricFocus, maxValViews, maxValActions]);
+
+  // Normalized value to height ratio [0, 1]
+  const getNormalizedRatio = (val: number): number => {
+    if (!val || val <= 0 || chartMaxVal <= 0) return 0;
+    const clamped = Math.min(chartMaxVal, Math.max(0, val));
+    
+    if (scaleMode === 'adaptive' && chartMaxVal > 10) {
+      return Math.log10(1 + 9 * (clamped / chartMaxVal));
+    }
+    
+    return clamped / chartMaxVal;
+  };
+
+  // Y-Axis reference grid ticks
+  const yGridTicks = useMemo(() => {
+    if (chartMaxVal <= 3) return [0, 1, 2, 3];
+    if (chartMaxVal <= 5) return [0, 2, 4];
+    if (chartMaxVal <= 8) return [0, 4, 8];
+    if (chartMaxVal === 12) return [0, 4, 8, 12];
+    if (chartMaxVal === 18) return [0, 6, 12, 18];
+    if (chartMaxVal === 24) return [0, 8, 16, 24];
+    if (chartMaxVal === 36) return [0, 12, 24, 36];
+    if (chartMaxVal === 60) return [0, 20, 40, 60];
+    if (chartMaxVal === 100) return [0, 25, 50, 75, 100];
+    const half = Math.round(chartMaxVal / 2);
+    return [0, half, chartMaxVal];
+  }, [chartMaxVal]);
+
+  // Point coordinates for SVG Area / Line chart with tablet padding
+  const { viewsPoints, actionsPoints } = useMemo(() => {
+    const vPts: { x: number; y: number; val: number }[] = [];
+    const aPts: { x: number; y: number; val: number }[] = [];
+    const N = trends.length;
+    if (N === 0) return { viewsPoints: vPts, actionsPoints: aPts };
+
+    const padLeft = 44;
+    const padRight = 16;
+    const innerW = Math.max(100, chartWidth - padLeft - padRight);
+    const padTop = 16;
+    const innerH = 114;
+    const bottomY = padTop + innerH; // 130
+    const minElevation = 3;
+
+    trends.forEach((t, i) => {
+      const x = N === 1 ? padLeft + innerW / 2 : padLeft + (i / (N - 1)) * innerW;
+      
+      const vVal = t.store_views || 0;
+      const vRatio = getNormalizedRatio(vVal);
+      const vY = vVal <= 0 
+        ? bottomY 
+        : Math.max(padTop, bottomY - minElevation - (vRatio * (innerH - minElevation)));
+
+      const aVal = t.total_actions ?? t.wa_clicks ?? 0;
+      const aRatio = getNormalizedRatio(aVal);
+      const aY = aVal <= 0 
+        ? bottomY 
+        : Math.max(padTop, bottomY - minElevation - (aRatio * (innerH - minElevation)));
+
+      vPts.push({ x, y: vY, val: vVal });
+      aPts.push({ x, y: aY, val: aVal });
+    });
+
+    return { viewsPoints: vPts, actionsPoints: aPts };
+  }, [trends, chartMaxVal, scaleMode, chartWidth]);
+
+  // Monotone Cubic Spline Path Generator (Fritsch-Carlson)
+  const getBezierPath = (points: { x: number; y: number }[]): string => {
+    const n = points.length;
+    if (n === 0) return '';
+    if (n === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    if (n === 2) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)} ${points[1].y.toFixed(1)}`;
+
+    const deltas: number[] = [];
+    const dxs: number[] = [];
+    for (let i = 0; i < n - 1; i++) {
+      const dx = points[i + 1].x - points[i].x;
+      const dy = points[i + 1].y - points[i].y;
+      dxs.push(dx);
+      deltas.push(dx === 0 ? 0 : dy / dx);
+    }
+
+    const m: number[] = new Array(n).fill(0);
+    m[0] = deltas[0];
+    m[n - 1] = deltas[n - 2];
+    for (let i = 1; i < n - 1; i++) {
+      if (deltas[i - 1] * deltas[i] <= 0) {
+        m[i] = 0;
+      } else {
+        m[i] = (deltas[i - 1] + deltas[i]) / 2;
+      }
+    }
+
+    for (let i = 0; i < n - 1; i++) {
+      if (deltas[i] === 0) {
+        m[i] = 0;
+        m[i + 1] = 0;
+      } else {
+        const alpha = m[i] / deltas[i];
+        const beta = m[i + 1] / deltas[i];
+        const dist = alpha * alpha + beta * beta;
+        if (dist > 9) {
+          const tau = 3 / Math.sqrt(dist);
+          m[i] = tau * alpha * deltas[i];
+          m[i + 1] = tau * beta * deltas[i];
+        }
+      }
+    }
+
+    let path = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    for (let i = 0; i < n - 1; i++) {
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const dx = dxs[i] / 3;
+
+      let cp1x = p1.x + dx;
+      let cp1y = p1.y + m[i] * dx;
+      let cp2x = p2.x - dx;
+      let cp2y = p2.y - m[i + 1] * dx;
+
+      const minY = Math.min(p1.y, p2.y);
+      const maxY = Math.max(p1.y, p2.y);
+      cp1y = Math.max(minY, Math.min(maxY, cp1y));
+      cp2y = Math.max(minY, Math.min(maxY, cp2y));
+
+      path += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    }
+
+    return path;
+  };
+
+  const getAreaPath = (points: { x: number; y: number }[], bottomY: number): string => {
+    if (points.length === 0) return '';
+    const linePath = getBezierPath(points);
+    const first = points[0];
+    const last = points[points.length - 1];
+    return `${linePath} L ${last.x.toFixed(1)} ${bottomY} L ${first.x.toFixed(1)} ${bottomY} Z`;
+  };
+
+  // Product type tabs definitions (7 Catalog Types)
+  const productTypeTabs = [
+    { key: 'all', label: 'Semua Tipe', icon: Layers },
+    { key: 'physical', label: 'Barang Fisik', icon: ShoppingBag },
+    { key: 'food', label: 'Menu Kuliner (F&B)', icon: UtensilsCrossed },
+    { key: 'digital', label: 'Item Digital', icon: Download },
+    { key: 'service', label: 'Jasa & Layanan', icon: Briefcase },
+    { key: 'plant', label: 'Tanaman & Bibit', icon: Sprout },
+    { key: 'fauna', label: 'Satwa Peliharaan', icon: Heart },
+    { key: 'property', label: 'Properti & Aset', icon: Home }
+  ];
+
+  // Standard sort options
+  const sortOptions = [
+    { id: 'views', label: 'Terbanyak Dilihat', desc: 'Urutan item berdasarkan jumlah tayangan terbanyak' },
+    { id: 'actions', label: 'Aksi Terbanyak', desc: 'Urutan berdasarkan total klik pesan & aksi peminat' },
+    { id: 'ctr', label: 'Rasio Konversi (CTR)', desc: 'Urutan berdasarkan persentase konversi peminat tertinggi' },
+    { id: 'price_desc', label: 'Harga Tertinggi', desc: 'Urutan dari harga paling tinggi ke rendah' },
+    { id: 'price_asc', label: 'Harga Terendah', desc: 'Urutan dari harga paling hemat' }
+  ];
+
+  // Dynamic count of products per type
+  const fallbackProductTypeCounts = useMemo(() => {
+    const list = analyticsData?.top_products || [];
+    const counts: Record<string, number> = { all: list.length };
+    list.forEach(p => {
+      const pType = p.product_type || 'physical';
+      counts[pType] = (counts[pType] || 0) + 1;
+    });
+    return counts;
+  }, [analyticsData?.top_products]);
+
+  const productTypeCounts = serverTypeCounts || fallbackProductTypeCounts;
+
+  const distinctTypesCount = useMemo(() => {
+    if (!productTypeCounts) return 0;
+    return Object.entries(productTypeCounts).filter(
+      ([key, count]) => key !== 'all' && typeof count === 'number' && count > 0
+    ).length;
+  }, [productTypeCounts]);
+
+  // Auto-reset filter if only 1 distinct type exists
+  useEffect(() => {
+    if (distinctTypesCount <= 1 && selectedProductType !== 'all') {
+      setSelectedProductType('all');
+    }
+  }, [distinctTypesCount, selectedProductType]);
+
+  // Product type badge helper
+  const getProductTypeBadge = (type?: string) => {
+    switch (type) {
+      case 'service':
+        return { label: 'Layanan', bg: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6', border: 'rgba(139, 92, 246, 0.25)' };
+      case 'digital':
+        return { label: 'Digital', bg: 'rgba(6, 182, 212, 0.12)', color: '#06b6d4', border: 'rgba(6, 182, 212, 0.25)' };
+      case 'food':
+        return { label: 'Kuliner', bg: 'rgba(249, 115, 22, 0.12)', color: '#f97316', border: 'rgba(249, 115, 22, 0.25)' };
+      case 'property':
+        return { label: 'Properti', bg: 'rgba(236, 72, 153, 0.12)', color: '#ec4899', border: 'rgba(236, 72, 153, 0.25)' };
+      case 'fauna':
+        return { label: 'Hewan', bg: 'rgba(225, 29, 72, 0.12)', color: '#e11d48', border: 'rgba(225, 29, 72, 0.25)' };
+      case 'plant':
+        return { label: 'Tanaman', bg: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: 'rgba(16, 185, 129, 0.25)' };
+      case 'physical':
+      default:
+        return { label: 'Fisik', bg: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.25)' };
+    }
+  };
+
+  // Local fallback pagination
+  const filteredProducts = useMemo(() => {
+    const list = analyticsData?.top_products || [];
+    let res = list.filter(p => {
+      if (selectedProductType !== 'all') {
+        const pType = p.product_type || 'physical';
+        if (pType !== selectedProductType) return false;
+      }
+      if (!productSearch.trim()) return true;
+      const q = productSearch.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.class && p.class.toLowerCase().includes(q)) ||
+        (p.product_type && p.product_type.toLowerCase().includes(q))
+      );
+    });
+
+    res = [...res].sort((a, b) => {
+      const actA = a.total_actions_count ?? a.wa_clicks_count ?? 0;
+      const actB = b.total_actions_count ?? b.wa_clicks_count ?? 0;
+
+      if (productSort === 'views') return (b.view_count || 0) - (a.view_count || 0);
+      if (productSort === 'actions') return actB - actA;
+      if (productSort === 'ctr') return (b.conversion_rate_percent || 0) - (a.conversion_rate_percent || 0);
+      if (productSort === 'price_desc') return (b.price || 0) - (a.price || 0);
+      if (productSort === 'price_asc') return (a.price || 0) - (b.price || 0);
+      return 0;
+    });
+
+    return res;
+  }, [analyticsData?.top_products, selectedProductType, productSearch, productSort]);
+
+  const isUsingServerData = serverProducts !== null;
+  const totalItems = isUsingServerData ? (serverTotal ?? 0) : filteredProducts.length;
+  const totalPages = isUsingServerData ? Math.max(1, serverTotalPages) : Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedProducts = useMemo(() => {
+    if (isUsingServerData) {
+      return serverProducts;
+    }
+    const start = (safePage - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [isUsingServerData, serverProducts, filteredProducts, safePage, pageSize]);
+
+  const getPaginationRange = (current: number, total: number) => {
+    if (total <= 5) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    if (current <= 3) {
+      return [1, 2, 3, 4, '...', total];
+    }
+    if (current >= total - 2) {
+      return [1, '...', total - 3, total - 2, total - 1, total];
+    }
+    return [1, '...', current - 1, current, current + 1, '...', total];
+  };
 
   return (
-    <div style={{
-      padding: '1.75rem',
-      maxWidth: '1050px',
-      margin: '0 auto',
-      width: '100%',
-      boxSizing: 'border-box',
-      overflowY: 'auto',
-      height: '100vh',
-      color: 'var(--text-primary)'
-    }}>
-      {/* Header Toolbar */}
-      <div style={{
+    <div
+      style={{
+        padding: '1.5rem',
+        maxWidth: '1100px',
+        margin: '0 auto',
+        width: '100%',
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+        height: '100vh',
+        color: 'var(--text-primary)',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '1rem',
-        marginBottom: '1.5rem',
-        borderBottom: '1px solid var(--border-light)',
-        paddingBottom: '1.25rem'
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '0.65rem',
-              backgroundColor: 'rgba(30, 58, 138, 0.12)',
-              border: '1px solid var(--border-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--primary)'
-            }}>
-              <BarChart3 size={20} />
+        flexDirection: 'column',
+        gap: '1.25rem'
+      }}
+    >
+      {/* 1. Header Toolbar with Period Switcher & Action Buttons */}
+      <div
+        className="glass-panel"
+        style={{
+          padding: '1.25rem 1.5rem',
+          borderRadius: '0.85rem',
+          border: '1px solid var(--border-light)',
+          backgroundColor: 'var(--bg-card)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(30, 58, 138, 0.12)',
+                color: 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid var(--border-light)',
+                flexShrink: 0
+              }}
+            >
+              <BarChart3 size={22} />
             </div>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0 }}>
-              Statistik Kunjungan & Interaksi Toko
-            </h2>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                Analitika & Performa Katalog
+              </h2>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                Statistik & trafik katalog <strong style={{ color: 'var(--text-primary)' }}>{storeTitle || storeSlug || 'Catavor'}</strong> • Khusus Profil Aktif Ini
+              </span>
+            </div>
           </div>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.35rem 0 0 0' }}>
-            Pantau trafik aktual, tingkat interaksi calon pembeli, serta efektivitas katalog produk Anda.
-          </p>
+
+          {/* Anti-Bot Badge */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.4rem 0.85rem',
+              borderRadius: '20px',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: '#10b981'
+            }}
+            title="Sistem secara otomatis mendeteksi dan memblokir bot web scraper, crawler mesin pencari, serta spam refresh agar data kunjungan Anda 100% murni manusia."
+          >
+            <ShieldCheck size={15} />
+            <span>Anti-Bot & Anti-Spam Aktif</span>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          {/* Period Segmented Switcher */}
-          <div style={{
-            display: 'flex',
-            backgroundColor: 'var(--bg-card)',
-            padding: '0.25rem',
-            borderRadius: '0.65rem',
-            border: '1px solid var(--border-light)'
-          }}>
-            {(['7d', '30d', '90d'] as const).map((p) => (
+        {/* Period Selector & Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)' }}>
+          {/* Segmented Period Tabs */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-deep)', padding: '0.25rem', borderRadius: '0.55rem', border: '1px solid var(--border-light)' }}>
+            {(['7d', '30d', '90d'] as const).map(p => (
               <button
                 key={p}
                 type="button"
                 onClick={() => setPeriod(p)}
                 style={{
                   minHeight: '38px',
-                  padding: '0.4rem 0.85rem',
-                  borderRadius: '0.5rem',
+                  padding: '0.4rem 0.95rem',
+                  fontSize: '0.8rem',
+                  fontWeight: period === p ? 700 : 500,
+                  borderRadius: '0.45rem',
                   border: 'none',
                   backgroundColor: period === p ? 'var(--primary)' : 'transparent',
                   color: period === p ? '#ffffff' : 'var(--text-secondary)',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
               >
-                {p === '7d' ? '7 Hari' : p === '30d' ? '30 Hari' : '90 Hari'}
+                {p === '7d' ? '7 Hari Terakhir' : p === '30d' ? '30 Hari Terakhir' : '90 Hari Terakhir'}
               </button>
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={() => fetchAnalytics(period, true)}
-            title="Segarkan Data"
-            disabled={loading}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            {/* Export CSV Trigger */}
+            <button
+              type="button"
+              onClick={() => setShowExportModal(true)}
+              disabled={isExportingCsv}
+              style={{
+                minHeight: '40px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.45rem 1rem',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                borderRadius: '0.55rem',
+                border: '1px solid rgba(59, 130, 246, 0.4)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                color: '#3b82f6',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Unduh rekap performa metrik toko dalam format CSV Spreadsheet"
+            >
+              <Download size={15} className={isExportingCsv ? 'animate-spin' : ''} />
+              <span>{isExportingCsv ? 'Menyiapkan...' : 'Ekspor CSV'}</span>
+            </button>
+
+            {/* Market Intelligence Trigger */}
+            <button
+              type="button"
+              onClick={() => setShowMarketIntel(true)}
+              style={{
+                minHeight: '40px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.45rem 1.05rem',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                borderRadius: '0.55rem',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                color: '#10b981',
+                cursor: 'pointer'
+              }}
+            >
+              <Globe size={15} />
+              <span>Tren Pasar Nasional</span>
+            </button>
+
+            {/* Refresh Button */}
+            <button
+              type="button"
+              onClick={() => fetchAnalytics(period, true)}
+              disabled={loading}
+              style={{
+                minHeight: '40px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.45rem 0.95rem',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                borderRadius: '0.55rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-deep)',
+                color: 'var(--text-primary)',
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+              <span>Segarkan</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Key Metrics Summary Grid (4 Cards - Adaptive Auto-fit Grid for Tablet) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
+        {/* Kunjungan Katalog */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.15rem',
+            borderRadius: '0.75rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Kunjungan Katalog</span>
+            <div style={{ width: '30px', height: '30px', borderRadius: '0.45rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Users size={16} />
+            </div>
+          </div>
+          <div
+            title={`Total Kunjungan: ${storeViews.toLocaleString('id-ID')}`}
             style={{
-              minHeight: '40px',
-              minWidth: '40px',
-              padding: '0.5rem',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-light)',
-              color: 'var(--text-secondary)',
+              fontSize: '1.8rem',
+              fontWeight: 800,
+              color: 'var(--text-primary)',
+              letterSpacing: '-0.02em',
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {formatMetricTablet(storeViews)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.35rem' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              Rata-rata {avgViewsPerDay} /hari
+            </span>
+            {analyticsData?.growth && (
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  padding: '0.1rem 0.4rem',
+                  borderRadius: '10px',
+                  backgroundColor: analyticsData.growth.store_views_growth_percent > 0 ? 'rgba(16, 185, 129, 0.12)' : analyticsData.growth.store_views_growth_percent < 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                  color: analyticsData.growth.store_views_growth_percent > 0 ? '#10b981' : analyticsData.growth.store_views_growth_percent < 0 ? '#ef4444' : 'var(--text-secondary)'
+                }}
+              >
+                {analyticsData.growth.store_views_growth_percent > 0 ? `↗ +${analyticsData.growth.store_views_growth_percent.toFixed(1)}%` : analyticsData.growth.store_views_growth_percent < 0 ? `↘ ${analyticsData.growth.store_views_growth_percent.toFixed(1)}%` : '— 0%'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Tayangan Produk */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.15rem',
+            borderRadius: '0.75rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Tayangan Produk</span>
+            <div style={{ width: '30px', height: '30px', borderRadius: '0.45rem', backgroundColor: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Eye size={16} />
+            </div>
+          </div>
+          <div
+            title={`Total Tayangan Produk: ${productViews.toLocaleString('id-ID')}`}
+            style={{
+              fontSize: '1.8rem',
+              fontWeight: 800,
+              color: 'var(--text-primary)',
+              letterSpacing: '-0.02em',
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {formatMetricTablet(productViews)}
+          </div>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.35rem', display: 'block' }}>
+            ~{viewsPerVisitor} produk per pengunjung
+          </span>
+        </div>
+
+        {/* Total Aksi Peminat */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.15rem',
+            borderRadius: '0.75rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Total Peminat & Aksi</span>
+            <div style={{ width: '30px', height: '30px', borderRadius: '0.45rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Zap size={16} />
+            </div>
+          </div>
+          <div
+            title={`Total Peminat & Aksi: ${totalActions.toLocaleString('id-ID')}`}
+            style={{
+              fontSize: '1.8rem',
+              fontWeight: 800,
+              color: '#10b981',
+              letterSpacing: '-0.02em',
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {formatMetricTablet(totalActions)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.35rem' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              Rata-rata {avgActionsPerDay} /hari
+            </span>
+            {analyticsData?.growth && (
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  padding: '0.1rem 0.4rem',
+                  borderRadius: '10px',
+                  backgroundColor: analyticsData.growth.total_actions_growth_percent > 0 ? 'rgba(16, 185, 129, 0.12)' : analyticsData.growth.total_actions_growth_percent < 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                  color: analyticsData.growth.total_actions_growth_percent > 0 ? '#10b981' : analyticsData.growth.total_actions_growth_percent < 0 ? '#ef4444' : 'var(--text-secondary)'
+                }}
+              >
+                {analyticsData.growth.total_actions_growth_percent > 0 ? `↗ +${analyticsData.growth.total_actions_growth_percent.toFixed(1)}%` : analyticsData.growth.total_actions_growth_percent < 0 ? `↘ ${analyticsData.growth.total_actions_growth_percent.toFixed(1)}%` : '— 0%'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Rasio Konversi */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.15rem',
+            borderRadius: '0.75rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Rasio Konversi</span>
+            <div style={{ width: '30px', height: '30px', borderRadius: '0.45rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Target size={16} />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.02em' }}>
+            {conversionRate.toFixed(1)}%
+          </div>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.35rem', display: 'block' }}>
+            {conversionRate >= 5 ? 'Tingkat Sangat Optimal' : conversionRate >= 2 ? 'Standar Sehat Retail' : 'Peluang Optimasi'}
+          </span>
+        </div>
+      </div>
+
+      {/* 3. Multi-Channel Conversion Distribution Cards */}
+      <div
+        className="glass-panel"
+        style={{
+          padding: '1.25rem 1.5rem',
+          borderRadius: '0.85rem',
+          border: '1px solid var(--border-light)',
+          backgroundColor: 'var(--bg-card)'
+        }}
+      >
+        <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 1rem 0' }}>
+          Distribusi Kanal Konversi Pembeli
+        </h3>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem' }}>
+          {/* Direct WA */}
+          <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#10b981', marginBottom: '0.35rem' }}>
+              <MessageCircle size={16} />
+              <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>WhatsApp Langsung</span>
+            </div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {directWa} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>chat leads</span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Order retail, booking jasa & janji survey</span>
+          </div>
+
+          {/* Marketplace */}
+          <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#f97316', marginBottom: '0.35rem' }}>
+              <ShoppingBag size={16} />
+              <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Marketplace Pihak ke-3</span>
+            </div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {marketplaceClicks} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>klik</span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Global marketplace e-commerce</span>
+          </div>
+
+          {/* Rekber Syariah */}
+          <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#3b82f6', marginBottom: '0.35rem' }}>
+              <ShieldCheck size={16} />
+              <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Rekber Syariah</span>
+            </div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {rekberClicks} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>peminat</span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Escrow & transaksi bernilai tinggi</span>
+          </div>
+
+          {/* Video Engagement */}
+          <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#a855f7', marginBottom: '0.35rem' }}>
+              <Video size={16} />
+              <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Video / Tour Clicks</span>
+            </div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {videoViews} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>tonton</span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Virtual tour properti, demo & unboxing</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Interactive Trend Chart (Area / Bar) */}
+      <div
+        className="glass-panel"
+        style={{
+          padding: '1.25rem 1.5rem',
+          borderRadius: '0.85rem',
+          border: '1px solid var(--border-light)',
+          backgroundColor: 'var(--bg-card)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <Activity size={18} style={{ color: 'var(--primary)' }} />
+              Tren Kunjungan & Aksi Harian
+            </h3>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              ({period === '7d' ? '7 hari terakhir' : period === '30d' ? '30 hari terakhir' : '90 hari terakhir'})
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+            {/* Metric Focus Filter Tabs */}
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '2px', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+              <button
+                type="button"
+                onClick={() => setMetricFocus('all')}
+                style={{
+                  minHeight: '34px',
+                  padding: '0.25rem 0.65rem',
+                  fontSize: '0.75rem',
+                  fontWeight: metricFocus === 'all' ? 700 : 500,
+                  borderRadius: '0.4rem',
+                  border: 'none',
+                  backgroundColor: metricFocus === 'all' ? 'var(--bg-card)' : 'transparent',
+                  color: metricFocus === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Semua
+              </button>
+              <button
+                type="button"
+                onClick={() => setMetricFocus('views')}
+                style={{
+                  minHeight: '34px',
+                  padding: '0.25rem 0.65rem',
+                  fontSize: '0.75rem',
+                  fontWeight: metricFocus === 'views' ? 700 : 500,
+                  borderRadius: '0.4rem',
+                  border: 'none',
+                  backgroundColor: metricFocus === 'views' ? 'var(--bg-card)' : 'transparent',
+                  color: metricFocus === 'views' ? '#3b82f6' : 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Kunjungan
+              </button>
+              <button
+                type="button"
+                onClick={() => setMetricFocus('actions')}
+                style={{
+                  minHeight: '34px',
+                  padding: '0.25rem 0.65rem',
+                  fontSize: '0.75rem',
+                  fontWeight: metricFocus === 'actions' ? 700 : 500,
+                  borderRadius: '0.4rem',
+                  border: 'none',
+                  backgroundColor: metricFocus === 'actions' ? 'var(--bg-card)' : 'transparent',
+                  color: metricFocus === 'actions' ? '#10b981' : 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Aksi Peminat
+              </button>
+            </div>
+
+            {/* Scale Mode Switcher */}
+            {isDisparityHigh && (
+              <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '2px', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+                <button
+                  type="button"
+                  onClick={() => setScaleMode('linear')}
+                  style={{
+                    minHeight: '34px',
+                    padding: '0.25rem 0.6rem',
+                    fontSize: '0.72rem',
+                    fontWeight: scaleMode === 'linear' ? 700 : 500,
+                    borderRadius: '0.4rem',
+                    border: 'none',
+                    backgroundColor: scaleMode === 'linear' ? 'var(--bg-card)' : 'transparent',
+                    color: scaleMode === 'linear' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    cursor: 'pointer'
+                  }}
+                  title="Skala Linier Standar"
+                >
+                  Linier
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScaleMode('adaptive')}
+                  style={{
+                    minHeight: '34px',
+                    padding: '0.25rem 0.6rem',
+                    fontSize: '0.72rem',
+                    fontWeight: scaleMode === 'adaptive' ? 700 : 500,
+                    borderRadius: '0.4rem',
+                    border: 'none',
+                    backgroundColor: scaleMode === 'adaptive' ? 'var(--bg-card)' : 'transparent',
+                    color: scaleMode === 'adaptive' ? 'var(--primary)' : 'var(--text-secondary)',
+                    cursor: 'pointer'
+                  }}
+                  title="Skala Adaptif: Mencegah lonjakan ekstrem menenggelamkan hari biasa"
+                >
+                  Adaptif
+                </button>
+              </div>
+            )}
+
+            {/* Chart Type Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '2px', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+              <button
+                type="button"
+                onClick={() => setChartType('area')}
+                style={{
+                  minHeight: '34px',
+                  padding: '0.25rem 0.65rem',
+                  fontSize: '0.75rem',
+                  fontWeight: chartType === 'area' ? 700 : 500,
+                  borderRadius: '0.4rem',
+                  border: 'none',
+                  backgroundColor: chartType === 'area' ? 'var(--bg-card)' : 'transparent',
+                  color: chartType === 'area' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Area
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartType('bar')}
+                style={{
+                  minHeight: '34px',
+                  padding: '0.25rem 0.65rem',
+                  fontSize: '0.75rem',
+                  fontWeight: chartType === 'bar' ? 700 : 500,
+                  borderRadius: '0.4rem',
+                  border: 'none',
+                  backgroundColor: chartType === 'bar' ? 'var(--bg-card)' : 'transparent',
+                  color: chartType === 'bar' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Batang
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Chart Container Canvas */}
+        <div
+          ref={chartContainerRef}
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: '185px',
+            backgroundColor: 'var(--bg-deep)',
+            borderRadius: '0.75rem',
+            border: '1px solid var(--border-light)',
+            overflow: 'hidden'
+          }}
+        >
+          {chartType === 'area' ? (
+            <svg
+              width="100%"
+              height="100%"
+              viewBox={`0 0 ${chartWidth} 175`}
+              preserveAspectRatio="none"
+              style={{ display: 'block', overflow: 'visible' }}
+            >
+              <defs>
+                <linearGradient id="viewsGradientTablet" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.28" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                </linearGradient>
+                <linearGradient id="actionsGradientTablet" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              {/* Grid Lines & Y-Axis Labels */}
+              {yGridTicks.map(tick => {
+                const ratio = getNormalizedRatio(tick);
+                const yPos = 16 + 114 - (ratio * 114);
+                const isBase = tick === 0;
+                return (
+                  <g key={tick}>
+                    <line
+                      x1={44}
+                      y1={yPos}
+                      x2={Math.max(100, chartWidth - 16)}
+                      y2={yPos}
+                      stroke="var(--border-light)"
+                      strokeDasharray={isBase ? 'none' : '4 4'}
+                      strokeWidth={isBase ? 1.2 : 0.8}
+                      strokeOpacity={isBase ? 0.9 : 0.45}
+                    />
+                    <text
+                      x={36}
+                      y={yPos + 3.5}
+                      textAnchor="end"
+                      fontSize="9.5"
+                      fontWeight="600"
+                      fill="var(--text-secondary)"
+                      fontFamily="inherit"
+                    >
+                      {formatCompactNumber(tick)}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Area Fills */}
+              {trends.length > 0 && (
+                <>
+                  {metricFocus !== 'actions' && (
+                    <path
+                      d={getAreaPath(viewsPoints, 130)}
+                      fill="url(#viewsGradientTablet)"
+                    />
+                  )}
+                  {metricFocus !== 'views' && (
+                    <path
+                      d={getAreaPath(actionsPoints, 130)}
+                      fill="url(#actionsGradientTablet)"
+                    />
+                  )}
+                  
+                  {/* Curves */}
+                  {metricFocus !== 'actions' && (
+                    <path
+                      d={getBezierPath(viewsPoints)}
+                      fill="none"
+                      stroke="#2563eb"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
+                  {metricFocus !== 'views' && (
+                    <path
+                      d={getBezierPath(actionsPoints)}
+                      fill="none"
+                      stroke="#059669"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
+                </>
+              )}
+
+              {/* Data Points & Interactive Triggers */}
+              {trends.map((t, idx) => {
+                const ptV = viewsPoints[idx];
+                const ptA = actionsPoints[idx];
+                const isHovered = hoveredPointIndex === idx;
+                const isLatest = idx === trends.length - 1;
+                const isPeak = idx === peakIndex && isDisparityHigh;
+                if (!ptV || !ptA) return null;
+
+                const showDateLabel = period === '7d' || (period === '30d' && idx % 4 === 0) || (period === '90d' && idx % 10 === 0) || isLatest;
+                const slotW = Math.max(10, (chartWidth - 44 - 16) / Math.max(1, trends.length));
+
+                return (
+                  <g key={t.date}>
+                    {isHovered && (
+                      <line
+                        x1={ptV.x}
+                        y1={16}
+                        x2={ptV.x}
+                        y2={130}
+                        stroke="var(--primary)"
+                        strokeDasharray="3 3"
+                        strokeWidth="1.2"
+                        strokeOpacity={0.75}
+                      />
+                    )}
+
+                    {isPeak && metricFocus !== 'actions' && (
+                      <circle
+                        cx={ptV.x}
+                        cy={ptV.y}
+                        r={isHovered ? 10 : 8}
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="1.6"
+                        strokeDasharray="3 2"
+                      />
+                    )}
+
+                    {metricFocus !== 'actions' && (
+                      <circle
+                        cx={ptV.x}
+                        cy={ptV.y}
+                        r={isHovered ? 6 : isPeak ? 5.5 : t.store_views > 0 ? 4 : 2.5}
+                        fill={isPeak ? '#f59e0b' : '#3b82f6'}
+                        stroke="#ffffff"
+                        strokeWidth={t.store_views > 0 || isHovered ? 2 : 1}
+                        opacity={t.store_views > 0 || isHovered ? 1 : 0.4}
+                      />
+                    )}
+                    {metricFocus !== 'views' && (
+                      <circle
+                        cx={ptA.x}
+                        cy={ptA.y}
+                        r={isHovered ? 6 : (t.total_actions ?? t.wa_clicks ?? 0) > 0 ? 4 : 2.5}
+                        fill="#10b981"
+                        stroke="#ffffff"
+                        strokeWidth={(t.total_actions ?? t.wa_clicks ?? 0) > 0 || isHovered ? 2 : 1}
+                        opacity={(t.total_actions ?? t.wa_clicks ?? 0) > 0 || isHovered ? 1 : 0.4}
+                      />
+                    )}
+
+                    {showDateLabel && (
+                      <text
+                        x={ptV.x}
+                        y={150}
+                        textAnchor={idx === 0 ? 'start' : isLatest ? 'end' : 'middle'}
+                        fontSize="9.5"
+                        fill={isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)'}
+                        fontWeight={isLatest || isHovered ? '700' : '500'}
+                        fontFamily="inherit"
+                      >
+                        {formatShortDate(t.date)}
+                      </text>
+                    )}
+
+                    <rect
+                      x={ptV.x - slotW / 2}
+                      y={0}
+                      width={slotW}
+                      height={175}
+                      fill="transparent"
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={() => setHoveredPointIndex(idx)}
+                      onMouseLeave={() => setHoveredPointIndex(null)}
+                    />
+                  </g>
+                );
+              })}
+            </svg>
+          ) : (
+            /* Bar Chart Visualization */
+            <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ position: 'absolute', top: '16px', left: '44px', right: '16px', bottom: '34px', pointerEvents: 'none' }}>
+                {yGridTicks.map(tick => {
+                  const bottomPct = getNormalizedRatio(tick) * 100;
+                  return (
+                    <div
+                      key={tick}
+                      style={{
+                        position: 'absolute',
+                        bottom: `${bottomPct}%`,
+                        left: 0,
+                        right: 0,
+                        borderBottom: tick === 0 ? '1px solid var(--border-light)' : '1px dashed var(--border-light)',
+                        opacity: tick === 0 ? 0.9 : 0.5,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <span style={{ position: 'absolute', right: '100%', marginRight: '8px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', transform: 'translateY(50%)' }}>
+                        {formatCompactNumber(tick)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem', height: 'calc(100% - 34px)', paddingLeft: '44px', paddingRight: '16px', paddingTop: '16px' }}>
+                {trends.map((t, idx) => {
+                  const vRatio = getNormalizedRatio(t.store_views || 0);
+                  const maxBarH = 135;
+                  const vHeight = t.store_views > 0
+                    ? Math.max(5, Math.min(maxBarH, Math.round(vRatio * maxBarH)))
+                    : 3;
+                  const actCount = t.total_actions ?? t.wa_clicks ?? 0;
+                  const aRatio = getNormalizedRatio(actCount);
+                  const aHeight = actCount > 0
+                    ? Math.max(5, Math.min(maxBarH, Math.round(aRatio * maxBarH)))
+                    : 3;
+                  const isHovered = hoveredPointIndex === idx;
+
+                  const isSingleMetric = metricFocus !== 'all' || actCount === 0 || t.store_views === 0;
+                  const barWidth = period === '7d' 
+                    ? (isSingleMetric ? '28px' : '18px') 
+                    : period === '30d' 
+                      ? (isSingleMetric ? '11px' : '7px') 
+                      : '4px';
+
+                  return (
+                    <div
+                      key={t.date}
+                      onMouseEnter={() => setHoveredPointIndex(idx)}
+                      onMouseLeave={() => setHoveredPointIndex(null)}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        height: '100%',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        borderRadius: '0.5rem',
+                        backgroundColor: isHovered ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', width: '100%', justifyContent: 'center', paddingBottom: '1px' }}>
+                        {metricFocus !== 'actions' && (
+                          <div
+                            style={{
+                              width: barWidth,
+                              height: `${vHeight}px`,
+                              background: t.store_views > 0
+                                ? (isHovered 
+                                    ? 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)' 
+                                    : 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)')
+                                : 'var(--border-light)',
+                              borderRadius: t.store_views > 0 ? '5px 5px 0 0' : '2px',
+                              opacity: t.store_views > 0 ? 1 : 0.5,
+                              transition: 'all 0.2s ease'
+                            }}
+                          />
+                        )}
+                        {metricFocus !== 'views' && (
+                          <div
+                            style={{
+                              width: barWidth,
+                              height: `${aHeight}px`,
+                              background: actCount > 0
+                                ? (isHovered 
+                                    ? 'linear-gradient(180deg, #34d399 0%, #059669 100%)' 
+                                    : 'linear-gradient(180deg, #10b981 0%, #047857 100%)')
+                                : 'var(--border-light)',
+                              borderRadius: actCount > 0 ? '5px 5px 0 0' : '2px',
+                              opacity: actCount > 0 ? 1 : 0.5,
+                              transition: 'all 0.2s ease'
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', paddingLeft: '44px', paddingRight: '16px', height: '34px', alignItems: 'center' }}>
+                {trends.map((t, idx) => {
+                  const isLatest = idx === trends.length - 1;
+                  const showDateLabel = period === '7d' || (period === '30d' && idx % 4 === 0) || (period === '90d' && idx % 10 === 0) || isLatest;
+                  const isHovered = hoveredPointIndex === idx;
+
+                  return (
+                    <div key={t.date} style={{ flex: 1, textAlign: 'center' }}>
+                      {showDateLabel && (
+                        <span style={{ fontSize: '0.72rem', color: isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isLatest || isHovered ? 700 : 500, whiteSpace: 'nowrap' }}>
+                          {formatShortDate(t.date)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Floating Glass Tooltip when Hovered */}
+          {hoveredPointIndex !== null && trends[hoveredPointIndex] && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '8px',
+                left: viewsPoints[hoveredPointIndex]
+                  ? `${Math.min(chartWidth - 110, Math.max(110, viewsPoints[hoveredPointIndex].x))}px`
+                  : `${Math.min(78, Math.max(16, ((hoveredPointIndex + 0.5) / Math.max(1, trends.length)) * 100))}%`,
+                transform: 'translateX(-50%)',
+                backgroundColor: 'rgba(15, 23, 42, 0.96)',
+                color: '#ffffff',
+                padding: '0.6rem 0.9rem',
+                borderRadius: '0.65rem',
+                fontSize: '0.75rem',
+                zIndex: 30,
+                boxShadow: '0 8px 22px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.15)',
+                pointerEvents: 'none',
+                backdropFilter: 'blur(10px)',
+                minWidth: '185px'
+              }}
+            >
+              <div style={{ fontWeight: 800, marginBottom: '0.35rem', color: '#f8fafc', borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: '0.25rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>{formatDetailedDate(trends[hoveredPointIndex].date)}</span>
+                {hoveredPointIndex === peakIndex && isDisparityHigh && (
+                  <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 800, backgroundColor: 'rgba(245, 158, 11, 0.15)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                    ★ Puncak
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem', margin: '0.25rem 0' }}>
+                <span style={{ color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+                  Kunjungan:
+                </span>
+                <strong style={{ color: '#60a5fa', fontSize: '0.82rem' }}>
+                  {trends[hoveredPointIndex].store_views.toLocaleString('id-ID')}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem', margin: '0.25rem 0' }}>
+                <span style={{ color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                  Total Aksi:
+                </span>
+                <strong style={{ color: '#34d399', fontSize: '0.82rem' }}>
+                  {(trends[hoveredPointIndex].total_actions ?? trends[hoveredPointIndex].wa_clicks ?? 0).toLocaleString('id-ID')}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem', marginTop: '0.3rem', paddingTop: '0.25rem', borderTop: '1px dashed rgba(255,255,255,0.1)', fontSize: '0.7rem', color: '#94a3b8' }}>
+                <span>Konversi Hari Ini:</span>
+                <span style={{ color: '#e2e8f0', fontWeight: 700 }}>
+                  {trends[hoveredPointIndex].store_views > 0
+                    ? `${(((trends[hoveredPointIndex].total_actions ?? trends[hoveredPointIndex].wa_clicks ?? 0) / trends[hoveredPointIndex].store_views) * 100).toFixed(1)}%`
+                    : '0%'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Zero Data Indicator */}
+          {storeViews === 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '42%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)',
+                padding: '0.55rem 1.15rem',
+                borderRadius: '25px',
+                pointerEvents: 'none',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                zIndex: 10
+              }}
+            >
+              <TrendingUp size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                Menunggu Data Kunjungan • Bagikan link katalog Anda untuk mencatat grafik real-time
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 5. Attribution & Conversion Funnel Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: chartWidth >= 700 ? '1.15fr 1fr' : '1fr', gap: '1rem' }}>
+        {/* Traffic Sources Breakdown Card */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.25rem 1.5rem',
+            borderRadius: '0.85rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.9rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <Globe size={16} style={{ color: 'var(--primary)' }} />
+                <span>Sumber Trafik & Kampanye</span>
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Kanal kedatangan calon pembeli ke katalog toko Anda
+              </span>
+            </div>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '12px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
+              {analyticsData?.traffic_sources?.length || 1} Kanal
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem',
+              maxHeight: '275px',
+              overflowY: 'auto',
+              paddingRight: '0.35rem'
+            }}
+          >
+            {(analyticsData?.traffic_sources && analyticsData.traffic_sources.length > 0
+              ? analyticsData.traffic_sources
+              : [{ source: 'direct', name: 'Direct / Link Langsung', views: storeViews, total_actions: totalActions, percentage: 100, conversion_rate_percent: conversionRate }]
+            ).slice().sort((a, b) => (b.views || 0) - (a.views || 0)).map(ts => {
+              const getSourceColor = (s: string) => {
+                if (s === 'instagram') return '#e1306c';
+                if (s === 'tiktok') return '#06b6d4';
+                if (s === 'whatsapp') return '#25d366';
+                if (s === 'facebook') return '#1877f2';
+                if (s === 'google') return '#ea4335';
+                if (s === 'marketplace') return '#f97316';
+                return '#64748b';
+              };
+              const col = getSourceColor(ts.source);
+
+              return (
+                <div key={ts.source} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: col }} />
+                      <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{ts.name}</strong>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{ts.views.toLocaleString()} tayangan</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>({ts.percentage.toFixed(1)}%)</span>
+                      <span style={{ fontSize: '0.7rem', color: ts.conversion_rate_percent > 0 ? '#10b981' : 'var(--text-secondary)', fontWeight: 700, backgroundColor: 'var(--bg-deep)', padding: '0.1rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
+                        {ts.conversion_rate_percent.toFixed(1)}% CR
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ width: '100%', height: '6px', borderRadius: '3px', backgroundColor: 'var(--bg-deep)', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.max(3, Math.min(100, ts.percentage))}%`, height: '100%', backgroundColor: col, borderRadius: '3px', transition: 'width 0.4s ease' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Conversion Funnel Card */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.25rem 1.5rem',
+            borderRadius: '0.85rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.9rem'
+          }}
+        >
+          <div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <Target size={16} style={{ color: '#10b981' }} />
+              <span>Corong Konversi (Funnel)</span>
+            </h3>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              Pemetaan alur dari kunjungan hingga terjadinya aksi transaksi
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+            {/* Step 1 */}
+            <div style={{ padding: '0.65rem 0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>1</span>
+                <div>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>Kunjungan Katalog</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Baseline Pengunjung Unik</span>
+                </div>
+              </div>
+              <strong title={`Total: ${storeViews.toLocaleString('id-ID')}`} style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{formatMetricTablet(storeViews)}</strong>
+            </div>
+
+            {/* Dropdown rate 1 -> 2 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', paddingLeft: '1.25rem', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              <span style={{ width: '1.5px', height: '14px', backgroundColor: 'var(--border-light)' }} />
+              <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                {analyticsData?.funnel?.view_to_product_rate ? `${analyticsData.funnel.view_to_product_rate.toFixed(1)}%` : storeViews > 0 ? `${((productViews / storeViews) * 100).toFixed(1)}%` : '0%'}
+              </span>
+              <span>pengunjung lanjut mengeksplorasi produk</span>
+            </div>
+
+            {/* Step 2 */}
+            <div style={{ padding: '0.65rem 0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>2</span>
+                <div>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>Detail Produk Dilihat</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Minat Terhadap Item Tertentu</span>
+                </div>
+              </div>
+              <strong title={`Total: ${productViews.toLocaleString('id-ID')}`} style={{ fontSize: '0.95rem', fontWeight: 800, color: '#8b5cf6', fontVariantNumeric: 'tabular-nums' }}>{formatMetricTablet(productViews)}</strong>
+            </div>
+
+            {/* Dropdown rate 2 -> 3 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', paddingLeft: '1.25rem', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              <span style={{ width: '1.5px', height: '14px', backgroundColor: 'var(--border-light)' }} />
+              <span style={{ color: '#10b981', fontWeight: 700 }}>
+                {analyticsData?.funnel?.product_to_action_rate ? `${analyticsData.funnel.product_to_action_rate.toFixed(1)}%` : productViews > 0 ? `${((totalActions / productViews) * 100).toFixed(1)}%` : '0%'}
+              </span>
+              <span>lanjut klik tombol aksi / hubungi toko</span>
+            </div>
+
+            {/* Step 3 */}
+            <div style={{ padding: '0.65rem 0.85rem', borderRadius: '0.65rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#10b981', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>3</span>
+                <div>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>Aksi Beli / Chat WA / Rekber</span>
+                  <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600 }}>Konversi Final Katalog</span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <strong title={`Total: ${totalActions.toLocaleString('id-ID')}`} style={{ fontSize: '0.95rem', fontWeight: 800, color: '#10b981', fontVariantNumeric: 'tabular-nums' }}>{formatMetricTablet(totalActions)}</strong>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>CR: {conversionRate.toFixed(1)}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Product Type Filter Tabs & Top Performing Products */}
+      <div
+        className="glass-panel"
+        style={{
+          padding: '1.25rem 1.5rem',
+          borderRadius: '0.85rem',
+          border: '1px solid var(--border-light)',
+          backgroundColor: 'var(--bg-card)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem'
+        }}
+      >
+        {/* Header with Title, Count Badge & Search / Sort Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                Performa Item per Tipe Katalog
+              </h3>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '0.15rem 0.55rem',
+                  borderRadius: '12px',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  border: '1px solid var(--border-light)'
+                }}
+              >
+                {totalItems} item
+              </span>
+            </div>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              Analisa item paling diminati calon pembeli dan efisiensi konversinya
+            </span>
+          </div>
+
+          {/* Search Box & Sort Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {/* Search Input */}
+            <div style={{ position: 'relative', width: '220px' }}>
+              <Search size={14} style={{ position: 'absolute', left: '0.7rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+              <input
+                type="text"
+                placeholder="Cari item katalog..."
+                value={productSearch}
+                onChange={e => setProductSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  minHeight: '38px',
+                  padding: '0.45rem 2rem 0.45rem 2.1rem',
+                  fontSize: '0.8rem',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              {productSearch && (
+                <button
+                  type="button"
+                  onClick={() => setProductSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.5rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '2px'
+                  }}
+                  title="Hapus pencarian"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Standard Dropdown Menu Popover */}
+            <div ref={sortDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+              <button
+                type="button"
+                onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+                style={{
+                  minHeight: '38px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.45rem 0.85rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <ArrowUpDown size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <span>{sortOptions.find(o => o.id === productSort)?.label || 'Terbanyak Dilihat'}</span>
+                <ChevronDown size={14} style={{ color: 'var(--text-secondary)', transform: isSortDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
+              </button>
+
+              {isSortDropdownOpen && (
+                <div
+                  className="glass-panel"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    width: '280px',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '0.75rem',
+                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05)',
+                    zIndex: 1000,
+                    padding: '0.4rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25rem'
+                  }}
+                >
+                  <div style={{ padding: '0.4rem 0.6rem 0.25rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Urutkan Item Berdasarkan
+                  </div>
+                  {sortOptions.map((opt) => {
+                    const isSelected = productSort === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setProductSort(opt.id as any);
+                          setCurrentPage(1);
+                          setIsSortDropdownOpen(false);
+                        }}
+                        style={{
+                          minHeight: '44px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.5rem',
+                          padding: '0.55rem 0.65rem',
+                          borderRadius: '0.5rem',
+                          border: 'none',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'transparent',
+                          color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                          cursor: 'pointer',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: isSelected ? 700 : 500 }}>
+                            {opt.label}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: isSelected ? 'var(--primary)' : 'var(--text-secondary)', opacity: 0.85 }}>
+                            {opt.desc}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <Check size={15} strokeWidth={3} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Product Type Switcher Pills */}
+        {distinctTypesCount > 1 && (
+          <div
+            style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            <RefreshCw size={16} className={loading ? 'spin-animation' : ''} />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            style={{
-              minHeight: '40px',
-              padding: '0.5rem 1rem',
-              borderRadius: '0.65rem',
-              backgroundColor: 'rgba(30, 58, 138, 0.12)',
-              border: '1px solid var(--border-light)',
-              color: 'var(--primary)',
-              fontWeight: 700,
-              fontSize: '0.82rem',
-              display: 'inline-flex',
-              alignItems: 'center',
               gap: '0.45rem',
-              cursor: 'pointer'
+              overflowX: 'auto',
+              paddingBottom: '0.35rem',
+              scrollbarWidth: 'none'
             }}
           >
-            <Download size={15} />
-            Unduh CSV
-          </button>
-        </div>
-      </div>
+            {productTypeTabs
+              .filter(tab => tab.key === 'all' || (productTypeCounts[tab.key] || 0) > 0)
+              .map(tab => {
+                const TabIcon = tab.icon;
+                const isSelected = selectedProductType === tab.key;
+                const count = productTypeCounts[tab.key] || 0;
 
-      {/* KPI Cards Grid (Dynamically adapts: 4 columns on wide, 2 columns on compact tablet / expanded sidebar) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-        gap: '1rem',
-        marginBottom: '1.5rem'
-      }}>
-        <div style={{
-          padding: '1.25rem',
-          borderRadius: '0.85rem',
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border-light)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Pengunjung Toko</span>
-            <Users size={18} color="var(--primary)" />
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setSelectedProductType(tab.key)}
+                    style={{
+                      minHeight: '38px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.4rem 0.85rem',
+                      fontSize: '0.78rem',
+                      fontWeight: isSelected ? 700 : 500,
+                      borderRadius: '20px',
+                      border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                      backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-deep)',
+                      color: isSelected ? '#ffffff' : count > 0 ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <TabIcon size={14} />
+                    <span>{tab.label}</span>
+                    <span
+                      style={{
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        padding: '0.05rem 0.45rem',
+                        borderRadius: '10px',
+                        backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-card)',
+                        color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                        border: isSelected ? 'none' : '1px solid var(--border-light)'
+                      }}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
           </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 900, color: 'var(--text-primary)' }}>
-            {Number(totalStoreViews).toLocaleString('id-ID')}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            Total sesi kunjungan katalog
-          </div>
-        </div>
+        )}
 
-        <div style={{
-          padding: '1.25rem',
-          borderRadius: '0.85rem',
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border-light)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Dilihat Produk</span>
-            <Eye size={18} color="#3b82f6" />
-          </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#3b82f6' }}>
-            {Number(totalProductViews).toLocaleString('id-ID')}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            Tayangan rincian item
-          </div>
-        </div>
-
-        <div style={{
-          padding: '1.25rem',
-          borderRadius: '0.85rem',
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border-light)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Klik Order WhatsApp</span>
-            <MessageCircle size={18} color="#10b981" />
-          </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#10b981' }}>
-            {Number(totalWaClicks).toLocaleString('id-ID')}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            Pelanggan memulai chat pesan
-          </div>
-        </div>
-
-        <div style={{
-          padding: '1.25rem',
-          borderRadius: '0.85rem',
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border-light)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tingkat Konversi</span>
-            <TrendingUp size={18} color="#f59e0b" />
-          </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#f59e0b' }}>
-            {Number(conversionRate).toFixed(1)}%
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            Rasio tayang ke aksi order
-          </div>
-        </div>
-      </div>
-
-      {/* Channel Breakdown Row (Adaptive Auto-fit Grid) */}
-      <div style={{
-        backgroundColor: 'var(--bg-card)',
-        borderRadius: '0.85rem',
-        border: '1px solid var(--border-light)',
-        padding: '1.25rem',
-        marginBottom: '1.5rem'
-      }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 1rem 0' }}>
-          Distribusi Kanal Konversi Pelanggan
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
-          <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>WhatsApp Langsung</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981' }}>
-              {Number(data?.channels?.direct_wa ?? totalWaClicks).toLocaleString('id-ID')}
+        {/* Active Filter Notice Banner */}
+        {(selectedProductType !== 'all' || productSearch.trim()) && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.45rem 0.85rem',
+              borderRadius: '0.5rem',
+              backgroundColor: 'var(--bg-deep)',
+              border: '1px solid var(--border-light)',
+              fontSize: '0.75rem',
+              color: 'var(--text-secondary)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <span>Menampilkan filter:</span>
+              {selectedProductType !== 'all' && (
+                <span style={{ fontWeight: 700, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.1rem 0.45rem', borderRadius: '4px' }}>
+                  Tipe: {productTypeTabs.find(t => t.key === selectedProductType)?.label}
+                </span>
+              )}
+              {productSearch.trim() && (
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)', backgroundColor: 'var(--bg-card)', padding: '0.1rem 0.45rem', borderRadius: '4px' }}>
+                  Kata Kunci: "{productSearch.trim()}"
+                </span>
+              )}
+              <span>({totalItems} ditemukan)</span>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedProductType('all');
+                setProductSearch('');
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--primary)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem'
+              }}
+            >
+              <X size={13} />
+              <span>Reset Filter</span>
+            </button>
           </div>
-          <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Marketplace External</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-              {Number(data?.channels?.marketplace ?? 0).toLocaleString('id-ID')}
-            </div>
-          </div>
-          <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Rekber / Escrow</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-              {Number(data?.channels?.rekber ?? 0).toLocaleString('id-ID')}
-            </div>
-          </div>
-          <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Video Produk Ditonton</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-              {Number(data?.channels?.video ?? 0).toLocaleString('id-ID')}
-            </div>
-          </div>
-        </div>
-      </div>
+        )}
 
-      {/* Top Products Table */}
-      <div style={{
-        backgroundColor: 'var(--bg-card)',
-        borderRadius: '0.85rem',
-        border: '1px solid var(--border-light)',
-        padding: '1.5rem',
-        marginBottom: '2rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
-              Produk Paling Banyak Diminati
-            </h3>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
-              Urutan produk berdasarkan interaksi calon pembeli pada periode {period === '7d' ? '7 hari terakhir' : period === '30d' ? '30 hari terakhir' : '90 hari terakhir'}.
-            </p>
-          </div>
-        </div>
-
-        {topProducts.length === 0 ? (
-          <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-            Belum ada interaksi produk yang tercatat pada rentang waktu ini.
+        {/* Top Products Table / Card List */}
+        {totalItems === 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '3rem 1.5rem',
+              borderRadius: '0.75rem',
+              backgroundColor: 'var(--bg-deep)',
+              border: '1px dashed var(--border-light)',
+              textAlign: 'center',
+              gap: '0.75rem'
+            }}
+          >
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--bg-card)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-light)'
+              }}
+            >
+              <PackageSearch size={24} />
+            </div>
+            <div>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
+                Tidak Ada Item Ditemukan
+              </h4>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '360px' }}>
+                {productSearch.trim() || selectedProductType !== 'all'
+                  ? `Tidak ditemukan item yang cocok dengan kriteria pencarian "${productSearch}" atau filter tipe saat ini.`
+                  : 'Belum ada data aktivitas item pada katalog ini.'}
+              </p>
+            </div>
+            {(productSearch.trim() || selectedProductType !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setProductSearch('');
+                  setSelectedProductType('all');
+                }}
+                style={{
+                  minHeight: '40px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.45rem 1rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  borderRadius: '0.55rem',
+                  border: '1px solid var(--primary)',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  cursor: 'pointer',
+                  marginTop: '0.35rem'
+                }}
+              >
+                <RefreshCw size={14} />
+                <span>Reset Filter & Pencarian</span>
+              </button>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-            {topProducts.slice(0, 8).map((prod: any, idx: number) => {
-              const itemCtr = Number(prod.conversion_rate_percent ?? 0).toFixed(1);
+            {paginatedProducts.map((prod, index) => {
+              const itemActions = prod.total_actions_count ?? prod.wa_clicks_count ?? 0;
+              const ctr = prod.conversion_rate_percent ?? 0;
+              const globalRank = (safePage - 1) * pageSize + index + 1;
+              const typeBadge = getProductTypeBadge(prod.product_type);
+
+              const getRankBadgeStyle = (rank: number) => {
+                if (rank === 1) {
+                  return {
+                    bg: 'linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.1))',
+                    border: '1px solid rgba(245, 158, 11, 0.45)',
+                    color: '#d97706',
+                    text: '#1'
+                  };
+                }
+                if (rank === 2) {
+                  return {
+                    bg: 'linear-gradient(135deg, rgba(148, 163, 184, 0.22), rgba(100, 116, 139, 0.1))',
+                    border: '1px solid rgba(148, 163, 184, 0.45)',
+                    color: '#64748b',
+                    text: '#2'
+                  };
+                }
+                if (rank === 3) {
+                  return {
+                    bg: 'linear-gradient(135deg, rgba(217, 119, 6, 0.18), rgba(180, 83, 9, 0.08))',
+                    border: '1px solid rgba(217, 119, 6, 0.35)',
+                    color: '#b45309',
+                    text: '#3'
+                  };
+                }
+                return {
+                  bg: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  text: `#${rank}`
+                };
+              };
+
+              const rankStyle = getRankBadgeStyle(globalRank);
+
               return (
                 <div
-                  key={prod.id || idx}
+                  key={prod.id}
+                  onClick={() => onViewProduct?.(prod.id)}
                   style={{
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.85rem 1rem',
-                    borderRadius: '0.65rem',
+                    flexDirection: 'column',
+                    gap: '0.65rem',
+                    padding: '0.95rem 1.15rem',
+                    borderRadius: '0.75rem',
                     backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
+                    border: '1px solid var(--border-light)',
+                    cursor: onViewProduct ? 'pointer' : 'default',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--primary)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--border-light)';
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      backgroundColor: idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#b45309' : 'rgba(0,0,0,0.1)',
-                      color: idx < 3 ? '#ffffff' : 'var(--text-muted)',
-                      fontSize: '0.8rem',
-                      fontWeight: 800,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      {idx + 1}
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                      {/* Rank Badge */}
+                      <div
+                        style={{
+                          width: '30px',
+                          height: '30px',
+                          borderRadius: '8px',
+                          background: rankStyle.bg,
+                          color: rankStyle.color,
+                          border: rankStyle.border,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.8rem',
+                          fontWeight: 800,
+                          flexShrink: 0
+                        }}
+                      >
+                        {rankStyle.text}
+                      </div>
 
-                    <div style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '0.5rem',
-                      backgroundColor: 'var(--bg-card)',
-                      overflow: 'hidden',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid var(--border-light)',
-                      flexShrink: 0
-                    }}>
+                      {/* Thumbnail */}
                       {prod.image_url ? (
-                        <img src={prod.image_url} alt={prod.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img
+                          src={prod.image_url}
+                          alt={prod.name}
+                          style={{ width: '44px', height: '44px', borderRadius: '0.55rem', objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-light)' }}
+                        />
                       ) : (
-                        <ShoppingBag size={18} color="var(--text-muted)" />
+                        <div style={{ width: '44px', height: '44px', borderRadius: '0.55rem', backgroundColor: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', flexShrink: 0, border: '1px solid var(--border-light)' }}>
+                          <ShoppingBag size={20} />
+                        </div>
                       )}
+
+                      {/* Title, Price & Type Badge */}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {prod.name}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              color: typeBadge.color,
+                              backgroundColor: typeBadge.bg,
+                              border: `1px solid ${typeBadge.border}`,
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '4px',
+                              flexShrink: 0
+                            }}
+                          >
+                            {typeBadge.label}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--primary)', fontWeight: 700 }}>
+                          {formatPrice(prod.price)}
+                        </span>
+                      </div>
                     </div>
 
-                    <div style={{ overflow: 'hidden', minWidth: 0 }}>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {prod.name}
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        Harga: Rp {Number(prod.price || 0).toLocaleString('id-ID')}
-                      </div>
+                    {/* Conversion Badge */}
+                    <div style={{ flexShrink: 0 }}>
+                      <span
+                        style={{
+                          fontSize: '0.8rem',
+                          fontWeight: 800,
+                          color: ctr >= 5 ? '#10b981' : ctr >= 2 ? 'var(--primary)' : '#f59e0b',
+                          backgroundColor: ctr >= 5 ? 'rgba(16, 185, 129, 0.12)' : ctr >= 2 ? 'var(--primary-glow)' : 'rgba(245, 158, 11, 0.12)',
+                          border: ctr >= 5 ? '1px solid rgba(16, 185, 129, 0.3)' : ctr >= 2 ? '1px solid var(--border-light)' : '1px solid rgba(245, 158, 11, 0.3)',
+                          padding: '0.3rem 0.75rem',
+                          borderRadius: '20px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <Target size={13} />
+                        <span>{ctr.toFixed(1)}% CTR</span>
+                      </span>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', flexShrink: 0 }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {Number(prod.view_count || 0).toLocaleString('id-ID')}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Dilihat</div>
+                  {/* Category & Metrics Row */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', paddingTop: '0.45rem', borderTop: '1px solid var(--border-light)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {prod.class ? (
+                        <span
+                          style={{
+                            fontSize: '0.74rem',
+                            color: 'var(--text-secondary)',
+                            backgroundColor: 'var(--bg-card)',
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-light)',
+                            fontWeight: 500
+                          }}
+                        >
+                          {prod.class}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>Umum</span>
+                      )}
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#10b981' }}>
-                        {Number(prod.wa_clicks_count || 0).toLocaleString('id-ID')}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-card)', padding: '0.25rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+                        <Eye size={14} style={{ color: '#3b82f6' }} />
+                        <span title={`Tayangan: ${prod.view_count.toLocaleString('id-ID')}`} style={{ fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{formatMetricTablet(prod.view_count)}</span>
+                        <span>tayangan</span>
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Klik WA</div>
-                    </div>
-
-                    <div style={{ textAlign: 'right', minWidth: '70px' }}>
-                      <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#f59e0b' }}>
-                        {itemCtr}%
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-card)', padding: '0.25rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+                        <Zap size={14} style={{ color: '#10b981' }} />
+                        <span title={`Aksi: ${itemActions.toLocaleString('id-ID')}`} style={{ fontWeight: 700, color: '#10b981', fontVariantNumeric: 'tabular-nums' }}>{formatMetricTablet(itemActions)}</span>
+                        <span>aksi peminat</span>
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Konversi</div>
                     </div>
                   </div>
                 </div>
@@ -459,7 +2546,529 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
             })}
           </div>
         )}
+
+        {/* Pagination Bar */}
+        {totalItems > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              paddingTop: '0.85rem',
+              borderTop: '1px solid var(--border-light)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              <span>
+                Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{(safePage - 1) * pageSize + 1}</strong> - <strong style={{ color: 'var(--text-primary)' }}>{Math.min(safePage * pageSize, totalItems)}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{totalItems}</strong> item
+              </span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>Tampilkan:</span>
+                <select
+                  value={pageSize}
+                  onChange={e => setPageSize(Number(e.target.value))}
+                  style={{
+                    minHeight: '34px',
+                    padding: '0.2rem 0.5rem',
+                    fontSize: '0.75rem',
+                    borderRadius: '0.45rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: 'var(--text-primary)',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value={5}>5 / hal</option>
+                  <option value={10}>10 / hal</option>
+                  <option value={20}>20 / hal</option>
+                  <option value={50}>50 / hal</option>
+                </select>
+              </div>
+            </div>
+
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <button
+                  type="button"
+                  disabled={safePage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  title="Halaman Pertama"
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: safePage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: safePage === 1 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: safePage === 1 ? 0.35 : 1
+                  }}
+                >
+                  <ChevronsLeft size={15} />
+                </button>
+
+                <button
+                  type="button"
+                  disabled={safePage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  title="Halaman Sebelumnya"
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: safePage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: safePage === 1 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: safePage === 1 ? 0.35 : 1
+                  }}
+                >
+                  <ChevronLeft size={15} />
+                </button>
+
+                {getPaginationRange(safePage, totalPages).map((pNum, pIdx) => {
+                  if (pNum === '...') {
+                    return (
+                      <span key={`ellipsis-${pIdx}`} style={{ padding: '0 0.3rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                        ...
+                      </span>
+                    );
+                  }
+                  const isCurrent = pNum === safePage;
+                  return (
+                    <button
+                      key={`page-${pNum}`}
+                      type="button"
+                      onClick={() => setCurrentPage(pNum as number)}
+                      style={{
+                        minWidth: '34px',
+                        height: '34px',
+                        padding: '0 0.4rem',
+                        borderRadius: '6px',
+                        border: isCurrent ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        backgroundColor: isCurrent ? 'var(--primary)' : 'var(--bg-deep)',
+                        color: isCurrent ? '#ffffff' : 'var(--text-primary)',
+                        fontWeight: isCurrent ? 700 : 500,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  disabled={safePage === totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  title="Halaman Berikutnya"
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: safePage === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: safePage === totalPages ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: safePage === totalPages ? 0.35 : 1
+                  }}
+                >
+                  <ChevronRight size={15} />
+                </button>
+
+                <button
+                  type="button"
+                  disabled={safePage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  title="Halaman Terakhir"
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: safePage === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: safePage === totalPages ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: safePage === totalPages ? 0.35 : 1
+                  }}
+                >
+                  <ChevronsRight size={15} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* 7. Smart Actionable Insights Panel */}
+      {analyticsData?.insights && analyticsData.insights.length > 0 && (
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.25rem 1.5rem',
+            borderRadius: '0.85rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
+            <Lightbulb size={18} style={{ color: 'var(--primary)' }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              Wawasan & Rekomendasi Pintar Bisnis
+            </h3>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
+            {analyticsData.insights.map((ins, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: '0.9rem 1.1rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: ins.type === 'success' ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-deep)',
+                  border: ins.type === 'success' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.75rem'
+                }}
+              >
+                {ins.type === 'success' ? (
+                  <CheckCircle2 size={18} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                ) : (
+                  <AlertCircle size={18} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+                )}
+                <div>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.2rem 0' }}>
+                    {ins.title}
+                  </h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
+                    {ins.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 8. Interactive Export Analytics Modal */}
+      {showExportModal && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 12000,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.25rem'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowExportModal(false);
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '540px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '1.25rem 1.5rem',
+                borderBottom: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: 'var(--bg-deep)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    color: '#3b82f6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Download size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    Ekspor Laporan Analitika (CSV)
+                  </h3>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                    Katalog {storeTitle || storeSlug || 'Catavor'} • Standar Format Spreadsheet
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  display: 'flex'
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem' }}>
+                  1. Pilih Rentang Waktu
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                  {[
+                    { key: 'all', label: 'Sepanjang Waktu (All-Time)', desc: 'Seluruh riwayat toko sejak awal' },
+                    { key: '90d', label: '90 Hari Terakhir', desc: 'Rekapitulasi 3 bulan terakhir' },
+                    { key: '30d', label: '30 Hari Terakhir', desc: 'Evaluasi 1 bulan terakhir' },
+                    { key: '7d', label: '7 Hari Terakhir', desc: 'Aktivitas 1 minggu terakhir' }
+                  ].map((pOpt) => {
+                    const isSelected = exportPeriod === pOpt.key;
+                    return (
+                      <div
+                        key={pOpt.key}
+                        onClick={() => setExportPeriod(pOpt.key as any)}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.7rem 0.85rem',
+                          borderRadius: '0.6rem',
+                          border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: isSelected ? 800 : 600, color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
+                            {pOpt.label}
+                          </span>
+                          {isSelected && <Check size={14} style={{ color: 'var(--primary)' }} />}
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                          {pOpt.desc}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem' }}>
+                  2. Pilih Jenis Laporan
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {[
+                    {
+                      key: 'full',
+                      badge: 'Rekomendasi Utama',
+                      title: 'Laporan Lengkap Terpadu (All-in-One)',
+                      desc: 'Ringkasan eksekutif, tabel tren harian, dan rincian performa seluruh produk katalog.'
+                    },
+                    {
+                      key: 'products',
+                      badge: 'Performa Item',
+                      title: 'Rincian Performa Katalog Item Saja',
+                      desc: 'ID, Nama item, tipe katalog, harga, total tayangan, klik WA, marketplace, rekber, dan CTR %.'
+                    },
+                    {
+                      key: 'daily',
+                      badge: 'Tren Trafik',
+                      title: 'Rekapitulasi Kunjungan & Konversi Harian',
+                      desc: 'Riwayat tanggal, jumlah pengunjung toko, peminat WhatsApp, dan rasio konversi harian.'
+                    }
+                  ].map((tOpt) => {
+                    const isSelected = exportType === tOpt.key;
+                    return (
+                      <div
+                        key={tOpt.key}
+                        onClick={() => setExportType(tOpt.key as any)}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.8rem 1rem',
+                          borderRadius: '0.6rem',
+                          border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          justifyContent: 'space-between',
+                          gap: '0.65rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.2rem' }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: isSelected ? 800 : 700, color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
+                              {tOpt.title}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                padding: '0.1rem 0.4rem',
+                                borderRadius: '10px',
+                                backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
+                                color: isSelected ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              {tOpt.badge}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.35, display: 'block' }}>
+                            {tOpt.desc}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '50%',
+                            border: isSelected ? '2px solid var(--primary)' : '2px solid var(--border-light)',
+                            backgroundColor: isSelected ? 'var(--primary)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: '2px'
+                          }}
+                        >
+                          {isSelected && <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ffffff' }} />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Excel Compatibility Callout */}
+              <div
+                style={{
+                  padding: '0.7rem 0.95rem',
+                  borderRadius: '0.6rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem'
+                }}
+              >
+                <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                  <strong>Kompatibilitas Penuh Microsoft Excel:</strong> Dilengkapi header <strong>UTF-8 BOM</strong> otomatis agar kolom dan teks langsung rapi saat dibuka di Excel Windows/Mac.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '1rem 1.5rem',
+                borderTop: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-deep)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '0.65rem'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  minHeight: '40px',
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExportStoreCsv(exportPeriod, exportType)}
+                disabled={isExportingCsv}
+                style={{
+                  minHeight: '40px',
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 4px 12px var(--primary-glow)'
+                }}
+              >
+                <Download size={15} className={isExportingCsv ? 'animate-spin' : ''} />
+                <span>{isExportingCsv ? 'Menyiapkan Berkas...' : 'Unduh Berkas CSV'}</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* 9. Market Intelligence Anonymized Macro Trends Modal */}
+      <MarketIntelligenceModal
+        isOpen={showMarketIntel}
+        onClose={() => setShowMarketIntel(false)}
+        apiBase=""
+      />
     </div>
   );
 };
