@@ -7864,6 +7864,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         {activeTab === 'audit_logs' && (
           <TabletAuditLogsView
             token={token}
+            currentUser={currentUser}
             storeSlug={storeSlug}
             showToast={showToast}
             onLogout={onLogout}
