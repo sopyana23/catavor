@@ -108,6 +108,7 @@ export const App: React.FC = () => {
   // Handle URL change
   useEffect(() => {
     const handlePopState = () => {
+      if (typeof window !== 'undefined' && window.__catavor_is_modal_popping) return;
       const pathname = window.location.pathname.toLowerCase();
       setCurrentPath(pathname);
       const parts = pathname.split('/').filter(Boolean);
