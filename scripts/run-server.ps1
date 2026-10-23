@@ -3,10 +3,9 @@ Write-Host "Starting Catavor Server (Without DB Updates)" -ForegroundColor Cyan
 Write-Host "==============================================" -ForegroundColor Cyan
 
 $env:DB_AUTO_MIGRATE="false"
+$env:SKIP_DB_MIGRATE="true"
 $rootDir = Split-Path -Parent $PSScriptRoot
 Set-Location -Path $rootDir
-
-$env:DB_AUTO_MIGRATE="false"
 
 if (Test-Path ".\catavor-server.exe") {
     .\catavor-server.exe

@@ -132,11 +132,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const isDark = themeMode === 'dark';
 
   // Navigation View State synced with URL (?tab=...)
+  const validTabs = ['dashboard', 'stores', 'reports', 'support', 'finance', 'staff', 'broadcast', 'automation', 'monetization', 'master-data', 'audit'];
   const [activeView, setActiveView] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab') || params.get('view');
-      if (tab) return tab;
+      const tab = params.get('tab');
+      if (tab && validTabs.includes(tab)) return tab;
     }
     return 'dashboard';
   });

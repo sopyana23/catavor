@@ -45,17 +45,19 @@ export const hasPermission = (user: UserRBACInfo | null | undefined, permissionK
 
 export const isPlatformAdmin = (user: UserRBACInfo | null | undefined | any): boolean => {
   if (!user) return false;
-  if (user.is_superadmin || user.is_admin || user.email === 'admin@catavor.com' || (user.email && user.email.toLowerCase().includes('admin@catavor'))) return true;
   const role = String(user.platform_role || user.role || '').toLowerCase().trim();
+  if (role === 'merchant' || role === 'user' || role === 'customer') return false;
+  if (user.is_superadmin || (user.email && (user.email.toLowerCase() === 'admin@catavor.com' || user.email.toLowerCase() === 'superadmin@catavor.com'))) return true;
   if (['superadmin', 'super_admin', 'admin', 'compliance', 'support', 'finance', 'content'].includes(role)) return true;
   if (Array.isArray(user.permissions) && (user.permissions.includes('*') || user.permissions.includes('system:admins:manage') || user.permissions.includes('support:tickets:read'))) return true;
-  return Boolean(role && role !== 'merchant' && role !== 'user' && role !== 'customer');
+  return Boolean(user.is_admin && role !== 'merchant' && role !== 'user' && role !== 'customer');
 };
 
 export const isSuperAdmin = (user: UserRBACInfo | null | undefined | any): boolean => {
   if (!user) return false;
-  if (user.is_superadmin || user.email === 'admin@catavor.com') return true;
   const role = String(user.platform_role || user.role || '').toLowerCase().trim();
+  if (role === 'merchant' || role === 'user' || role === 'customer') return false;
+  if (user.is_superadmin || (user.email && (user.email.toLowerCase() === 'admin@catavor.com' || user.email.toLowerCase() === 'superadmin@catavor.com'))) return true;
   return role === 'superadmin' || role === 'super_admin';
 };
 
