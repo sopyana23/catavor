@@ -3797,9 +3797,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         />
                       </div>
 
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
+                      <div style={{ gridColumn: showCustomClassInput ? '1 / -1' : 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                             Kategori {activeTypeDef.name} *
                           </label>
                           <button
@@ -3819,7 +3819,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.3rem'
+                              gap: '0.3rem',
+                              whiteSpace: 'nowrap'
                             }}
                           >
                             {showCustomClassInput ? (
@@ -3830,7 +3831,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             ) : (
                               <>
                                 <Plus size={13} strokeWidth={2.5} />
-                                <span>+ Buat Kategori Baru</span>
+                                <span>Buat Kategori Baru</span>
                               </>
                             )}
                           </button>
@@ -3838,18 +3839,21 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
                         {showCustomClassInput ? (
                           <div style={{
-                            padding: '0.85rem 1rem',
-                            borderRadius: '0.65rem',
+                            padding: '1rem 1.15rem',
+                            borderRadius: '0.75rem',
                             backgroundColor: 'var(--bg-deep)',
                             border: '1.5px solid var(--primary)',
+                            boxShadow: '0 4px 14px var(--primary-glow)',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '0.65rem'
+                            gap: '0.75rem',
+                            width: '100%',
+                            boxSizing: 'border-box'
                           }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                 <Tag size={15} color="var(--primary)" />
-                                <span>Buat Kategori Kustom ({activeTypeDef.name})</span>
+                                <span>Buat Kategori Kustom Baru ({activeTypeDef.name})</span>
                               </div>
                               <button
                                 type="button"
@@ -3862,15 +3866,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   border: 'none',
                                   color: 'var(--text-muted)',
                                   cursor: 'pointer',
-                                  padding: '0.2rem',
-                                  display: 'flex',
-                                  alignItems: 'center'
+                                  padding: '0.25rem 0.5rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  fontSize: '0.76rem',
+                                  fontWeight: 600
                                 }}
                               >
-                                <X size={15} />
+                                <X size={14} />
+                                <span>Batal</span>
                               </button>
                             </div>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                               <input
                                 type="text"
                                 placeholder={`Ketik nama kategori baru untuk ${activeTypeDef.name}...`}
@@ -3881,7 +3889,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 }}
                                 autoFocus
                                 style={{
-                                  flex: 1,
+                                  flex: '1 1 240px',
+                                  minWidth: '200px',
                                   minHeight: '42px',
                                   padding: '0.55rem 0.85rem',
                                   borderRadius: '0.5rem',
@@ -3889,7 +3898,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   border: '1px solid var(--border-light)',
                                   color: 'var(--text-primary)',
                                   fontSize: '0.88rem',
-                                  outline: 'none'
+                                  outline: 'none',
+                                  boxSizing: 'border-box'
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
@@ -3916,8 +3926,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   });
                                 }}
                                 style={{
+                                  flex: '0 0 auto',
                                   minHeight: '42px',
-                                  padding: '0 1rem',
+                                  padding: '0 1.25rem',
                                   borderRadius: '0.5rem',
                                   backgroundColor: 'var(--primary)',
                                   color: '#ffffff',
@@ -3926,7 +3937,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   fontSize: '0.82rem',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '0.4rem',
+                                  gap: '0.45rem',
                                   cursor: !customClass.trim() ? 'not-allowed' : 'pointer',
                                   opacity: !customClass.trim() ? 0.6 : 1,
                                   whiteSpace: 'nowrap'
@@ -3936,9 +3947,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 <span>Simpan & Gunakan</span>
                               </button>
                             </div>
-                            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                              Kategori ini akan otomatis tersimpan ke daftar master toko dan dapat Anda gunakan kembali nanti.
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                              <Sparkles size={12} color="var(--primary)" />
+                              <span>Kategori ini akan otomatis tersimpan ke daftar master toko dan dapat Anda gunakan kembali nanti.</span>
+                            </div>
                           </div>
                         ) : (
                           <TabletCustomSelect
