@@ -230,13 +230,26 @@ export interface TabletMerchantAdminProps {
 export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   token,
   currentUser,
-  storeSlug,
+  storeSlug: initialStoreSlug,
   onLogout,
   onUnauthorized,
   onViewPublicCatalog,
   onThemeChange
 }) => {
-  // Centralized authenticated fetch with automatic 401/403 session eviction (matching admin pengelola standard)
+  // Resolve actual store slug defensively to avoid sending invalid fallback 'my-store' to backend
+  const storeSlug = useMemo(() => {
+    if (initialStoreSlug && initialStoreSlug !== 'my-store') return initialStoreSlug;
+    return (
+      (currentUser as any)?.store_slug ||
+      (currentUser as any)?.active_store?.slug ||
+      (currentUser as any)?.stores?.[0]?.slug ||
+      (typeof localStorage !== 'undefined' ? localStorage.getItem('catavor_active_slug') : '') ||
+      initialStoreSlug ||
+      ''
+    );
+  }, [initialStoreSlug, currentUser]);
+
+  // Centralized authenticated fetch with automatic 401 session eviction (matching admin pengelola standard)
   const fetch = useMemo(() => {
     return createAuthFetch({
       getToken: () => token,
