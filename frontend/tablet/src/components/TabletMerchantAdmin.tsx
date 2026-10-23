@@ -2262,7 +2262,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     }}
                   >
                     <Plus size={18} />
-                    <span>+ Tambah Item Pertama</span>
+                    <span>Tambah Item Pertama</span>
                   </button>
                 </div>
               </div>
@@ -2914,7 +2914,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         }}
                       >
                         <Plus size={16} />
-                        <span>+ Tambah Item Pertama</span>
+                        <span>Tambah Item Pertama</span>
                       </button>
                     </div>
                   ) : products.length === 0 ? (
