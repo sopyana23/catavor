@@ -279,26 +279,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       window.history.pushState({ tab }, '', url.toString());
     }
   }, []);
-
-  // Sync activeTab when user navigates using browser back / forward
-  useEffect(() => {
-    const handlePopState = () => {
-      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab') as TabletMerchantTab;
-      const validTabs: TabletMerchantTab[] = [
-        'items', 'categories', 'analytics', 'subscription', 'settings',
-        'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
-      ];
-      if (tabParam && validTabs.includes(tabParam)) {
-        setActiveTabState(tabParam);
-      } else {
-        setActiveTabState('items');
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
   const [isNavExpanded, setIsNavExpanded] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -972,7 +952,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       url.searchParams.set('tab', 'items');
       url.searchParams.set('action', 'new');
       url.searchParams.set('type', typeId);
-      window.history.pushState({}, '', url.toString());
+      window.history.replaceState({ tab: 'items', action: 'new', type: typeId }, '', url.toString());
     } catch {}
     setProductForm(prev => {
       const defaultAttrs: Record<string, any> = { ...(prev.attributes || {}) };
@@ -1007,6 +987,81 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     });
     setIsSelectingProductType(false);
   };
+
+  const handleBackToTypeSelection = useCallback(() => {
+    setIsSelectingProductType(true);
+    setProductForm(prev => ({ ...prev, product_type: '' }));
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('type');
+      url.searchParams.delete('catalog_type');
+      window.history.replaceState({ tab: 'items', action: 'new' }, '', url.toString());
+    } catch {}
+  }, []);
+
+  // Sub-workflow Back Interceptor 1 (Step 2 -> Step 1):
+  // When merchant is in Step 2 (Product Input Form) during new product creation,
+  // pressing hardware/browser Back or swipe gesture reverts back to Step 1 (Pilih Tipe Katalog)
+  useModalBackHandler({
+    isOpen: activeTab === 'items' && selectedProductId === 'new' && !isSelectingProductType && Boolean(productForm.product_type),
+    onClose: handleBackToTypeSelection,
+    modalId: 'tablet_new_item_form_step'
+  });
+
+  // Sub-workflow Back Interceptor 2 (Step 1 -> Cancel creation):
+  // When merchant is in Step 1 (Pilih Tipe) during new product creation,
+  // pressing hardware/browser Back cancels creation and restores previous view
+  useModalBackHandler({
+    isOpen: activeTab === 'items' && selectedProductId === 'new' && isSelectingProductType,
+    onClose: () => {
+      if (products.length > 0 && !isNarrowScreen) {
+        handleSelectProduct(products[0]);
+      } else {
+        setSelectedProductId(null);
+        setIsSelectingProductType(false);
+      }
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('action');
+        url.searchParams.delete('type');
+        url.searchParams.delete('catalog_type');
+        window.history.replaceState({ tab: 'items' }, '', url.toString());
+      } catch {}
+    },
+    modalId: 'tablet_new_item_type_step'
+  });
+
+  // Comprehensive browser history listener (activeTab + sub-view query state)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') as TabletMerchantTab;
+      const validTabs: TabletMerchantTab[] = [
+        'items', 'categories', 'analytics', 'subscription', 'settings',
+        'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
+      ];
+      const activeT = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'items';
+      setActiveTabState(activeT);
+
+      if (activeT === 'items') {
+        const actionParam = params.get('action');
+        const typeParam = params.get('type') || params.get('catalog_type');
+        if (actionParam === 'new') {
+          setSelectedProductId('new');
+          if (typeParam) {
+            setIsSelectingProductType(false);
+            setProductForm(prev => ({ ...prev, product_type: typeParam }));
+          } else {
+            setIsSelectingProductType(true);
+            setProductForm(prev => ({ ...prev, product_type: '' }));
+          }
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isNarrowScreen, products, handleSelectProduct]);
 
   const updateProductAttribute = (field: string, value: any) => {
     setProductForm(prev => ({
@@ -3268,15 +3323,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         type="button"
                         id="btn-ganti-tipe"
                         data-testid="btn-ganti-tipe"
-                        onClick={() => {
-                          setIsSelectingProductType(true);
-                          try {
-                            const url = new URL(window.location.href);
-                            url.searchParams.delete('type');
-                            url.searchParams.delete('catalog_type');
-                            window.history.pushState({}, '', url.toString());
-                          } catch {}
-                        }}
+                        onClick={handleBackToTypeSelection}
                         style={{
                           minHeight: '36px',
                           padding: '0.4rem 0.85rem',
