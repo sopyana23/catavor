@@ -1286,12 +1286,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       gallery_images: loadedPhotos.slice(1),
       variants: variants,
       attributes: {
-        ...(prod.habitat ? { habitat: prod.habitat } : {}),
-        ...(prod.diet ? { diet: prod.diet } : {}),
-        ...(prod.conservation_status ? { conservation_status: prod.conservation_status } : {}),
-        ...(prod.lifespan ? { lifespan: prod.lifespan } : {}),
-        ...(prod.native_region ? { native_region: prod.native_region } : {}),
-        ...(prod.weight ? { weight: prod.weight } : {}),
+        habitat: prod.habitat || prod.attributes?.habitat || rawAttrs.habitat || 'General',
+        diet: prod.diet || prod.attributes?.diet || rawAttrs.diet || '',
+        conservation_status: prod.conservation_status || prod.attributes?.conservation_status || rawAttrs.conservation_status || 'Tersedia',
+        lifespan: prod.detailed_info?.lifespan || prod.lifespan || prod.attributes?.lifespan || rawAttrs.lifespan || '',
+        native_region: prod.detailed_info?.native_region || prod.native_region || prod.attributes?.native_region || rawAttrs.native_region || '',
+        weight: prod.detailed_info?.weight || prod.weight || prod.attributes?.weight || rawAttrs.weight || (editProdType === 'physical' ? 100 : ''),
         ...rawAttrs
       }
     });
@@ -1551,7 +1551,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           price_override: v.price_override !== undefined && v.price_override !== null && v.price_override > 0 ? Number(v.price_override) : null,
           stock_qty: Number(v.stock_qty) || 0
         })),
-        attributes: productForm.attributes || {},
+        attributes: {
+          ...(productForm.attributes || {}),
+          ...(productForm.product_type === 'fauna' ? {
+            habitat: productForm.attributes?.habitat || 'General',
+            diet: productForm.attributes?.diet || '',
+            conservation_status: productForm.attributes?.conservation_status || 'Tersedia'
+          } : {}),
+          min_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? 1 : (Number(productForm.min_order) || 1),
+          max_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? null : (productForm.max_order !== '' ? Number(productForm.max_order) : null),
+          enable_wa_rekber: productForm.product_type === 'property' ? false : (productForm.enable_wa_rekber !== false),
+          enable_wa_direct: productForm.enable_wa_direct !== false,
+          whatsapp_contact_id: productForm.whatsapp_contact_id || 'default'
+        },
         detailed_info: {
           native_region: productForm.attributes?.native_region || '',
           lifespan: productForm.attributes?.lifespan || '',
