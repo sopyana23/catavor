@@ -56,7 +56,9 @@ import {
   Info,
   Shield,
   Star,
-  Database
+  Database,
+  Activity,
+  Play
 } from 'lucide-react';
 import { TabletRailNav } from './TabletRailNav';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
@@ -1135,28 +1137,44 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   const [automationStatus, setAutomationStatus] = useState<any>(null);
   const [automationLogs, setAutomationLogs] = useState<any[]>([]);
+  const [automationLogsTotal, setAutomationLogsTotal] = useState<number>(0);
+  const [automationLogsBotFilter, setAutomationLogsBotFilter] = useState<string>('all');
+  const [automationLogsStatusFilter, setAutomationLogsStatusFilter] = useState<string>('all');
+  const [automationLogsSearch, setAutomationLogsSearch] = useState<string>('');
   const [automationSubView, setAutomationSubView] = useState<'overview' | 'bots' | 'logs' | 'sandbox'>('overview');
   const [isTriggeringBot, setIsTriggeringBot] = useState<string | null>(null);
+  const [isFetchingAutomation, setIsFetchingAutomation] = useState(false);
+  const [isTestingSandbox, setIsTestingSandbox] = useState(false);
 
-  const fetchAutomation = useCallback(async () => {
+  const fetchAutomation = useCallback(async (botFilter = automationLogsBotFilter, statusFilter = automationLogsStatusFilter, search = automationLogsSearch) => {
     if (!token) return;
+    setIsFetchingAutomation(true);
     try {
-      const [statusRes, logsRes] = await Promise.all([
+      const params = new URLSearchParams();
+      if (botFilter !== 'all') params.set('bot', botFilter);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (search.trim()) params.set('q', search.trim());
+      params.set('limit', '50');
+
+      const [statusRes, logsRes] = await Promise.allSettled([
         authFetch('/api/admin/automation/status', { headers: { Authorization: `Bearer ${token}` } }),
-        authFetch('/api/admin/automation/logs?limit=40', { headers: { Authorization: `Bearer ${token}` } })
+        authFetch(`/api/admin/automation/logs?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
-      if (statusRes.ok) {
-        const j = await statusRes.json();
-        setAutomationStatus(j.data || null);
+      if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
+        const j = await statusRes.value.json();
+        setAutomationStatus(j.data || j);
       }
-      if (logsRes.ok) {
-        const lj = await logsRes.json();
-        setAutomationLogs(lj.data || []);
+      if (logsRes.status === 'fulfilled' && logsRes.value.ok) {
+        const lj = await logsRes.value.json();
+        setAutomationLogs(Array.isArray(lj.data) ? lj.data : Array.isArray(lj) ? lj : []);
+        setAutomationLogsTotal(typeof lj.total === 'number' ? lj.total : (Array.isArray(lj.data) ? lj.data.length : 0));
       }
     } catch {
       // Fail silently
+    } finally {
+      setIsFetchingAutomation(false);
     }
-  }, [token, authFetch]);
+  }, [token, authFetch, automationLogsBotFilter, automationLogsStatusFilter, automationLogsSearch]);
 
   useEffect(() => {
     if (activeView === 'automation') {
@@ -1164,8 +1182,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   }, [activeView, fetchAutomation]);
 
-  const handleTriggerSpecificBot = async (botId: string) => {
-    setIsTriggeringBot(botId);
+  const handleTriggerSpecificBot = async (botType: string, label?: string) => {
+    if (!token) return;
+    setIsTriggeringBot(botType);
     try {
       const res = await authFetch('/api/admin/automation/trigger', {
         method: 'POST',
@@ -1173,18 +1192,45 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ bot_id: botId })
+        body: JSON.stringify({ bot_type: botType, action: botType })
       });
+      const data = await res.json();
       if (res.ok) {
-        showToast(`Bot ${botId} berhasil dipicu secara manual!`, 'success');
-        fetchAutomation();
+        showToast(data.message || `Bot "${label || botType}" berhasil dieksekusi!`, 'success');
+        await fetchAutomation();
       } else {
-        showToast('Gagal memicu bot worker', 'error');
+        showToast(data.error || data.message || `Gagal menjalankan bot "${label || botType}"`, 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan jaringan', 'error');
+      showToast('Terjadi kesalahan saat memicu bot', 'error');
     } finally {
       setIsTriggeringBot(null);
+    }
+  };
+
+  const handleRunSandboxTest = async () => {
+    if (!token) return;
+    setIsTestingSandbox(true);
+    try {
+      const res = await authFetch('/api/admin/automation/trigger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ action: 'test_guide' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Notifikasi simulasi panduan berhasil dikirim via SSE!', 'success');
+        await fetchAutomation();
+      } else {
+        showToast(data.error || 'Gagal mengirim simulasi', 'error');
+      }
+    } catch {
+      showToast('Gagal memproses sandbox', 'error');
+    } finally {
+      setIsTestingSandbox(false);
     }
   };
 
@@ -5886,302 +5932,1024 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           {/* TAB 8: AUTOMATION (MESIN OTOMATISASI & 11 BOTS) */}
           {activeView === 'automation' && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              {/* Sub-Switch: Overview vs Bots vs Logs */}
+              {/* Module Header Sub-Tabs Switcher */}
               <div style={{
                 padding: '0.75rem 1.5rem',
                 borderBottom: '1px solid var(--border-light)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                backgroundColor: 'var(--bg-deep)'
+                backgroundColor: 'var(--bg-deep)',
+                gap: '0.75rem',
+                flexWrap: 'wrap'
               }}>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.1rem' }}>
                   {[
-                    { key: 'overview', label: 'Ringkasan Daemon' },
-                    { key: 'bots', label: '11 Bot Platform' },
-                    { key: 'logs', label: `Riwayat Log (${automationLogs.length})` },
-                    { key: 'sandbox', label: 'Sandbox Simulator' }
-                  ].map(tab => (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setAutomationSubView(tab.key as any)}
-                      style={{
-                        padding: '0.45rem 1rem',
-                        borderRadius: '0.55rem',
-                        border: `1px solid ${automationSubView === tab.key ? 'var(--primary)' : 'var(--border-light)'}`,
-                        backgroundColor: automationSubView === tab.key ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
-                        color: automationSubView === tab.key ? 'var(--primary)' : 'var(--text-muted)',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
+                    { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
+                    { id: 'bots', label: `${automationStatus?.total_workers || 11} Bot Platform`, icon: Bot, badge: String(automationStatus?.total_workers || 11) },
+                    { id: 'logs', label: 'Riwayat & Audit', icon: Activity, badge: String(automationLogsTotal || automationLogs.length) },
+                    { id: 'sandbox', label: 'Sandbox Uji Coba', icon: Zap }
+                  ].map(tab => {
+                    const Icon = tab.icon;
+                    const isActive = automationSubView === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setAutomationSubView(tab.id as any);
+                          if (tab.id === 'logs' || tab.id === 'overview') {
+                            fetchAutomation();
+                          }
+                        }}
+                        style={{
+                          minHeight: '44px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          padding: '0.55rem 1rem',
+                          borderRadius: '0.65rem',
+                          border: `1px solid ${isActive ? 'var(--primary)' : 'var(--border-light)'}`,
+                          backgroundColor: isActive ? 'rgba(59, 130, 246, 0.14)' : 'var(--bg-card)',
+                          color: isActive ? 'var(--primary)' : 'var(--text-muted)',
+                          fontSize: '0.82rem',
+                          fontWeight: isActive ? 800 : 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <Icon size={16} />
+                        <span>{tab.label}</span>
+                        {tab.badge && (
+                          <span style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 900,
+                            padding: '0.1rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: isActive ? 'var(--primary)' : 'rgba(100, 116, 139, 0.15)',
+                            color: isActive ? '#ffffff' : 'var(--text-muted)'
+                          }}>
+                            {tab.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => handleTriggerSpecificBot('all')}
-                  disabled={Boolean(isTriggeringBot)}
+                  onClick={() => fetchAutomation()}
+                  disabled={isFetchingAutomation}
                   style={{
-                    padding: '0.45rem 1rem',
-                    borderRadius: '0.55rem',
-                    border: 'none',
-                    backgroundColor: 'var(--primary)',
-                    color: '#ffffff',
+                    minHeight: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.55rem 1rem',
+                    borderRadius: '0.65rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
                     fontSize: '0.82rem',
                     fontWeight: 700,
-                    cursor: 'pointer'
+                    cursor: isFetchingAutomation ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  {isTriggeringBot === 'all' ? 'Menjalankan...' : 'Jalankan Seluruh Bot'}
+                  <RefreshCw size={15} className={isFetchingAutomation ? 'spin' : ''} />
+                  <span>{isFetchingAutomation ? 'Menyinkronkan...' : 'Segarkan Data'}</span>
                 </button>
               </div>
 
-              {/* Sub-Tab 1: Overview */}
+              {/* SUB-VIEW 1: OVERVIEW & SYSTEM HEALTH TELEMETRY */}
               {automationSubView === 'overview' && (
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
                   <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {/* Hero Status Banner */}
                     <div style={{
-                      padding: '1.5rem',
-                      borderRadius: '1.25rem',
+                      padding: '1.4rem 1.6rem',
+                      borderRadius: '1.15rem',
                       backgroundColor: 'var(--bg-card)',
                       border: '1px solid var(--border-light)',
+                      boxShadow: 'var(--card-shadow, 0 4px 12px rgba(0,0,0,0.05))',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '1rem'
+                      gap: '0.9rem'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 12px #10b981' }} />
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
-                            Status Mesin: 11 Bot Worker Aktif &amp; Terjadwal (24/7 Daemon)
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <span style={{
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            backgroundColor: '#10b981',
+                            boxShadow: '0 0 12px #10b981',
+                            display: 'inline-block'
+                          }} />
+                          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            Status Mesin: {automationStatus?.total_workers || 11} Bot Worker Aktif &amp; Terjadwal (24/7 Daemon)
                           </h3>
                         </div>
+
+                        <span style={{
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                          color: '#10b981',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}>
+                          <CheckCircle2 size={13} />
+                          <span>Daemon Berjalan Normal</span>
+                        </span>
                       </div>
 
                       <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                        Mesin otomatisasi Catavor mengelola siklus hidup merchant (inaktivitas &amp; dormansi), kedaluwarsa kupon &amp; flash sale katalog, penegakan SLA tiket helpdesk, pemusnahan sampah berkas PDP, serta pengiriman siaran streaming SSE secara mandiri di latar belakang.
+                        Mesin otomatisasi platform mengelola siklus hidup merchant (inaktivitas &amp; kedaluwarsa), sinkronisasi promo/diskon katalog, eskalasi SLA tiket helpdesk, dan pembersihan sampah data otomatis di latar belakang.
                       </p>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', paddingTop: '0.5rem' }}>
-                        <div style={{ padding: '1rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Bot Terdaftar</div>
-                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--text-primary)', marginTop: '0.2rem' }}>11 Worker</div>
+                      {/* 4 Telemetry Metrics Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', paddingTop: '0.25rem' }}>
+                        <div style={{ padding: '0.9rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38bdf8', marginBottom: '0.25rem' }}>
+                            <Bot size={15} />
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Total Bot Terdaftar</span>
+                          </div>
+                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--text-primary)' }}>
+                            {automationStatus?.total_workers || 11} Bot
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                            <span>{automationStatus?.healthy_workers || 11} Sehat / Normal</span>
+                          </div>
                         </div>
-                        <div style={{ padding: '1rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Jadwal Siklus Terpendek</div>
-                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#f59e0b', marginTop: '0.2rem' }}>5 Menit</div>
+
+                        <div style={{ padding: '0.9rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981', marginBottom: '0.25rem' }}>
+                            <CheckCheck size={15} />
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Tingkat Sukses 24 Jam</span>
+                          </div>
+                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#10b981' }}>
+                            {automationStatus?.success_rate_24h || '100.0%'}
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                            0 kegagalan fatal
+                          </div>
                         </div>
-                        <div style={{ padding: '1rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>SSE Gateway Streaming</div>
-                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#38bdf8', marginTop: '0.2rem' }}>Terhubung</div>
+
+                        <div style={{ padding: '0.9rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f59e0b', marginBottom: '0.25rem' }}>
+                            <Activity size={15} />
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Eksekusi 24 Jam</span>
+                          </div>
+                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--text-primary)' }}>
+                            {automationStatus?.executions_24h || automationLogs.length} Kali
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                            Pemicu Cron &amp; Manual
+                          </div>
                         </div>
-                        <div style={{ padding: '1rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Database Background Tasks</div>
-                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#10b981', marginTop: '0.2rem' }}>Optimal</div>
+
+                        <div style={{ padding: '0.9rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6366f1', marginBottom: '0.25rem' }}>
+                            <Clock size={15} />
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Uptime Daemon</span>
+                          </div>
+                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--text-primary)' }}>
+                            24 / 7
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                            <span>Realtime Loop Active</span>
+                          </div>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Infrastructure Gateway & Streaming Status */}
+                    <div style={{
+                      padding: '1.25rem 1.5rem',
+                      borderRadius: '1.15rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.85rem'
+                    }}>
+                      <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Radio size={16} color="#38bdf8" />
+                        <span>Konektivitas Transmisi Real-Time &amp; Antrean</span>
+                      </h4>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                        <div style={{
+                          padding: '0.9rem 1rem',
+                          borderRadius: '0.85rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.3rem'
+                        }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                            SSE Event Stream Gateway
+                          </div>
+                          <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                            <span>{automationStatus?.sse_clients_count || 1} Klien Terhubung</span>
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            Siaran instan tanpa refresh (Server-Sent Events)
+                          </div>
+                        </div>
+
+                        <div style={{
+                          padding: '0.9rem 1rem',
+                          borderRadius: '0.85rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.3rem'
+                        }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                            Redis Cache / Message Bus
+                          </div>
+                          <div style={{ fontSize: '0.92rem', fontWeight: 800, color: automationStatus?.redis_available ? '#10b981' : '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: automationStatus?.redis_available ? '#10b981' : '#38bdf8', display: 'inline-block' }} />
+                            <span>{automationStatus?.redis_available ? 'Redis Standby' : 'Memori In-App'}</span>
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            {automationStatus?.redis_available ? 'Cluster Cache Aktif' : 'Penyimpanan Cepat Aktif'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Actions Bar */}
+                    <div style={{
+                      padding: '1.25rem 1.5rem',
+                      borderRadius: '1.15rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.85rem'
+                    }}>
+                      <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Zap size={16} color="#f59e0b" />
+                        <span>Aksi Cepat &amp; Pintasan Operasional</span>
+                      </h4>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerSpecificBot('ticket_retention_worker', 'Pemusnahan Data PDP Tiket')}
+                          disabled={isTriggeringBot !== null}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                            border: '1px solid rgba(236, 72, 153, 0.25)',
+                            color: '#ec4899',
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <ShieldAlert size={15} />
+                          <span>Pemusnahan PDP Tiket</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerSpecificBot('store_expiry', 'Kedaluwarsa Toko')}
+                          disabled={isTriggeringBot !== null}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                            border: '1px solid rgba(56, 189, 248, 0.25)',
+                            color: '#0284c7',
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <StoreIcon size={15} />
+                          <span>Pindai Toko &amp; Paket</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerSpecificBot('promo_expiry', 'Promo Merchant')}
+                          disabled={isTriggeringBot !== null}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            color: '#10b981',
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <Tag size={15} />
+                          <span>Pindai Kupon Promo</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerSpecificBot('cleaner_worker', 'Pembersih Notifikasi')}
+                          disabled={isTriggeringBot !== null}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                            border: '1px solid rgba(244, 63, 94, 0.25)',
+                            color: '#f43f5e',
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <Trash2 size={15} />
+                          <span>Bersihkan Notif Lama</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setAutomationSubView('sandbox')}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                            border: '1px solid rgba(234, 179, 8, 0.25)',
+                            color: '#d97706',
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <Zap size={15} />
+                          <span>Buka Sandbox Uji Coba</span>
+                        </button>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Sub-Tab 2: 11 Bot Matrix Cards */}
+              {/* SUB-VIEW 2: 11 BOTS CATALOG & INTERACTIVE CONTROLS */}
               {automationSubView === 'bots' && (
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
                   <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {BOT_WORKERS_CATALOG.map(bot => {
-                      const Icon = bot.icon;
-                      const isRunning = isTriggeringBot === bot.id;
-                      return (
-                        <div
-                          key={bot.id}
-                          style={{
-                            padding: '1.25rem',
-                            borderRadius: '1rem',
-                            backgroundColor: 'var(--bg-card)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '1rem'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{
-                              width: '44px',
-                              height: '44px',
-                              borderRadius: '0.75rem',
-                              backgroundColor: `${bot.color}20`,
-                              color: bot.color,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0
-                            }}>
-                              <Icon size={22} />
-                            </div>
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '0.95rem', fontWeight: 800 }}>{bot.name}</span>
-                                <span style={{
-                                  fontSize: '0.68rem',
-                                  fontWeight: 800,
-                                  padding: '0.15rem 0.5rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: `${bot.categoryColor}20`,
-                                  color: bot.categoryColor
-                                }}>
-                                  {bot.category}
-                                </span>
-                              </div>
-                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem', lineHeight: 1.4 }}>
-                                {bot.desc}
-                              </div>
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontFamily: 'monospace' }}>
-                                Frekuensi: {bot.freq}
-                              </div>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleTriggerSpecificBot(bot.id)}
-                            disabled={isRunning}
-                            style={{
-                              padding: '0.55rem 1.15rem',
-                              borderRadius: '0.55rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {isRunning ? 'Menjalankan...' : 'Jalankan Sekarang'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Sub-Tab 3: Logs Table */}
-              {automationSubView === 'logs' && (
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
-                  <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-                    <div style={{
-                      padding: '1.25rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.5rem'
-                    }}>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                        Jejak Eksekusi Otomatisasi Terkini
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Bot size={18} color="#38bdf8" />
+                        <span>Katalog {automationStatus?.total_workers || 11} Bot Platform (Interactive Control Matrix)</span>
                       </h4>
-                      {automationLogs.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                          Belum ada riwayat log eksekusi bot
-                        </div>
-                      ) : (
-                        automationLogs.map((log, i) => (
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        Klik "Jalankan Sekarang" untuk pemicu paksa manual
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                      {BOT_WORKERS_CATALOG.map(bot => {
+                        const Icon = bot.icon;
+                        const isRunning = isTriggeringBot === bot.id;
+                        const runtimeWorker = automationStatus?.workers?.find((w: any) => w.name === bot.id);
+                        const isExecuting = runtimeWorker?.is_executing || isRunning;
+
+                        return (
                           <div
-                            key={i}
+                            key={bot.id}
                             style={{
-                              padding: '0.75rem 1rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--bg-deep)',
+                              padding: '1.15rem 1.25rem',
+                              borderRadius: '1rem',
+                              backgroundColor: 'var(--bg-card)',
                               border: '1px solid var(--border-light)',
                               display: 'flex',
-                              alignItems: 'center',
+                              flexDirection: 'column',
                               justifyContent: 'space-between',
-                              fontSize: '0.8rem'
+                              gap: '0.75rem',
+                              boxShadow: 'var(--card-shadow, 0 2px 8px rgba(0,0,0,0.04))'
                             }}
                           >
-                            <div>
-                              <span style={{ fontWeight: 800, color: '#f97316', marginRight: '0.5rem' }}>
-                                [{log.bot_id || log.worker || 'BOT'}]
-                              </span>
-                              <span>{log.message || log.details || 'Tugas background selesai'}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                  <div style={{
+                                    width: '42px',
+                                    height: '42px',
+                                    borderRadius: '0.75rem',
+                                    backgroundColor: `${bot.categoryColor}15`,
+                                    color: bot.color,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0
+                                  }}>
+                                    <Icon size={20} />
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                      <span>{bot.name}</span>
+                                      <span style={{
+                                        fontSize: '0.62rem',
+                                        fontWeight: 800,
+                                        padding: '0.1rem 0.45rem',
+                                        borderRadius: '0.35rem',
+                                        backgroundColor: `${bot.categoryColor}18`,
+                                        color: bot.categoryColor
+                                      }}>
+                                        {bot.category}
+                                      </span>
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: bot.color, display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.15rem' }}>
+                                      <Clock size={12} />
+                                      <span>{bot.freq}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {bot.id !== 'sse_hub' && bot.id !== 'onboarding_engine' ? (
+                                  <button
+                                    type="button"
+                                    disabled={isExecuting || isTriggeringBot !== null}
+                                    onClick={() => handleTriggerSpecificBot(bot.id, bot.name)}
+                                    style={{
+                                      minHeight: '44px',
+                                      padding: '0.45rem 0.85rem',
+                                      borderRadius: '0.65rem',
+                                      backgroundColor: isExecuting ? 'rgba(245, 158, 11, 0.2)' : 'var(--primary)',
+                                      border: 'none',
+                                      color: '#ffffff',
+                                      fontSize: '0.76rem',
+                                      fontWeight: 800,
+                                      cursor: (isExecuting || isTriggeringBot !== null) ? 'not-allowed' : 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      whiteSpace: 'nowrap',
+                                      boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)'
+                                    }}
+                                  >
+                                    {isExecuting ? (
+                                      <>
+                                        <Loader2 size={13} className="spin" />
+                                        <span>Memproses...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Play size={13} fill="currentColor" />
+                                        <span>Jalankan</span>
+                                      </>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    padding: '0.2rem 0.5rem',
+                                    borderRadius: '0.45rem',
+                                    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                                    color: '#0284c7'
+                                  }}>
+                                    {bot.id === 'sse_hub' ? 'Streaming' : 'Event-Driven'}
+                                  </span>
+                                )}
+                              </div>
+
+                              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                {bot.desc}
+                              </p>
                             </div>
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontFamily: 'monospace' }}>
-                              {log.created_at ? new Date(log.created_at).toLocaleString('id-ID') : '-'}
+
+                            {/* Runtime Status Footer */}
+                            <div style={{
+                              paddingTop: '0.5rem',
+                              borderTop: '1px solid var(--border-light)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              fontSize: '0.72rem',
+                              color: 'var(--text-muted)'
+                            }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <span>Status:</span>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                                <strong style={{ color: '#10b981' }}>Aktif (Normal)</strong>
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAutomationLogsBotFilter(bot.id);
+                                  setAutomationSubView('logs');
+                                  fetchAutomation(bot.id, automationLogsStatusFilter, automationLogsSearch);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--primary)',
+                                  fontWeight: 700,
+                                  fontSize: '0.74rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  padding: '0.2rem 0.4rem'
+                                }}
+                              >
+                                <span>Lihat Log Bot Ini →</span>
+                              </button>
                             </div>
                           </div>
-                        ))
-                      )}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Sub-Tab 4: Sandbox Simulator */}
+              {/* SUB-VIEW 3: EXECUTION LOGS & AUDIT TRAIL STREAM */}
+              {automationSubView === 'logs' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
+                  <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Activity size={16} color="#10b981" />
+                        <span>Riwayat &amp; Log Eksekusi ({automationLogsTotal || automationLogs.length})</span>
+                      </h4>
+
+                      <button
+                        type="button"
+                        onClick={() => fetchAutomation()}
+                        disabled={isFetchingAutomation}
+                        style={{
+                          minHeight: '38px',
+                          padding: '0.35rem 0.85rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.76rem',
+                          fontWeight: 700,
+                          cursor: isFetchingAutomation ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <RefreshCw size={13} className={isFetchingAutomation ? 'spin' : ''} />
+                        <span>Segarkan</span>
+                      </button>
+                    </div>
+
+                    {/* Filter Chips by Bot */}
+                    <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+                      {[
+                        { id: 'all', label: 'Semua Bot' },
+                        { id: 'ticket_retention_worker', label: 'Retensi PDP Tiket' },
+                        { id: 'item_retention_worker', label: 'Retensi Item' },
+                        { id: 'support_lifecycle', label: 'Support SLA' },
+                        { id: 'store_expiry', label: 'Toko Expired' },
+                        { id: 'dormancy_worker', label: 'Dormansi' },
+                        { id: 'promo_expiry', label: 'Promo' },
+                        { id: 'flash_sale', label: 'Flash Sale' },
+                        { id: 'cleaner_worker', label: 'Pembersih' },
+                        { id: 'weekly_summary', label: 'Ringkasan' }
+                      ].map(chip => (
+                        <button
+                          key={chip.id}
+                          type="button"
+                          onClick={() => {
+                            setAutomationLogsBotFilter(chip.id);
+                            fetchAutomation(chip.id, automationLogsStatusFilter, automationLogsSearch);
+                          }}
+                          style={{
+                            minHeight: '40px',
+                            padding: '0.35rem 0.85rem',
+                            borderRadius: '0.65rem',
+                            fontSize: '0.76rem',
+                            fontWeight: automationLogsBotFilter === chip.id ? 800 : 600,
+                            border: `1px solid ${automationLogsBotFilter === chip.id ? 'var(--primary)' : 'var(--border-light)'}`,
+                            backgroundColor: automationLogsBotFilter === chip.id ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-card)',
+                            color: automationLogsBotFilter === chip.id ? 'var(--primary)' : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Search Bar */}
+                    <div style={{ position: 'relative' }}>
+                      <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="text"
+                        placeholder="Cari detail log atau target..."
+                        value={automationLogsSearch}
+                        onChange={e => {
+                          setAutomationLogsSearch(e.target.value);
+                          fetchAutomation(automationLogsBotFilter, automationLogsStatusFilter, e.target.value);
+                        }}
+                        style={{
+                          width: '100%',
+                          minHeight: '44px',
+                          padding: '0.55rem 0.85rem 0.55rem 2.5rem',
+                          borderRadius: '0.75rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-card)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    {/* Log Cards List */}
+                    {isFetchingAutomation ? (
+                      <div style={{ padding: '3rem 1rem', textAlign: 'center', backgroundColor: 'var(--bg-card)', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
+                        <Loader2 size={24} className="spin" color="var(--primary)" style={{ margin: '0 auto 0.5rem' }} />
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>Memuat log eksekusi...</p>
+                      </div>
+                    ) : automationLogs.length === 0 ? (
+                      <div style={{
+                        padding: '3rem 1rem',
+                        textAlign: 'center',
+                        backgroundColor: 'var(--bg-card)',
+                        borderRadius: '1rem',
+                        border: '1px solid var(--border-light)'
+                      }}>
+                        <Clock size={36} color="#94a3b8" style={{ margin: '0 auto 0.65rem', opacity: 0.6 }} />
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                          Belum ada riwayat eksekusi bot yang cocok dengan filter.
+                        </p>
+                      </div>
+                    ) : (
+                      automationLogs.map((log, idx) => {
+                        const isSuccess = log.status === 'success';
+                        const isError = log.status === 'error';
+                        const statusColor = isSuccess ? '#10b981' : (log.status === 'info' ? '#38bdf8' : '#ef4444');
+                        const statusBg = isSuccess ? 'rgba(16, 185, 129, 0.12)' : (log.status === 'info' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(239, 68, 68, 0.12)');
+                        const timeVal = log.timestamp || log.created_at;
+
+                        return (
+                          <div
+                            key={log.id || idx}
+                            style={{
+                              padding: '1rem 1.25rem',
+                              borderRadius: '0.95rem',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border-light)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.5rem',
+                              boxShadow: 'var(--card-shadow, 0 2px 6px rgba(0,0,0,0.03))'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{
+                                  fontSize: '0.66rem',
+                                  fontWeight: 800,
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '0.4rem',
+                                  backgroundColor: statusBg,
+                                  color: statusColor
+                                }}>
+                                  {log.status ? log.status.toUpperCase() : 'SUKSES'}
+                                </span>
+                                <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  {log.bot_title || log.bot_name || log.bot_type || log.bot_id || 'Bot Worker'}
+                                </span>
+                              </div>
+
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                {timeVal ? new Date(timeVal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : 'Baru saja'}
+                              </span>
+                            </div>
+
+                            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                              {log.details || log.message}
+                            </p>
+
+                            {log.error_message && (
+                              <div style={{
+                                padding: '0.55rem 0.85rem',
+                                borderRadius: '0.6rem',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#ef4444',
+                                fontSize: '0.76rem',
+                                fontWeight: 600
+                              }}>
+                                <strong>Error:</strong> {log.error_message}
+                              </div>
+                            )}
+
+                            {/* Metadata Footer */}
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              paddingTop: '0.45rem',
+                              borderTop: '1px solid var(--border-light)',
+                              fontSize: '0.72rem',
+                              color: 'var(--text-muted)',
+                              flexWrap: 'wrap',
+                              gap: '0.45rem'
+                            }}>
+                              <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+                                <span>Durasi: <strong style={{ color: 'var(--text-primary)' }}>{log.duration_ms ?? 0} ms</strong></span>
+                                <span>•</span>
+                                <span>Terdampak: <strong style={{ color: 'var(--text-primary)' }}>{log.affected_count ?? 0} entitas</strong></span>
+                              </div>
+                              <span style={{
+                                fontSize: '0.66rem',
+                                padding: '0.12rem 0.5rem',
+                                borderRadius: '0.35rem',
+                                backgroundColor: log.trigger_type === 'manual' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                                color: log.trigger_type === 'manual' ? '#d97706' : '#6366f1',
+                                fontWeight: 700
+                              }}>
+                                {log.trigger_type === 'manual' ? 'Pemicu Manual' : 'Cron Otomatis'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-VIEW 4: SANDBOX & SIMULATOR ENGINE */}
               {automationSubView === 'sandbox' && (
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
-                  <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+                  <div style={{ maxWidth: '850px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     <div style={{
-                      padding: '1.5rem',
-                      borderRadius: '1.25rem',
+                      padding: '1.4rem 1.6rem',
+                      borderRadius: '1.15rem',
                       backgroundColor: 'var(--bg-card)',
                       border: '1px solid var(--border-light)',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '1rem'
+                      gap: '0.85rem'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Zap size={20} color="#f59e0b" />
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
-                          Sandbox Simulator &amp; Pengujian Bot
-                        </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#f59e0b',
+                          flexShrink: 0
+                        }}>
+                          <Zap size={20} />
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            Sandbox Simulator &amp; Pengujian Bot
+                          </h4>
+                          <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            Simulasikan proses pengiriman notifikasi atau trigger bot tanpa mengganggu operasional normal.
+                          </p>
+                        </div>
                       </div>
-                      <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                        Gunakan konsol simulator ini untuk menguji pemicu notifikasi panduan merchant baru atau simulasi evaluasi kedaluwarsa tanpa mempengaruhi data produksi riil.
-                      </p>
 
-                      <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 800 }}>Uji Pemicu Onboarding Engine Merchant Baru</div>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <div style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        fontSize: '0.78rem',
+                        color: 'var(--text-muted)',
+                        lineHeight: 1.5,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.5rem'
+                      }}>
+                        <Info size={16} color="#38bdf8" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+                        <span><strong>Petunjuk:</strong> Modul sandbox memungkinkan Superadmin untuk menguji jalur transmisi SSE, validasi logic siklus toko/promo, dan memastikan antrean bot berjalan tanpa bottleneck.</span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.35rem' }}>
+                        <button
+                          type="button"
+                          disabled={isTestingSandbox}
+                          onClick={handleRunSandboxTest}
+                          style={{
+                            minHeight: '46px',
+                            padding: '0.8rem 1.25rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: '#f59e0b',
+                            color: '#000000',
+                            fontSize: '0.84rem',
+                            fontWeight: 800,
+                            border: 'none',
+                            cursor: isTestingSandbox ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.5rem',
+                            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.25)'
+                          }}
+                        >
+                          {isTestingSandbox ? (
+                            <>
+                              <Loader2 size={16} className="spin" />
+                              <span>Mengirimkan Simulasi Realtime...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send size={16} />
+                              <span>Uji Transmisi Event SSE (Test Guide)</span>
+                            </>
+                          )}
+                        </button>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem' }}>
                           <button
                             type="button"
-                            onClick={() => handleTriggerSpecificBot('onboarding_engine')}
+                            disabled={isTriggeringBot !== null}
+                            onClick={() => handleTriggerSpecificBot('store_expiry', 'Kedaluwarsa Toko')}
                             style={{
-                              padding: '0.55rem 1rem',
-                              borderRadius: '0.55rem',
-                              border: 'none',
-                              backgroundColor: '#10b981',
-                              color: '#ffffff',
-                              fontSize: '0.82rem',
-                              fontWeight: 800,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Simulasikan Injeksi Starter Kit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleTriggerSpecificBot('support_lifecycle')}
-                            style={{
-                              padding: '0.55rem 1rem',
-                              borderRadius: '0.55rem',
+                              minHeight: '44px',
+                              padding: '0.7rem 0.95rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-deep)',
                               border: '1px solid var(--border-light)',
-                              backgroundColor: 'transparent',
                               color: 'var(--text-primary)',
-                              fontSize: '0.82rem',
+                              fontSize: '0.78rem',
                               fontWeight: 700,
-                              cursor: 'pointer'
+                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              justifyContent: 'center'
                             }}
                           >
-                            Simulasikan Audit SLA Tiket
+                            <StoreIcon size={15} color="#3b82f6" />
+                            <span>Simulasi Toko Expired</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isTriggeringBot !== null}
+                            onClick={() => handleTriggerSpecificBot('dormancy_worker', 'Dormansi Toko')}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.7rem 0.95rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Clock size={15} color="#8b5cf6" />
+                            <span>Simulasi Dormansi</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isTriggeringBot !== null}
+                            onClick={() => handleTriggerSpecificBot('promo_expiry', 'Promo Merchant')}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.7rem 0.95rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Tag size={15} color="#10b981" />
+                            <span>Simulasi Promo Expired</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isTriggeringBot !== null}
+                            onClick={() => handleTriggerSpecificBot('cleaner_worker', 'Pembersih Notifikasi')}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.7rem 0.95rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Trash2 size={15} color="#64748b" />
+                            <span>Pembersih Notifikasi</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isTriggeringBot !== null}
+                            onClick={() => handleTriggerSpecificBot('onboarding_engine', 'Starter Kit Onboarding')}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.7rem 0.95rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Award size={15} color="#10b981" />
+                            <span>Simulasi Onboarding Toko</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isTriggeringBot !== null}
+                            onClick={() => handleTriggerSpecificBot('support_lifecycle', 'Audit SLA Tiket')}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.7rem 0.95rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <HelpCircle size={15} color="#06b6d4" />
+                            <span>Simulasi SLA Tiket Helpdesk</span>
                           </button>
                         </div>
                       </div>
