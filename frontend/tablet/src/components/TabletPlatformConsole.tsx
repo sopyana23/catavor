@@ -50,7 +50,12 @@ import {
   HelpCircle,
   BarChart3,
   Bot,
-  Printer
+  Printer,
+  Package,
+  AlertCircle,
+  Info,
+  Shield,
+  Database
 } from 'lucide-react';
 import { TabletRailNav } from './TabletRailNav';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
@@ -61,6 +66,7 @@ import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import { type UserRBACInfo, getRoleBadge, isSuperAdmin, hasPermission } from '../utils/rbac';
+import { useModalBackHandler } from '../utils/navigation';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
   rekber_template_physical: "Halo *{store_title}*, saya berminat membeli item berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
@@ -145,10 +151,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+  const showToast = useCallback((msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
-  };
+  }, []);
 
   // Switch View & sync URL
   const handleSwitchView = (newView: string) => {
@@ -291,23 +297,114 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [reports, setReports] = useState<any[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
-  const [reportsFilter, setReportsFilter] = useState<'pending' | 'investigating' | 'action_taken' | 'banned' | 'resolved' | 'dismissed' | 'all'>('pending');
+  const [selectedReportDetail, setSelectedReportDetail] = useState<any | null>(null);
+  const [selectedReportDetailLoading, setSelectedReportDetailLoading] = useState(false);
+  const [reportActiveEvidence, setReportActiveEvidence] = useState<any[]>([]);
+  const [reportPriorHistory, setReportPriorHistory] = useState<any[]>([]);
+  const [reportsFilter, setReportsFilter] = useState<'all' | 'pending' | 'investigating' | 're_review' | 'action_taken' | 'banned' | 'dismissed' | 'resolved'>('all');
+  const [reportsTargetFilter, setReportsTargetFilter] = useState<'all' | 'item' | 'catalog'>('all');
+  const [reportsSearchQuery, setReportsSearchQuery] = useState('');
+  const [debouncedReportsSearch, setDebouncedReportsSearch] = useState('');
+  const [reportMetrics, setReportMetrics] = useState<any | null>(null);
+  const [reportsPagination, setReportsPagination] = useState<{ page: number; limit: number; total: number; total_pages: number }>({ page: 1, limit: 12, total: 0, total_pages: 1 });
   const [moderationStatus, setModerationStatus] = useState<string>('pending');
   const [moderationAction, setModerationAction] = useState<string>('none');
   const [actionReason, setActionReason] = useState('');
   const [isSubmittingModeration, setIsSubmittingModeration] = useState(false);
+  const [showModerationConfirmModal, setShowModerationConfirmModal] = useState(false);
+  const [bannedConfirmModalReport, setBannedConfirmModalReport] = useState<any | null>(null);
+  const [bannedConfirmAcknowledged, setBannedConfirmAcknowledged] = useState(false);
 
-  const fetchReports = useCallback(async () => {
+  useModalBackHandler({
+    isOpen: showModerationConfirmModal,
+    onClose: () => {
+      setShowModerationConfirmModal(false);
+      setBannedConfirmModalReport(null);
+      setBannedConfirmAcknowledged(false);
+    },
+    modalId: 'tablet_moderation_confirm_modal'
+  });
+
+  const formatCatalogType = (pType?: string) => {
+    const clean = (pType || '').toLowerCase().trim();
+    switch (clean) {
+      case 'fauna':
+        return 'Satwa';
+      case 'plant':
+        return 'Tanaman';
+      case 'physical':
+        return 'Barang Fisik';
+      case 'digital':
+        return 'Produk Digital';
+      case 'service':
+        return 'Jasa & Layanan';
+      case 'food':
+        return 'Kuliner';
+      case 'property':
+        return 'Properti';
+      default:
+        return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : 'Barang Fisik';
+    }
+  };
+
+  // 300ms Debounce for reports search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedReportsSearch(reportsSearchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [reportsSearchQuery]);
+
+  const reportsFilterRef = useRef(reportsFilter);
+  reportsFilterRef.current = reportsFilter;
+  const reportsTargetFilterRef = useRef(reportsTargetFilter);
+  reportsTargetFilterRef.current = reportsTargetFilter;
+  const debouncedReportsSearchRef = useRef(debouncedReportsSearch);
+  debouncedReportsSearchRef.current = debouncedReportsSearch;
+
+  // Server-side fetch compliance reports list
+  const fetchReports = useCallback(async (
+    page = 1,
+    status = reportsFilterRef.current,
+    target = reportsTargetFilterRef.current,
+    search = debouncedReportsSearchRef.current
+  ) => {
     if (!token) return;
     setReportsLoading(true);
     try {
-      const q = reportsFilter === 'all' ? '' : `?status=${reportsFilter}`;
-      const res = await authFetch(`/api/admin/reports${q}`, {
+      const q = new URLSearchParams({
+        page: String(page),
+        limit: '12',
+        status: status,
+        target_type: target,
+        search: search
+      });
+      const res = await authFetch(`/api/admin/reports?${q.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const j = await res.json();
-        setReports(j.data || []);
+        const dataList = j.data || [];
+        setReports(dataList);
+        if (j.pagination) {
+          setReportsPagination(j.pagination);
+        }
+        if (j.metrics) {
+          setReportMetrics(j.metrics);
+          if (typeof j.metrics.pending === 'number') {
+            setPendingReportsCount(j.metrics.pending);
+          }
+        }
+        // Auto-select first report if list not empty and current selection invalid
+        if (dataList.length > 0) {
+          setSelectedReportId(prev => {
+            if (prev && dataList.some((r: any) => r.id === prev)) return prev;
+            return dataList[0].id;
+          });
+        } else {
+          setSelectedReportId(null);
+          setSelectedReportDetail(null);
+        }
       }
     } catch (e: any) {
       if (e?.message !== 'UNAUTHORIZED') {
@@ -316,25 +413,52 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     } finally {
       setReportsLoading(false);
     }
-  }, [token, reportsFilter, authFetch]);
+  }, [token, authFetch, showToast]);
 
+  // Trigger fetch when tab is reports or filters/search change
   useEffect(() => {
-    if (activeView === 'reports') {
-      fetchReports();
+    if (activeView === 'reports' && token) {
+      fetchReports(1, reportsFilter, reportsTargetFilter, debouncedReportsSearch);
     }
-  }, [activeView, fetchReports]);
+  }, [activeView, token, reportsFilter, reportsTargetFilter, debouncedReportsSearch, fetchReports]);
 
-  const selectedReport = useMemo(() => {
-    return reports.find(r => r.id === selectedReportId) || null;
-  }, [reports, selectedReportId]);
-
+  // Fetch full report detail including multi-reporter evidence timeline & prior review history
   useEffect(() => {
-    if (selectedReport) {
-      setModerationStatus(selectedReport.status === 'pending' ? 'investigating' : selectedReport.status);
-      setModerationAction(selectedReport.action_taken || 'none');
-      setActionReason(selectedReport.admin_notes || '');
+    if (!selectedReportId || !token || activeView !== 'reports') {
+      return;
     }
-  }, [selectedReport]);
+    let isCancelled = false;
+    const fetchReportDetail = async () => {
+      setSelectedReportDetailLoading(true);
+      try {
+        const res = await authFetch(`/api/admin/reports/${selectedReportId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok && !isCancelled) {
+          const d = await res.json();
+          const rep = d.data;
+          setSelectedReportDetail(rep);
+          setReportActiveEvidence(d.active_reports || d.active_evidence || []);
+          setReportPriorHistory(d.history_reports || d.prior_history || []);
+
+          if (rep) {
+            setModerationStatus(rep.status === 'pending' ? 'investigating' : rep.status);
+            setModerationAction(rep.action_taken || 'none');
+            setActionReason(rep.admin_notes || '');
+          }
+        }
+      } catch (err: any) {
+        if (!isCancelled && err?.message !== 'UNAUTHORIZED') {
+          // Graceful handling
+        }
+      } finally {
+        if (!isCancelled) setSelectedReportDetailLoading(false);
+      }
+    };
+
+    fetchReportDetail();
+    return () => { isCancelled = true; };
+  }, [selectedReportId, token, authFetch, activeView]);
 
   const handleUpdateReportStatus = async (
     reportId: number,
@@ -360,10 +484,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       });
       if (res.ok) {
         showToast(`Tindakan moderasi (${status}) berhasil diterapkan!`, 'success');
-        fetchReports();
+        setShowModerationConfirmModal(false);
+        setBannedConfirmModalReport(null);
+        setBannedConfirmAcknowledged(false);
+        await fetchReports(reportsPagination.page);
         loadPlatformStats();
       } else {
-        showToast('Gagal memperbarui status laporan', 'error');
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.message || 'Gagal memperbarui status laporan', 'error');
       }
     } catch (e: any) {
       if (e?.message !== 'UNAUTHORIZED') {
@@ -375,18 +503,20 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   };
 
   const generateReportWhatsAppWarning = (rep: any) => {
-    const storeName = rep.target_store_name || `Store #${rep.target_store_id || rep.store_id}`;
-    const caseId = rep.id || rep.report_number;
-    const reason = rep.reason_category || 'Kepatuhan Etalase';
-    const text = `Halo Pengelola *${storeName}*,\n\nKami dari Tim Kepatuhan Platform Catavor ingin memberitahukan terkait laporan kepatuhan (Kasus #${caseId}) dengan kategori: *${reason}*.\n\nCatatan Investigasi: ${actionReason || rep.details || 'Harap tinjau etalase Anda agar senantiasa sesuai dengan ketentuan platform Catavor.'}\n\nMohon lakukan penyesuaian atau koordinasi melalui Pusat Bantuan di dashboard merchant Anda.\n\nTerima kasih,\nTim Kepatuhan Catavor`;
+    const storeName = rep.store_title || rep.target_store_name || `Store #${rep.store_id || rep.target_store_id}`;
+    const entityName = rep.target_type === 'item' ? (rep.item_name || 'Item') : storeName;
+    const caseId = rep.report_number || `#RPT-${rep.id}`;
+    const reason = rep.reason_label || rep.reason_category || 'Kepatuhan Etalase';
+    const text = `Halo Pengelola *${storeName}*,\n\nKami dari Tim Kepatuhan Platform Catavor ingin memberitahukan terkait laporan kepatuhan (${caseId}) untuk target *${entityName}* dengan kategori: *${reason}*.\n\nCatatan Investigasi: ${actionReason || rep.description || 'Harap tinjau etalase Anda agar senantiasa sesuai dengan ketentuan platform Catavor.'}\n\nMohon lakukan penyesuaian atau koordinasi melalui Pusat Bantuan di dashboard merchant Anda.\n\nTerima kasih,\nTim Kepatuhan Catavor`;
     return encodeURIComponent(text);
   };
 
   const handleCopyReportWarning = (rep: any) => {
-    const storeName = rep.target_store_name || `Store #${rep.target_store_id || rep.store_id}`;
-    const caseId = rep.id || rep.report_number;
-    const reason = rep.reason_category || 'Kepatuhan Etalase';
-    const text = `[PERINGATAN RESMI KEPATUHAN CATAVOR]\nKasus: #${caseId}\nTarget: ${storeName}\nKategori: ${reason}\nCatatan: ${actionReason || rep.details || 'Pemeriksaan kepatuhan item'}\nStatus: ${moderationStatus.toUpperCase()}\nTindakan: ${moderationAction}\nTanggal: ${new Date().toLocaleString('id-ID')}`;
+    const storeName = rep.store_title || rep.target_store_name || `Store #${rep.store_id || rep.target_store_id}`;
+    const entityName = rep.target_type === 'item' ? (rep.item_name || 'Item') : storeName;
+    const caseId = rep.report_number || `#RPT-${rep.id}`;
+    const reason = rep.reason_label || rep.reason_category || 'Kepatuhan Etalase';
+    const text = `[PERINGATAN RESMI KEPATUHAN CATAVOR]\nKasus: ${caseId}\nTarget: ${entityName} (${storeName})\nKategori: ${reason}\nCatatan: ${actionReason || rep.description || 'Pemeriksaan kepatuhan etalase'}\nStatus: ${moderationStatus.toUpperCase()}\nTindakan: ${moderationAction}\nTanggal: ${new Date().toLocaleString('id-ID')}`;
     navigator.clipboard.writeText(text);
     showToast('Format teks peringatan disalin ke clipboard', 'success');
   };
@@ -1557,6 +1687,352 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         </div>
       )}
 
+      {/* Compliance Banned Confirmation Modal (Tablet Form-Factor Centered Panel) */}
+      {showModerationConfirmModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: 'rgba(0, 0, 0, 0.72)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            animation: 'fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSubmittingModeration) {
+              setShowModerationConfirmModal(false);
+              setBannedConfirmModalReport(null);
+              setBannedConfirmAcknowledged(false);
+            }
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              maxHeight: '90vh',
+              borderRadius: '1.25rem',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(239, 68, 68, 0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxSizing: 'border-box'
+            }}
+          >
+            {(() => {
+              const activeRep = bannedConfirmModalReport || selectedReportDetail || reports.find(r => r.id === selectedReportId);
+              const isItemConfirm = (activeRep?.target_type === 'item') || (moderationAction === 'item_banned');
+              const itemName = activeRep?.item_name || activeRep?.target_title;
+              const storeTitle = activeRep?.store_title || activeRep?.target_store_name || 'Toko Katalog';
+              const storeSlug = activeRep?.store_slug || activeRep?.target_store_slug;
+
+              return (
+                <>
+                  {/* Modal Header Bar */}
+                  <div
+                    style={{
+                      padding: '1.15rem 1.35rem',
+                      borderBottom: '1px solid var(--border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                      backgroundColor: 'rgba(239, 68, 68, 0.05)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ef4444',
+                          flexShrink: 0
+                        }}
+                      >
+                        <ShieldAlert size={22} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.25 }}>
+                            {isItemConfirm ? 'Konfirmasi Banned Item' : 'Konfirmasi Banned Katalog'}
+                          </h3>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '0.12rem 0.5rem',
+                              borderRadius: '999px',
+                              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              color: '#ef4444',
+                              fontSize: '0.64rem',
+                              fontWeight: 800,
+                              textTransform: 'uppercase'
+                            }}
+                          >
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                            Permanen
+                          </span>
+                        </div>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          {isItemConfirm
+                            ? 'Penghapusan seketika & brankas forensik 90 hari (tanpa banding)'
+                            : 'Tindakan sanksi fatal, tidak dapat dibatalkan kembali'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Modal Body */}
+                  <div
+                    style={{
+                      padding: '1.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem',
+                      overflowY: 'auto',
+                      flex: 1
+                    }}
+                  >
+                    {/* Target Metadata Card */}
+                    <div
+                      style={{
+                        padding: '0.9rem 1rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.55rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {isItemConfirm ? 'Profil Item Terlapor' : 'Profil Katalog Terlapor'}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '0.35rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                            color: '#ef4444',
+                            fontWeight: 800,
+                            fontFamily: 'monospace'
+                          }}
+                        >
+                          #{activeRep?.report_number || `RPT-${activeRep?.id || '-'}`}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.6rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ef4444',
+                            flexShrink: 0,
+                            marginTop: '2px'
+                          }}
+                        >
+                          {isItemConfirm ? <Package size={17} /> : <StoreIcon size={17} />}
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.35, wordBreak: 'break-word' }}>
+                            {isItemConfirm ? (itemName || (`Item ID: ${activeRep?.target_id || '-'}`)) : storeTitle}
+                          </div>
+
+                          {isItemConfirm ? (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                              Dari Toko: <strong>{storeTitle}</strong> {storeSlug && <span style={{ fontFamily: 'monospace' }}>({storeSlug})</span>}
+                            </div>
+                          ) : storeSlug && (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                              catavor.com/{storeSlug}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Impact Warning List */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        Dampak langsung dari eksekusi sanksi banned ini:
+                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {isItemConfirm ? (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                              <Trash2 size={14} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                              <span><strong>Soft-Delete & Lenyap dari Inventaris Toko:</strong> Item langsung dinonaktifkan dan dihapus dari etalase publik serta dashboard merchant.</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                              <CheckCircle2 size={14} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                              <span><strong>Pemulihan Kuota & Storage Seketika:</strong> Kuota item toko langsung kembali tersedia dan kapasitas storage dibebaskan (0 byte terhitung).</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                              <Database size={14} style={{ color: '#38bdf8', flexShrink: 0, marginTop: '2px' }} />
+                              <span><strong>Vault Forensik Kepatuhan 90 Hari (UU ITE & PP 71/2019):</strong> Berkas bukti digital dan media fisik item diamankan selama 90 hari sebelum pemusnahan permanen.</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                              <Lock size={14} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
+                              <span><strong>Keputusan Final Tanpa Banding:</strong> Pemilik toko menerima notifikasi penetapan sanksi fatal tanpa hak pengajuan banding.</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                              <Trash2 size={14} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                              <span><strong>Purge Data Profil & Produk:</strong> Seluruh data produk, etalase, galeri foto, dan media fisik katalog akan dihapus/dibersihkan dari platform.</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                              <Lock size={14} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                              <span><strong>Penguncian Slug Permanen:</strong> Slug <code style={{ wordBreak: 'break-all' }}>{storeSlug}</code> didaftarkan ke tabel <em>blacklisted_slugs</em> dan tidak dapat didaftarkan ulang.</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                              <Globe size={14} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                              <span><strong>Respons 404 Server Publik:</strong> Pengunjung yang membuka alamat URL ini akan menerima tampilan Error 404 Default Platform.</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Acknowledgment Checkbox */}
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.65rem',
+                        padding: '0.75rem 0.95rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={bannedConfirmAcknowledged}
+                        onChange={(e) => setBannedConfirmAcknowledged(e.target.checked)}
+                        style={{ marginTop: '3px', accentColor: '#ef4444', width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                        {isItemConfirm
+                          ? 'Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen pada item ini.'
+                          : 'Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen katalog ini.'}
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Modal Footer Buttons */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '0.75rem',
+                      padding: '1rem 1.25rem',
+                      borderTop: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-deep)'
+                    }}
+                  >
+                    <button
+                      type="button"
+                      disabled={isSubmittingModeration}
+                      onClick={() => {
+                        setShowModerationConfirmModal(false);
+                        setBannedConfirmModalReport(null);
+                        setBannedConfirmAcknowledged(false);
+                      }}
+                      style={{
+                        flex: 1,
+                        minHeight: '44px',
+                        padding: '0.65rem 1rem',
+                        borderRadius: '0.65rem',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'transparent',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: isSubmittingModeration ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!bannedConfirmAcknowledged || isSubmittingModeration}
+                      onClick={() => {
+                        if (!bannedConfirmAcknowledged || isSubmittingModeration) return;
+                        const reportId = activeRep?.id;
+                        setShowModerationConfirmModal(false);
+                        if (reportId) {
+                          handleUpdateReportStatus(
+                            reportId,
+                            moderationStatus,
+                            moderationAction,
+                            actionReason,
+                            true
+                          );
+                        }
+                      }}
+                      style={{
+                        flex: 1.35,
+                        minHeight: '44px',
+                        padding: '0.65rem 1rem',
+                        borderRadius: '0.65rem',
+                        border: 'none',
+                        backgroundColor: bannedConfirmAcknowledged ? '#ef4444' : 'var(--bg-muted, #64748b)',
+                        color: '#ffffff',
+                        fontSize: '0.82rem',
+                        fontWeight: 800,
+                        cursor: (!bannedConfirmAcknowledged || isSubmittingModeration) ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        boxShadow: bannedConfirmAcknowledged ? '0 4px 16px rgba(239, 68, 68, 0.35)' : 'none',
+                        opacity: (!bannedConfirmAcknowledged || isSubmittingModeration) ? 0.6 : 1
+                      }}
+                    >
+                      {isSubmittingModeration ? (
+                        <RefreshCw size={15} className="animate-spin" />
+                      ) : (
+                        <ShieldAlert size={15} />
+                      )}
+                      <span>{isItemConfirm ? 'Ya, Banned & Hapus Item' : 'Ya, Banned Katalog'}</span>
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* 1. Tablet Rail Navigation */}
       <TabletRailNav
         activeView={activeView}
@@ -2040,317 +2516,1025 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           {/* TAB 3: REPORTS (KEPATUHAN & LAPORAN) */}
           {activeView === 'reports' && (
             <TabletMasterDetailView
-              title="Laporan Masyarakat"
-              subtitle={`${reports.length} laporan pelanggaran`}
+              title="Kepatuhan & Laporan Masyarakat"
+              subtitle={`${reportsPagination.total || reports.length} antrean laporan pelanggaran`}
               selectedId={selectedReportId}
-              onClearSelection={() => setSelectedReportId(null)}
+              onClearSelection={() => {
+                setSelectedReportId(null);
+                setSelectedReportDetail(null);
+              }}
               hideHeaderTitle={true}
               masterPane={
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  {/* Filter Pills */}
-                  <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: '0.35rem', overflowX: 'auto' }}>
-                    {(['pending', 'investigating', 'action_taken', 'banned', 'resolved', 'dismissed', 'all'] as const).map(tab => (
-                      <button
-                        key={tab}
-                        type="button"
-                        onClick={() => setReportsFilter(tab)}
-                        style={{
-                          padding: '0.35rem 0.65rem',
-                          borderRadius: '999px',
-                          border: `1px solid ${reportsFilter === tab ? 'var(--primary)' : 'var(--border-light)'}`,
-                          backgroundColor: reportsFilter === tab ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
-                          color: reportsFilter === tab ? 'var(--primary)' : 'var(--text-muted)',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {tab === 'pending' ? 'Perlu Investigasi' : tab === 'investigating' ? 'Investigasi' : tab === 'action_taken' ? 'Ditindak' : tab === 'banned' ? 'Banned' : tab === 'resolved' ? 'Selesai' : tab === 'dismissed' ? 'Ditolak' : 'Semua'}
-                      </button>
-                    ))}
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-deep)' }}>
+                  {/* Quick Metrics Bar (4 Columns) */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '0.45rem',
+                    padding: '0.65rem 0.75rem',
+                    backgroundColor: 'var(--bg-card)',
+                    borderBottom: '1px solid var(--border-light)'
+                  }}>
+                    <div style={{ padding: '0.45rem 0.55rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Menunggu</span>
+                      <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f59e0b' }}>
+                        {reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length}
+                      </span>
+                    </div>
+                    <div style={{ padding: '0.45rem 0.55rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Investigasi</span>
+                      <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#38bdf8' }}>
+                        {reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length}
+                      </span>
+                    </div>
+                    <div style={{ padding: '0.45rem 0.55rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sanksi Aktif</span>
+                      <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f43f5e' }}>
+                        {reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.status !== 'banned' && r.action_taken !== 'catalog_banned').length}
+                      </span>
+                    </div>
+                    <div style={{ padding: '0.45rem 0.55rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ fontSize: '0.62rem', color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Banned</span>
+                      <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ef4444' }}>
+                        {reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Master List */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {/* Search and Filters Section */}
+                  <div style={{ padding: '0.65rem 0.75rem', borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {/* Search Input Box */}
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="text"
+                        placeholder="Cari tiket (#RPT-...), toko, item, email..."
+                        value={reportsSearchQuery}
+                        onChange={(e) => setReportsSearchQuery(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem 0.75rem 0.5rem 2.2rem',
+                          borderRadius: '0.65rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.76rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    {/* Filter Status Chips */}
+                    <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+                      {[
+                        { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
+                        { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
+                        { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
+                        { id: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
+                        { id: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
+                        { id: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
+                        { id: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
+                        { id: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length },
+                      ].map(f => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => setReportsFilter(f.id as any)}
+                          style={{
+                            padding: '0.28rem 0.6rem',
+                            borderRadius: '999px',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            backgroundColor: reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : 'var(--primary)') : 'var(--bg-deep)',
+                            color: reportsFilter === f.id ? '#ffffff' : 'var(--text-muted)',
+                            border: `1px solid ${reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : 'var(--primary)') : 'var(--border-light)'}`,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <span>{f.label}</span>
+                          <span style={{
+                            fontSize: '0.6rem',
+                            padding: '0.05rem 0.35rem',
+                            borderRadius: '999px',
+                            backgroundColor: reportsFilter === f.id ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.06)',
+                            color: reportsFilter === f.id ? '#ffffff' : 'var(--text-secondary)'
+                          }}>
+                            {f.count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Target Filter Segmented Buttons */}
+                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)' }}>Target:</span>
+                      {[
+                        { id: 'all', label: 'Semua Target' },
+                        { id: 'item', label: 'Hanya Item' },
+                        { id: 'catalog', label: 'Katalog Toko' },
+                      ].map(tf => (
+                        <button
+                          key={tf.id}
+                          type="button"
+                          onClick={() => setReportsTargetFilter(tf.id as any)}
+                          style={{
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '0.45rem',
+                            fontSize: '0.66rem',
+                            fontWeight: 600,
+                            backgroundColor: reportsTargetFilter === tf.id ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
+                            color: reportsTargetFilter === tf.id ? 'var(--primary)' : 'var(--text-muted)',
+                            border: `1px solid ${reportsTargetFilter === tf.id ? 'var(--primary)' : 'var(--border-light)'}`,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {tf.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Master List of Reports */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '0.65rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {reportsLoading ? (
-                      <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Memuat laporan...</div>
+                      <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                        <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem' }} />
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700 }}>Memuat antrean laporan...</div>
+                      </div>
                     ) : reports.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                        <CheckCircle2 size={36} color="#10b981" style={{ marginBottom: '0.5rem' }} />
-                        <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Semua Laporan Selesai Ditangani</div>
+                        <ShieldCheck size={36} color="#10b981" style={{ margin: '0 auto 0.5rem' }} />
+                        <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>Tidak Ada Laporan Ditemukan</div>
+                        <div style={{ fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                          {reportsSearchQuery ? 'Tidak ada laporan yang sesuai dengan kata kunci pencarian.' : 'Seluruh toko dan item mematuhi aturan kepatuhan platform.'}
+                        </div>
                       </div>
                     ) : (
                       reports.map(rep => {
                         const isSelected = selectedReportId === rep.id;
-                        const isItem = rep.target_type === 'item';
+                        const isCatalog = rep.target_type === 'catalog' || rep.target_type === 'store';
+                        const isItemBanned = rep.status === 'banned' || rep.action_taken === 'catalog_banned' || rep.action_taken === 'item_banned';
+
+                        const statusBadgeMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
+                          pending: { label: 'Menunggu', bg: 'rgba(245, 158, 11, 0.12)', text: '#f59e0b', border: 'rgba(245, 158, 11, 0.3)' },
+                          investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.12)', text: '#38bdf8', border: 'rgba(56, 189, 248, 0.3)' },
+                          in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.12)', text: '#38bdf8', border: 'rgba(56, 189, 248, 0.3)' },
+                          re_review: { label: 'Revisi Masuk', bg: 'rgba(16, 185, 129, 0.12)', text: '#10b981', border: 'rgba(16, 185, 129, 0.35)' },
+                          action_taken: { label: 'Ditindak', bg: 'rgba(244, 63, 94, 0.12)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.3)' },
+                          banned: { label: 'Banned', bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.45)' },
+                          dismissed: { label: 'Ditolak', bg: 'rgba(148, 163, 184, 0.12)', text: '#64748b', border: 'rgba(148, 163, 184, 0.25)' },
+                          resolved: { label: 'Selesai', bg: 'rgba(16, 185, 129, 0.12)', text: '#10b981', border: 'rgba(16, 185, 129, 0.3)' }
+                        };
+                        const currentBadge = (rep.status === 'banned' || rep.action_taken === 'catalog_banned')
+                          ? statusBadgeMap.banned
+                          : (statusBadgeMap[rep.status] || statusBadgeMap.pending);
+
+                        const hasAction = rep.action_taken && rep.action_taken !== 'none';
+                        const actionLabel = rep.action_taken === 'item_banned'
+                          ? 'Item Dibanned'
+                          : rep.action_taken === 'item_needs_fix'
+                          ? 'Perlu Perbaikan'
+                          : (rep.action_taken === 'item_locked' || rep.action_taken === 'item_hidden')
+                          ? 'Item Dikunci'
+                          : rep.action_taken === 'catalog_suspended'
+                          ? 'Katalog Dibekukan'
+                          : rep.action_taken === 'catalog_banned'
+                          ? 'Katalog Dibanned'
+                          : rep.action_taken === 'warning_issued'
+                          ? 'Diberi Peringatan'
+                          : rep.action_taken === 'item_restored'
+                          ? 'Item Dipulihkan'
+                          : (rep.action_taken || '');
+
                         return (
                           <div
                             key={rep.id}
                             onClick={() => setSelectedReportId(rep.id)}
                             style={{
-                              padding: '0.85rem',
+                              padding: '0.75rem',
                               borderRadius: '0.75rem',
-                              backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
-                              border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
+                              backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-card)',
+                              border: isSelected
+                                ? '1.5px solid var(--primary)'
+                                : isItemBanned
+                                ? '1px solid rgba(239, 68, 68, 0.4)'
+                                : rep.status === 're_review'
+                                ? '1px solid rgba(16, 185, 129, 0.5)'
+                                : rep.status === 'pending'
+                                ? '1px solid rgba(245, 158, 11, 0.35)'
+                                : '1px solid var(--border-light)',
                               cursor: 'pointer',
                               display: 'flex',
                               flexDirection: 'column',
-                              gap: '0.35rem'
+                              gap: '0.4rem',
+                              transition: 'all 0.15s ease'
                             }}
                           >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            {/* Card Meta Row: Ticket, Target pill, Status */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
                                 <span style={{
-                                  fontSize: '0.65rem',
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.68rem',
                                   fontWeight: 800,
-                                  padding: '0.1rem 0.4rem',
-                                  borderRadius: '4px',
-                                  backgroundColor: isItem ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                                  color: isItem ? '#a855f7' : '#3b82f6'
+                                  color: 'var(--text-primary)',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  padding: '0.12rem 0.4rem',
+                                  borderRadius: '0.35rem',
+                                  border: '1px solid var(--border-light)'
                                 }}>
-                                  {isItem ? 'ITEM' : 'MERCHANT'}
+                                  {rep.report_number || `#RPT-${rep.id}`}
                                 </span>
-                                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#ef4444' }}>
-                                  {rep.reason_category || 'PELANGGARAN'}
+                                <span style={{
+                                  fontSize: '0.6rem',
+                                  fontWeight: 800,
+                                  padding: '0.12rem 0.4rem',
+                                  borderRadius: '0.35rem',
+                                  backgroundColor: isCatalog ? 'rgba(168, 85, 247, 0.12)' : 'rgba(14, 165, 233, 0.12)',
+                                  color: isCatalog ? '#a855f7' : '#0284c7',
+                                  border: `1px solid ${isCatalog ? 'rgba(168, 85, 247, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`
+                                }}>
+                                  {isCatalog ? 'PROFIL' : 'ITEM'}
                                 </span>
+                                {!isCatalog && (
+                                  <span style={{
+                                    fontSize: '0.6rem',
+                                    fontWeight: 700,
+                                    padding: '0.12rem 0.4rem',
+                                    borderRadius: '0.35rem',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    color: 'var(--text-secondary)',
+                                    border: '1px solid var(--border-light)'
+                                  }}>
+                                    {formatCatalogType(rep.item_type || rep.fauna?.product_type)}
+                                  </span>
+                                )}
                               </div>
+
                               <span style={{
-                                fontSize: '0.68rem',
-                                fontWeight: 700,
-                                padding: '0.15rem 0.5rem',
+                                padding: '0.15rem 0.45rem',
                                 borderRadius: '999px',
-                                backgroundColor: rep.status === 'pending' ? 'rgba(239, 68, 68, 0.12)' : rep.status === 'action_taken' ? 'rgba(244, 63, 94, 0.12)' : rep.status === 'resolved' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                                color: rep.status === 'pending' ? '#ef4444' : rep.status === 'action_taken' ? '#f43f5e' : rep.status === 'resolved' ? '#10b981' : '#94a3b8'
+                                fontSize: '0.64rem',
+                                fontWeight: 800,
+                                backgroundColor: currentBadge.bg,
+                                color: currentBadge.text,
+                                border: `1px solid ${currentBadge.border}`
                               }}>
-                                {rep.status?.toUpperCase() || 'PENDING'}
+                                {currentBadge.label}
                               </span>
                             </div>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                              {rep.target_store_name || `Merchant #${rep.target_store_id || rep.store_id}`}
-                              {rep.target_item_title && ` &bull; ${rep.target_item_title}`}
+
+                            {/* Entity Title & Icon */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <div style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                {isCatalog ? <StoreIcon size={14} color="var(--primary)" /> : <Package size={14} color="var(--primary)" />}
+                              </div>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{
+                                  fontSize: '0.82rem',
+                                  fontWeight: 800,
+                                  color: 'var(--text-primary)',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {isCatalog
+                                    ? (rep.store_title || rep.target_store_name || `Katalog /${rep.store_slug || rep.target_store_id}`)
+                                    : (rep.item_name || rep.target_item_title || 'Item Produk')}
+                                </div>
+                                <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  /{rep.store_slug || rep.target_store_slug || '-'}
+                                </div>
+                              </div>
                             </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {rep.details || rep.description || 'Tidak ada catatan pelapor'}
+
+                            {/* Violation Reason & Action Pill */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                              <span style={{
+                                padding: '0.15rem 0.4rem',
+                                borderRadius: '0.35rem',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                fontSize: '0.66rem',
+                                fontWeight: 700,
+                                color: '#ef4444',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}>
+                                <ShieldAlert size={11} color="#ef4444" />
+                                <span>{rep.reason_label || rep.reason_category || 'Pelanggaran'}</span>
+                              </span>
+
+                              {hasAction && (
+                                <span style={{
+                                  padding: '0.15rem 0.4rem',
+                                  borderRadius: '0.35rem',
+                                  backgroundColor: rep.action_taken === 'catalog_banned' || rep.action_taken === 'item_banned' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(244, 63, 94, 0.12)',
+                                  border: `1px solid ${rep.action_taken === 'catalog_banned' || rep.action_taken === 'item_banned' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(244, 63, 94, 0.25)'}`,
+                                  fontSize: '0.66rem',
+                                  fontWeight: 800,
+                                  color: rep.action_taken === 'catalog_banned' || rep.action_taken === 'item_banned' ? '#ef4444' : '#f43f5e'
+                                }}>
+                                  {actionLabel}
+                                </span>
+                              )}
                             </div>
+
+                            {/* Re-review indicator if active */}
+                            {rep.status === 're_review' && (
+                              <div style={{
+                                padding: '0.3rem 0.45rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                fontSize: '0.66rem',
+                                color: '#10b981',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}>
+                                <RefreshCw size={11} color="#10b981" />
+                                <span>Toko mengajukan revisi</span>
+                              </div>
+                            )}
                           </div>
                         );
                       })
                     )}
                   </div>
+
+                  {/* Tablet Segmented Pagination Controls */}
+                  <TabletSegmentedPagination
+                    currentPage={reportsPagination.page}
+                    totalPages={reportsPagination.total_pages}
+                    totalRecords={reportsPagination.total}
+                    pageSize={reportsPagination.limit}
+                    isLoading={reportsLoading}
+                    onPageChange={(newPage) => {
+                      fetchReports(newPage, reportsFilter, reportsTargetFilter, debouncedReportsSearch);
+                    }}
+                  />
                 </div>
               }
               detailPane={
-                selectedReport ? (
-                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
-                    {/* Header Card */}
-                    <div style={{
-                      padding: '1.25rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span style={{
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: '4px',
-                            backgroundColor: selectedReport.target_type === 'item' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                            color: selectedReport.target_type === 'item' ? '#a855f7' : '#3b82f6'
-                          }}>
-                            {selectedReport.target_type === 'item' ? 'MODERASI ITEM' : 'MODERASI MERCHANT'}
-                          </span>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ef4444' }}>
-                            Kasus #{selectedReport.id} &bull; {selectedReport.reason_category || 'Pelanggaran'}
-                          </span>
-                        </div>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          {selectedReport.created_at ? new Date(selectedReport.created_at).toLocaleString('id-ID') : '-'}
-                        </span>
-                      </div>
+                !selectedReportId ? (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    padding: '2rem',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)'
+                  }}>
+                    <ShieldCheck size={48} color="#10b981" style={{ marginBottom: '0.75rem', opacity: 0.8 }} />
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>
+                      Pilih Laporan untuk Moderasi
+                    </h3>
+                    <p style={{ fontSize: '0.78rem', maxWidth: '360px', margin: 0, lineHeight: 1.5 }}>
+                      Pilih salah satu laporan pelanggaran dari daftar di sebelah kiri untuk memeriksa bukti forensik dan mengeksekusi sanksi penegakan kepatuhan.
+                    </p>
+                  </div>
+                ) : selectedReportDetailLoading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '2rem', color: 'var(--text-muted)' }}>
+                    <RefreshCw size={32} className="animate-spin" color="var(--primary)" style={{ marginBottom: '0.75rem' }} />
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Memuat rincian laporan & rekam jejak...</div>
+                  </div>
+                ) : (() => {
+                  const activeRep = selectedReportDetail || reports.find(r => r.id === selectedReportId);
+                  if (!activeRep) return null;
+                  const isCatalog = activeRep.target_type === 'catalog' || activeRep.target_type === 'store';
 
-                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                        Target: {selectedReport.target_store_name || `Store #${selectedReport.target_store_id || selectedReport.store_id}`}
-                        {selectedReport.target_item_title && ` / Item: ${selectedReport.target_item_title}`}
-                      </h3>
+                  const itemOptions: TabletSelectOption[] = [
+                    { value: 'none', label: 'Tanpa Sanksi Otomatis', description: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis', badge: 'CATATAN', badgeColor: '#64748b' },
+                    { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi', description: 'Kirim surat peringatan resmi kepatuhan ke pengelola', badge: 'PERINGATAN', badgeColor: '#f59e0b' },
+                    { value: 'item_needs_fix', label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki', description: 'Sembunyikan dari publik, izinkan pengelola mengedit data untuk diajukan ulang', badge: 'PERLU EDIT', badgeColor: '#f59e0b' },
+                    { value: 'item_locked', label: 'Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras', description: 'Sembunyikan & kunci edit (read-only) karena indikasi pelanggaran berat', badge: 'TERKUNCI', badgeColor: '#ef4444' },
+                    { value: 'item_banned', label: 'Blokir atau Hapus Item (Banned Permanen)', description: 'Hapus permanen dari etalase & pulihkan kuota pengelola seketika', badge: 'BANNED ITEM', badgeColor: '#ef4444' },
+                    { value: 'item_restored', label: 'Pulihkan / Aktifkan Item', description: 'Item dipulihkan dan dapat kembali diakses publik', badge: 'AKTIF', badgeColor: '#10b981' },
+                    { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara', badge: 'SUSPEND', badgeColor: '#dc2626' },
+                    { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
+                    { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' }
+                  ];
 
-                      {/* Forensic Metadata Grid */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', fontSize: '0.75rem', marginTop: '0.75rem', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
-                        <div>
-                          <span style={{ color: 'var(--text-muted)' }}>Pelapor Email: </span>
-                          <span style={{ fontWeight: 700 }}>{selectedReport.reporter_email || 'Anonim'}</span>
-                        </div>
-                        <div>
-                          <span style={{ color: 'var(--text-muted)' }}>Alamat IP Pelapor: </span>
-                          <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{selectedReport.reporter_ip || '127.0.0.1'}</span>
-                        </div>
-                      </div>
+                  const catalogOptions: TabletSelectOption[] = [
+                    { value: 'none', label: 'Tanpa Sanksi Otomatis', description: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis', badge: 'CATATAN', badgeColor: '#64748b' },
+                    { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi', description: 'Kirim surat peringatan resmi kepatuhan ke pengelola', badge: 'PERINGATAN', badgeColor: '#f59e0b' },
+                    { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara dari publik', badge: 'SUSPEND', badgeColor: '#dc2626' },
+                    { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
+                    { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' }
+                  ];
 
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', marginTop: '0.75rem' }}>
-                        <div style={{ fontWeight: 800, marginBottom: '0.25rem', color: 'var(--text-primary)' }}>Uraian Laporan Masyarakat:</div>
-                        {selectedReport.details || selectedReport.description || 'Tidak ada uraian laporan tertulis'}
-                      </div>
-
-                      {/* Evidence Attachment */}
-                      {selectedReport.evidence_image_url && (
-                        <div style={{ marginTop: '1rem' }}>
-                          <div style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '0.4rem' }}>Bukti Lampiran Foto Pelapor:</div>
-                          <img
-                            src={selectedReport.evidence_image_url}
-                            alt="Bukti Laporan"
-                            onClick={() => {
-                              setPreviewDocUrl(selectedReport.evidence_image_url);
-                              setPreviewDocTitle(`Bukti Kasus #${selectedReport.id}`);
-                            }}
-                            style={{
-                              width: '140px',
-                              height: '140px',
-                              objectFit: 'cover',
-                              borderRadius: '0.5rem',
-                              border: '1px solid var(--border-light)',
-                              cursor: 'pointer'
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Status & Enforcement Selector */}
-                    <div style={{
-                      padding: '1.25rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '1rem'
-                    }}>
-                      <div>
-                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>
-                          Status Peninjauan Laporan
-                        </h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', marginTop: '0.5rem' }}>
-                          {[
-                            { value: 'investigating', label: 'Investigasi', color: '#f59e0b' },
-                            { value: 'action_taken', label: 'Ditindak', color: '#f43f5e' },
-                            { value: 'banned', label: 'Banned', color: '#ef4444' },
-                            { value: 'resolved', label: 'Selesai', color: '#10b981' },
-                            { value: 'dismissed', label: 'Ditolak', color: '#64748b' }
-                          ].map(st => (
-                            <button
-                              key={st.value}
-                              type="button"
-                              onClick={() => setModerationStatus(st.value)}
-                              style={{
-                                padding: '0.5rem',
-                                borderRadius: '0.55rem',
-                                border: `1.5px solid ${moderationStatus === st.value ? st.color : 'var(--border-light)'}`,
-                                backgroundColor: moderationStatus === st.value ? `${st.color}20` : 'var(--bg-card)',
-                                color: moderationStatus === st.value ? st.color : 'var(--text-muted)',
+                  return (
+                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
+                      {/* Section 1: Entity Profile & Evidence Card */}
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.85rem'
+                      }}>
+                        {/* Meta Row: Target pill + item type + ticket # + Public inspect button */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '0.66rem',
+                              fontWeight: 800,
+                              padding: '0.2rem 0.55rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: isCatalog ? 'rgba(168, 85, 247, 0.15)' : 'rgba(14, 165, 233, 0.15)',
+                              color: isCatalog ? '#a855f7' : '#0284c7',
+                              border: `1px solid ${isCatalog ? 'rgba(168, 85, 247, 0.3)' : 'rgba(14, 165, 233, 0.3)'}`
+                            }}>
+                              {isCatalog ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
+                            </span>
+                            {!isCatalog && (
+                              <span style={{
+                                fontSize: '0.66rem',
                                 fontWeight: 800,
-                                fontSize: '0.78rem',
-                                cursor: 'pointer'
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                                color: '#0284c7',
+                                border: '1px solid rgba(14, 165, 233, 0.25)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}>
+                                <Tag size={11} />
+                                {formatCatalogType(activeRep.item_type || activeRep.fauna?.product_type || activeRep.product_type)}
+                              </span>
+                            )}
+                            <span style={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              color: 'var(--text-secondary)',
+                              backgroundColor: 'var(--bg-deep)',
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '0.45rem',
+                              border: '1px solid var(--border-light)'
+                            }}>
+                              {activeRep.report_number || `#RPT-${activeRep.id}`}
+                            </span>
+                          </div>
+
+                          {activeRep.store_slug && (
+                            <a
+                              href={`/${activeRep.store_slug}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '0.55rem',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                color: 'var(--primary)',
+                                border: '1px solid rgba(59, 130, 246, 0.25)',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                textDecoration: 'none'
                               }}
                             >
-                              {st.label}
-                            </button>
-                          ))}
+                              <ExternalLink size={13} />
+                              <span>Inspeksi Publik</span>
+                            </a>
+                          )}
+                        </div>
+
+                        {/* Entity Title */}
+                        <div>
+                          <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                            Entitas Terlapor
+                          </div>
+                          <div style={{
+                            fontSize: '1rem',
+                            fontWeight: 800,
+                            color: 'var(--text-primary)',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.45rem',
+                            lineHeight: 1.35
+                          }}>
+                            {isCatalog ? (
+                              <>
+                                <StoreIcon size={18} style={{ color: '#a855f7', flexShrink: 0, marginTop: '2px' }} />
+                                <span>{activeRep.store_title || activeRep.target_store_name || `Katalog /${activeRep.store_slug || activeRep.target_store_id}`}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Package size={18} style={{ color: '#0ea5e9', flexShrink: 0, marginTop: '2px' }} />
+                                <span>{activeRep.item_name || activeRep.target_item_title || 'Item Tanpa Nama'}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Details Grid */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, 1fr)',
+                          gap: '0.65rem 1rem',
+                          padding: '0.85rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)'
+                        }}>
+                          <div>
+                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.15rem' }}>Profil Bisnis / Usaha</span>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
+                              {activeRep.store_title || activeRep.target_store_name || activeRep.store_slug || 'Katalog'}
+                            </span>
+                          </div>
+                          {!isCatalog ? (
+                            <div>
+                              <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.15rem' }}>Jenis / Tipe Katalog</span>
+                              <span style={{
+                                fontSize: '0.74rem',
+                                fontWeight: 800,
+                                color: '#0284c7',
+                                backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                                padding: '0.12rem 0.5rem',
+                                borderRadius: '0.4rem',
+                                border: '1px solid rgba(14, 165, 233, 0.25)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}>
+                                <Tag size={11} />
+                                {formatCatalogType(activeRep.item_type || activeRep.fauna?.product_type || activeRep.product_type)}
+                              </span>
+                            </div>
+                          ) : (
+                            <div>
+                              <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.15rem' }}>Jenis Entitas</span>
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                Profil Katalog Lengkap
+                              </span>
+                            </div>
+                          )}
+                          <div>
+                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.15rem' }}>Kategori Pelanggaran</span>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f43f5e', wordBreak: 'break-word', lineHeight: 1.3 }}>
+                              {activeRep.reason_label || activeRep.reason_category || 'Lainnya'}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.15rem' }}>Status Peninjauan</span>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                              {activeRep.status || 'Pending'}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.15rem' }}>Email Pelapor</span>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                              {activeRep.reporter_email || '-'}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.15rem' }}>Alamat IP Pelapor</span>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                              {activeRep.reporter_ip || '-'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Evidence Quote */}
+                        {(activeRep.description || activeRep.details) && (
+                          <div style={{
+                            padding: '0.75rem 0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(244, 63, 94, 0.06)',
+                            border: '1px solid rgba(244, 63, 94, 0.2)'
+                          }}>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f43f5e', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <AlertCircle size={13} />
+                              <span>Kutipan Barang Bukti & Keluhan Pelapor:</span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-primary)', lineHeight: 1.5, fontStyle: 'italic' }}>
+                              "{activeRep.description || activeRep.details}"
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Evidence Attachment Image Preview */}
+                        {activeRep.evidence_image_url && (
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                              Lampiran Berkas / Foto Barang Bukti:
+                            </div>
+                            <img
+                              src={activeRep.evidence_image_url}
+                              alt="Bukti Laporan"
+                              onClick={() => {
+                                setPreviewDocUrl(activeRep.evidence_image_url);
+                                setPreviewDocTitle(`Bukti Laporan ${activeRep.report_number || `#RPT-${activeRep.id}`}`);
+                              }}
+                              style={{
+                                width: '120px',
+                                height: '120px',
+                                objectFit: 'cover',
+                                borderRadius: '0.65rem',
+                                border: '1px solid var(--border-light)',
+                                cursor: 'pointer'
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {/* Multi-Reporter Active Evidence Timeline */}
+                        {reportActiveEvidence && reportActiveEvidence.length > 0 && (
+                          <div style={{
+                            padding: '0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.06)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.65rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                              <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <AlertTriangle size={14} />
+                                <span>{reportActiveEvidence.length} Laporan Lain untuk Entitas Ini</span>
+                              </div>
+                              <span style={{ fontSize: '0.62rem', padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', fontWeight: 800 }}>
+                                KASUS JAMAK
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                              Pengguna lain juga melaporkan entitas ini. Menindak kasus ini akan otomatis memperbarui seluruh laporan terkait.
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                              {reportActiveEvidence.map((ae: any, idx: number) => (
+                                <div key={ae.id || idx} style={{
+                                  padding: '0.6rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.2rem'
+                                }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem' }}>
+                                    <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                      {ae.report_number || `#RPT-${ae.id}`}
+                                    </span>
+                                    <span style={{ color: 'var(--text-muted)' }}>
+                                      {ae.created_at ? new Date(ae.created_at).toLocaleString('id-ID') : '-'}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#f43f5e' }}>
+                                    {ae.reason_label || ae.reason_category}
+                                  </div>
+                                  {ae.description && (
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.35 }}>
+                                      "{ae.description}"
+                                    </div>
+                                  )}
+                                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                    Pelapor: {ae.reporter_email || ae.reporter_ip || 'Anonim'}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Prior Review History Ledger */}
+                        {reportPriorHistory && reportPriorHistory.length > 0 && (
+                          <div style={{
+                            padding: '0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(14, 165, 233, 0.06)',
+                            border: '1px solid rgba(14, 165, 233, 0.25)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.55rem'
+                          }}>
+                            <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <Clock size={14} />
+                              <span>Rekam Jejak Peninjauan Terdahulu ({reportPriorHistory.length})</span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                              Entitas ini pernah dilaporkan dan diselesaikan sebelumnya:
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                              {reportPriorHistory.map((ph: any, pidx: number) => (
+                                <div key={ph.id || pidx} style={{
+                                  padding: '0.55rem 0.65rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)',
+                                  fontSize: '0.7rem',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.2rem'
+                                }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                      {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{ph.status}</strong>
+                                    </span>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                      {ph.reviewed_at ? new Date(ph.reviewed_at).toLocaleDateString('id-ID') : '-'}
+                                    </span>
+                                  </div>
+                                  {ph.action_taken && ph.action_taken !== 'none' && (
+                                    <div style={{ fontSize: '0.68rem', color: '#f43f5e', fontWeight: 700 }}>
+                                      Sanksi Diterapkan: {ph.action_taken}
+                                    </div>
+                                  )}
+                                  {ph.admin_notes && (
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                      Catatan Admin: "{ph.admin_notes}"
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Section 2: Update Status Laporan */}
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.85rem'
+                      }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Clock size={16} style={{ color: '#f59e0b' }} />
+                            <span>Status Peninjauan Laporan</span>
+                          </h4>
+                          <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            Tentukan status progres investigasi laporan kepatuhan ini.
+                          </p>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.55rem' }}>
+                          {[
+                            { value: 'investigating', label: 'Investigasi Aktif', color: '#f59e0b', desc: 'Audit berjalan & verifikasi' },
+                            { value: 'action_taken', label: 'Sanksi Ditindak', color: '#f43f5e', desc: 'Sanksi sementara/peringatan' },
+                            { value: 'banned', label: 'Banned Permanen', color: '#ef4444', desc: 'Blokir permanen katalog/item' },
+                            { value: 'resolved', label: 'Selesai & Pulih', color: '#10b981', desc: 'Kasus tuntas tanpa sanksi' },
+                            { value: 'dismissed', label: 'Ditolak (Dismiss)', color: '#64748b', desc: 'Laporan tidak valid/palsu' }
+                          ].map(opt => {
+                            const isSelected = moderationStatus === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => {
+                                  setModerationStatus(opt.value);
+                                  if (opt.value === 'banned') {
+                                    if (isCatalog) {
+                                      setModerationAction('catalog_banned');
+                                    } else {
+                                      setModerationAction('item_banned');
+                                    }
+                                  } else if (opt.value === 'action_taken') {
+                                    if (isCatalog && (moderationAction === 'none' || moderationAction === 'catalog_banned' || moderationAction === 'catalog_reactivated')) {
+                                      setModerationAction('catalog_suspended');
+                                    } else if (!isCatalog && (moderationAction === 'none' || moderationAction === 'item_banned' || moderationAction === 'item_restored')) {
+                                      setModerationAction('item_locked');
+                                    }
+                                  } else if (opt.value === 'resolved') {
+                                    if (isCatalog && (moderationAction === 'catalog_suspended' || moderationAction === 'catalog_banned')) {
+                                      setModerationAction('catalog_reactivated');
+                                    } else if (!isCatalog && (moderationAction === 'item_locked' || moderationAction === 'item_needs_fix' || moderationAction === 'item_banned')) {
+                                      setModerationAction('item_restored');
+                                    }
+                                  } else if (opt.value === 'dismissed' || opt.value === 'investigating') {
+                                    if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned') {
+                                      setModerationAction('none');
+                                    }
+                                  }
+                                }}
+                                style={{
+                                  padding: '0.65rem 0.75rem',
+                                  borderRadius: '0.65rem',
+                                  border: isSelected ? `2px solid ${opt.color}` : '1px solid var(--border-light)',
+                                  backgroundColor: isSelected ? 'var(--bg-deep)' : 'transparent',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.2rem',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: isSelected ? opt.color : 'var(--text-primary)' }}>
+                                    {opt.label}
+                                  </span>
+                                  {isSelected && <CheckCircle2 size={14} style={{ color: opt.color }} />}
+                                </div>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                                  {opt.desc}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      {/* Enforcement Action Selector */}
-                      <div>
-                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.35rem 0' }}>
-                          Tindakan Penegakan Sistem (Real-Time Enforcement)
-                        </h4>
+                      {/* Section 3: Tindakan Penegakan Sistem (Real-time Enforcement) */}
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.85rem'
+                      }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <ShieldAlert size={16} style={{ color: '#f43f5e' }} />
+                            <span>Tindakan Penegakan Sistem (Real-time Enforcement)</span>
+                          </h4>
+                          <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            Sistem akan secara instan mengubah status database katalog/item dan mencatat audit trail.
+                          </p>
+                        </div>
+
                         <TabletCustomSelect
                           value={moderationAction}
-                          onChange={(val) => setModerationAction(val)}
-                          options={
-                            selectedReport.target_type === 'item'
-                              ? [
-                                  { value: 'none', label: 'Tanpa Sanksi Otomatis', description: 'Hanya catatan investigasi forensik' },
-                                  { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi ke Merchant', description: 'Kirim notifikasi peringatan resmi' },
-                                  { value: 'item_needs_fix', label: 'Nonaktifkan Item: Beri Kesempatan Edit & Perbaiki', description: 'Beri waktu 24 jam untuk diperbaiki' },
-                                  { value: 'item_locked', label: 'Nonaktifkan & Kunci Item: Pelanggaran Keras', description: 'Item dikunci staf pengelola' },
-                                  { value: 'item_banned', label: 'Blokir & Hapus Item (Banned Permanen)', description: 'Satwa terlarang / barang ilegal' },
-                                  { value: 'item_restored', label: 'Pulihkan & Aktifkan Kembali Item', description: 'Item lolos audit kepatuhan' },
-                                ]
-                              : [
-                                  { value: 'none', label: 'Tanpa Sanksi Otomatis', description: 'Hanya catatan investigasi forensik' },
-                                  { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi ke Merchant', description: 'Kirim teguran resmi pengelola' },
-                                  { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog Merchant', description: 'Merchant dinonaktifkan sementara' },
-                                  { value: 'catalog_banned', label: 'Blokir / Banned Permanen Merchant & Akun', description: 'Blacklist merchant & akun pemilik' },
-                                  { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Kembali Profil Merchant', description: 'Aktivasi ulang katalog merchant' },
-                                ]
-                          }
-                          ariaLabel="Tindakan Penegakan Moderasi"
+                          onChange={(val) => {
+                            setModerationAction(val);
+                            if (val === 'item_banned' || val === 'catalog_banned') {
+                              setModerationStatus('banned');
+                            } else if (val === 'item_locked' || val === 'item_needs_fix' || val === 'catalog_suspended' || val === 'warning_issued') {
+                              if (moderationStatus !== 'banned') {
+                                setModerationStatus('action_taken');
+                              }
+                            } else if (val === 'item_restored' || val === 'catalog_reactivated') {
+                              setModerationStatus('resolved');
+                            }
+                          }}
+                          options={isCatalog ? catalogOptions : itemOptions}
+                          ariaLabel="Pilih Tindakan Penegakan Sistem"
                           triggerStyle={{
                             minHeight: '44px',
-                            backgroundColor: 'var(--bg-card)'
+                            backgroundColor: 'var(--bg-deep)'
                           }}
                         />
+
+                        <div style={{
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'rgba(59, 130, 246, 0.06)',
+                          border: '1px solid rgba(59, 130, 246, 0.2)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}>
+                          <Info size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                            Eksekusi sanksi bersifat seketika (*instant*). Pemilik toko akan melihat status item/katalog terbarui di portal mereka.
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Forensic Notes */}
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                          Catatan Forensik Staf Pengelola
-                        </label>
+                      {/* Section 4: Catatan Kepatuhan & Audit (Admin Notes) */}
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.85rem'
+                      }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <FileText size={16} style={{ color: '#0ea5e9' }} />
+                            <span>Catatan Kepatuhan & Audit (Admin Notes)</span>
+                          </h4>
+                          <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            Dokumentasikan temuan investigasi, nomor tiket referensi, atau alasan keputusan untuk audit internal.
+                          </p>
+                        </div>
+
                         <textarea
                           rows={3}
                           value={actionReason}
                           onChange={e => setActionReason(e.target.value)}
-                          placeholder="Tuliskan keputusan investigasi / alasan penindakan..."
+                          placeholder="Tuliskan temuan audit, riwayat kontak penjual, alasan sanksi atau dasar penolakan laporan..."
                           style={{
                             width: '100%',
                             padding: '0.75rem',
-                            borderRadius: '0.5rem',
+                            borderRadius: '0.65rem',
                             border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-card)',
+                            backgroundColor: 'var(--bg-deep)',
                             color: 'var(--text-primary)',
-                            fontSize: '0.85rem',
+                            fontSize: '0.82rem',
                             boxSizing: 'border-box',
-                            outline: 'none'
+                            outline: 'none',
+                            fontFamily: 'inherit',
+                            lineHeight: 1.5,
+                            resize: 'vertical'
                           }}
                         />
+
+                        {activeRep.reviewed_by && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <User size={12} />
+                            <span>Terakhir ditinjau oleh Admin ID: <strong>{activeRep.reviewed_by}</strong></span>
+                            {activeRep.reviewed_at && (
+                              <span>pada {new Date(activeRep.reviewed_at).toLocaleDateString('id-ID')}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Action Execution Buttons */}
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {/* Section 5: Action Execution Buttons */}
+                      <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'center', paddingBottom: '0.5rem' }}>
                         <button
                           type="button"
                           disabled={isSubmittingModeration}
-                          onClick={() => handleUpdateReportStatus(selectedReport.id, moderationStatus, moderationAction, actionReason)}
+                          onClick={() => {
+                            if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned' || moderationAction === 'account_banned' || moderationStatus === 'banned') {
+                              setBannedConfirmModalReport(activeRep);
+                              setBannedConfirmAcknowledged(false);
+                              setShowModerationConfirmModal(true);
+                            } else {
+                              handleUpdateReportStatus(
+                                activeRep.id,
+                                moderationStatus,
+                                moderationAction,
+                                actionReason,
+                                true
+                              );
+                            }
+                          }}
                           style={{
-                            padding: '0.65rem 1.25rem',
-                            borderRadius: '0.55rem',
+                            minHeight: '44px',
+                            padding: '0 1.35rem',
+                            borderRadius: '0.65rem',
                             border: 'none',
-                            backgroundColor: 'var(--primary)',
+                            backgroundColor: '#f43f5e',
                             color: '#ffffff',
                             fontWeight: 800,
                             fontSize: '0.82rem',
-                            cursor: 'pointer'
+                            cursor: isSubmittingModeration ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            boxShadow: '0 3px 12px rgba(244, 63, 94, 0.3)',
+                            opacity: isSubmittingModeration ? 0.7 : 1
                           }}
                         >
-                          {isSubmittingModeration ? 'Menerapkan...' : 'Terapkan Tindakan Moderasi'}
+                          {isSubmittingModeration ? (
+                            <RefreshCw size={15} className="animate-spin" />
+                          ) : (
+                            <ShieldCheck size={16} />
+                          )}
+                          <span>Terapkan Tindakan Moderasi</span>
                         </button>
 
                         <button
                           type="button"
-                          onClick={() => handleCopyReportWarning(selectedReport)}
+                          onClick={() => handleCopyReportWarning(activeRep)}
                           style={{
-                            padding: '0.65rem 1rem',
-                            borderRadius: '0.55rem',
+                            minHeight: '44px',
+                            padding: '0 1rem',
+                            borderRadius: '0.65rem',
                             border: '1px solid var(--border-light)',
                             backgroundColor: 'var(--bg-card)',
                             color: 'var(--text-secondary)',
                             fontWeight: 700,
-                            fontSize: '0.82rem',
+                            fontSize: '0.8rem',
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.35rem'
                           }}
@@ -2359,19 +3543,20 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           <span>Salin Format Peringatan</span>
                         </button>
 
-                        {selectedReport.target_store_slug && (
+                        {activeRep.store_slug && (
                           <a
-                            href={`/${selectedReport.target_store_slug}`}
+                            href={`/${activeRep.store_slug}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{
-                              padding: '0.65rem 1rem',
-                              borderRadius: '0.55rem',
+                              minHeight: '44px',
+                              padding: '0 1rem',
+                              borderRadius: '0.65rem',
                               border: '1px solid var(--border-light)',
                               backgroundColor: 'var(--bg-card)',
                               color: 'var(--text-primary)',
                               fontWeight: 700,
-                              fontSize: '0.82rem',
+                              fontSize: '0.8rem',
                               textDecoration: 'none',
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -2384,8 +3569,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         )}
                       </div>
                     </div>
-                  </div>
-                ) : null
+                  );
+                })()
               }
             />
           )}

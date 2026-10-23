@@ -61,6 +61,8 @@ import {
   Info,
   MoreVertical,
   ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
   LayoutDashboard,
   Star,
   Paperclip,
@@ -1034,7 +1036,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // States: Division Data
   const [reports, setReports] = useState<any[]>([]);
-  const [reportsFilter, setReportsFilter] = useState<'all' | 'pending' | 'investigating' | 'action_taken' | 'banned' | 'resolved' | 'dismissed'>('all');
+  const [reportsFilter, setReportsFilter] = useState<'all' | 'pending' | 'investigating' | 're_review' | 'action_taken' | 'banned' | 'resolved' | 'dismissed'>('all');
   const [reportsTargetFilter, setReportsTargetFilter] = useState<'all' | 'item' | 'catalog'>('all');
   const [reportsSearchQuery, setReportsSearchQuery] = useState<string>('');
   const [debouncedReportsSearch, setDebouncedReportsSearch] = useState<string>('');
@@ -1062,6 +1064,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     modalId: 'desktop-banned-confirm-modal',
   });
   const [reportsPagination, setReportsPagination] = useState<{ page: number; limit: number; total: number; total_pages: number }>({ page: 1, limit: 20, total: 0, total_pages: 1 });
+  const [reportsJumpPage, setReportsJumpPage] = useState<string>('');
   const [reportMetrics, setReportMetrics] = useState<any | null>(null);
   const [reportActiveEvidence, setReportActiveEvidence] = useState<any[]>([]);
   const [reportPriorHistory, setReportPriorHistory] = useState<any[]>([]);
@@ -1072,7 +1075,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const clean = (pType || '').toLowerCase().trim();
     switch (clean) {
       case 'fauna':
-        return 'Hewan';
+        return 'Satwa';
       case 'plant':
         return 'Tanaman';
       case 'physical':
@@ -1082,7 +1085,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       case 'service':
         return 'Jasa & Layanan';
       case 'food':
-        return 'Kuliner / Makanan & Minuman';
+        return 'Kuliner / F&B';
       case 'property':
         return 'Properti';
       default:
@@ -2714,12 +2717,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   // Compliance Reports List Server-Side Fetcher
-  const fetchReportsList = async (page = 1, status = reportsFilter, target = reportsTargetFilter, search = reportsSearchQuery) => {
+  const fetchReportsList = async (
+    page = 1,
+    status = reportsFilter,
+    target = reportsTargetFilter,
+    search = reportsSearchQuery,
+    limit?: number
+  ) => {
     if (!token) return;
     try {
+      const currentLimit = limit || reportsPagination.limit || 20;
       const q = new URLSearchParams({
         page: String(page),
-        limit: '20',
+        limit: String(currentLimit),
         status: status,
         target_type: target,
         search: search
@@ -2788,6 +2798,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setIsSubmittingModeration(false);
       isSubmittingModerationRef.current = false;
     }
+  };
+
+  const handleCopyReportWarning = (rep: any) => {
+    if (!rep) return;
+    const storeName = rep.store_title || rep.target_store_name || `Store #${rep.store_id || rep.target_store_id}`;
+    const entityName = rep.target_type === 'item' ? (rep.item_name || 'Item') : storeName;
+    const caseId = rep.report_number || `#RPT-${rep.id}`;
+    const reason = rep.reason_label || rep.reason_category || 'Kepatuhan Etalase';
+    const text = `[PERINGATAN RESMI KEPATUHAN CATAVOR]\nKasus: ${caseId}\nTarget: ${entityName} (${storeName})\nKategori: ${reason}\nCatatan: ${moderationNotes || rep.description || 'Pemeriksaan kepatuhan etalase'}\nStatus: ${moderationStatus.toUpperCase()}\nTindakan: ${moderationAction}\nTanggal: ${new Date().toLocaleString('id-ID')}`;
+    navigator.clipboard.writeText(text);
+    showToast('Format teks peringatan disalin ke clipboard', 'success');
   };
 
   const handleOpenModerationPage = async (report: any, pushToHistory = true) => {
@@ -5073,7 +5094,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ========================================================================= */
           /* 3A. DEDICATED REPORT MODERATION & ENFORCEMENT ACTION PAGE                */
           /* ========================================================================= */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '0', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
             {/* Section 1: Entity Profile & Evidence Card */}
             <div style={{
               backgroundColor: theme.surface,
@@ -5189,7 +5210,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               {/* Details Grid */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: moderationModalReport.target_type === 'item' ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)',
+                gridTemplateColumns: moderationModalReport.target_type === 'item' ? 'repeat(6, 1fr)' : 'repeat(5, 1fr)',
                 gap: '0.65rem',
                 padding: '0.85rem',
                 borderRadius: '0.75rem',
@@ -5227,6 +5248,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Kategori Pelanggaran</span>
                   <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f43f5e', wordBreak: 'break-word', lineHeight: 1.3 }}>
                     {moderationModalReport.reason_label || moderationModalReport.reason_category || 'Lainnya'}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Status Peninjauan</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, textTransform: 'capitalize' }}>
+                    {moderationModalReport.status || 'Pending'}
                   </span>
                 </div>
                 <div>
@@ -5835,6 +5862,28 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => handleCopyReportWarning(moderationModalReport)}
+                style={{
+                  padding: '0.8rem 1.25rem',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.surface,
+                  color: theme.textSecondary,
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Copy size={15} />
+                <span>Salin Format Peringatan</span>
+              </button>
+              <button
+                type="button"
                 disabled={isSubmittingModeration}
                 onClick={() => {
                   if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned' || moderationAction === 'account_banned' || moderationStatus === 'banned') {
@@ -5882,7 +5931,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ========================================================================= */
           /* 3B. ANTREAN & DAFTAR LAPORAN PELANGGARAN                                  */
           /* ========================================================================= */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
           {/* Quick Metrics Bar */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.55rem' }}>
             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -5900,7 +5949,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
               <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Sanksi Ditindak</span>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f43f5e' }}>
-                {reportMetrics ? reportMetrics.action_taken : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length}
+                {reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length}
               </span>
             </div>
             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -5939,10 +5988,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {[
               { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
               { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
-              { id: 're_review', label: 'Tinjau Ulang', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
               { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
-              { id: 'action_taken', label: 'Ditindak Sanksi', count: reportMetrics ? reportMetrics.action_taken : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
-              { id: 'banned', label: 'Banned Permanen', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
+              { id: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
+              { id: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
+              { id: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
               { id: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
               { id: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length },
             ].map(f => (
@@ -5954,9 +6003,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   borderRadius: '999px',
                   fontSize: '0.72rem',
                   fontWeight: 700,
-                  backgroundColor: reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : '#f43f5e') : theme.chipInactiveBg,
+                  backgroundColor: reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : '#f43f5e') : theme.chipInactiveBg,
                   color: reportsFilter === f.id ? '#ffffff' : theme.chipInactiveText,
-                  border: `1px solid ${reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : '#f43f5e') : theme.border}`,
+                  border: `1px solid ${reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : '#f43f5e') : theme.border}`,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   display: 'flex',
@@ -6011,6 +6060,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               if (reportsFilter !== 'all') {
                 if (reportsFilter === 'investigating') {
                   if (r.status !== 'investigating' && r.status !== 'in_review') return false;
+                } else if (reportsFilter === 're_review') {
+                  if (r.status !== 're_review') return false;
                 } else if (reportsFilter === 'banned') {
                   if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
                 } else if (reportsFilter === 'action_taken') {
@@ -6347,45 +6398,252 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               })
           )}
 
-          {/* Server-Side Pagination Bar */}
-          {reportsPagination && reportsPagination.total_pages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 0.5rem', marginTop: '0.5rem' }}>
-              <span style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
-                Halaman <strong>{reportsPagination.page}</strong> dari <strong>{reportsPagination.total_pages}</strong> (Total {reportsPagination.total} Laporan)
-              </span>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
+          {/* Desktop Enterprise Data Table Pagination Bar */}
+          {reportsPagination && reportsPagination.total > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1rem',
+                backgroundColor: theme.surface,
+                borderRadius: '0.9rem',
+                border: `1px solid ${theme.border}`,
+                marginTop: '0.75rem',
+                boxShadow: theme.cardShadow,
+                flexWrap: 'wrap',
+                gap: '0.75rem'
+              }}
+            >
+              {/* Left: Summary & Per-Page Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.76rem', color: theme.textSecondary }}>
+                  Menampilkan <strong>{Math.min((reportsPagination.page - 1) * reportsPagination.limit + 1, reportsPagination.total)}</strong> – <strong>{Math.min(reportsPagination.page * reportsPagination.limit, reportsPagination.total)}</strong> dari <strong>{reportsPagination.total}</strong> laporan
+                </span>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>Baris:</span>
+                  <select
+                    value={reportsPagination.limit}
+                    onChange={(e) => {
+                      const newLimit = Number(e.target.value);
+                      fetchReportsList(1, reportsFilter, reportsTargetFilter, reportsSearchQuery, newLimit);
+                    }}
+                    style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                      color: theme.textPrimary,
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      outline: 'none'
+                    }}
+                  >
+                    {[10, 20, 50, 100].map(sz => (
+                      <option key={sz} value={sz}>{sz}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Right: Numbered Page Navigation & Quick Jump */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                {/* First Page */}
                 <button
+                  type="button"
+                  title="Halaman Pertama"
                   disabled={reportsPagination.page <= 1}
-                  onClick={() => fetchReportsList(reportsPagination.page - 1)}
+                  onClick={() => fetchReportsList(1, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
                   style={{
-                    padding: '0.35rem 0.75rem',
-                    borderRadius: '0.55rem',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '0.5rem',
                     border: `1px solid ${theme.border}`,
                     backgroundColor: theme.surface,
                     color: reportsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
                     cursor: reportsPagination.page <= 1 ? 'not-allowed' : 'pointer',
-                    fontSize: '0.72rem',
-                    fontWeight: 700
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: reportsPagination.page <= 1 ? 0.4 : 1
                   }}
                 >
-                  Sebelumnya
+                  <ChevronsLeft size={15} />
                 </button>
+
+                {/* Previous Page */}
                 <button
-                  disabled={reportsPagination.page >= reportsPagination.total_pages}
-                  onClick={() => fetchReportsList(reportsPagination.page + 1)}
+                  type="button"
+                  title="Halaman Sebelumnya"
+                  disabled={reportsPagination.page <= 1}
+                  onClick={() => fetchReportsList(reportsPagination.page - 1, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
                   style={{
-                    padding: '0.35rem 0.75rem',
-                    borderRadius: '0.55rem',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '0.5rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.surface,
+                    color: reportsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
+                    cursor: reportsPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: reportsPagination.page <= 1 ? 0.4 : 1
+                  }}
+                >
+                  <ChevronLeft size={15} />
+                </button>
+
+                {/* Numbered Page Buttons */}
+                {(() => {
+                  const totalP = reportsPagination.total_pages || 1;
+                  const curP = reportsPagination.page;
+                  const btns: (number | string)[] = [];
+                  if (totalP <= 7) {
+                    for (let i = 1; i <= totalP; i++) btns.push(i);
+                  } else {
+                    btns.push(1);
+                    if (curP > 3) btns.push('...');
+                    const start = Math.max(2, curP - 1);
+                    const end = Math.min(totalP - 1, curP + 1);
+                    for (let i = start; i <= end; i++) btns.push(i);
+                    if (curP < totalP - 2) btns.push('...');
+                    btns.push(totalP);
+                  }
+
+                  return btns.map((b, idx) => {
+                    if (b === '...') {
+                      return (
+                        <span key={`dots-${idx}`} style={{ padding: '0 0.25rem', fontSize: '0.74rem', color: theme.textMuted }}>
+                          ...
+                        </span>
+                      );
+                    }
+                    const isCur = b === curP;
+                    return (
+                      <button
+                        key={`page-${b}`}
+                        type="button"
+                        onClick={() => fetchReportsList(Number(b), reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
+                        style={{
+                          minWidth: '32px',
+                          height: '32px',
+                          padding: '0 0.5rem',
+                          borderRadius: '0.5rem',
+                          border: isCur ? '1px solid #f43f5e' : `1px solid ${theme.border}`,
+                          backgroundColor: isCur ? '#f43f5e' : theme.surface,
+                          color: isCur ? '#ffffff' : theme.textPrimary,
+                          fontSize: '0.75rem',
+                          fontWeight: isCur ? 800 : 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {b}
+                      </button>
+                    );
+                  });
+                })()}
+
+                {/* Next Page */}
+                <button
+                  type="button"
+                  title="Halaman Selanjutnya"
+                  disabled={reportsPagination.page >= reportsPagination.total_pages}
+                  onClick={() => fetchReportsList(reportsPagination.page + 1, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '0.5rem',
                     border: `1px solid ${theme.border}`,
                     backgroundColor: theme.surface,
                     color: reportsPagination.page >= reportsPagination.total_pages ? theme.textMuted : theme.textPrimary,
                     cursor: reportsPagination.page >= reportsPagination.total_pages ? 'not-allowed' : 'pointer',
-                    fontSize: '0.72rem',
-                    fontWeight: 700
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: reportsPagination.page >= reportsPagination.total_pages ? 0.4 : 1
                   }}
                 >
-                  Berikutnya
+                  <ChevronRight size={15} />
                 </button>
+
+                {/* Last Page */}
+                <button
+                  type="button"
+                  title="Halaman Terakhir"
+                  disabled={reportsPagination.page >= reportsPagination.total_pages}
+                  onClick={() => fetchReportsList(reportsPagination.total_pages, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '0.5rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.surface,
+                    color: reportsPagination.page >= reportsPagination.total_pages ? theme.textMuted : theme.textPrimary,
+                    cursor: reportsPagination.page >= reportsPagination.total_pages ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: reportsPagination.page >= reportsPagination.total_pages ? 0.4 : 1
+                  }}
+                >
+                  <ChevronsRight size={15} />
+                </button>
+
+                {/* Quick Jump Input */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const p = parseInt(reportsJumpPage, 10);
+                    if (!isNaN(p) && p >= 1 && p <= (reportsPagination.total_pages || 1)) {
+                      fetchReportsList(p, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit);
+                      setReportsJumpPage('');
+                    }
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.4rem' }}
+                >
+                  <input
+                    type="number"
+                    min={1}
+                    max={reportsPagination.total_pages || 1}
+                    placeholder="Hal"
+                    value={reportsJumpPage}
+                    onChange={(e) => setReportsJumpPage(e.target.value)}
+                    style={{
+                      width: '48px',
+                      height: '32px',
+                      padding: '0 0.35rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                      color: theme.textPrimary,
+                      fontSize: '0.74rem',
+                      textAlign: 'center',
+                      outline: 'none'
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!reportsJumpPage}
+                    style={{
+                      height: '32px',
+                      padding: '0 0.65rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: theme.surface,
+                      color: !reportsJumpPage ? theme.textMuted : theme.textPrimary,
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: !reportsJumpPage ? 'not-allowed' : 'pointer',
+                      opacity: !reportsJumpPage ? 0.5 : 1
+                    }}
+                  >
+                    Lompat
+                  </button>
+                </form>
               </div>
             </div>
           )}
