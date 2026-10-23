@@ -58,8 +58,17 @@ import {
   Star,
   Database,
   Activity,
-  Play
+  Play,
+  Megaphone,
+  Users,
+  ChevronDown,
+  Sparkles,
+  Calendar,
+  Compass,
+  Target
 } from 'lucide-react';
+import { RichTextarea, FormattedText } from './RichTextarea';
+import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
 import { TabletRailNav } from './TabletRailNav';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletPlatformStoresView } from './TabletPlatformStoresView';
@@ -1022,33 +1031,161 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
   const [broadcastSubView, setBroadcastSubView] = useState<'list' | 'create'>('list');
   const [selectedBroadcastId, setSelectedBroadcastId] = useState<number | null>(null);
+  const [broadcastMetrics, setBroadcastMetrics] = useState({
+    total_broadcasts: 0,
+    active_broadcasts: 0,
+    targeted_broadcasts: 0
+  });
+  const [broadcastStatusFilter, setBroadcastStatusFilter] = useState<'all' | 'active' | 'expired'>('all');
+  const [broadcastSearchQuery, setBroadcastSearchQuery] = useState('');
+  const [debouncedBroadcastSearch, setDebouncedBroadcastSearch] = useState('');
+  const [isFetchingBroadcasts, setIsFetchingBroadcasts] = useState(false);
+  const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
+  const [targetRecipientSearch, setTargetRecipientSearch] = useState('');
+  const [recipientSuggestions, setRecipientSuggestions] = useState<any[]>([]);
+  const [isSearchingRecipients, setIsSearchingRecipients] = useState(false);
+
   const [broadcastForm, setBroadcastForm] = useState({
+    target_type: 'all' as 'all' | 'plan' | 'specific',
+    target_plan_code: 'pro',
+    target_id: 0,
+    target_name: '',
+    recipients: [] as Array<{
+      type: 'store' | 'user';
+      id: number;
+      name: string;
+      slug?: string;
+      email?: string;
+      plan?: string;
+    }>,
     title: '',
     category: 'PENGUMUMAN',
-    target_type: 'all',
-    type: 'info',
     message: '',
-    action_label: '',
+    notification_action_enabled: false,
+    action_type: 'none' as 'detail' | 'navigate' | 'external_link' | 'none',
+    detail_content: '',
+    type: 'info' as 'info' | 'warning' | 'success' | 'system',
+    link_sub_tab: 'settings',
+    action_label: 'Buka Pengumuman Lengkap →',
     action_url: '',
+    expires_in_hours: 0,
     show_top_banner: false,
-    banner_color: 'blue'
+    banner_color: 'blue' as 'blue' | 'emerald' | 'amber' | 'rose'
   });
-  const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
+
+  // 300ms Debounced Broadcast Search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedBroadcastSearch(broadcastSearchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [broadcastSearchQuery]);
+
+  // Unified Autocomplete Search for Stores & Users
+  useEffect(() => {
+    const query = targetRecipientSearch.trim();
+    if (broadcastForm.target_type === 'specific' && query.length >= 1) {
+      setIsSearchingRecipients(true);
+      const timer = setTimeout(async () => {
+        try {
+          const authToken = token || localStorage.getItem('catavor_token') || '';
+          const headers: Record<string, string> = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+
+          const [storesRes, usersRes] = await Promise.allSettled([
+            fetch(`/api/admin/stores/search?q=${encodeURIComponent(query)}`, { headers }),
+            fetch(`/api/admin/users/search?q=${encodeURIComponent(query)}`, { headers })
+          ]);
+
+          const results: Array<{
+            type: 'store' | 'user';
+            id: number;
+            name: string;
+            slug?: string;
+            email?: string;
+            plan?: string;
+          }> = [];
+
+          if (storesRes.status === 'fulfilled' && storesRes.value.ok) {
+            const data = await storesRes.value.json();
+            const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+            list.slice(0, 5).forEach((s: any) => {
+              results.push({
+                type: 'store',
+                id: s.id,
+                name: s.name || s.title || `Toko #${s.id}`,
+                slug: s.slug,
+                plan: s.subscription_plan || s.plan
+              });
+            });
+          }
+
+          if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
+            const data = await usersRes.value.json();
+            const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+            list.slice(0, 5).forEach((u: any) => {
+              results.push({
+                type: 'user',
+                id: u.id,
+                name: u.name || u.email || `User #${u.id}`,
+                email: u.email
+              });
+            });
+          }
+
+          setRecipientSuggestions(results);
+        } catch {
+          // ignore error
+        } finally {
+          setIsSearchingRecipients(false);
+        }
+      }, 300);
+
+      return () => clearTimeout(timer);
+    } else {
+      setRecipientSuggestions([]);
+      setIsSearchingRecipients(false);
+    }
+  }, [targetRecipientSearch, broadcastForm.target_type, token]);
 
   const fetchBroadcasts = useCallback(async () => {
     if (!token) return;
+    setIsFetchingBroadcasts(true);
     try {
-      const res = await authFetch('/api/admin/notifications?limit=50', {
+      const params = new URLSearchParams();
+      params.set('page', '1');
+      params.set('limit', '50');
+      if (broadcastStatusFilter !== 'all') params.set('status', broadcastStatusFilter);
+      if (debouncedBroadcastSearch.trim()) params.set('q', debouncedBroadcastSearch.trim());
+
+      const res = await authFetch(`/api/admin/notifications?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const j = await res.json();
-        setBroadcasts(Array.isArray(j) ? j : j.data || []);
+        const list = Array.isArray(j) ? j : j.data || [];
+        setBroadcasts(list);
+        if (j.metrics) {
+          setBroadcastMetrics(j.metrics);
+        } else {
+          setBroadcastMetrics({
+            total_broadcasts: list.length,
+            active_broadcasts: list.filter((b: any) => b.is_active !== false && (!b.expires_at || new Date(b.expires_at) > new Date())).length,
+            targeted_broadcasts: list.filter((b: any) => b.target_type && b.target_type !== 'all').length
+          });
+        }
+        if (selectedBroadcastId) {
+          const found = list.find((b: any) => b.id === selectedBroadcastId);
+          if (!found && list.length > 0) setSelectedBroadcastId(list[0].id);
+        } else if (list.length > 0) {
+          setSelectedBroadcastId(list[0].id);
+        }
       }
     } catch {
       // Fail silently
+    } finally {
+      setIsFetchingBroadcasts(false);
     }
-  }, [token, authFetch]);
+  }, [token, authFetch, broadcastStatusFilter, debouncedBroadcastSearch, selectedBroadcastId]);
 
   useEffect(() => {
     if (activeView === 'broadcast') {
@@ -1066,20 +1203,45 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       showToast('Judul dan isi pesan siaran wajib diisi', 'error');
       return;
     }
+    if (broadcastForm.target_type === 'specific' && broadcastForm.recipients.length === 0) {
+      showToast('Silakan tambahkan minimal 1 penerima (merchant/user)', 'error');
+      return;
+    }
+
     setIsSendingBroadcast(true);
     try {
+      let finalTargetName = broadcastForm.target_name;
+      if (broadcastForm.target_type === 'specific' && broadcastForm.recipients.length > 0) {
+        const count = broadcastForm.recipients.length;
+        const names = broadcastForm.recipients.slice(0, 2).map(r => r.name).join(', ');
+        finalTargetName = `${count} Penerima Spesifik (${names}${count > 2 ? '...' : ''})`;
+      }
+
+      const isActionActive = broadcastForm.notification_action_enabled && broadcastForm.action_type !== 'none';
+      const effectiveActionType = isActionActive ? broadcastForm.action_type : 'none';
+
       const payload = {
         title: broadcastForm.title,
         category: broadcastForm.category,
         target_type: broadcastForm.target_type,
+        target_plan_code: broadcastForm.target_plan_code,
+        target_name: finalTargetName,
+        target_recipients: JSON.stringify(broadcastForm.recipients),
+        recipients: broadcastForm.recipients,
         type: broadcastForm.type,
         message: broadcastForm.message,
-        action_label: broadcastForm.action_label || undefined,
-        action_url: broadcastForm.action_url || undefined,
-        notification_action_enabled: Boolean(broadcastForm.action_url),
+        notification_action_enabled: isActionActive,
+        action_enabled: isActionActive,
+        action_type: effectiveActionType,
+        detail_content: isActionActive && effectiveActionType === 'detail' ? broadcastForm.detail_content : '',
+        link_sub_tab: isActionActive && effectiveActionType === 'navigate' ? broadcastForm.link_sub_tab : '',
+        action_url: isActionActive && effectiveActionType === 'external_link' ? broadcastForm.action_url : '',
+        action_label: isActionActive ? (broadcastForm.action_label || (effectiveActionType === 'external_link' ? 'Buka Tautan Luar →' : effectiveActionType === 'navigate' ? 'Buka Menu Terkait →' : 'Buka Pengumuman Lengkap →')) : '',
+        expires_in_hours: broadcastForm.expires_in_hours,
         show_top_banner: broadcastForm.show_top_banner,
         banner_color: broadcastForm.banner_color
       };
+
       const res = await authFetch('/api/admin/notifications/broadcast', {
         method: 'POST',
         headers: {
@@ -1089,22 +1251,34 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        showToast('Siaran pengumuman berhasil disebarkan ke merchant!', 'success');
+        showToast('Siaran pengumuman berhasil disebarkan!', 'success');
         setBroadcastForm({
+          target_type: 'all',
+          target_plan_code: 'pro',
+          target_id: 0,
+          target_name: '',
+          recipients: [],
           title: '',
           category: 'PENGUMUMAN',
-          target_type: 'all',
-          type: 'info',
           message: '',
-          action_label: '',
+          notification_action_enabled: false,
+          action_type: 'none',
+          detail_content: '',
+          type: 'info',
+          link_sub_tab: 'settings',
+          action_label: 'Buka Pengumuman Lengkap →',
           action_url: '',
+          expires_in_hours: 0,
           show_top_banner: false,
           banner_color: 'blue'
         });
+        setTargetRecipientSearch('');
+        setRecipientSuggestions([]);
         setBroadcastSubView('list');
         fetchBroadcasts();
       } else {
-        showToast('Gagal menyebarkan siaran pengumuman', 'error');
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || errData.message || 'Gagal menyebarkan siaran pengumuman', 'error');
       }
     } catch {
       showToast('Terjadi kesalahan jaringan', 'error');
@@ -1131,6 +1305,73 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       showToast('Terjadi kesalahan jaringan', 'error');
     }
   };
+
+  const getBroadcastCategoryStyle = (cat: string) => {
+    switch (cat) {
+      case 'SISTEM':
+        return { bg: 'rgba(139, 92, 246, 0.12)', text: '#8b5cf6', border: 'rgba(139, 92, 246, 0.25)' };
+      case 'PROMOSI':
+        return { bg: 'rgba(236, 72, 153, 0.12)', text: '#ec4899', border: 'rgba(236, 72, 153, 0.25)' };
+      case 'PEMELIHARAAN':
+        return { bg: 'rgba(245, 158, 11, 0.12)', text: '#f59e0b', border: 'rgba(245, 158, 11, 0.25)' };
+      case 'PANDUAN':
+        return { bg: 'rgba(16, 185, 129, 0.12)', text: '#10b981', border: 'rgba(16, 185, 129, 0.25)' };
+      case 'KEAMANAN':
+        return { bg: 'rgba(239, 68, 68, 0.12)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.25)' };
+      case 'PENGUMUMAN':
+      default:
+        return { bg: 'rgba(59, 130, 246, 0.12)', text: '#3b82f6', border: 'rgba(59, 130, 246, 0.25)' };
+    }
+  };
+
+  const getBroadcastUrgencyBadge = (type: string) => {
+    switch (type) {
+      case 'warning':
+        return { bg: 'rgba(245, 158, 11, 0.12)', text: '#f59e0b', label: 'Peringatan' };
+      case 'success':
+        return { bg: 'rgba(16, 185, 129, 0.12)', text: '#10b981', label: 'Sukses' };
+      case 'system':
+        return { bg: 'rgba(139, 92, 246, 0.12)', text: '#8b5cf6', label: 'Sistem' };
+      case 'info':
+      default:
+        return { bg: 'rgba(59, 130, 246, 0.12)', text: '#3b82f6', label: 'Informasi' };
+    }
+  };
+
+  const getBroadcastTargetLabel = (b: any) => {
+    if (!b) return '-';
+    if (b.target_type === 'all' || !b.target_type) return 'Semua Merchant & Pengguna';
+    if (b.target_type === 'plan') return `Paket ${b.target_plan_code?.toUpperCase() || 'PRO'}`;
+    if (b.target_type === 'specific') {
+      if (b.target_name) return b.target_name;
+      try {
+        const rec = typeof b.target_recipients === 'string' ? JSON.parse(b.target_recipients) : (b.recipients || []);
+        if (Array.isArray(rec) && rec.length > 0) return `${rec.length} Sasaran Spesifik`;
+      } catch {
+        // ignore
+      }
+      return 'Sasaran Spesifik';
+    }
+    return String(b.target_type).toUpperCase();
+  };
+
+  const selectedBroadcastRecipients = useMemo(() => {
+    if (!selectedBroadcast) return [];
+    if (Array.isArray(selectedBroadcast.recipients) && selectedBroadcast.recipients.length > 0) {
+      return selectedBroadcast.recipients;
+    }
+    if (selectedBroadcast.target_recipients) {
+      try {
+        const parsed = typeof selectedBroadcast.target_recipients === 'string'
+          ? JSON.parse(selectedBroadcast.target_recipients)
+          : selectedBroadcast.target_recipients;
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // ignore
+      }
+    }
+    return [];
+  }, [selectedBroadcast]);
 
   // =========================================================================
   // SUB-VIEW: AUTOMATION & BOT SENTINEL (11 BOTS MATRIX)
@@ -5513,417 +5754,1750 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
           {/* TAB 7: BROADCAST (SIARAN PENGUMUMAN) */}
           {activeView === 'broadcast' && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              {/* Top Sub-Switcher */}
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+              {/* Top Sub-Switcher & Header Bar */}
               <div style={{
-                padding: '0.75rem 1.5rem',
+                padding: '0.85rem 1.5rem',
                 borderBottom: '1px solid var(--border-light)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                backgroundColor: 'var(--bg-deep)'
+                backgroundColor: 'var(--bg-deep)',
+                gap: '1rem',
+                flexShrink: 0
               }}>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <button
                     type="button"
                     onClick={() => setBroadcastSubView('list')}
                     style={{
-                      padding: '0.45rem 1rem',
-                      borderRadius: '0.55rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.55rem 1.1rem',
+                      borderRadius: '0.65rem',
                       border: `1px solid ${broadcastSubView === 'list' ? 'var(--primary)' : 'var(--border-light)'}`,
                       backgroundColor: broadcastSubView === 'list' ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
                       color: broadcastSubView === 'list' ? 'var(--primary)' : 'var(--text-muted)',
-                      fontSize: '0.82rem',
+                      fontSize: '0.84rem',
                       fontWeight: 700,
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    Daftar Siaran ({broadcasts.length})
+                    <Megaphone size={16} />
+                    <span>Daftar & Riwayat Siaran</span>
+                    <span style={{
+                      padding: '0.15rem 0.45rem',
+                      borderRadius: '999px',
+                      backgroundColor: broadcastSubView === 'list' ? 'var(--primary)' : 'var(--bg-deep)',
+                      color: broadcastSubView === 'list' ? '#ffffff' : 'var(--text-muted)',
+                      fontSize: '0.72rem',
+                      fontWeight: 800
+                    }}>
+                      {broadcastMetrics.total_broadcasts || broadcasts.length}
+                    </span>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setBroadcastSubView('create')}
                     style={{
-                      padding: '0.45rem 1rem',
-                      borderRadius: '0.55rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.55rem 1.1rem',
+                      borderRadius: '0.65rem',
                       border: `1px solid ${broadcastSubView === 'create' ? 'var(--primary)' : 'var(--border-light)'}`,
                       backgroundColor: broadcastSubView === 'create' ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
                       color: broadcastSubView === 'create' ? 'var(--primary)' : 'var(--text-muted)',
-                      fontSize: '0.82rem',
+                      fontSize: '0.84rem',
                       fontWeight: 700,
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    + Buat Siaran Baru
+                    <Plus size={16} />
+                    <span>Buat Siaran Baru</span>
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={fetchBroadcasts}
+                    disabled={isFetchingBroadcasts}
+                    title="Segarkan data siaran"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.55rem 0.95rem',
+                      borderRadius: '0.65rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: isFetchingBroadcasts ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <RefreshCw size={14} className={isFetchingBroadcasts ? 'animate-spin' : ''} />
+                    <span>Segarkan</span>
                   </button>
                 </div>
               </div>
 
-              {/* Sub-View 1: List Broadcasts (Master Detail) */}
+              {/* VIEW 1: LIST BROADCASTS (MASTER-DETAIL SPLIT VIEW) */}
               {broadcastSubView === 'list' && (
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <TabletMasterDetailView
-                    title="Siaran Terkirim"
-                    subtitle={`${broadcasts.length} pengumuman`}
-                    hideHeaderTitle={true}
-                    selectedId={selectedBroadcastId}
-                    onClearSelection={() => setSelectedBroadcastId(null)}
-                    masterPane={
-                      <div style={{ padding: '0.75rem', overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {broadcasts.length === 0 ? (
-                          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                            <Radio size={36} color="#ec4899" style={{ marginBottom: '0.5rem' }} />
-                            <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Belum ada siaran disebarkan</div>
-                          </div>
-                        ) : (
-                          broadcasts.map(bc => {
-                            const isSelected = selectedBroadcastId === bc.id;
-                            return (
-                              <div
-                                key={bc.id}
-                                onClick={() => setSelectedBroadcastId(bc.id)}
-                                style={{
-                                  padding: '0.85rem',
-                                  borderRadius: '0.75rem',
-                                  backgroundColor: isSelected ? 'rgba(236, 72, 153, 0.12)' : 'var(--bg-card)',
-                                  border: `1px solid ${isSelected ? '#ec4899' : 'var(--border-light)'}`,
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '0.35rem'
-                                }}
-                              >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#ec4899' }}>
-                                    {bc.category || 'PENGUMUMAN'}
-                                  </span>
-                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                                    {bc.created_at ? new Date(bc.created_at).toLocaleDateString('id-ID') : '-'}
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                  {bc.title}
-                                </div>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                  Sasaran: {bc.target_type === 'all' ? 'Semua Merchant' : bc.target_type?.toUpperCase()}
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    }
-                    detailPane={
-                      selectedBroadcast ? (
-                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-                          <div style={{
-                            padding: '1.25rem',
-                            borderRadius: '1rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)'
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ec4899' }}>
-                                {selectedBroadcast.category || 'PENGUMUMAN'} &bull; Target: {selectedBroadcast.target_type}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteBroadcast(selectedBroadcast.id)}
-                                style={{
-                                  padding: '0.35rem 0.65rem',
-                                  borderRadius: '0.45rem',
-                                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                                  color: '#ef4444',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                Batalkan Siaran
-                              </button>
-                            </div>
-
-                            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: '0 0 0.75rem 0' }}>
-                              {selectedBroadcast.title}
-                            </h3>
-
-                            <div style={{
-                              padding: '1rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: 'var(--bg-card)',
-                              border: '1px solid var(--border-light)',
-                              fontSize: '0.85rem',
-                              lineHeight: 1.6,
-                              whiteSpace: 'pre-wrap'
-                            }}>
-                              {selectedBroadcast.message}
-                            </div>
-
-                            {selectedBroadcast.action_url && (
-                              <div style={{ marginTop: '1rem' }}>
-                                <a
-                                  href={selectedBroadcast.action_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.35rem',
-                                    padding: '0.55rem 1rem',
-                                    borderRadius: '0.55rem',
-                                    backgroundColor: 'var(--primary)',
-                                    color: '#ffffff',
-                                    fontSize: '0.82rem',
-                                    fontWeight: 700,
-                                    textDecoration: 'none'
-                                  }}
-                                >
-                                  <span>{selectedBroadcast.action_label || 'Buka Tautan'}</span>
-                                  <ExternalLink size={14} />
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : null
-                    }
-                  />
-                </div>
-              )}
-
-              {/* Sub-View 2: Create Broadcast Form */}
-              {broadcastSubView === 'create' && (
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  {/* Top Bar: Quick Metrics & Search/Filter */}
                   <div style={{
-                    maxWidth: '800px',
-                    margin: '0 auto',
-                    padding: '1.5rem',
-                    borderRadius: '1rem',
+                    padding: '0.85rem 1.5rem',
+                    borderBottom: '1px solid var(--border-light)',
                     backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-light)'
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    flexShrink: 0
                   }}>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 1.25rem 0' }}>
-                      Buat Siaran Pengumuman Masal
-                    </h3>
-
-                    <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                          Judul Pengumuman
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={broadcastForm.title}
-                          onChange={e => setBroadcastForm(prev => ({ ...prev, title: e.target.value }))}
-                          placeholder="Contoh: Pemeliharaan Sistem & Fitur Baru Rekber"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.85rem',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                            Kategori Siaran
-                          </label>
-                          <TabletCustomSelect
-                            value={broadcastForm.category}
-                            onChange={(val) => setBroadcastForm(prev => ({ ...prev, category: val }))}
-                            options={BROADCAST_CATEGORY_OPTIONS}
-                            triggerStyle={{
-                              minHeight: '44px',
-                              backgroundColor: 'var(--bg-deep)'
-                            }}
-                            menuWidth={280}
-                            ariaLabel="Pilih Kategori Siaran"
-                          />
-                        </div>
-
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                            Target Sasaran Penerima
-                          </label>
-                          <TabletCustomSelect
-                            value={broadcastForm.target_type}
-                            onChange={(val) => setBroadcastForm(prev => ({ ...prev, target_type: val }))}
-                            options={BROADCAST_TARGET_OPTIONS}
-                            triggerStyle={{
-                              minHeight: '44px',
-                              backgroundColor: 'var(--bg-deep)'
-                            }}
-                            menuWidth={280}
-                            ariaLabel="Pilih Target Sasaran Penerima"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                          Isi Pesan Siaran
-                        </label>
-                        <textarea
-                          rows={6}
-                          required
-                          value={broadcastForm.message}
-                          onChange={e => setBroadcastForm(prev => ({ ...prev, message: e.target.value }))}
-                          placeholder="Tuliskan pesan siaran lengkap yang akan diterima oleh dashboard merchant..."
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem 0.85rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.85rem',
-                            boxSizing: 'border-box',
-                            lineHeight: 1.5
-                          }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                            Label Tombol Aksi (Opsional)
-                          </label>
-                          <input
-                            type="text"
-                            value={broadcastForm.action_label}
-                            onChange={e => setBroadcastForm(prev => ({ ...prev, action_label: e.target.value }))}
-                            placeholder="Contoh: Baca Selengkapnya"
-                            style={{
-                              width: '100%',
-                              padding: '0.65rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.85rem',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
-
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                            URL Tautan Aksi (Opsional)
-                          </label>
-                          <input
-                            type="url"
-                            value={broadcastForm.action_url}
-                            onChange={e => setBroadcastForm(prev => ({ ...prev, action_url: e.target.value }))}
-                            placeholder="https://catavor.com/promo"
-                            style={{
-                              width: '100%',
-                              padding: '0.65rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.85rem',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Announcement Top Banner Switch */}
+                    {/* 3 Quick Metrics Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
                       <div style={{
-                        padding: '1rem',
+                        padding: '0.75rem 1rem',
                         borderRadius: '0.75rem',
                         backgroundColor: 'var(--bg-deep)',
                         border: '1px solid var(--border-light)',
                         display: 'flex',
-                        flexDirection: 'column',
+                        alignItems: 'center',
                         gap: '0.75rem'
                       }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>Tampilkan Banner Pengumuman di Atas Katalog Merchant</span>
-                            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              Menyematkan strip banner resmi di bagian paling atas halaman etalase publik merchant
-                            </p>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={broadcastForm.show_top_banner}
-                            onChange={e => setBroadcastForm(prev => ({ ...prev, show_top_banner: e.target.checked }))}
-                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                          />
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '0.6rem',
+                          backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                          color: '#3b82f6',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <Megaphone size={18} />
                         </div>
-
-                        {broadcastForm.show_top_banner && (
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', paddingTop: '0.5rem' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Warna Aksen Banner:</span>
-                            {(['blue', 'emerald', 'amber', 'rose'] as const).map(c => (
-                              <button
-                                key={c}
-                                type="button"
-                                onClick={() => setBroadcastForm(prev => ({ ...prev, banner_color: c }))}
-                                style={{
-                                  padding: '0.25rem 0.65rem',
-                                  borderRadius: '999px',
-                                  border: `1.5px solid ${broadcastForm.banner_color === c ? 'var(--primary)' : 'var(--border-light)'}`,
-                                  backgroundColor: c === 'blue' ? '#3b82f6' : c === 'emerald' ? '#10b981' : c === 'amber' ? '#f59e0b' : '#ef4444',
-                                  color: '#ffffff',
-                                  fontSize: '0.7rem',
-                                  fontWeight: 800,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                {c.toUpperCase()}
-                              </button>
-                            ))}
+                        <div>
+                          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                            Total Siaran
                           </div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                            {broadcastMetrics.total_broadcasts}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        padding: '0.75rem 1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem'
+                      }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '0.6rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                          color: '#10b981',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <CheckCircle2 size={18} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                            Siaran Aktif
+                          </div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#10b981', lineHeight: 1.2 }}>
+                            {broadcastMetrics.active_broadcasts}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        padding: '0.75rem 1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem'
+                      }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '0.6rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                          color: '#f59e0b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <Target size={18} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                            Target Sasaran
+                          </div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f59e0b', lineHeight: 1.2 }}>
+                            {broadcastMetrics.targeted_broadcasts}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Filter & Search Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        flex: 1,
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <Search size={16} style={{ position: 'absolute', left: '0.85rem', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                        <input
+                          type="text"
+                          value={broadcastSearchQuery}
+                          onChange={e => setBroadcastSearchQuery(e.target.value)}
+                          placeholder="Cari siaran berdasarkan judul, pesan, kategori, atau sasaran..."
+                          style={{
+                            width: '100%',
+                            padding: '0.55rem 0.85rem 0.55rem 2.4rem',
+                            borderRadius: '0.65rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-deep)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.82rem',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                        {broadcastSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setBroadcastSearchQuery('')}
+                            style={{
+                              position: 'absolute',
+                              right: '0.65rem',
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--text-muted)',
+                              cursor: 'pointer',
+                              padding: '0.2rem'
+                            }}
+                          >
+                            <X size={14} />
+                          </button>
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => setBroadcastSubView('list')}
-                          style={{
-                            padding: '0.65rem 1.25rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'transparent',
-                            color: 'var(--text-muted)',
-                            fontWeight: 700,
-                            fontSize: '0.85rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Batal
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isSendingBroadcast}
-                          style={{
-                            padding: '0.65rem 1.75rem',
-                            borderRadius: '0.55rem',
-                            border: 'none',
-                            backgroundColor: '#ec4899',
-                            color: '#ffffff',
-                            fontWeight: 800,
-                            fontSize: '0.85rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {isSendingBroadcast ? 'Mengirim Siaran...' : 'Sebarkan Siaran Sekarang'}
-                        </button>
+                      {/* Status Filter Segmented Buttons */}
+                      <div style={{
+                        display: 'flex',
+                        borderRadius: '0.65rem',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-deep)',
+                        padding: '0.2rem',
+                        gap: '0.2rem',
+                        flexShrink: 0
+                      }}>
+                        {[
+                          { id: 'all', label: 'Semua Status' },
+                          { id: 'active', label: 'Aktif Tayang' },
+                          { id: 'expired', label: 'Kedaluwarsa' }
+                        ].map(st => {
+                          const isActive = broadcastStatusFilter === st.id;
+                          return (
+                            <button
+                              key={st.id}
+                              type="button"
+                              onClick={() => setBroadcastStatusFilter(st.id as any)}
+                              style={{
+                                padding: '0.4rem 0.85rem',
+                                borderRadius: '0.5rem',
+                                border: 'none',
+                                backgroundColor: isActive ? 'var(--primary)' : 'transparent',
+                                color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {st.label}
+                            </button>
+                          );
+                        })}
                       </div>
-                    </form>
+                    </div>
                   </div>
+
+                  {/* Tablet Master-Detail View */}
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <TabletMasterDetailView
+                      title="Riwayat Siaran"
+                      subtitle={`${broadcasts.length} pengumuman terdaftar`}
+                      hideHeaderTitle={true}
+                      selectedId={selectedBroadcastId}
+                      onClearSelection={() => setSelectedBroadcastId(null)}
+                      emptyDetailMessage="Pilih salah satu siaran pengumuman dari daftar di samping untuk melihat rincian isi, sasaran, artikel lengkap, dan tindakan."
+                      masterPane={
+                        <div style={{ padding: '0.85rem', overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          {isFetchingBroadcasts && broadcasts.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+                              <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 0.65rem auto', color: 'var(--primary)' }} />
+                              <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Memuat daftar siaran...</div>
+                            </div>
+                          ) : broadcasts.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
+                              <Radio size={36} color="var(--primary)" style={{ margin: '0 auto 0.75rem auto', opacity: 0.8 }} />
+                              <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                {broadcastSearchQuery ? 'Tidak ada siaran yang cocok' : 'Belum ada siaran disebarkan'}
+                              </div>
+                              <div style={{ fontSize: '0.78rem', marginTop: '0.35rem' }}>
+                                {broadcastSearchQuery ? 'Coba gunakan kata kunci pencarian yang berbeda.' : 'Tekan tombol "+ Buat Siaran Baru" di atas untuk menyebarkan pengumuman platform.'}
+                              </div>
+                            </div>
+                          ) : (
+                            broadcasts.map(bc => {
+                              const isSelected = selectedBroadcastId === bc.id;
+                              const catStyle = getBroadcastCategoryStyle(bc.category);
+                              const isExpired = bc.expires_at && new Date(bc.expires_at) <= new Date();
+                              const isActive = bc.is_active !== false && !isExpired;
+
+                              return (
+                                <div
+                                  key={bc.id}
+                                  onClick={() => setSelectedBroadcastId(bc.id)}
+                                  style={{
+                                    padding: '0.95rem 1rem',
+                                    borderRadius: '0.85rem',
+                                    backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-card)',
+                                    border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.45rem',
+                                    boxShadow: isSelected ? '0 4px 14px rgba(59, 130, 246, 0.12)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  {/* Top Badges */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                      <span style={{
+                                        fontSize: '0.68rem',
+                                        fontWeight: 800,
+                                        padding: '0.15rem 0.5rem',
+                                        borderRadius: '0.4rem',
+                                        backgroundColor: catStyle.bg,
+                                        color: catStyle.text,
+                                        border: `1px solid ${catStyle.border}`
+                                      }}>
+                                        {bc.category || 'PENGUMUMAN'}
+                                      </span>
+                                      <span style={{
+                                        fontSize: '0.66rem',
+                                        fontWeight: 700,
+                                        padding: '0.15rem 0.45rem',
+                                        borderRadius: '0.4rem',
+                                        backgroundColor: 'var(--bg-deep)',
+                                        color: 'var(--text-muted)'
+                                      }}>
+                                        {getBroadcastTargetLabel(bc)}
+                                      </span>
+                                    </div>
+
+                                    {/* Active/Expired Pill */}
+                                    <span style={{
+                                      fontSize: '0.66rem',
+                                      fontWeight: 800,
+                                      padding: '0.12rem 0.45rem',
+                                      borderRadius: '999px',
+                                      backgroundColor: isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                      color: isActive ? '#10b981' : '#94a3b8',
+                                      border: `1px solid ${isActive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(148, 163, 184, 0.25)'}`
+                                    }}>
+                                      {isActive ? 'Tayang' : 'Kedaluwarsa'}
+                                    </span>
+                                  </div>
+
+                                  {/* Title */}
+                                  <div style={{
+                                    fontSize: '0.88rem',
+                                    fontWeight: 800,
+                                    color: 'var(--text-primary)',
+                                    lineHeight: 1.35,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden'
+                                  }}>
+                                    {bc.title}
+                                  </div>
+
+                                  {/* Message Preview */}
+                                  <div style={{
+                                    fontSize: '0.76rem',
+                                    color: 'var(--text-muted)',
+                                    lineHeight: 1.45,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden'
+                                  }}>
+                                    {bc.message}
+                                  </div>
+
+                                  {/* Footer: Date & Read Counter */}
+                                  <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    paddingTop: '0.35rem',
+                                    borderTop: '1px solid var(--border-light)',
+                                    fontSize: '0.7rem',
+                                    color: 'var(--text-muted)'
+                                  }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                      <Clock size={12} />
+                                      {bc.created_at ? new Date(bc.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                    </span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                      <Eye size={12} />
+                                      {bc.read_count || 0} Toko Membaca
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      }
+                      detailPane={
+                        selectedBroadcast ? (
+                          <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+                            {/* Card Box Header */}
+                            <div style={{
+                              padding: '1.25rem',
+                              borderRadius: '1rem',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border-light)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.85rem'
+                            }}>
+                              {/* Top Bar inside Detail */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  {(() => {
+                                    const catStyle = getBroadcastCategoryStyle(selectedBroadcast.category);
+                                    const urgStyle = getBroadcastUrgencyBadge(selectedBroadcast.type);
+                                    const isExpired = selectedBroadcast.expires_at && new Date(selectedBroadcast.expires_at) <= new Date();
+                                    const isActive = selectedBroadcast.is_active !== false && !isExpired;
+
+                                    return (
+                                      <>
+                                        <span style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 800,
+                                          padding: '0.2rem 0.65rem',
+                                          borderRadius: '0.45rem',
+                                          backgroundColor: catStyle.bg,
+                                          color: catStyle.text,
+                                          border: `1px solid ${catStyle.border}`
+                                        }}>
+                                          {selectedBroadcast.category || 'PENGUMUMAN'}
+                                        </span>
+                                        <span style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 800,
+                                          padding: '0.2rem 0.65rem',
+                                          borderRadius: '0.45rem',
+                                          backgroundColor: urgStyle.bg,
+                                          color: urgStyle.text
+                                        }}>
+                                          {urgStyle.label}
+                                        </span>
+                                        <span style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 800,
+                                          padding: '0.2rem 0.65rem',
+                                          borderRadius: '999px',
+                                          backgroundColor: isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                          color: isActive ? '#10b981' : '#94a3b8',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.3rem'
+                                        }}>
+                                          <span style={{
+                                            width: '6px',
+                                            height: '6px',
+                                            borderRadius: '50%',
+                                            backgroundColor: isActive ? '#10b981' : '#94a3b8'
+                                          }} />
+                                          {isActive ? 'Sedang Tayang' : 'Telah Kedaluwarsa'}
+                                        </span>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+
+                                {/* Read Counter & Delete Button */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <span style={{
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    padding: '0.35rem 0.75rem',
+                                    borderRadius: '0.5rem',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    color: 'var(--text-secondary)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem'
+                                  }}>
+                                    <Eye size={13} />
+                                    {selectedBroadcast.read_count || 0} Toko Telah Membaca
+                                  </span>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteBroadcast(selectedBroadcast.id)}
+                                    title="Batalkan & Hapus Siaran Ini"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      padding: '0.35rem 0.85rem',
+                                      borderRadius: '0.5rem',
+                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                      color: '#ef4444',
+                                      fontSize: '0.76rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                    <span>Hapus Siaran</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Broadcast Title */}
+                              <h3 style={{
+                                fontSize: '1.25rem',
+                                fontWeight: 800,
+                                color: 'var(--text-primary)',
+                                margin: '0.25rem 0 0 0',
+                                lineHeight: 1.35
+                              }}>
+                                {selectedBroadcast.title}
+                              </h3>
+
+                              {/* Metadata Grid */}
+                              <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(2, 1fr)',
+                                gap: '0.75rem',
+                                padding: '0.85rem',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)'
+                              }}>
+                                <div>
+                                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    Waktu Terbit:
+                                  </div>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <Calendar size={13} color="var(--primary)" />
+                                    {selectedBroadcast.created_at ? new Date(selectedBroadcast.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '-'}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    Masa Berlaku:
+                                  </div>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <Clock size={13} color="var(--primary)" />
+                                    {selectedBroadcast.expires_at ? new Date(selectedBroadcast.expires_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : 'Permanen (Tanpa Batas)'}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    Target Sasaran:
+                                  </div>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <Target size={13} color="var(--primary)" />
+                                    {getBroadcastTargetLabel(selectedBroadcast)}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    Tipe Aksi Lanjutan:
+                                  </div>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <Sparkles size={13} color="var(--primary)" />
+                                    {selectedBroadcast.action_type === 'detail' ? 'Artikel Lengkap (Detail)' : selectedBroadcast.action_type === 'navigate' ? 'Navigasi Menu Internal' : selectedBroadcast.action_type === 'external_link' ? 'Tautan Eksternal' : 'Pesan Pemberitahuan'}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Specific Recipients List Chips (If Any) */}
+                            {selectedBroadcastRecipients.length > 0 && (
+                              <div style={{
+                                padding: '1rem 1.15rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'rgba(59, 130, 246, 0.06)',
+                                border: '1px solid rgba(59, 130, 246, 0.2)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.5rem'
+                              }}>
+                                <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <Users size={14} color="var(--primary)" />
+                                  <span>Daftar Penerima Sasaran Khusus ({selectedBroadcastRecipients.length} Target):</span>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                                  {selectedBroadcastRecipients.map((rec: any, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      style={{
+                                        fontSize: '0.72rem',
+                                        padding: '0.25rem 0.65rem',
+                                        borderRadius: '0.5rem',
+                                        backgroundColor: rec.type === 'store' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)',
+                                        color: rec.type === 'store' ? '#3b82f6' : '#ec4899',
+                                        fontWeight: 700,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                        border: `1px solid ${rec.type === 'store' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(236, 72, 153, 0.25)'}`
+                                      }}
+                                    >
+                                      {rec.type === 'store' ? <StoreIcon size={12} /> : <User size={12} />}
+                                      <span>{rec.name}</span>
+                                      {rec.plan && <span style={{ opacity: 0.7, fontSize: '0.65rem' }}>({rec.plan})</span>}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Message Summary Callout */}
+                            <div style={{
+                              padding: '1.1rem 1.25rem',
+                              borderRadius: '0.85rem',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border-light)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.4rem'
+                            }}>
+                              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                Ringkasan Pesan Notifikasi:
+                              </div>
+                              <div style={{ fontSize: '0.86rem', color: 'var(--text-primary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                                {selectedBroadcast.message}
+                              </div>
+                            </div>
+
+                            {/* Rich Article Detail Content (If Present) */}
+                            {(selectedBroadcast.detail_content || selectedBroadcast.action_type === 'detail') && (
+                              <div style={{
+                                padding: '1.25rem',
+                                borderRadius: '1rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.65rem'
+                              }}>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <FileText size={16} />
+                                  <span>Isi Artikel & Panduan Rilis Lengkap:</span>
+                                </div>
+                                <div style={{
+                                  fontSize: '0.86rem',
+                                  color: 'var(--text-primary)',
+                                  lineHeight: 1.7,
+                                  padding: '1.25rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)'
+                                }}>
+                                  <FormattedText text={selectedBroadcast.detail_content || selectedBroadcast.message} />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Internal Navigation Action Target (If Present) */}
+                            {selectedBroadcast.action_type === 'navigate' && selectedBroadcast.link_sub_tab && (
+                              <div style={{
+                                padding: '1rem 1.25rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'rgba(59, 130, 246, 0.06)',
+                                border: '1px solid rgba(59, 130, 246, 0.25)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.45rem'
+                              }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                  Aksi Navigasi Internal Menu:
+                                </div>
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '0.75rem 1rem',
+                                  borderRadius: '0.65rem',
+                                  backgroundColor: 'var(--primary)',
+                                  color: '#ffffff',
+                                  fontWeight: 800,
+                                  fontSize: '0.85rem'
+                                }}>
+                                  <span>{selectedBroadcast.action_label || 'Buka Menu Terkait →'}</span>
+                                  <span style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', opacity: 0.9 }}>
+                                    <Compass size={14} />
+                                    <span>{selectedBroadcast.link_sub_tab}</span>
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                                  Menu Tujuan: <strong style={{ color: 'var(--text-primary)' }}>{selectedBroadcast.link_sub_tab}</strong>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* External URL Action & Security Whitelist Badge (If Present) */}
+                            {selectedBroadcast.action_type === 'external_link' && selectedBroadcast.action_url && (
+                              <div style={{
+                                padding: '1rem 1.25rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.5rem'
+                              }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                  Aksi Tautan Luar Resmi:
+                                </div>
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '0.75rem 1rem',
+                                  borderRadius: '0.65rem',
+                                  backgroundColor: '#10b981',
+                                  color: '#ffffff',
+                                  fontWeight: 800,
+                                  fontSize: '0.85rem'
+                                }}>
+                                  <span>{selectedBroadcast.action_label || 'Buka Tautan Luar →'}</span>
+                                  <a
+                                    href={selectedBroadcast.action_url.startsWith('http') ? selectedBroadcast.action_url : `https://${selectedBroadcast.action_url}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem',
+                                      color: '#ffffff',
+                                      fontSize: '0.72rem',
+                                      textDecoration: 'none',
+                                      padding: '0.2rem 0.5rem',
+                                      borderRadius: '0.4rem',
+                                      backgroundColor: 'rgba(0,0,0,0.15)'
+                                    }}
+                                  >
+                                    <ExternalLink size={12} />
+                                    <span>Buka Link</span>
+                                  </a>
+                                </div>
+
+                                {/* Whitelist Security Badge */}
+                                {(() => {
+                                  const sec = checkUrlSecurity(selectedBroadcast.action_url);
+                                  const domainName = cleanDomainString(selectedBroadcast.action_url);
+                                  if (sec.isSafe) {
+                                    return (
+                                      <div style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        padding: '0.4rem 0.75rem',
+                                        borderRadius: '0.55rem',
+                                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                                        color: '#10b981',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700
+                                      }}>
+                                        <ShieldCheck size={14} />
+                                        <span>Domain Resmi Terverifikasi: <strong>{sec.domain || domainName}</strong></span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.4rem',
+                                      padding: '0.4rem 0.75rem',
+                                      borderRadius: '0.55rem',
+                                      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                                      color: '#f59e0b',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700
+                                    }}>
+                                      <AlertTriangle size={14} />
+                                      <span>Domain Eksternal: <strong>{domainName}</strong></span>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
+
+                            {/* Top Banner on Merchant Catalog Indicator (If Active) */}
+                            {selectedBroadcast.show_top_banner && (
+                              <div style={{
+                                padding: '1rem 1.25rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.5rem'
+                              }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                  Banner Strip Publik Terpasang di Katalog:
+                                </div>
+                                <div style={{
+                                  padding: '0.65rem 1rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: selectedBroadcast.banner_color === 'blue' ? '#3b82f6' : selectedBroadcast.banner_color === 'emerald' ? '#10b981' : selectedBroadcast.banner_color === 'amber' ? '#f59e0b' : '#ef4444',
+                                  color: '#ffffff',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 800,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between'
+                                }}>
+                                  <span>{selectedBroadcast.title}</span>
+                                  <span style={{ fontSize: '0.68rem', opacity: 0.9, fontWeight: 700 }}>Banner Aktif</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : null
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW 2: CREATE BROADCAST (2-COLUMN TABLET NATIVE FORM) */}
+              {broadcastSubView === 'create' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', backgroundColor: 'var(--bg-deep)' }}>
+                  <form onSubmit={handleSendBroadcast} style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {/* Header Banner */}
+                    <div style={{
+                      padding: '1.25rem 1.5rem',
+                      borderRadius: '1rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
+                        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                          Sebarkan Siaran Pengumuman Platform
+                        </h2>
+                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          Kirim notifikasi langsung ke dashboard pengelola toko merchant dan pengguna secara tersegmentasi atau global.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setBroadcastSubView('list')}
+                        style={{
+                          padding: '0.55rem 1rem',
+                          borderRadius: '0.55rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Batal
+                      </button>
+                    </div>
+
+                    {/* 2-Column Split: Left (Target & Classification) | Right (Content & Live Preview) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.25rem', alignItems: 'start' }}>
+                      {/* LEFT COLUMN: TARGET & CLASSIFICATION */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* CARD 1: TARGET SASARAN PENERIMA */}
+                        <div style={{
+                          padding: '1.25rem',
+                          borderRadius: '1rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '1rem'
+                        }}>
+                          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Target size={16} color="var(--primary)" />
+                            <span>1. Target Sasaran Penerima</span>
+                          </div>
+
+                          {/* 3 Target Type Buttons */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                            {[
+                              { id: 'all', label: 'Semua', desc: 'Global' },
+                              { id: 'plan', label: 'Paket', desc: 'Tier Langganan' },
+                              { id: 'specific', label: 'Spesifik', desc: 'Pilihan Khusus' }
+                            ].map(t => {
+                              const isSelected = broadcastForm.target_type === t.id;
+                              return (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => setBroadcastForm(prev => ({ ...prev, target_type: t.id as any }))}
+                                  style={{
+                                    padding: '0.65rem 0.5rem',
+                                    borderRadius: '0.65rem',
+                                    border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
+                                    backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-deep)',
+                                    color: isSelected ? 'var(--primary)' : 'var(--text-secondary)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '0.15rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>{t.label}</span>
+                                  <span style={{ fontSize: '0.66rem', opacity: 0.8 }}>{t.desc}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Sub-Target: Plan Selector */}
+                          {broadcastForm.target_type === 'plan' && (
+                            <div style={{
+                              padding: '0.85rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.5rem'
+                            }}>
+                              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                Pilih Paket Langganan Merchant:
+                              </label>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                                {[
+                                  { id: 'free', label: 'Gratis (Free)' },
+                                  { id: 'pro', label: 'Pro Tier' },
+                                  { id: 'enterprise', label: 'Enterprise' }
+                                ].map(p => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => setBroadcastForm(prev => ({ ...prev, target_plan_code: p.id }))}
+                                    style={{
+                                      padding: '0.5rem 0.35rem',
+                                      borderRadius: '0.5rem',
+                                      border: `1px solid ${broadcastForm.target_plan_code === p.id ? 'var(--primary)' : 'var(--border-light)'}`,
+                                      backgroundColor: broadcastForm.target_plan_code === p.id ? 'var(--primary)' : 'var(--bg-card)',
+                                      color: broadcastForm.target_plan_code === p.id ? '#ffffff' : 'var(--text-primary)',
+                                      fontSize: '0.76rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {p.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Sub-Target: Specific Autocomplete Search & Chips */}
+                          {broadcastForm.target_type === 'specific' && (
+                            <div style={{
+                              padding: '0.85rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.75rem'
+                            }}>
+                              <div style={{ position: 'relative' }}>
+                                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                                  Cari Toko atau Pengguna Tertentu:
+                                </label>
+                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                  <Search size={14} style={{ position: 'absolute', left: '0.75rem', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                  <input
+                                    type="text"
+                                    value={targetRecipientSearch}
+                                    onChange={e => setTargetRecipientSearch(e.target.value)}
+                                    placeholder="Ketik nama toko, slug, atau email pengguna..."
+                                    style={{
+                                      width: '100%',
+                                      padding: '0.55rem 0.75rem 0.55rem 2.2rem',
+                                      borderRadius: '0.55rem',
+                                      border: '1px solid var(--border-light)',
+                                      backgroundColor: 'var(--bg-card)',
+                                      color: 'var(--text-primary)',
+                                      fontSize: '0.8rem',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  />
+                                  {isSearchingRecipients && (
+                                    <RefreshCw size={14} className="animate-spin" style={{ position: 'absolute', right: '0.75rem', color: 'var(--primary)' }} />
+                                  )}
+                                </div>
+
+                                {/* Suggestions Dropdown */}
+                                {recipientSuggestions.length > 0 && (
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    left: 0,
+                                    right: 0,
+                                    marginTop: '0.35rem',
+                                    borderRadius: '0.65rem',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '1px solid var(--border-light)',
+                                    boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
+                                    zIndex: 50,
+                                    maxHeight: '200px',
+                                    overflowY: 'auto'
+                                  }}>
+                                    {recipientSuggestions.map((s, sIdx) => {
+                                      const alreadySelected = broadcastForm.recipients.some(r => r.type === s.type && r.id === s.id);
+                                      return (
+                                        <div
+                                          key={sIdx}
+                                          onClick={() => {
+                                            if (alreadySelected) return;
+                                            setBroadcastForm(prev => ({
+                                              ...prev,
+                                              recipients: [...prev.recipients, s]
+                                            }));
+                                            setTargetRecipientSearch('');
+                                            setRecipientSuggestions([]);
+                                          }}
+                                          style={{
+                                            padding: '0.6rem 0.85rem',
+                                            borderBottom: '1px solid var(--border-light)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            cursor: alreadySelected ? 'default' : 'pointer',
+                                            backgroundColor: alreadySelected ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+                                            opacity: alreadySelected ? 0.6 : 1
+                                          }}
+                                        >
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                            {s.type === 'store' ? <StoreIcon size={14} color="#3b82f6" /> : <User size={14} color="#ec4899" />}
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</span>
+                                            {s.slug && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>({s.slug})</span>}
+                                          </div>
+                                          <span style={{ fontSize: '0.68rem', fontWeight: 800, color: s.type === 'store' ? '#3b82f6' : '#ec4899' }}>
+                                            {alreadySelected ? 'Sudah Dipilih' : '+ Tambah'}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Selected Chips */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                  Penerima Terpilih ({broadcastForm.recipients.length}):
+                                </span>
+                                {broadcastForm.recipients.length === 0 ? (
+                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                    Belum ada penerima khusus yang ditambahkan.
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                                    {broadcastForm.recipients.map((rec, rIdx) => (
+                                      <span
+                                        key={rIdx}
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          padding: '0.2rem 0.55rem',
+                                          borderRadius: '0.45rem',
+                                          backgroundColor: rec.type === 'store' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)',
+                                          color: rec.type === 'store' ? '#3b82f6' : '#ec4899',
+                                          fontWeight: 700,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          border: `1px solid ${rec.type === 'store' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(236, 72, 153, 0.3)'}`
+                                        }}
+                                      >
+                                        {rec.type === 'store' ? <StoreIcon size={12} /> : <User size={12} />}
+                                        <span>{rec.name}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setBroadcastForm(prev => ({
+                                            ...prev,
+                                            recipients: prev.recipients.filter((_, idx) => idx !== rIdx)
+                                          }))}
+                                          style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex' }}
+                                        >
+                                          <X size={12} />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* CARD 2: KLASIFIKASI & PRIORITAS */}
+                        <div style={{
+                          padding: '1.25rem',
+                          borderRadius: '1rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '1rem'
+                        }}>
+                          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Tag size={16} color="var(--primary)" />
+                            <span>2. Klasifikasi & Prioritas</span>
+                          </div>
+
+                          {/* Kategori Grid */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                              Kategori Siaran:
+                            </label>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                              {(['PENGUMUMAN', 'SISTEM', 'PROMOSI', 'PEMELIHARAAN', 'PANDUAN', 'KEAMANAN'] as const).map(cat => {
+                                const isSelected = broadcastForm.category === cat;
+                                const style = getBroadcastCategoryStyle(cat);
+                                return (
+                                  <button
+                                    key={cat}
+                                    type="button"
+                                    onClick={() => setBroadcastForm(prev => ({ ...prev, category: cat }))}
+                                    style={{
+                                      padding: '0.5rem 0.35rem',
+                                      borderRadius: '0.55rem',
+                                      border: `1.5px solid ${isSelected ? style.text : 'var(--border-light)'}`,
+                                      backgroundColor: isSelected ? style.bg : 'var(--bg-deep)',
+                                      color: isSelected ? style.text : 'var(--text-secondary)',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    {cat}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Urgency Level */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                              Tingkat Urgensi / Nada Notifikasi:
+                            </label>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.45rem' }}>
+                              {[
+                                { id: 'info', label: 'Informasi', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.12)' },
+                                { id: 'warning', label: 'Peringatan', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)' },
+                                { id: 'success', label: 'Sukses', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)' },
+                                { id: 'system', label: 'Sistem', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' }
+                              ].map(u => {
+                                const isSelected = broadcastForm.type === u.id;
+                                return (
+                                  <button
+                                    key={u.id}
+                                    type="button"
+                                    onClick={() => setBroadcastForm(prev => ({ ...prev, type: u.id as any }))}
+                                    style={{
+                                      padding: '0.5rem 0.25rem',
+                                      borderRadius: '0.55rem',
+                                      border: `1.5px solid ${isSelected ? u.color : 'var(--border-light)'}`,
+                                      backgroundColor: isSelected ? u.bg : 'var(--bg-deep)',
+                                      color: isSelected ? u.color : 'var(--text-secondary)',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 800,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {u.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Expiration Duration */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                              Masa Berlaku Notifikasi:
+                            </label>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.35rem' }}>
+                              {[
+                                { hours: 0, label: 'Permanen' },
+                                { hours: 24, label: '24 Jam' },
+                                { hours: 72, label: '3 Hari' },
+                                { hours: 168, label: '1 Minggu' },
+                                { hours: 720, label: '1 Bulan' }
+                              ].map(exp => (
+                                <button
+                                  key={exp.hours}
+                                  type="button"
+                                  onClick={() => setBroadcastForm(prev => ({ ...prev, expires_in_hours: exp.hours }))}
+                                  style={{
+                                    padding: '0.45rem 0.25rem',
+                                    borderRadius: '0.5rem',
+                                    border: `1px solid ${broadcastForm.expires_in_hours === exp.hours ? 'var(--primary)' : 'var(--border-light)'}`,
+                                    backgroundColor: broadcastForm.expires_in_hours === exp.hours ? 'var(--primary)' : 'var(--bg-deep)',
+                                    color: broadcastForm.expires_in_hours === exp.hours ? '#ffffff' : 'var(--text-secondary)',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {exp.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Top Banner Toggle */}
+                          <div style={{
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.65rem'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  Sematkan Banner Strip di Katalog Merchant
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                                  Menampilkan pita pengumuman di bagian atas etalase publik toko
+                                </div>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={broadcastForm.show_top_banner}
+                                onChange={e => setBroadcastForm(prev => ({ ...prev, show_top_banner: e.target.checked }))}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                              />
+                            </div>
+
+                            {broadcastForm.show_top_banner && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '0.4rem', borderTop: '1px solid var(--border-light)' }}>
+                                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>Warna Banner:</span>
+                                {(['blue', 'emerald', 'amber', 'rose'] as const).map(c => (
+                                  <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => setBroadcastForm(prev => ({ ...prev, banner_color: c }))}
+                                    style={{
+                                      padding: '0.25rem 0.65rem',
+                                      borderRadius: '999px',
+                                      border: `1.5px solid ${broadcastForm.banner_color === c ? 'var(--text-primary)' : 'transparent'}`,
+                                      backgroundColor: c === 'blue' ? '#3b82f6' : c === 'emerald' ? '#10b981' : c === 'amber' ? '#f59e0b' : '#ef4444',
+                                      color: '#ffffff',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 800,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {c.toUpperCase()}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* RIGHT COLUMN: CONTENT & LIVE PREVIEW */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* CARD 3: KONTEN PESAN & TINDAKAN */}
+                        <div style={{
+                          padding: '1.25rem',
+                          borderRadius: '1rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '1rem'
+                        }}>
+                          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <FileText size={16} color="var(--primary)" />
+                            <span>3. Konten Pesan & Tindakan</span>
+                          </div>
+
+                          {/* Title Input */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                Judul Siaran Pengumuman *
+                              </label>
+                              <span style={{ fontSize: '0.7rem', color: broadcastForm.title.length > 90 ? '#ef4444' : 'var(--text-muted)' }}>
+                                {broadcastForm.title.length}/100
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              maxLength={100}
+                              value={broadcastForm.title}
+                              onChange={e => setBroadcastForm(prev => ({ ...prev, title: e.target.value }))}
+                              placeholder="Contoh: Pembaruan Sistem & Fitur Rekber Syariah v2.4"
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.85rem',
+                                borderRadius: '0.55rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-deep)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+
+                          {/* Message Textarea */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                Ringkasan Pesan Singkat (Tampil di Notifikasi) *
+                              </label>
+                              <span style={{ fontSize: '0.7rem', color: broadcastForm.message.length > 230 ? '#ef4444' : 'var(--text-muted)' }}>
+                                {broadcastForm.message.length}/250
+                              </span>
+                            </div>
+                            <textarea
+                              rows={3}
+                              maxLength={250}
+                              value={broadcastForm.message}
+                              onChange={e => setBroadcastForm(prev => ({ ...prev, message: e.target.value }))}
+                              placeholder="Tuliskan ringkasan pengumuman singkat yang akan dibaca pertama kali oleh merchant..."
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.85rem',
+                                borderRadius: '0.55rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-deep)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                boxSizing: 'border-box',
+                                lineHeight: 1.5,
+                                resize: 'vertical'
+                              }}
+                            />
+                          </div>
+
+                          {/* Action Type Selector */}
+                          <div style={{
+                            padding: '1rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.75rem'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  Aksi Sentuh / Tindakan Lanjutan Notifikasi
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                  Pilih tindakan yang dijalankan saat merchant mengetuk notifikasi ini
+                                </div>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={broadcastForm.notification_action_enabled}
+                                onChange={e => {
+                                  const checked = e.target.checked;
+                                  setBroadcastForm(prev => ({
+                                    ...prev,
+                                    notification_action_enabled: checked,
+                                    action_type: checked && prev.action_type === 'none' ? 'detail' : (!checked ? 'none' : prev.action_type)
+                                  }));
+                                }}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                              />
+                            </div>
+
+                            {broadcastForm.notification_action_enabled && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
+                                {/* 3 Action Type Pills */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                                  {[
+                                    { id: 'detail', label: 'Buka Artikel Lengkap', icon: FileText },
+                                    { id: 'navigate', label: 'Navigasi Menu', icon: Compass },
+                                    { id: 'external_link', label: 'Tautan Luar', icon: ExternalLink }
+                                  ].map(act => {
+                                    const isSelected = broadcastForm.action_type === act.id;
+                                    const Icon = act.icon;
+                                    return (
+                                      <button
+                                        key={act.id}
+                                        type="button"
+                                        onClick={() => setBroadcastForm(prev => ({ ...prev, action_type: act.id as any }))}
+                                        style={{
+                                          padding: '0.6rem 0.4rem',
+                                          borderRadius: '0.55rem',
+                                          border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
+                                          backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
+                                          color: isSelected ? 'var(--primary)' : 'var(--text-secondary)',
+                                          fontSize: '0.74rem',
+                                          fontWeight: 800,
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: '0.35rem',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        <Icon size={13} />
+                                        <span>{act.label}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Option 1: Detail RichTextarea */}
+                                {broadcastForm.action_type === 'detail' && (
+                                  <div>
+                                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                                      Tuliskan Isi Artikel / Rincian Pengumuman Lengkap (Rich Text):
+                                    </label>
+                                    <RichTextarea
+                                      value={broadcastForm.detail_content}
+                                      onChange={val => setBroadcastForm(prev => ({ ...prev, detail_content: val }))}
+                                      placeholder="Tuliskan pedoman lengkap, instruksi teknis, atau catatan rilis fitur baru..."
+                                      minHeight="140px"
+                                    />
+                                  </div>
+                                )}
+
+                                {/* Option 2: Internal Menu Navigation */}
+                                {broadcastForm.action_type === 'navigate' && (
+                                  <div>
+                                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                                      Pilih Menu Internal Merchant:
+                                    </label>
+                                    <select
+                                      value={broadcastForm.link_sub_tab}
+                                      onChange={e => setBroadcastForm(prev => ({ ...prev, link_sub_tab: e.target.value }))}
+                                      style={{
+                                        width: '100%',
+                                        padding: '0.65rem 0.85rem',
+                                        borderRadius: '0.55rem',
+                                        border: '1px solid var(--border-light)',
+                                        backgroundColor: 'var(--bg-card)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.82rem',
+                                        fontWeight: 700
+                                      }}
+                                    >
+                                      <option value="settings">Pengaturan Profil & Tampilan Toko (settings)</option>
+                                      <option value="products">Manajemen Produk & Etalase (products)</option>
+                                      <option value="orders">Daftar Transaksi & Pesanan (orders)</option>
+                                      <option value="finance">Laporan Keuangan & Rekber Syariah (finance)</option>
+                                      <option value="help">Pusat Bantuan & Tiket Support (help)</option>
+                                    </select>
+                                  </div>
+                                )}
+
+                                {/* Option 3: External URL with live security whitelist check */}
+                                {broadcastForm.action_type === 'external_link' && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                                    <div>
+                                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                                        Label Tombol Aksi:
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={broadcastForm.action_label}
+                                        onChange={e => setBroadcastForm(prev => ({ ...prev, action_label: e.target.value }))}
+                                        placeholder="Contoh: Baca Panduan Selengkapnya →"
+                                        style={{
+                                          width: '100%',
+                                          padding: '0.6rem 0.85rem',
+                                          borderRadius: '0.55rem',
+                                          border: '1px solid var(--border-light)',
+                                          backgroundColor: 'var(--bg-card)',
+                                          color: 'var(--text-primary)',
+                                          fontSize: '0.82rem',
+                                          boxSizing: 'border-box'
+                                        }}
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                                        URL Website Eksternal:
+                                      </label>
+                                      <input
+                                        type="url"
+                                        value={broadcastForm.action_url}
+                                        onChange={e => setBroadcastForm(prev => ({ ...prev, action_url: e.target.value }))}
+                                        placeholder="https://catavor.com/promo/syariah"
+                                        style={{
+                                          width: '100%',
+                                          padding: '0.6rem 0.85rem',
+                                          borderRadius: '0.55rem',
+                                          border: '1px solid var(--border-light)',
+                                          backgroundColor: 'var(--bg-card)',
+                                          color: 'var(--text-primary)',
+                                          fontSize: '0.82rem',
+                                          boxSizing: 'border-box'
+                                        }}
+                                      />
+                                    </div>
+
+                                    {/* Live Security Badge Preview */}
+                                    {broadcastForm.action_url.trim() && (() => {
+                                      const sec = checkUrlSecurity(broadcastForm.action_url);
+                                      const dom = cleanDomainString(broadcastForm.action_url);
+                                      if (sec.isSafe) {
+                                        return (
+                                          <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem',
+                                            padding: '0.4rem 0.75rem',
+                                            borderRadius: '0.5rem',
+                                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                            color: '#10b981',
+                                            fontSize: '0.74rem',
+                                            fontWeight: 700
+                                          }}>
+                                            <ShieldCheck size={14} />
+                                            <span>Domain Resmi Terverifikasi: <strong>{sec.domain || dom}</strong></span>
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <div style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          padding: '0.4rem 0.75rem',
+                                          borderRadius: '0.5rem',
+                                          backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                                          color: '#f59e0b',
+                                          fontSize: '0.74rem',
+                                          fontWeight: 700
+                                        }}>
+                                          <AlertTriangle size={14} />
+                                          <span>Domain Eksternal: <strong>{dom}</strong></span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* CARD 4: LIVE REAL-TIME PREVIEW CARD */}
+                        <div style={{
+                          padding: '1.25rem',
+                          borderRadius: '1rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1.5px dashed var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.75rem'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                              Pratinjau Kartu Siaran Merchant:
+                            </span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Sparkles size={12} />
+                              Live Real-Time
+                            </span>
+                          </div>
+
+                          {/* Preview Card Body */}
+                          <div style={{
+                            padding: '1rem 1.15rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.45rem'
+                          }}>
+                            {/* Preview Top Banner if enabled */}
+                            {broadcastForm.show_top_banner && (
+                              <div style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: broadcastForm.banner_color === 'blue' ? '#3b82f6' : broadcastForm.banner_color === 'emerald' ? '#10b981' : broadcastForm.banner_color === 'amber' ? '#f59e0b' : '#ef4444',
+                                color: '#ffffff',
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                marginBottom: '0.25rem'
+                              }}>
+                                [Banner Katalog Aktif] {broadcastForm.title || 'Judul Pengumuman'}
+                              </div>
+                            )}
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              {(() => {
+                                const catStyle = getBroadcastCategoryStyle(broadcastForm.category);
+                                return (
+                                  <span style={{
+                                    fontSize: '0.66rem',
+                                    fontWeight: 800,
+                                    padding: '0.15rem 0.45rem',
+                                    borderRadius: '0.4rem',
+                                    backgroundColor: catStyle.bg,
+                                    color: catStyle.text,
+                                    border: `1px solid ${catStyle.border}`
+                                  }}>
+                                    {broadcastForm.category || 'PENGUMUMAN'}
+                                  </span>
+                                );
+                              })()}
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Baru saja</span>
+                            </div>
+
+                            <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                              {broadcastForm.title || 'Judul Siaran Pengumuman Platform'}
+                            </div>
+
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                              {broadcastForm.message || 'Ringkasan pesan siaran yang akan diterima oleh para pengelola toko merchant...'}
+                            </div>
+
+                            {/* Action CTA indicator inside preview */}
+                            {broadcastForm.notification_action_enabled && broadcastForm.action_type !== 'none' && (
+                              <div style={{
+                                marginTop: '0.4rem',
+                                paddingTop: '0.4rem',
+                                borderTop: '1px solid var(--border-light)',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                color: 'var(--primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}>
+                                {broadcastForm.action_type === 'detail' && <FileText size={13} />}
+                                {broadcastForm.action_type === 'navigate' && <Compass size={13} />}
+                                {broadcastForm.action_type === 'external_link' && <ExternalLink size={13} />}
+                                <span>{broadcastForm.action_label || (broadcastForm.action_type === 'detail' ? 'Ketuk untuk membaca artikel lengkap →' : 'Ketuk untuk membuka menu/tautan →')}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Submit & Cancel Actions */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setBroadcastSubView('list')}
+                            style={{
+                              padding: '0.75rem 1.5rem',
+                              borderRadius: '0.65rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'transparent',
+                              color: 'var(--text-secondary)',
+                              fontWeight: 700,
+                              fontSize: '0.85rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Batal & Kembali
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isSendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()}
+                            style={{
+                              padding: '0.75rem 2rem',
+                              borderRadius: '0.65rem',
+                              border: 'none',
+                              backgroundColor: 'var(--primary)',
+                              color: '#ffffff',
+                              fontWeight: 800,
+                              fontSize: '0.85rem',
+                              cursor: (isSendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()) ? 'not-allowed' : 'pointer',
+                              opacity: (isSendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()) ? 0.6 : 1,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              boxShadow: '0 4px 14px rgba(59, 130, 246, 0.25)'
+                            }}
+                          >
+                            {isSendingBroadcast ? (
+                              <>
+                                <RefreshCw size={15} className="animate-spin" />
+                                <span>Mengirim Siaran...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send size={15} />
+                                <span>Sebarkan Siaran Sekarang</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </form>
                 </div>
               )}
             </div>
