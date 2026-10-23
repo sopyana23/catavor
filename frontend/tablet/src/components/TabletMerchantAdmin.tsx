@@ -81,6 +81,15 @@ import { TabletCustomSelect } from './TabletCustomSelect';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { useModalBackHandler } from '../utils/navigation';
 import { createAuthFetch, isTokenExpired } from '../utils/auth';
+import {
+  getItemTypeFormConfig,
+  formatRupiahInput,
+  parseRupiahInput,
+  parseWAContacts,
+  formatPhoneNumber,
+  type ItemTypeConfig
+} from '../utils/catalogConfig';
+import { VideoPreviewInput } from './VideoEmbed';
 
 export type ItemCategoryType = 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property' | 'plant';
 
@@ -818,6 +827,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     return list;
   }, [categories, products]);
 
+  const [productPhotos, setProductPhotos] = useState<string[]>(['']);
+  const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false);
+  const [uploadingPhotoIndex, setUploadingPhotoIndex] = useState<number | null>(null);
+
   const [productForm, setProductForm] = useState({
     id: 0,
     name: '',
@@ -835,10 +848,112 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     is_shipping_available: true,
     min_order: 1,
     max_order: '' as string | number,
+    shipping_terms: '',
+    warranty_info: '',
+    shipping_coverage: 'Bisa Kirim se-Indonesia',
+    purchase_links: [] as Array<{ platform: string; url: string }>,
+    enable_wa_rekber: true,
+    enable_wa_direct: true,
+    whatsapp_contact_id: 'default',
     gallery_images: [] as string[],
     variants: [] as Array<{ variant_name: string; sku: string; price_override?: number; stock_qty: number }>,
     attributes: {} as Record<string, any>
   });
+
+  const storeWAContacts = useMemo(() => {
+    return parseWAContacts(storeSettings.whatsapp_number);
+  }, [storeSettings.whatsapp_number]);
+
+  const storefrontWA = useMemo(() => {
+    return storeWAContacts.find(c => c.is_default || c.use_for_storefront) || storeWAContacts[0] || null;
+  }, [storeWAContacts]);
+
+  const handleUpdateProductPhoto = (index: number, val: string) => {
+    setProductPhotos(prev => {
+      const next = [...prev];
+      next[index] = val;
+      return next;
+    });
+  };
+
+  const handleAddPhotoRow = () => {
+    if (productPhotos.length < 10) {
+      setProductPhotos(prev => [...prev, '']);
+    }
+  };
+
+  const handleRemovePhotoRow = (index: number) => {
+    setProductPhotos(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length > 0 ? next : [''];
+    });
+  };
+
+  const handleUploadPhotoAtIndex = async (index: number, file: File) => {
+    setUploadingPhotoIndex(index);
+    try {
+      const url = await handleUploadImage(file, 'products');
+      if (url) {
+        handleUpdateProductPhoto(index, url);
+      }
+    } finally {
+      setUploadingPhotoIndex(null);
+    }
+  };
+
+  const handleBatchPhotoUpload = async (files: FileList) => {
+    if (!files || files.length === 0) return;
+    setIsBatchUploading(true);
+    try {
+      const currentValid = productPhotos.filter(p => p && p.trim() !== '');
+      const remainingSlots = 10 - currentValid.length;
+      if (remainingSlots <= 0) {
+        showToast('Maksimal 10 foto produk telah tercapai', 'error');
+        return;
+      }
+      const filesToUpload = Array.from(files).slice(0, remainingSlots);
+      const uploadedUrls: string[] = [];
+
+      for (const file of filesToUpload) {
+        const url = await handleUploadImage(file, 'products');
+        if (url) uploadedUrls.push(url);
+      }
+
+      if (uploadedUrls.length > 0) {
+        setProductPhotos(() => {
+          const combined = [...currentValid, ...uploadedUrls].slice(0, 10);
+          return combined.length > 0 ? combined : [''];
+        });
+        showToast(`${uploadedUrls.length} foto berhasil diunggah!`);
+      }
+    } catch {
+      showToast('Sebagian foto gagal diunggah', 'error');
+    } finally {
+      setIsBatchUploading(false);
+    }
+  };
+
+  const handleAddPurchaseLink = () => {
+    setProductForm(prev => ({
+      ...prev,
+      purchase_links: [...prev.purchase_links, { platform: '', url: '' }]
+    }));
+  };
+
+  const handleUpdatePurchaseLink = (index: number, field: 'platform' | 'url', val: string) => {
+    setProductForm(prev => {
+      const next = [...prev.purchase_links];
+      next[index] = { ...next[index], [field]: val };
+      return { ...prev, purchase_links: next };
+    });
+  };
+
+  const handleRemovePurchaseLink = (index: number) => {
+    setProductForm(prev => ({
+      ...prev,
+      purchase_links: prev.purchase_links.filter((_, i) => i !== index)
+    }));
+  };
 
   const mainImageInputRef = useRef<HTMLInputElement | null>(null);
   const galleryImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -932,6 +1047,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       window.history.pushState({}, '', url.toString());
     } catch {}
 
+    const typeConfig = getItemTypeFormConfig((chosenType || 'physical') as ItemCategoryType);
+    setProductPhotos(['']);
     setProductForm({
       id: 0,
       name: '',
@@ -949,6 +1066,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       is_shipping_available: true,
       min_order: 1,
       max_order: '',
+      shipping_terms: '',
+      warranty_info: '',
+      shipping_coverage: typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+      purchase_links: [],
+      enable_wa_rekber: chosenType !== 'property',
+      enable_wa_direct: true,
+      whatsapp_contact_id: 'default',
       gallery_images: [],
       variants: [],
       attributes: defaultAttrs
@@ -962,6 +1086,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     setIsSelectingProductType(true);
     setShowCustomClassInput(false);
     setCustomClass('');
+    setProductPhotos(['']);
     setProductForm({
       id: 0,
       name: '',
@@ -979,6 +1104,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       is_shipping_available: true,
       min_order: 1,
       max_order: '',
+      shipping_terms: '',
+      warranty_info: '',
+      shipping_coverage: 'Bisa Kirim se-Indonesia',
+      purchase_links: [],
+      enable_wa_rekber: true,
+      enable_wa_direct: true,
+      whatsapp_contact_id: 'default',
       gallery_images: [],
       variants: [],
       attributes: {}
@@ -1083,7 +1215,28 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       url.searchParams.delete('catalog_type');
       window.history.pushState({}, '', url.toString());
     } catch {}
-    const gallery = (prod.images || []).map((img: any) => img.image_url || img);
+
+    let loadedPhotos: string[] = [];
+    if (prod.detailed_info?.images && Array.isArray(prod.detailed_info.images) && prod.detailed_info.images.length > 0) {
+      loadedPhotos = prod.detailed_info.images.filter(Boolean);
+    } else {
+      const gImages = (prod.images || []).map((img: any) => img.image_url || img).filter(Boolean);
+      loadedPhotos = Array.from(new Set([prod.image_url, ...gImages].filter(Boolean)));
+    }
+    if (loadedPhotos.length === 0) loadedPhotos = [''];
+    setProductPhotos(loadedPhotos);
+
+    let loadedPurchaseLinks: Array<{ platform: string; url: string }> = [];
+    if (prod.detailed_info?.purchase_links && Array.isArray(prod.detailed_info.purchase_links)) {
+      loadedPurchaseLinks = prod.detailed_info.purchase_links;
+    } else {
+      if (prod.detailed_info?.shopee_url) loadedPurchaseLinks.push({ platform: 'Shopee', url: prod.detailed_info.shopee_url });
+      if (prod.detailed_info?.tokopedia_url) loadedPurchaseLinks.push({ platform: 'Tokopedia', url: prod.detailed_info.tokopedia_url });
+      if (prod.detailed_info?.lazada_url) loadedPurchaseLinks.push({ platform: 'Lazada', url: prod.detailed_info.lazada_url });
+      if (prod.detailed_info?.bukalapak_url) loadedPurchaseLinks.push({ platform: 'Bukalapak', url: prod.detailed_info.bukalapak_url });
+      if (prod.detailed_info?.custom_shop_url) loadedPurchaseLinks.push({ platform: prod.detailed_info.custom_shop_name || 'Marketplace', url: prod.detailed_info.custom_shop_url });
+    }
+
     const variants = (prod.variants || []).map((v: any) => ({
       variant_name: v.variant_name || '',
       sku: v.sku || '',
@@ -1101,6 +1254,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
 
     const editProdType = prod.product_type || 'physical';
+    const typeConfig = getItemTypeFormConfig(editProdType as ItemCategoryType);
     const resolvedClass = prod.class || prod.category_name || (categories.find(c => String(c.id) === String(prod.category_id))?.name) || getDefaultCategoryForType(editProdType);
     setShowCustomClassInput(false);
     setCustomClass('');
@@ -1116,13 +1270,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       scientific_name: prod.scientific_name || rawAttrs.scientific_name || '',
       unit: prod.unit || 'Pcs',
       description: prod.description || '',
-      image_url: prod.image_url || '',
+      image_url: loadedPhotos[0] || prod.image_url || '',
       video_url: prod.video_url || '',
       is_active: prod.is_active !== undefined ? prod.is_active : true,
       is_shipping_available: prod.is_shipping_available !== undefined ? prod.is_shipping_available : true,
       min_order: prod.min_order || 1,
       max_order: prod.max_order || '',
-      gallery_images: gallery,
+      shipping_terms: prod.detailed_info?.shipping_terms || '',
+      warranty_info: prod.detailed_info?.warranty_info || '',
+      shipping_coverage: prod.detailed_info?.shipping_coverage || (prod.is_shipping_available ? (typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia') : 'Ambil Sendiri di Toko (No Shipping)'),
+      purchase_links: loadedPurchaseLinks,
+      enable_wa_rekber: editProdType === 'property' ? false : (prod.detailed_info?.enable_wa_rekber !== undefined ? Boolean(prod.detailed_info.enable_wa_rekber) : true),
+      enable_wa_direct: prod.detailed_info?.enable_wa_direct !== undefined ? Boolean(prod.detailed_info.enable_wa_direct) : true,
+      whatsapp_contact_id: prod.detailed_info?.whatsapp_contact_id || 'default',
+      gallery_images: loadedPhotos.slice(1),
       variants: variants,
       attributes: {
         ...(prod.habitat ? { habitat: prod.habitat } : {}),
@@ -1138,6 +1299,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const handleSelectProductType = (typeId: string) => {
     const typeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === typeId);
+    const typeConfig = getItemTypeFormConfig(typeId as ItemCategoryType);
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', 'items');
@@ -1198,6 +1360,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         product_type: typeId,
         class: nextClass,
         unit: shouldUpdateUnit ? (typeDef?.defaultUnit || 'Pcs') : prev.unit,
+        shipping_coverage: prev.shipping_coverage || typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+        enable_wa_rekber: typeId === 'property' ? false : (prev.enable_wa_rekber !== undefined ? prev.enable_wa_rekber : true),
         attributes: defaultAttrs
       };
     });
@@ -1314,6 +1478,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       setIsSelectingProductType(true);
       return;
     }
+    const validPhotos = productPhotos.map(p => p.trim()).filter(Boolean);
+    if (validPhotos.length === 0) {
+      showToast('Unggah minimal 1 foto produk (Foto Sampul Utama)', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const isNew = selectedProductId === 'new';
@@ -1354,6 +1523,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
 
       const matchedCat = categories.find(c => c.name.toLowerCase() === effectiveClass.toLowerCase());
+      const cleanLinks = productForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== '');
 
       const payload = {
         name: productForm.name.trim(),
@@ -1368,20 +1538,33 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         conservation_status: (productForm.product_type === 'fauna' || productForm.product_type === 'plant') ? (productForm.attributes?.conservation_status || undefined) : undefined,
         unit: productForm.unit,
         description: productForm.description,
-        image_url: productForm.image_url,
+        image_url: validPhotos[0] || '',
         video_url: productForm.video_url,
         is_active: productForm.is_active,
         is_shipping_available: productForm.is_shipping_available,
-        min_order: Number(productForm.min_order) || 1,
-        max_order: productForm.max_order !== '' ? Number(productForm.max_order) : null,
-        gallery_images: productForm.gallery_images,
+        min_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? 1 : (Number(productForm.min_order) || 1),
+        max_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? null : (productForm.max_order !== '' ? Number(productForm.max_order) : null),
+        gallery_images: validPhotos.slice(1),
         variants: productForm.variants.map(v => ({
           variant_name: v.variant_name,
           sku: v.sku,
           price_override: v.price_override !== undefined && v.price_override !== null && v.price_override > 0 ? Number(v.price_override) : null,
           stock_qty: Number(v.stock_qty) || 0
         })),
-        attributes: productForm.attributes || {}
+        attributes: productForm.attributes || {},
+        detailed_info: {
+          native_region: productForm.attributes?.native_region || '',
+          lifespan: productForm.attributes?.lifespan || '',
+          weight: productForm.attributes?.weight || '',
+          shipping_terms: productForm.shipping_terms || '',
+          warranty_info: productForm.product_type === 'service' ? '' : (productForm.warranty_info || ''),
+          shipping_coverage: productForm.shipping_coverage || productForm.shipping_terms || 'Bisa Kirim se-Indonesia',
+          images: validPhotos,
+          purchase_links: cleanLinks,
+          enable_wa_rekber: productForm.product_type === 'property' ? false : (productForm.enable_wa_rekber !== false),
+          enable_wa_direct: productForm.enable_wa_direct !== false,
+          whatsapp_contact_id: productForm.whatsapp_contact_id || 'default'
+        }
       };
 
       const res = await fetch(url, {
@@ -3492,6 +3675,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               (selectedProductId !== null || !isNarrowScreen) ? (() => {
                 const activeTypeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === productForm.product_type) || CATALOG_TYPE_OPTIONS[0];
                 const ActiveTypeIcon = activeTypeDef.icon;
+                const typeConfig = getItemTypeFormConfig((productForm.product_type || 'physical') as ItemCategoryType);
+                const validPhotoCount = productPhotos.filter(p => p && p.trim() !== '').length;
 
                 const shouldShowStep1 = isSelectingProductType || (selectedProductId === 'new' && !productForm.product_type) || (selectedProductId === null && !isNarrowScreen);
 
@@ -3782,14 +3967,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       borderBottom: '1px solid var(--border-light)',
                       paddingBottom: '1rem',
                       flexWrap: 'wrap',
-                      gap: '0.5rem'
+                      gap: '0.75rem'
                     }}>
                       <div>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
-                          {selectedProductId === 'new' ? 'Tambah Produk Baru' : 'Edit Detail Produk'}
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                          {typeConfig.modalTitle(selectedProductId === 'new' ? 'create' : 'edit')}
                         </h3>
                         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                          Lengkapi foto, atribut spesifik, serta batas pemesanan produk
+                          {typeConfig.modalSubtitle}
                         </p>
                       </div>
 
@@ -3849,17 +4034,18 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Nama Produk *
+                          {typeConfig.nameLabel}
                         </label>
                         <input
                           type="text"
                           required
                           value={productForm.name}
                           onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                          placeholder="Contoh: Kucing Persia Peaknose"
+                          placeholder={typeConfig.namePlaceholder}
                           style={{
                             width: '100%',
-                            padding: '0.65rem 0.85rem',
+                            minHeight: '42px',
+                            padding: '0.55rem 0.85rem',
                             borderRadius: '0.5rem',
                             backgroundColor: 'var(--bg-deep)',
                             border: '1px solid var(--border-light)',
@@ -3872,32 +4058,46 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
                       <div>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Harga Satuan Dasar (Rp) *
+                          {typeConfig.priceLabel}
                         </label>
-                        <input
-                          type="number"
-                          required
-                          min="0"
-                          value={productForm.price}
-                          onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
-                          placeholder="0"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
+                        <div style={{ position: 'relative' }}>
+                          <span style={{
+                            position: 'absolute',
+                            left: '0.85rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontSize: '0.84rem',
+                            fontWeight: 700,
+                            color: 'var(--text-secondary)'
+                          }}>
+                            Rp
+                          </span>
+                          <input
+                            type="text"
+                            required
+                            value={formatRupiahInput(productForm.price)}
+                            onChange={(e) => setProductForm({ ...productForm, price: parseRupiahInput(e.target.value) })}
+                            placeholder={typeConfig.pricePlaceholder}
+                            style={{
+                              width: '100%',
+                              minHeight: '42px',
+                              padding: '0.55rem 0.85rem 0.55rem 2.4rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.88rem',
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
                       </div>
 
                       <div style={{ gridColumn: showCustomClassInput ? '1 / -1' : 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                            Kategori {activeTypeDef.name} *
+                            {typeConfig.categoryLabel}
                           </label>
                           <button
                             type="button"
@@ -4083,7 +4283,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 badgeColor: 'var(--primary)'
                               }
                             ]}
-                            placeholder={`Pilih Kategori ${activeTypeDef.name}...`}
+                            placeholder={`Pilih ${typeConfig.categoryLabel.replace('*', '').trim()}...`}
                             searchable={true}
                             searchPlaceholder="Cari kategori..."
                             triggerStyle={{ minHeight: '42px', fontSize: '0.88rem' }}
@@ -4134,7 +4334,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           onChange={(e) => setProductForm({ ...productForm, stock: Number(e.target.value) })}
                           style={{
                             width: '100%',
-                            padding: '0.65rem 0.85rem',
+                            minHeight: '42px',
+                            padding: '0.55rem 0.85rem',
                             borderRadius: '0.5rem',
                             backgroundColor: 'var(--bg-deep)',
                             border: '1px solid var(--border-light)',
@@ -4156,7 +4357,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           placeholder="Contoh: Pcs, Ekor, Kg, Paket"
                           style={{
                             width: '100%',
-                            padding: '0.65rem 0.85rem',
+                            minHeight: '42px',
+                            padding: '0.55rem 0.85rem',
                             borderRadius: '0.5rem',
                             backgroundColor: 'var(--bg-deep)',
                             border: '1px solid var(--border-light)',
@@ -4167,51 +4369,57 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         />
                       </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Minimal Pemesanan
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={productForm.min_order}
-                          onChange={(e) => setProductForm({ ...productForm, min_order: Number(e.target.value) || 1 })}
-                          placeholder="1"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
+                      {typeConfig.minOrderLabel && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                            {typeConfig.minOrderLabel}
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={productForm.min_order}
+                            onChange={(e) => setProductForm({ ...productForm, min_order: Number(e.target.value) || 1 })}
+                            placeholder={typeConfig.minOrderPlaceholder || '1'}
+                            style={{
+                              width: '100%',
+                              minHeight: '42px',
+                              padding: '0.55rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.88rem',
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                      )}
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Maksimal Pemesanan (Opsional)
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={productForm.max_order}
-                          onChange={(e) => setProductForm({ ...productForm, max_order: e.target.value === '' ? '' : Number(e.target.value) })}
-                          placeholder="Tidak dibatasi"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
+                      {typeConfig.minOrderLabel && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                            {typeConfig.maxOrderLabel || 'Maksimal Pemesanan (Opsional)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={productForm.max_order}
+                            onChange={(e) => setProductForm({ ...productForm, max_order: e.target.value === '' ? '' : Number(e.target.value) })}
+                            placeholder={typeConfig.maxOrderPlaceholder || 'Tidak dibatasi'}
+                            style={{
+                              width: '100%',
+                              minHeight: '42px',
+                              padding: '0.55rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.88rem',
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Shipping toggle */}
@@ -4225,8 +4433,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       justifyContent: 'space-between'
                     }}>
                       <div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Dukungan Pengiriman / Kurir Ekspedisi</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Aktifkan jika item dapat dikirim via kurir ekspedisi</div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {typeConfig.deliveryLabel || 'Dukungan Pengiriman / Kurir Ekspedisi'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Aktifkan jika item dapat dikirimkan ke pembeli
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -4243,7 +4455,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           cursor: 'pointer'
                         }}
                       >
-                        {productForm.is_shipping_available ? 'Dapat Dikirim' : 'Ambil di Toko / Khusus'}
+                        {productForm.is_shipping_available ? 'Dapat Dikirim' : 'Ambil Sendiri / Khusus'}
                       </button>
                     </div>
 
@@ -5042,211 +5254,259 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       )}
                     </div>
 
-                  {/* Primary Photo with Direct Upload */}
+                  {/* 1-10 Photos Manager */}
                   <div style={{
                     padding: '1.25rem',
                     borderRadius: '0.75rem',
                     backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem'
                   }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                      Foto Utama Produk
-                    </label>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-                      <div style={{
-                        width: '90px',
-                        height: '90px',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px solid var(--border-light)',
-                        overflow: 'hidden',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        {productForm.image_url ? (
-                          <img src={productForm.image_url} alt="Foto Utama" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <ImageIcon size={32} color="var(--text-muted)" />
-                        )}
-                      </div>
-
-                      <div style={{ flex: 1, minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <input
-                          type="text"
-                          value={productForm.image_url}
-                          onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
-                          placeholder="https://domain.com/foto-produk.jpg"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-card)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.85rem',
-                            outline: 'none'
-                          }}
-                        />
-
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            ref={mainImageInputRef}
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const url = await handleUploadImage(file, 'products');
-                                if (url) setProductForm(p => ({ ...p, image_url: url }));
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => mainImageInputRef.current?.click()}
-                            style={{
-                              minHeight: '40px',
-                              padding: '0.5rem 1rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--primary)',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontSize: '0.82rem',
-                              fontWeight: 700,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.4rem',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <Upload size={15} />
-                            Unggah Foto Tablet
-                          </button>
-                          {productForm.image_url && (
-                            <button
-                              type="button"
-                              onClick={() => setProductForm(p => ({ ...p, image_url: '' }))}
-                              style={{
-                                minHeight: '40px',
-                                padding: '0.5rem 0.85rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'transparent',
-                                border: '1px solid var(--border-light)',
-                                color: '#ef4444',
-                                fontSize: '0.82rem',
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Hapus Foto
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Multiple Gallery Images */}
-                  <div style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                       <div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700 }}>Foto Tambahan Galeri (Maksimal 5)</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tambahkan sudut pandang lain dari produk Anda</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                          <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                            {typeConfig.photoLabel}
+                          </h4>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '0.12rem 0.55rem',
+                            borderRadius: '999px',
+                            backgroundColor: validPhotoCount > 0 ? 'var(--primary-glow)' : 'var(--bg-card)',
+                            color: validPhotoCount > 0 ? 'var(--primary)' : 'var(--text-secondary)',
+                            border: '1px solid var(--border-light)'
+                          }}>
+                            {validPhotoCount} / 10 Foto
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                          {typeConfig.photoHelper}
+                        </p>
                       </div>
 
-                      {productForm.gallery_images.length < 5 && (
-                        <div>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            ref={galleryImageInputRef}
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const url = await handleUploadImage(file, 'products');
-                                if (url) handleAddGalleryImage(url);
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => galleryImageInputRef.current?.click()}
+                      {productPhotos.length < 10 && (
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <label
                             style={{
                               minHeight: '38px',
                               padding: '0.4rem 0.85rem',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
                               borderRadius: '0.5rem',
                               backgroundColor: 'var(--bg-card)',
                               border: '1px solid var(--border-light)',
                               color: 'var(--text-primary)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              cursor: isBatchUploading ? 'not-allowed' : 'pointer',
+                              opacity: isBatchUploading ? 0.7 : 1
+                            }}
+                            title="Unggah banyak foto sekaligus dari perangkat tablet"
+                          >
+                            {isBatchUploading ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
+                            <span>{isBatchUploading ? 'Mengunggah...' : 'Upload Sekaligus'}</span>
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              disabled={isBatchUploading}
+                              style={{ display: 'none' }}
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files.length > 0) {
+                                  handleBatchPhotoUpload(e.target.files);
+                                  e.target.value = '';
+                                }
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleAddPhotoRow}
+                            style={{
+                              minHeight: '38px',
+                              padding: '0.4rem 0.85rem',
                               fontSize: '0.8rem',
                               fontWeight: 700,
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--primary)',
+                              color: '#ffffff',
+                              border: 'none',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.35rem',
                               cursor: 'pointer'
                             }}
                           >
-                            <Plus size={15} />
-                            Tambah Foto Galeri
+                            <Plus size={14} />
+                            <span>Tambah Baris</span>
                           </button>
                         </div>
                       )}
                     </div>
 
-                    {productForm.gallery_images.length === 0 ? (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        Belum ada foto galeri tambahan.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        {productForm.gallery_images.map((imgUrl, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              position: 'relative',
-                              width: '74px',
-                              height: '74px',
-                              borderRadius: '0.5rem',
-                              overflow: 'hidden',
-                              border: '1px solid var(--border-light)'
-                            }}
-                          >
-                            <img src={imgUrl} alt={`Galeri ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      {productPhotos.map((imgUrl, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            display: 'flex',
+                            gap: '0.75rem',
+                            alignItems: 'center',
+                            backgroundColor: 'var(--bg-card)',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.65rem',
+                            border: '1px solid var(--border-light)'
+                          }}
+                        >
+                          {/* Role Badge: Sampul vs Foto #{index + 1} */}
+                          <div style={{ minWidth: '76px', textAlign: 'center', flexShrink: 0 }}>
+                            {index === 0 ? (
+                              <span style={{
+                                display: 'inline-block',
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                color: 'var(--primary)',
+                                backgroundColor: 'var(--primary-glow)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '0.35rem',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                ★ Sampul
+                              </span>
+                            ) : (
+                              <span style={{
+                                display: 'inline-block',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                color: 'var(--text-secondary)',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '0.35rem',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                Foto #{index + 1}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Thumbnail Preview */}
+                          <div style={{
+                            width: '46px',
+                            height: '46px',
+                            borderRadius: '0.45rem',
+                            overflow: 'hidden',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-deep)',
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            position: 'relative'
+                          }}>
+                            {imgUrl ? (
+                              <img
+                                src={imgUrl}
+                                alt={`Preview Foto ${index + 1}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <ImageIcon size={18} style={{ color: 'var(--text-muted)' }} />
+                            )}
+                            {uploadingPhotoIndex === index && (
+                              <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <RefreshCw size={14} className="animate-spin" color="#ffffff" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* URL Input & Single Device Upload Button */}
+                          <div style={{ flex: 1, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              placeholder={`Tautan Foto ${index === 0 ? 'Sampul Utama (Wajib) *' : `${index + 1} (Opsional)`}`}
+                              value={imgUrl}
+                              onChange={(e) => handleUpdateProductPhoto(index, e.target.value)}
+                              style={{
+                                flex: 1,
+                                minHeight: '38px',
+                                padding: '0.45rem 0.75rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.84rem',
+                                outline: 'none'
+                              }}
+                            />
+                            <label
+                              style={{
+                                minHeight: '38px',
+                                padding: '0 0.85rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title="Pilih foto dari perangkat tablet"
+                            >
+                              <Upload size={13} />
+                              <span>Upload</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) {
+                                    handleUploadPhotoAtIndex(index, e.target.files[0]);
+                                    e.target.value = '';
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+
+                          {/* Delete Row Button */}
+                          {productPhotos.length > 1 && (
                             <button
                               type="button"
-                              onClick={() => handleRemoveGalleryImage(idx)}
+                              onClick={() => handleRemovePhotoRow(index)}
                               style={{
-                                position: 'absolute',
-                                top: '3px',
-                                right: '3px',
-                                width: '22px',
-                                height: '22px',
-                                borderRadius: '50%',
-                                backgroundColor: 'rgba(0,0,0,0.65)',
-                                color: '#ffffff',
-                                border: 'none',
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#ef4444',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                flexShrink: 0
                               }}
+                              title="Hapus baris foto ini"
                             >
-                              <Trash2 size={12} />
+                              <Trash2 size={15} />
                             </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Product Variants Manager */}
@@ -5256,9 +5516,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     backgroundColor: 'var(--bg-deep)',
                     border: '1px solid var(--border-light)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700 }}>Variasi Produk (Ukuran, Rasa, Warna, SKU)</div>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>Variasi Produk (Ukuran, Rasa, Warna, SKU)</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Atur harga dan stok spesifik untuk masing-masing varian</div>
                       </div>
 
@@ -5393,39 +5653,407 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     )}
                   </div>
 
-                  {/* Video & Description */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                      Tautan Video Promosi (YouTube / TikTok)
-                    </label>
-                    <input
-                      type="text"
+                  {/* Video Showcase Input */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)'
+                  }}>
+                    <VideoPreviewInput
                       value={productForm.video_url}
-                      onChange={(e) => setProductForm({ ...productForm, video_url: e.target.value })}
-                      placeholder="https://youtube.com/watch?v=..."
-                      style={{
-                        width: '100%',
-                        padding: '0.65rem 0.85rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.88rem',
-                        outline: 'none'
-                      }}
+                      onChange={(val) => setProductForm(p => ({ ...p, video_url: val }))}
+                      label={typeConfig.videoLabel}
+                      placeholder={typeConfig.videoPlaceholder}
                     />
                   </div>
 
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <RichTextarea
-                      label="Deskripsi & Spesifikasi Produk"
-                      value={productForm.description}
-                      onChange={(val) => setProductForm((prev) => ({ ...prev, description: val }))}
-                      placeholder="Jelaskan secara detail keunggulan, material, spesifikasi, dan kelengkapan produk..."
-                      rows={5}
-                      minHeight="140px"
-                      showZenFullscreen={true}
-                    />
+                  {/* Marketplace Links (Non-property) */}
+                  {productForm.product_type !== 'property' && (
+                    <div style={{
+                      padding: '1.25rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div>
+                          <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                            {productForm.product_type === 'service'
+                              ? 'Link Platform Freelance / Pihak Ketiga (Opsional)'
+                              : (productForm.product_type === 'food'
+                                  ? 'Link Pesan-Antar / Toko Online (Opsional)'
+                                  : 'Link Marketplace / Toko Online (Opsional)')}
+                          </h4>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                            {productForm.product_type === 'service'
+                              ? 'Tautkan lapak jasa di Fastwork, Projects.co.id, Fiverr, dll.'
+                              : (productForm.product_type === 'food'
+                                  ? 'Tautkan link pesanan dari GoFood, GrabFood, ShopeeFood, Tokopedia, dll.'
+                                  : 'Tautkan link produk spesifik dari Shopee, Tokopedia, TikTok Shop, dll.')}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddPurchaseLink}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.4rem 0.85rem',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            backgroundColor: 'var(--primary-glow)',
+                            color: 'var(--primary)',
+                            border: '1px solid var(--primary)',
+                            borderRadius: '0.45rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Plus size={13} />
+                          <span>Tambah Link</span>
+                        </button>
+                      </div>
+
+                      {productForm.purchase_links.length === 0 ? (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          Belum ada link eksternal. Klik "Tambah Link" jika Anda menjual produk ini di marketplace lain.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.85rem' }}>
+                          {productForm.purchase_links.map((link, index) => (
+                            <div
+                              key={index}
+                              style={{
+                                padding: '0.85rem',
+                                border: '1px solid var(--border-light)',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--bg-card)',
+                                position: 'relative'
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePurchaseLink(index)}
+                                style={{
+                                  position: 'absolute',
+                                  top: '0.5rem',
+                                  right: '0.5rem',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: '0.25rem'
+                                }}
+                                title="Hapus Link"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+
+                              <div style={{ marginBottom: '0.5rem', width: '85%' }}>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: '0.2rem' }}>
+                                  Platform / Toko *
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder={
+                                    productForm.product_type === 'service'
+                                      ? "Fastwork / Projects.co.id / Fiverr"
+                                      : (productForm.product_type === 'food'
+                                          ? "GoFood / GrabFood / ShopeeFood / Tokopedia"
+                                          : "Shopee / Tokopedia / TikTok Shop")
+                                  }
+                                  value={link.platform}
+                                  onChange={(e) => handleUpdatePurchaseLink(index, 'platform', e.target.value)}
+                                  style={tabletInputStyle}
+                                />
+                              </div>
+
+                              <div>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: '0.2rem' }}>
+                                  URL Link Pembelian *
+                                </label>
+                                <input
+                                  type="url"
+                                  placeholder="https://..."
+                                  value={link.url}
+                                  onChange={(e) => handleUpdatePurchaseLink(index, 'url', e.target.value)}
+                                  style={tabletInputStyle}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* WhatsApp & Rekber Syariah Section */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.85rem'
+                  }}>
+                    <div>
+                      <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: '0 0 0.2rem 0', color: 'var(--text-primary)' }}>
+                        {productForm.product_type === 'property'
+                          ? 'Kontak & Janji Survey Properti'
+                          : (productForm.product_type === 'service'
+                              ? 'Opsi Transaksi & Escrow Layanan'
+                              : (productForm.product_type === 'food'
+                                  ? 'Opsi Transaksi Pesanan Kuliner'
+                                  : 'Opsi Transaksi WhatsApp (Per Produk)'))}
+                      </h4>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                        Atur jalur komunikasi langsung pelanggan dan sistem rekening bersama syariah:
+                      </span>
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: productForm.product_type === 'property' ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+                      gap: '0.85rem'
+                    }}>
+                      {productForm.product_type !== 'property' && (
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem',
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.65rem',
+                            border: `1px solid ${productForm.enable_wa_rekber !== false ? 'var(--primary)' : 'var(--border-light)'}`,
+                            backgroundColor: productForm.enable_wa_rekber !== false ? 'var(--primary-glow)' : 'var(--bg-card)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={productForm.enable_wa_rekber !== false}
+                            onChange={(e) => setProductForm(p => ({ ...p, enable_wa_rekber: e.target.checked }))}
+                            style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.84rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                              {productForm.product_type === 'service'
+                                ? 'Rekber Syariah (Escrow Jasa)'
+                                : (productForm.product_type === 'food'
+                                    ? 'Rekber Syariah (Kuliner & Katering)'
+                                    : (productForm.product_type === 'digital'
+                                        ? 'Rekber Syariah (Item Digital & Lisensi)'
+                                        : (productForm.product_type === 'plant'
+                                            ? 'Rekber Syariah (Tanaman & Bibit)'
+                                            : (productForm.product_type === 'fauna'
+                                                ? 'Rekber Syariah (Satwa & Garansi Hidup)'
+                                                : 'Chat WA & Rekber Syariah (Barang Fisik)'))))}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.35 }}>
+                              {productForm.product_type === 'service'
+                                ? 'Dana ditahan aman di escrow Rekber Syariah hingga pengerjaan tuntas & diverifikasi klien.'
+                                : productForm.product_type === 'food'
+                                  ? 'Cocok untuk makanan beku, hampers, atau pesanan katering partai besar.'
+                                  : productForm.product_type === 'digital'
+                                    ? 'Proteksi pembayaran aman hingga tautan unduh atau lisensi resmi diterima pembeli.'
+                                    : productForm.product_type === 'plant'
+                                      ? 'Proteksi dana pembeli hingga tanaman hias / bibit tiba dalam kondisi segar & sehat.'
+                                      : productForm.product_type === 'fauna'
+                                        ? 'Proteksi dana pembeli dengan jaminan garansi hidup & kesehatan saat satwa tiba.'
+                                        : 'Dana ditahan aman di rekening bersama hingga barang diterima & dicek pembeli.'}
+                            </span>
+                          </div>
+                        </label>
+                      )}
+
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.75rem',
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.65rem',
+                          border: `1px solid ${productForm.enable_wa_direct !== false ? 'var(--primary)' : 'var(--border-light)'}`,
+                          backgroundColor: productForm.enable_wa_direct !== false ? 'var(--primary-glow)' : 'var(--bg-card)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={productForm.enable_wa_direct !== false}
+                          onChange={(e) => setProductForm(p => ({ ...p, enable_wa_direct: e.target.checked }))}
+                          style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '0.84rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                            {productForm.product_type === 'property'
+                              ? 'Chat WA (Janji Survey & Konsultasi)'
+                              : (productForm.product_type === 'service'
+                                  ? 'Chat WA (Konsultasi Langsung)'
+                                  : (productForm.product_type === 'food'
+                                      ? 'Chat WA (Pesan Antar / Sameday)'
+                                      : 'Chat WA (Transaksi Langsung)'))}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.35 }}>
+                            {productForm.product_type === 'food'
+                              ? 'Pembeli langsung memesan menu via chat WhatsApp untuk pengiriman instan/sameday.'
+                              : 'Izinkan pembeli langsung berkonsultasi via WhatsApp.'}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* WhatsApp CS Channel Selector */}
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
+                          <MessageCircle size={15} style={{ color: 'var(--primary)' }} />
+                          <span>Tujuan Kontak WhatsApp Produk Ini</span>
+                        </label>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                          Bawaan: Kontak Utama Toko
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                        Pilih nomor WhatsApp yang akan menerima pesanan / konsultasi khusus produk ini.
+                      </span>
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <TabletCustomSelect
+                          value={productForm.whatsapp_contact_id || 'default'}
+                          onChange={(val) => setProductForm(p => ({ ...p, whatsapp_contact_id: val }))}
+                          options={[
+                            {
+                              value: 'default',
+                              label: `[Default] Gunakan Kontak Utama Toko (${storefrontWA?.label || 'Utama'} - ${formatPhoneNumber(storefrontWA?.number || storeSettings.whatsapp_number || '-')})`
+                            },
+                            ...storeWAContacts
+                              .filter(c => c.id !== storefrontWA?.id)
+                              .map(c => ({
+                                value: c.id,
+                                label: `${c.label || 'CS Khusus'} (${formatPhoneNumber(c.number)})`
+                              }))
+                          ]}
+                          placeholder="Pilih saluran WhatsApp..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delivery Terms, Warranty / Legal, and Description Textareas */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {typeConfig.warrantyLabel ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
+                        <div>
+                          <RichTextarea
+                            label={typeConfig.deliveryTermsLabel}
+                            rows={3}
+                            placeholder={typeConfig.deliveryTermsPlaceholder}
+                            value={productForm.shipping_terms}
+                            onChange={(val) => setProductForm(p => ({ ...p, shipping_terms: val }))}
+                          />
+                        </div>
+                        <div>
+                          <RichTextarea
+                            label={typeConfig.warrantyLabel}
+                            rows={3}
+                            placeholder={typeConfig.warrantyPlaceholder}
+                            value={productForm.warranty_info}
+                            onChange={(val) => setProductForm(p => ({ ...p, warranty_info: val }))}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <RichTextarea
+                          label={typeConfig.deliveryTermsLabel}
+                          rows={3}
+                          placeholder={typeConfig.deliveryTermsPlaceholder}
+                          value={productForm.shipping_terms}
+                          onChange={(val) => setProductForm(p => ({ ...p, shipping_terms: val }))}
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <RichTextarea
+                        label={typeConfig.descLabel}
+                        rows={5}
+                        placeholder={typeConfig.descPlaceholder}
+                        required={productForm.product_type !== 'food'}
+                        value={productForm.description}
+                        onChange={(val) => setProductForm(p => ({ ...p, description: val }))}
+                        showZenFullscreen={true}
+                      />
+                    </div>
+
+                    {/* Status Publikasi / Arsip Produk */}
+                    <div style={{ padding: '1rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem', fontWeight: 700, marginBottom: '0.65rem', color: 'var(--text-primary)' }}>
+                        <Archive size={14} style={{ color: 'var(--primary)' }} />
+                        <span>Status Publikasi Katalog</span>
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.65rem',
+                            padding: '0.75rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            border: productForm.is_active !== false ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                            backgroundColor: productForm.is_active !== false ? 'var(--primary-glow)' : 'transparent',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="tablet_is_active_status"
+                            checked={productForm.is_active !== false}
+                            onChange={() => setProductForm(p => ({ ...p, is_active: true }))}
+                            style={{ marginTop: '2px' }}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)' }}>Publikasi Aktif</div>
+                            <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Tampil di etalase & dapat dilihat pembeli</div>
+                          </div>
+                        </label>
+
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.65rem',
+                            padding: '0.75rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            border: productForm.is_active === false ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                            backgroundColor: productForm.is_active === false ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="tablet_is_active_status"
+                            checked={productForm.is_active === false}
+                            onChange={() => setProductForm(p => ({ ...p, is_active: false }))}
+                            style={{ marginTop: '2px' }}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#f59e0b' }}>Arsipkan Sementara</div>
+                            <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Sembunyikan dari pembeli (data tetap tersimpan)</div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Submit Footer */}
