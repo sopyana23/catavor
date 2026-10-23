@@ -547,6 +547,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     low_stock_items?: number;
     total_categories?: number;
     total_value?: number;
+    by_type?: Record<string, number>;
+    by_category?: Record<string, number>;
   } | null>(null);
   const [hasEverLoadedProducts, setHasEverLoadedProducts] = useState<boolean>(false);
 
@@ -561,7 +563,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     return count;
   }, [productStatusFilter, productCategoryFilter, productTypeFilter, productSortFilter, productStockFilter]);
 
-  // When catalog has 0 items ever, hide filter bar per user requirement
+  // When catalog has 0 items ever, hide filter bar, metrics, and pagination per user requirement
   const isCatalogCompletelyEmpty = useMemo(() => {
     if (!hasEverLoadedProducts) return false;
     if (catalogMetrics && typeof catalogMetrics.total_items === 'number') {
@@ -573,6 +575,32 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       activeFilterCount === 0
     );
   }, [hasEverLoadedProducts, catalogMetrics, productTotalRecords, productSearch, activeFilterCount]);
+
+  // Distinct catalog types present in the store's inventory
+  const availableCatalogTypes = useMemo(() => {
+    // 1. Check catalogMetrics.by_type
+    if (catalogMetrics?.by_type) {
+      const typesFromMetrics = Object.keys(catalogMetrics.by_type).filter(
+        k => (catalogMetrics.by_type?.[k] || 0) > 0
+      );
+      if (typesFromMetrics.length > 0) return typesFromMetrics;
+    }
+    // 2. Fallback to products array
+    const typesFromProducts = products
+      .map(p => p.product_type || 'physical')
+      .filter(Boolean);
+    return Array.from(new Set(typesFromProducts));
+  }, [catalogMetrics, products]);
+
+  // Hybrid store flag: true only if there are 2 or more distinct catalog types in the items
+  const isHybridStore = availableCatalogTypes.length > 1;
+
+  // Auto-reset productTypeFilter to 'all' if store only has 1 catalog type
+  useEffect(() => {
+    if (!isHybridStore && productTypeFilter !== 'all') {
+      setProductTypeFilter('all');
+    }
+  }, [isHybridStore, productTypeFilter]);
 
   const handleApplyProductFilters = useCallback((filters: TabletProductFilterValues) => {
     setProductStatusFilter(filters.status);
@@ -596,24 +624,35 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // Tag mode switcher for horizontal scrollable filter bar: Format Katalog vs Kategori
   const [filterTagMode, setFilterTagMode] = useState<'types' | 'categories'>('types');
 
+  // Effective tag mode: if not hybrid, always fallback to 'categories'
+  const effectiveFilterTagMode = isHybridStore ? filterTagMode : 'categories';
+
   // Format Katalog tag items with Lucide vector icons, badges, and distinct theme colors
+  // Only populated if isHybridStore is true (more than 1 catalog type exists)
   const catalogTypeTagItems: FilterTagItem[] = useMemo(() => {
+    if (!isHybridStore) return [];
+
+    const availableOptions = CATALOG_TYPE_OPTIONS.filter(opt =>
+      availableCatalogTypes.includes(opt.id)
+    );
+
     return [
       {
         id: 'all',
         label: 'Semua Format',
         count: catalogMetrics?.total_items ?? productTotalRecords
       },
-      ...CATALOG_TYPE_OPTIONS.map((opt) => ({
+      ...availableOptions.map((opt) => ({
         id: opt.id,
         label: opt.name,
         icon: opt.icon,
         color: opt.color,
         bgColor: opt.bgColor,
-        borderColor: opt.borderColor
+        borderColor: opt.borderColor,
+        count: catalogMetrics?.by_type?.[opt.id]
       }))
     ];
-  }, [catalogMetrics?.total_items, productTotalRecords]);
+  }, [isHybridStore, availableCatalogTypes, catalogMetrics?.total_items, catalogMetrics?.by_type, productTotalRecords]);
 
   // Category tag items for the horizontal scrollable track
   const categoryTagItems: FilterTagItem[] = useMemo(() => {
@@ -2040,9 +2079,113 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 1: DAFTAR ITEM KATALOG (Master-Detail Split View)
             =================================================================== */}
         {activeTab === 'items' && (
-          <TabletMasterDetailView
+          isCatalogCompletelyEmpty && selectedProductId !== 'new' ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              width: '100%',
+              backgroundColor: 'var(--bg-deep)',
+              overflowY: 'auto'
+            }}>
+              {/* Clean Top Header Bar */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.5rem',
+                backgroundColor: 'var(--bg-card)',
+                borderBottom: '1px solid var(--border-light)',
+                flexShrink: 0
+              }}>
+                <div>
+                  <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Katalog Produk &amp; Inventaris
+                  </h2>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Kelola seluruh produk, harga, dan inventaris toko Anda
+                  </span>
+                </div>
+              </div>
+
+              {/* Full-Page Centered Executive Empty State */}
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '3rem 1.5rem',
+                textAlign: 'center'
+              }}>
+                <div style={{
+                  maxWidth: '460px',
+                  width: '100%',
+                  padding: '2.5rem 2rem',
+                  borderRadius: '1.25rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '1rem'
+                }}>
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '20px',
+                    backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--primary)',
+                    boxShadow: '0 0 20px rgba(30, 58, 138, 0.12)'
+                  }}>
+                    <Package size={32} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.45rem 0' }}>
+                      Belum Ada Item Terdaftar
+                    </h3>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                      Katalog toko Anda masih kosong. Mulai tambahkan barang fisik, makanan, jasa, tiket, atau file digital pertama Anda.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="btn-tambah-item-pertama"
+                    data-testid="btn-tambah-item-pertama"
+                    onClick={() => handleCancelToProductTypeSelection()}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.65rem 1.5rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: 'pointer',
+                      marginTop: '0.5rem',
+                      boxShadow: '0 2px 10px var(--primary-glow)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Plus size={18} />
+                    <span>+ Tambah Item Pertama</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <TabletMasterDetailView
             title="Katalog Produk & Inventaris"
-            subtitle={`${productTotalRecords} total item`}
+            subtitle={isCatalogCompletelyEmpty ? undefined : `${productTotalRecords} total item`}
             headerAction={
               selectedProductId === 'new' ? (
                 <button
@@ -2115,510 +2258,516 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             }}
             masterPane={
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                {/* Catalog Metrics Pills Summary */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: '0.35rem',
-                  padding: '0.65rem 0.75rem 0.45rem',
-                  backgroundColor: 'var(--bg-deep)',
-                  borderBottom: '1px solid var(--border-light)'
-                }}>
-                  <div
-                    onClick={() => {
-                      setProductStatusFilter('all');
-                      setProductStockFilter('all');
-                      setProductPage(1);
-                    }}
-                    style={{
-                      padding: '0.35rem 0.45rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: productStatusFilter === 'all' && productStockFilter === 'all' ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                      border: productStatusFilter === 'all' && productStockFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                      cursor: 'pointer',
-                      textAlign: 'center'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total</div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      {catalogMetrics?.total_items ?? productTotalRecords}
-                    </div>
-                  </div>
-                  <div
-                    onClick={() => {
-                      setProductStatusFilter('active');
-                      setProductStockFilter('all');
-                      setProductPage(1);
-                    }}
-                    style={{
-                      padding: '0.35rem 0.45rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: productStatusFilter === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-card)',
-                      border: productStatusFilter === 'active' ? '1px solid #10b981' : '1px solid var(--border-light)',
-                      cursor: 'pointer',
-                      textAlign: 'center'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 600 }}>Aktif</div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>
-                      {catalogMetrics?.active_items ?? (products.filter(p => p.is_active !== false).length || '-')}
-                    </div>
-                  </div>
-                  <div
-                    onClick={() => {
-                      setProductStockFilter('low');
-                      setProductPage(1);
-                    }}
-                    style={{
-                      padding: '0.35rem 0.45rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: productStockFilter === 'low' ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg-card)',
-                      border: productStockFilter === 'low' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
-                      cursor: 'pointer',
-                      textAlign: 'center'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600 }}>Menipis</div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b' }}>
-                      {catalogMetrics?.low_stock_items ?? (products.filter(p => (p.stock ?? 1) > 0 && (p.stock ?? 1) <= 5).length || '-')}
-                    </div>
-                  </div>
-                  <div
-                    onClick={() => {
-                      setProductStockFilter('out');
-                      setProductPage(1);
-                    }}
-                    style={{
-                      padding: '0.35rem 0.45rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: productStockFilter === 'out' ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-card)',
-                      border: productStockFilter === 'out' ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                      cursor: 'pointer',
-                      textAlign: 'center'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 600 }}>Habis</div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ef4444' }}>
-                      {catalogMetrics?.out_of_stock_items ?? (products.filter(p => (p.stock ?? 1) === 0).length || '-')}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Search & Tablet Ergonomic Filter Header */}
-                <div style={{
-                  padding: '0.65rem 0.75rem 0.5rem',
-                  borderBottom: '1px solid var(--border-light)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.55rem',
-                  backgroundColor: 'var(--bg-deep)'
-                }}>
-                  {/* Row 1: Search Input */}
+                {/* Catalog Metrics Pills Summary - Hidden if catalog has no items */}
+                {!isCatalogCompletelyEmpty && (
                   <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.45rem 0.75rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-light)',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '0.35rem',
+                    padding: '0.65rem 0.75rem 0.45rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    borderBottom: '1px solid var(--border-light)'
                   }}>
-                    <Search size={16} color="var(--text-muted)" />
-                    <input
-                      type="text"
-                      placeholder="Cari nama, SKU, deskripsi..."
-                      value={productSearch}
-                      onChange={(e) => {
-                        setProductSearch(e.target.value);
+                    <div
+                      onClick={() => {
+                        setProductStatusFilter('all');
+                        setProductStockFilter('all');
                         setProductPage(1);
                       }}
                       style={{
-                        flex: 1,
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.84rem',
-                        outline: 'none'
+                        padding: '0.35rem 0.45rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: productStatusFilter === 'all' && productStockFilter === 'all' ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
+                        border: productStatusFilter === 'all' && productStockFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        textAlign: 'center'
                       }}
-                    />
-                    {productSearch && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProductSearch('');
-                          setProductPage(1);
-                        }}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--text-muted)',
-                          padding: 0,
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <X size={15} />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Row 2: Status Tabs + Prominent Filter & Urutkan Button */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.45rem'
-                  }}>
-                    {/* Status Tabs: Semua / Aktif / Arsip */}
-                    <div style={{
-                      display: 'inline-flex',
-                      padding: '2px',
-                      borderRadius: '0.6rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)'
-                    }}>
-                      {[
-                        { key: 'all', label: 'Semua' },
-                        { key: 'active', label: 'Aktif' },
-                        { key: 'archived', label: 'Arsip' }
-                      ].map(st => {
-                        const isSelected = productStatusFilter === st.key;
-                        return (
-                          <button
-                            key={st.key}
-                            type="button"
-                            onClick={() => {
-                              setProductStatusFilter(st.key as any);
-                              setProductPage(1);
-                            }}
-                            style={{
-                              minHeight: '30px',
-                              padding: '0.2rem 0.65rem',
-                              borderRadius: '0.45rem',
-                              border: 'none',
-                              backgroundColor: isSelected ? 'var(--primary)' : 'transparent',
-                              color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                              fontSize: '0.74rem',
-                              fontWeight: isSelected ? 700 : 500,
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            {st.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Filter & Urutkan Button (Always prominent & accessible) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <button
-                        type="button"
-                        id="btn-open-product-filter"
-                        data-testid="btn-open-product-filter"
-                        onClick={() => setIsProductFilterOpen(true)}
-                        title="Buka panel filter & urutkan lengkap"
-                        style={{
-                          minHeight: '34px',
-                          padding: '0.3rem 0.75rem',
-                          borderRadius: '0.55rem',
-                          border: activeFilterCount > 0 ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
-                          backgroundColor: activeFilterCount > 0 ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                          color: activeFilterCount > 0 ? 'var(--primary)' : 'var(--text-primary)',
-                          fontSize: '0.76rem',
-                          fontWeight: activeFilterCount > 0 ? 800 : 600,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          transition: 'all 0.15s ease',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-                        }}
-                      >
-                        <SlidersHorizontal size={14} />
-                        <span>Filter &amp; Urutkan</span>
-                        {activeFilterCount > 0 && (
-                          <span style={{
-                            backgroundColor: 'var(--primary)',
-                            color: '#fff',
-                            borderRadius: '999px',
-                            padding: '0 5px',
-                            fontSize: '0.65rem',
-                            fontWeight: 800,
-                            lineHeight: '16px'
-                          }}>
-                            {activeFilterCount}
-                          </span>
-                        )}
-                      </button>
-
-                      {activeFilterCount > 0 && (
-                        <button
-                          type="button"
-                          onClick={handleResetAllFilters}
-                          title="Reset semua filter"
-                          aria-label="Reset semua filter"
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '0.5rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-card)',
-                            color: 'var(--text-muted)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <RotateCcw size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Row 3: Horizontal Scrollable Tag/Badge Track (The Core User Request) */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    {/* Tag Mode Switcher: Format Katalog vs Kategori */}
-                    {categories.length > 0 && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0 0.15rem',
-                        fontSize: '0.7rem',
-                        color: 'var(--text-muted)'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span style={{ fontWeight: 600 }}>Tampilkan Tag:</span>
-                          <div style={{ display: 'flex', gap: '0.25rem' }}>
-                            <button
-                              type="button"
-                              onClick={() => setFilterTagMode('types')}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                padding: '0.15rem 0.4rem',
-                                borderRadius: '0.35rem',
-                                fontSize: '0.7rem',
-                                fontWeight: filterTagMode === 'types' ? 700 : 500,
-                                color: filterTagMode === 'types' ? 'var(--primary)' : 'var(--text-muted)',
-                                backgroundColor: filterTagMode === 'types' ? 'rgba(30, 58, 138, 0.08)' : 'transparent',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.2rem'
-                              }}
-                            >
-                              <span>Tipe Format</span>
-                              {productTypeFilter !== 'all' && (
-                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setFilterTagMode('categories')}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                padding: '0.15rem 0.4rem',
-                                borderRadius: '0.35rem',
-                                fontSize: '0.7rem',
-                                fontWeight: filterTagMode === 'categories' ? 700 : 500,
-                                color: filterTagMode === 'categories' ? 'var(--primary)' : 'var(--text-muted)',
-                                backgroundColor: filterTagMode === 'categories' ? 'rgba(30, 58, 138, 0.08)' : 'transparent',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.2rem'
-                              }}
-                            >
-                              <span>Kategori ({categories.length})</span>
-                              {productCategoryFilter !== 'all' && (
-                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        {filterTagMode === 'types' && productTypeFilter !== 'all' && (
-                          <button
-                            type="button"
-                            onClick={() => { setProductTypeFilter('all'); setProductPage(1); }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: 'var(--primary)',
-                              fontSize: '0.68rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              padding: 0
-                            }}
-                          >
-                            Reset Tipe
-                          </button>
-                        )}
-                        {filterTagMode === 'categories' && productCategoryFilter !== 'all' && (
-                          <button
-                            type="button"
-                            onClick={() => { setProductCategoryFilter('all'); setProductPage(1); }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: 'var(--primary)',
-                              fontSize: '0.68rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              padding: 0
-                            }}
-                          >
-                            Reset Kategori
-                          </button>
-                        )}
+                    >
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        {catalogMetrics?.total_items ?? productTotalRecords}
                       </div>
-                    )}
-
-                    {/* Scrollable Badges Track */}
-                    <TabletScrollableFilterTags
-                      items={filterTagMode === 'types' ? catalogTypeTagItems : categoryTagItems}
-                      selectedId={filterTagMode === 'types' ? productTypeFilter : productCategoryFilter}
-                      onSelect={(id) => {
-                        if (filterTagMode === 'types') {
-                          setProductTypeFilter(id);
-                        } else {
-                          setProductCategoryFilter(id);
-                        }
+                    </div>
+                    <div
+                      onClick={() => {
+                        setProductStatusFilter('active');
+                        setProductStockFilter('all');
                         setProductPage(1);
                       }}
-                      ariaLabel={filterTagMode === 'types' ? 'Filter Tipe Format Katalog' : 'Filter Kategori Produk'}
-                      containerBg="var(--bg-deep)"
-                    />
+                      style={{
+                        padding: '0.35rem 0.45rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: productStatusFilter === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-card)',
+                        border: productStatusFilter === 'active' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 600 }}>Aktif</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>
+                        {catalogMetrics?.active_items ?? (products.filter(p => p.is_active !== false).length || '-')}
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setProductStockFilter('low');
+                        setProductPage(1);
+                      }}
+                      style={{
+                        padding: '0.35rem 0.45rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: productStockFilter === 'low' ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg-card)',
+                        border: productStockFilter === 'low' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600 }}>Menipis</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b' }}>
+                        {catalogMetrics?.low_stock_items ?? (products.filter(p => (p.stock ?? 1) > 0 && (p.stock ?? 1) <= 5).length || '-')}
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setProductStockFilter('out');
+                        setProductPage(1);
+                      }}
+                      style={{
+                        padding: '0.35rem 0.45rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: productStockFilter === 'out' ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-card)',
+                        border: productStockFilter === 'out' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 600 }}>Habis</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ef4444' }}>
+                        {catalogMetrics?.out_of_stock_items ?? (products.filter(p => (p.stock ?? 1) === 0).length || '-')}
+                      </div>
+                    </div>
                   </div>
+                )}
 
-                  {/* Row 4: Active Filter Summary Chips (Visible only when filters active) */}
-                  {activeFilterCount > 0 && (
+                {/* Search & Tablet Ergonomic Filter Header - Hidden if catalog has no items */}
+                {!isCatalogCompletelyEmpty && (
+                  <div style={{
+                    padding: '0.65rem 0.75rem 0.5rem',
+                    borderBottom: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.55rem',
+                    backgroundColor: 'var(--bg-deep)'
+                  }}>
+                    {/* Row 1: Search Input */}
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.35rem',
-                      flexWrap: 'wrap',
-                      paddingTop: '0.15rem'
+                      gap: '0.5rem',
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
                     }}>
-                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>Aktif:</span>
-                      
-                      {productTypeFilter !== 'all' && (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem',
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'rgba(30, 58, 138, 0.1)',
-                          color: 'var(--primary)',
-                          fontSize: '0.68rem',
-                          fontWeight: 700
-                        }}>
-                          <span>{CATALOG_TYPE_OPTIONS.find(t => t.id === productTypeFilter)?.name || productTypeFilter}</span>
-                          <button
-                            type="button"
-                            onClick={() => { setProductTypeFilter('all'); setProductPage(1); }}
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
-                          >
-                            <X size={11} />
-                          </button>
-                        </span>
-                      )}
-
-                      {productCategoryFilter !== 'all' && (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem',
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'rgba(30, 58, 138, 0.1)',
-                          color: 'var(--primary)',
-                          fontSize: '0.68rem',
-                          fontWeight: 700
-                        }}>
-                          <span>{categories.find(c => String(c.id) === productCategoryFilter)?.name || productCategoryFilter}</span>
-                          <button
-                            type="button"
-                            onClick={() => { setProductCategoryFilter('all'); setProductPage(1); }}
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
-                          >
-                            <X size={11} />
-                          </button>
-                        </span>
-                      )}
-
-                      {productStockFilter !== 'all' && (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem',
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                          color: '#d97706',
-                          fontSize: '0.68rem',
-                          fontWeight: 700
-                        }}>
-                          <span>{productStockFilter === 'in_stock' ? 'Tersedia' : productStockFilter === 'low' ? 'Menipis' : 'Habis'}</span>
-                          <button
-                            type="button"
-                            onClick={() => { setProductStockFilter('all'); setProductPage(1); }}
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
-                          >
-                            <X size={11} />
-                          </button>
-                        </span>
-                      )}
-
-                      {productSortFilter !== 'newest' && (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem',
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'rgba(100, 116, 139, 0.12)',
-                          color: 'var(--text-secondary)',
-                          fontSize: '0.68rem',
-                          fontWeight: 700
-                        }}>
-                          <span>Urutan: {productSortFilter === 'oldest' ? 'Terlama' : productSortFilter.includes('asc') ? 'A-Z / Rendah' : 'Z-A / Tinggi'}</span>
-                          <button
-                            type="button"
-                            onClick={() => { setProductSortFilter('newest'); setProductPage(1); }}
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
-                          >
-                            <X size={11} />
-                          </button>
-                        </span>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={handleResetAllFilters}
+                      <Search size={16} color="var(--text-muted)" />
+                      <input
+                        type="text"
+                        placeholder="Cari nama, SKU, deskripsi..."
+                        value={productSearch}
+                        onChange={(e) => {
+                          setProductSearch(e.target.value);
+                          setProductPage(1);
+                        }}
                         style={{
+                          flex: 1,
                           background: 'transparent',
                           border: 'none',
-                          color: 'var(--text-muted)',
-                          fontSize: '0.68rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          padding: '0 0.2rem'
+                          color: 'var(--text-primary)',
+                          fontSize: '0.84rem',
+                          outline: 'none'
                         }}
-                      >
-                        Reset
-                      </button>
+                      />
+                      {productSearch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProductSearch('');
+                            setProductPage(1);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: 'var(--text-muted)',
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
                     </div>
-                  )}
-                </div>
+
+                    {/* Row 2: Status Tabs + Prominent Filter & Urutkan Button */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.45rem'
+                    }}>
+                      {/* Status Tabs: Semua / Aktif / Arsip */}
+                      <div style={{
+                        display: 'inline-flex',
+                        padding: '2px',
+                        borderRadius: '0.6rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)'
+                      }}>
+                        {[
+                          { key: 'all', label: 'Semua' },
+                          { key: 'active', label: 'Aktif' },
+                          { key: 'archived', label: 'Arsip' }
+                        ].map(st => {
+                          const isSelected = productStatusFilter === st.key;
+                          return (
+                            <button
+                              key={st.key}
+                              type="button"
+                              onClick={() => {
+                                setProductStatusFilter(st.key as any);
+                                setProductPage(1);
+                              }}
+                              style={{
+                                minHeight: '30px',
+                                padding: '0.2rem 0.65rem',
+                                borderRadius: '0.45rem',
+                                border: 'none',
+                                backgroundColor: isSelected ? 'var(--primary)' : 'transparent',
+                                color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                                fontSize: '0.74rem',
+                                fontWeight: isSelected ? 700 : 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {st.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Filter & Urutkan Button (Always prominent & accessible) */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <button
+                          type="button"
+                          id="btn-open-product-filter"
+                          data-testid="btn-open-product-filter"
+                          onClick={() => setIsProductFilterOpen(true)}
+                          title="Buka panel filter & urutkan lengkap"
+                          style={{
+                            minHeight: '34px',
+                            padding: '0.3rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            border: activeFilterCount > 0 ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                            backgroundColor: activeFilterCount > 0 ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
+                            color: activeFilterCount > 0 ? 'var(--primary)' : 'var(--text-primary)',
+                            fontSize: '0.76rem',
+                            fontWeight: activeFilterCount > 0 ? 800 : 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            transition: 'all 0.15s ease',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                          }}
+                        >
+                          <SlidersHorizontal size={14} />
+                          <span>Filter &amp; Urutkan</span>
+                          {activeFilterCount > 0 && (
+                            <span style={{
+                              backgroundColor: 'var(--primary)',
+                              color: '#fff',
+                              borderRadius: '999px',
+                              padding: '0 5px',
+                              fontSize: '0.65rem',
+                              fontWeight: 800,
+                              lineHeight: '16px'
+                            }}>
+                              {activeFilterCount}
+                            </span>
+                          )}
+                        </button>
+
+                        {activeFilterCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleResetAllFilters}
+                            title="Reset semua filter"
+                            aria-label="Reset semua filter"
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '0.5rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-card)',
+                              color: 'var(--text-muted)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Row 3: Horizontal Scrollable Tag/Badge Track (Only if multiple types exist OR categories exist) */}
+                    {(isHybridStore || categories.length > 0) && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        {/* Tag Mode Switcher: Only displayed when both multiple catalog types exist AND categories exist */}
+                        {isHybridStore && categories.length > 0 && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0 0.15rem',
+                            fontSize: '0.7rem',
+                            color: 'var(--text-muted)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ fontWeight: 600 }}>Tampilkan Tag:</span>
+                              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setFilterTagMode('types')}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '0.15rem 0.4rem',
+                                    borderRadius: '0.35rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: effectiveFilterTagMode === 'types' ? 700 : 500,
+                                    color: effectiveFilterTagMode === 'types' ? 'var(--primary)' : 'var(--text-muted)',
+                                    backgroundColor: effectiveFilterTagMode === 'types' ? 'rgba(30, 58, 138, 0.08)' : 'transparent',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.2rem'
+                                  }}
+                                >
+                                  <span>Tipe Format</span>
+                                  {productTypeFilter !== 'all' && (
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFilterTagMode('categories')}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '0.15rem 0.4rem',
+                                    borderRadius: '0.35rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: effectiveFilterTagMode === 'categories' ? 700 : 500,
+                                    color: effectiveFilterTagMode === 'categories' ? 'var(--primary)' : 'var(--text-muted)',
+                                    backgroundColor: effectiveFilterTagMode === 'categories' ? 'rgba(30, 58, 138, 0.08)' : 'transparent',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.2rem'
+                                  }}
+                                >
+                                  <span>Kategori ({categories.length})</span>
+                                  {productCategoryFilter !== 'all' && (
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            {effectiveFilterTagMode === 'types' && productTypeFilter !== 'all' && (
+                              <button
+                                type="button"
+                                onClick={() => { setProductTypeFilter('all'); setProductPage(1); }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: 'var(--primary)',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  padding: 0
+                                }}
+                              >
+                                Reset Tipe
+                              </button>
+                            )}
+                            {effectiveFilterTagMode === 'categories' && productCategoryFilter !== 'all' && (
+                              <button
+                                type="button"
+                                onClick={() => { setProductCategoryFilter('all'); setProductPage(1); }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: 'var(--primary)',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  padding: 0
+                                }}
+                              >
+                                Reset Kategori
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Scrollable Badges Track: if not hybrid, always displays categoryTagItems */}
+                        <TabletScrollableFilterTags
+                          items={effectiveFilterTagMode === 'types' ? catalogTypeTagItems : categoryTagItems}
+                          selectedId={effectiveFilterTagMode === 'types' ? productTypeFilter : productCategoryFilter}
+                          onSelect={(id) => {
+                            if (effectiveFilterTagMode === 'types') {
+                              setProductTypeFilter(id);
+                            } else {
+                              setProductCategoryFilter(id);
+                            }
+                            setProductPage(1);
+                          }}
+                          ariaLabel={effectiveFilterTagMode === 'types' ? 'Filter Tipe Format Katalog' : 'Filter Kategori Produk'}
+                          containerBg="var(--bg-deep)"
+                        />
+                      </div>
+                    )}
+
+                    {/* Row 4: Active Filter Summary Chips (Visible only when filters active) */}
+                    {activeFilterCount > 0 && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        flexWrap: 'wrap',
+                        paddingTop: '0.15rem'
+                      }}>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>Aktif:</span>
+                        
+                        {productTypeFilter !== 'all' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                            color: 'var(--primary)',
+                            fontSize: '0.68rem',
+                            fontWeight: 700
+                          }}>
+                            <span>{CATALOG_TYPE_OPTIONS.find(t => t.id === productTypeFilter)?.name || productTypeFilter}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setProductTypeFilter('all'); setProductPage(1); }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        )}
+
+                        {productCategoryFilter !== 'all' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                            color: 'var(--primary)',
+                            fontSize: '0.68rem',
+                            fontWeight: 700
+                          }}>
+                            <span>{categories.find(c => String(c.id) === productCategoryFilter)?.name || productCategoryFilter}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setProductCategoryFilter('all'); setProductPage(1); }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        )}
+
+                        {productStockFilter !== 'all' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                            color: '#d97706',
+                            fontSize: '0.68rem',
+                            fontWeight: 700
+                          }}>
+                            <span>{productStockFilter === 'in_stock' ? 'Tersedia' : productStockFilter === 'low' ? 'Menipis' : 'Habis'}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setProductStockFilter('all'); setProductPage(1); }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        )}
+
+                        {productSortFilter !== 'newest' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(100, 116, 139, 0.12)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.68rem',
+                            fontWeight: 700
+                          }}>
+                            <span>Urutan: {productSortFilter === 'oldest' ? 'Terlama' : productSortFilter.includes('asc') ? 'A-Z / Rendah' : 'Z-A / Tinggi'}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setProductSortFilter('newest'); setProductPage(1); }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={handleResetAllFilters}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.68rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: '0 0.2rem'
+                          }}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Items List */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
@@ -2626,9 +2775,85 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
                       Memuat daftar produk...
                     </div>
+                  ) : isCatalogCompletelyEmpty ? (
+                    /* Clean Empty State aligned with Mobile & Desktop */
+                    <div style={{
+                      padding: '3rem 1.5rem',
+                      textAlign: 'center',
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: '100%',
+                      minHeight: '260px'
+                    }}>
+                      <div style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '16px',
+                        backgroundColor: 'rgba(30, 58, 138, 0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: '1rem',
+                        color: 'var(--primary)'
+                      }}>
+                        <Package size={28} />
+                      </div>
+                      <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        Belum Ada Item Terdaftar
+                      </h3>
+                      <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '280px', lineHeight: 1.4 }}>
+                        Mulai tambahkan barang, menu, jasa, atau file digital pertama Anda.
+                      </p>
+                      <button
+                        type="button"
+                        id="btn-tambah-item-pertama"
+                        data-testid="btn-tambah-item-pertama"
+                        onClick={() => handleCancelToProductTypeSelection()}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.35rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px var(--primary-glow)'
+                        }}
+                      >
+                        <Plus size={16} />
+                        <span>+ Tambah Item Pertama</span>
+                      </button>
+                    </div>
                   ) : products.length === 0 ? (
-                    <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                      Belum ada produk dalam katalog ini
+                    <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                      <Search size={32} style={{ marginBottom: '0.5rem', color: 'var(--text-muted)', opacity: 0.5 }} />
+                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Item Tidak Ditemukan</div>
+                      <div style={{ fontSize: '0.8rem' }}>Tidak ada item yang sesuai dengan kata kunci atau filter yang Anda pilih.</div>
+                      <button
+                        type="button"
+                        onClick={handleResetAllFilters}
+                        style={{
+                          marginTop: '0.75rem',
+                          padding: '0.4rem 0.85rem',
+                          borderRadius: '0.5rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-card)',
+                          color: 'var(--primary)',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Reset Filter
+                      </button>
                     </div>
                   ) : (
                     products.map(prod => {
@@ -2728,24 +2953,26 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   )}
                 </div>
 
-                {/* Tablet Segmented Pager */}
-                <TabletSegmentedPagination
-                  currentPage={productPage}
-                  totalPages={productTotalPages}
-                  totalRecords={productTotalRecords}
-                  onPageChange={(p) =>
-                    fetchProducts(
-                      p,
-                      debouncedProductSearch,
-                      productStatusFilter,
-                      productCategoryFilter,
-                      productTypeFilter,
-                      productSortFilter,
-                      productStockFilter
-                    )
-                  }
-                  isLoading={loading}
-                />
+                {/* Tablet Segmented Pager - Hidden if no items or only 1 page */}
+                {!isCatalogCompletelyEmpty && productTotalPages > 1 && products.length > 0 && (
+                  <TabletSegmentedPagination
+                    currentPage={productPage}
+                    totalPages={productTotalPages}
+                    totalRecords={productTotalRecords}
+                    onPageChange={(p) =>
+                      fetchProducts(
+                        p,
+                        debouncedProductSearch,
+                        productStatusFilter,
+                        productCategoryFilter,
+                        productTypeFilter,
+                        productSortFilter,
+                        productStockFilter
+                      )
+                    }
+                    isLoading={loading}
+                  />
+                )}
               </div>
             }
             detailPane={
@@ -4679,6 +4906,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               );
             })() : null}
           />
+          )
         )}
 
         {/* ===================================================================
@@ -6777,6 +7005,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         stockStatus={productStockFilter === 'low' || productStockFilter === 'out' ? 'all' : (productStockFilter as 'all' | 'in_stock' | 'out_of_stock')}
         categories={categories}
         catalogMetrics={catalogMetrics || undefined}
+        isHybridStore={isHybridStore}
+        availableProductTypes={availableCatalogTypes}
         onApply={handleApplyProductFilters}
         onReset={handleResetAllFilters}
       />

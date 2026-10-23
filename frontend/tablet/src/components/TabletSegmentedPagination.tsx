@@ -17,7 +17,7 @@ export const TabletSegmentedPagination: React.FC<TabletSegmentedPaginationProps>
   onPageChange,
   isLoading = false
 }) => {
-  if (totalPages <= 1 && !totalRecords) return null;
+  if (totalPages <= 1 || (typeof totalRecords === 'number' && totalRecords === 0)) return null;
 
   return (
     <div style={{

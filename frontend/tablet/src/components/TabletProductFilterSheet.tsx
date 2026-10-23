@@ -24,6 +24,8 @@ export interface TabletProductFilterSheetProps {
     active_items?: number;
     archived_items?: number;
   };
+  isHybridStore?: boolean;
+  availableProductTypes?: string[];
   onApply: (filters: TabletProductFilterValues) => void;
   onReset: () => void;
 }
@@ -38,6 +40,8 @@ export const TabletProductFilterSheet: React.FC<TabletProductFilterSheetProps> =
   stockStatus,
   categories,
   catalogMetrics,
+  isHybridStore = true,
+  availableProductTypes,
   onApply,
   onReset
 }) => {
@@ -303,67 +307,71 @@ export const TabletProductFilterSheet: React.FC<TabletProductFilterSheetProps> =
             </div>
           </div>
 
-          {/* SECTION 3: TIPE PRODUK */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.55rem' }}>
-              <Layers size={15} color="var(--primary)" />
-              <span
-                style={{
-                  fontSize: '0.78rem',
-                  fontWeight: 800,
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em'
-                }}
-              >
-                Tipe Item Produk
-              </span>
+          {/* SECTION 3: TIPE PRODUK (Hidden if only 1 catalog type exists) */}
+          {isHybridStore && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.55rem' }}>
+                <Layers size={15} color="var(--primary)" />
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  Tipe Item Produk
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                {[
+                  { key: 'all', label: 'Semua Tipe' },
+                  { key: 'physical', label: 'Barang Fisik' },
+                  { key: 'food', label: 'Kuliner' },
+                  { key: 'service', label: 'Jasa' },
+                  { key: 'digital', label: 'Digital' },
+                  { key: 'property', label: 'Properti' },
+                  { key: 'plant', label: 'Tanaman' },
+                  { key: 'animal', label: 'Hewan' }
+                ]
+                  .filter((opt) => opt.key === 'all' || !availableProductTypes || availableProductTypes.length === 0 || availableProductTypes.includes(opt.key))
+                  .map((opt) => {
+                    const isSelected = tempProductType === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setTempProductType(opt.key)}
+                        style={{
+                          padding: '0.55rem 0.75rem',
+                          borderRadius: '0.65rem',
+                          fontSize: '0.82rem',
+                          fontWeight: isSelected ? 800 : 500,
+                          minHeight: '44px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          textAlign: 'left',
+                          border: isSelected
+                            ? '1.5px solid var(--primary)'
+                            : '1px solid var(--border-light)',
+                          backgroundColor: isSelected
+                            ? 'var(--primary-glow)'
+                            : 'var(--bg-deep)',
+                          color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <span>{opt.label}</span>
+                        {isSelected && <Check size={15} strokeWidth={3} color="var(--primary)" />}
+                      </button>
+                    );
+                  })}
+              </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-              {[
-                { key: 'all', label: 'Semua Tipe' },
-                { key: 'physical', label: 'Barang Fisik' },
-                { key: 'food', label: 'Kuliner' },
-                { key: 'service', label: 'Jasa' },
-                { key: 'digital', label: 'Digital' },
-                { key: 'property', label: 'Properti' },
-                { key: 'plant', label: 'Tanaman' },
-                { key: 'animal', label: 'Hewan' }
-              ].map((opt) => {
-                const isSelected = tempProductType === opt.key;
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setTempProductType(opt.key)}
-                    style={{
-                      padding: '0.55rem 0.75rem',
-                      borderRadius: '0.65rem',
-                      fontSize: '0.82rem',
-                      fontWeight: isSelected ? 800 : 500,
-                      minHeight: '44px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      textAlign: 'left',
-                      border: isSelected
-                        ? '1.5px solid var(--primary)'
-                        : '1px solid var(--border-light)',
-                      backgroundColor: isSelected
-                        ? 'var(--primary-glow)'
-                        : 'var(--bg-deep)',
-                      color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <span>{opt.label}</span>
-                    {isSelected && <Check size={15} strokeWidth={3} color="var(--primary)" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          )}
 
           {/* SECTION 4: KETERSEDIAAN STOK */}
           <div>
