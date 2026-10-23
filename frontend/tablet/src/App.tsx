@@ -13,6 +13,7 @@ import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
 import { type UserRBACInfo, isPlatformAdmin } from './utils/rbac';
 import { isTokenExpired } from './utils/auth';
+import { smartBack } from './utils/navigation';
 
 export const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('catavor_token') || localStorage.getItem('token') || '');
@@ -407,7 +408,7 @@ export const App: React.FC = () => {
     return (
       <TabletStoreCatalog
         slug={activeSlug}
-        onBackToExplore={() => navigateTo('/')}
+        onBackToExplore={() => smartBack('/')}
       />
     );
   }
@@ -504,7 +505,7 @@ export const App: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => navigateTo('/')}
+                onClick={() => smartBack('/')}
                 style={{
                   minHeight: '38px',
                   background: 'transparent',
@@ -711,7 +712,7 @@ export const App: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => navigateTo('/')}
+              onClick={() => smartBack('/')}
               style={{
                 minHeight: '40px',
                 background: 'transparent',
@@ -1136,7 +1137,7 @@ export const App: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => navigateTo('/')}
+              onClick={() => smartBack('/')}
               style={{
                 minHeight: '40px',
                 background: 'transparent',

@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, MessageCircle, Share2, ShieldCheck, Check, Package, Tag, Clock } from 'lucide-react';
 import { FormattedText } from './RichTextarea';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface TabletProductDetailSheetProps {
   product: any | null;
@@ -13,6 +14,12 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
   store,
   onClose
 }) => {
+  useModalBackHandler({
+    isOpen: Boolean(product),
+    onClose,
+    modalId: 'tablet-product-detail'
+  });
+
   if (!product) return null;
 
   const handleOrderWhatsApp = () => {

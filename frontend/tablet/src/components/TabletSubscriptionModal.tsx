@@ -19,6 +19,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { createAuthFetch } from '../utils/auth';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface SubscriptionPlanData {
   id: number;
@@ -82,6 +83,12 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   onLogout,
   onUnauthorized
 }) => {
+  useModalBackHandler({
+    isOpen,
+    onClose,
+    modalId: 'tablet-subscription-modal'
+  });
+
   // Centralized authenticated fetch with automatic 401/403 session eviction
   const fetch = useMemo(() => {
     return createAuthFetch({

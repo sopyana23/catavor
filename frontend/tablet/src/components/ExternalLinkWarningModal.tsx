@@ -10,6 +10,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { cleanDomainString, addUserTrustedDomain } from '../utils/urlSecurity';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface ExternalLinkWarningModalProps {
   url: string | null;
@@ -25,6 +26,12 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
   onProceed,
   theme
 }) => {
+  useModalBackHandler({
+    isOpen: Boolean(url),
+    onClose,
+    modalId: 'tablet-external-link-warning'
+  });
+
   const [dontRemind, setDontRemind] = useState(false);
   const [copied, setCopied] = useState(false);
 

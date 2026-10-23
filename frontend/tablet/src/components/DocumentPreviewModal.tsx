@@ -21,6 +21,8 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 // Configure PDF.js worker with bundled local asset
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
+import { useModalBackHandler } from '../utils/navigation';
+
 export interface DocumentPreviewData {
   isOpen: boolean;
   id?: number | string;
@@ -271,6 +273,12 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
   onCloseRef.current = onClose;
 
   const isOpen = Boolean(doc?.isOpen);
+
+  useModalBackHandler({
+    isOpen,
+    onClose,
+    modalId: 'tablet-document-preview'
+  });
   const docId = doc?.id;
   const fileUrl = doc?.fileUrl || doc?.url;
   const fileName = doc?.fileName;

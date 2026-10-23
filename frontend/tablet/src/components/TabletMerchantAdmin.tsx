@@ -253,7 +253,52 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   }, [onThemeChange]);
   const appliedThemeRef = useRef<string>('');
 
-  const [activeTab, setActiveTab] = useState<TabletMerchantTab>('items');
+  const [activeTab, setActiveTabState] = useState<TabletMerchantTab>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') as TabletMerchantTab;
+      const validTabs: TabletMerchantTab[] = [
+        'items', 'categories', 'analytics', 'subscription', 'settings',
+        'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
+      ];
+      if (tabParam && validTabs.includes(tabParam)) {
+        return tabParam;
+      }
+    }
+    return 'items';
+  });
+
+  const setActiveTab = useCallback((tab: TabletMerchantTab) => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      url.searchParams.delete('action');
+      url.searchParams.delete('type');
+      url.searchParams.delete('catalog_type');
+      window.history.pushState({ tab }, '', url.toString());
+    }
+  }, []);
+
+  // Sync activeTab when user navigates using browser back / forward
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') as TabletMerchantTab;
+      const validTabs: TabletMerchantTab[] = [
+        'items', 'categories', 'analytics', 'subscription', 'settings',
+        'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
+      ];
+      if (tabParam && validTabs.includes(tabParam)) {
+        setActiveTabState(tabParam);
+      } else {
+        setActiveTabState('items');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [isNavExpanded, setIsNavExpanded] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -512,22 +557,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Back Interceptor for Tablet Mini Sub-views (Rule 1 & Rule 2)
-  useModalBackHandler({
-    isOpen: isNarrowScreen && selectedProductId !== null,
-    onClose: () => {
-      setSelectedProductId(null);
-      setIsSelectingProductType(false);
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('action');
-        url.searchParams.delete('type');
-        url.searchParams.delete('catalog_type');
-        window.history.pushState({}, '', url.toString());
-      } catch {}
-    },
-    modalId: 'tablet_item_detail'
-  });
+  // Narrow screen and single-pane back interceptions are managed natively by TabletMasterDetailView
 
   const [productSearch, setProductSearch] = useState<string>('');
   const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'archived'>('all');

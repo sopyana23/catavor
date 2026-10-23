@@ -155,9 +155,25 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', newView);
-      window.history.pushState({}, '', url.toString());
+      window.history.pushState({ tab: newView }, '', url.toString());
     }
   };
+
+  // Sync activeView when user navigates using browser back / forward
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab') || params.get('view');
+      if (tab) {
+        setActiveView(tab);
+      } else {
+        setActiveView('dashboard');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Header Title metadata
   const viewMetadata = useMemo(() => {
