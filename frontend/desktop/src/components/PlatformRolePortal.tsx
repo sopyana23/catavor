@@ -1165,6 +1165,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [ticketsLoadingMore, setTicketsLoadingMore] = useState(false);
   const [debouncedTicketSearch, setDebouncedTicketSearch] = useState('');
+  const [ticketsJumpPage, setTicketsJumpPage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Bottom Sheet Filter Modal States for Mobile Helpdesk
@@ -1944,7 +1945,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   // Dedicated Server-Side Support Tickets Fetcher
-  const fetchTickets = async (pageToFetch = 1, append = false) => {
+  const fetchTickets = async (pageToFetch = 1, append = false, customLimit?: number) => {
     if (!token || !canAccessSupport) return;
     if (append) {
       setTicketsLoadingMore(true);
@@ -1952,9 +1953,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setTicketsLoading(true);
     }
     try {
+      const effLimit = customLimit || ticketsPagination.limit || 20;
       const params = new URLSearchParams();
       params.set('page', String(pageToFetch));
-      params.set('limit', '20');
+      params.set('limit', String(effLimit));
       if (ticketsFilter !== 'all' && ticketsFilter !== 'unread') params.set('status', ticketsFilter);
       if (ticketCategoryFilter !== 'all') params.set('category', ticketCategoryFilter);
       if (ticketPriorityFilter !== 'all') params.set('priority', ticketPriorityFilter);
@@ -2060,7 +2062,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           setTicketsMetrics(json.metrics);
         }
         if (json.pagination) {
-          setTicketsPagination(json.pagination);
+          setTicketsPagination({
+            ...json.pagination,
+            limit: effLimit
+          });
         }
       }
     } catch (e) {
@@ -6659,7 +6664,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ----------------------------------------------------------------------- */
           /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
           /* ----------------------------------------------------------------------- */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingBottom: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingBottom: '140px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
             {/* Agent Collision Warning Banner (Fase 5) */}
             {activePresences.filter((p: any) => p.user_id !== currentUser?.id).length > 0 && (
               <div style={{
@@ -7450,16 +7455,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <div style={{
                 position: 'fixed',
                 bottom: 0,
-                left: 0,
-                right: 0,
-                padding: '0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px)) 1rem',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                maxWidth: '1440px',
+                width: '100%',
+                padding: '0.85rem 1.25rem calc(0.85rem + env(safe-area-inset-bottom, 0px)) 1.25rem',
                 backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
                 backdropFilter: 'blur(24px)',
                 WebkitBackdropFilter: 'blur(24px)',
                 borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                borderLeft: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                borderRight: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
                 zIndex: 9990,
                 boxShadow: isDark ? '0 -8px 30px rgba(0,0,0,0.5)' : '0 -6px 20px rgba(0,0,0,0.06)',
-                textAlign: 'center'
+                textAlign: 'center',
+                boxSizing: 'border-box'
               }}>
                 <div style={{
                   padding: '0.65rem 0.85rem',
@@ -7482,13 +7492,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <div style={{
                 position: 'fixed',
                 bottom: 0,
-                left: 0,
-                right: 0,
-                padding: '0.65rem 0.85rem calc(0.65rem + env(safe-area-inset-bottom, 0px)) 0.85rem',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                maxWidth: '1440px',
+                width: '100%',
+                padding: '0.65rem 1.25rem calc(0.65rem + env(safe-area-inset-bottom, 0px)) 1.25rem',
                 backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
                 backdropFilter: 'blur(24px)',
                 WebkitBackdropFilter: 'blur(24px)',
                 borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                borderLeft: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                borderRight: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
                 zIndex: 9990,
                 display: 'flex',
                 flexDirection: 'column',
@@ -7804,7 +7818,47 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ----------------------------------------------------------------------- */
           /* 4B. SUPPORT TICKET QUEUE LIST                                            */
           /* ----------------------------------------------------------------------- */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+            {/* Quick Metrics Bar for Support Tickets */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.55rem' }}>
+              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Total Tiket</span>
+                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: theme.textPrimary }}>
+                  {totalTicketsCount}
+                </span>
+              </div>
+              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.66rem', color: '#ef4444', fontWeight: 700 }}>Perlu Respon</span>
+                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ef4444' }}>
+                  {actionRequiredTicketsCount}
+                </span>
+              </div>
+              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Diproses</span>
+                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f59e0b' }}>
+                  {inProgressTicketsCount}
+                </span>
+              </div>
+              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Tunggu Merchant</span>
+                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isDark ? '#c084fc' : '#9333ea' }}>
+                  {waitingUserTicketsCount}
+                </span>
+              </div>
+              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Tiket Urgent</span>
+                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ef4444' }}>
+                  {urgentTicketsCount}
+                </span>
+              </div>
+              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Terselesaikan</span>
+                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#10b981' }}>
+                  {resolvedTicketsCount}
+                </span>
+              </div>
+            </div>
+
             {/* 1. Instant Search Bar */}
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
@@ -8453,46 +8507,271 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   );
                 })}
 
-                {/* Load More Button for Server-Side Paginated Feed */}
-                {ticketsPagination.has_more && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', marginTop: '0.4rem', marginBottom: '1.25rem' }}>
-                    <button
-                      type="button"
-                      disabled={ticketsLoadingMore}
-                      onClick={handleLoadMoreTickets}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: theme.surface,
-                        border: `1.5px dashed ${isDark ? 'rgba(56, 189, 248, 0.4)' : 'rgba(2, 132, 199, 0.4)'}`,
-                        color: isDark ? '#38bdf8' : '#0284c7',
-                        fontSize: '0.8rem',
-                        fontWeight: 800,
-                        cursor: ticketsLoadingMore ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.45rem',
-                        boxShadow: theme.cardShadow,
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {ticketsLoadingMore ? (
-                        <>
-                          <RefreshCw size={15} className="animate-spin" />
-                          <span>Memuat Tiket Berikutnya...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown size={15} />
-                          <span>Muat Lebih Banyak Tiket ({tickets.length} dari {ticketsPagination.total_items})</span>
-                        </>
-                      )}
-                    </button>
-                    <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                      Menampilkan {tickets.length} dari {ticketsPagination.total_items} tiket
-                    </span>
+                {/* Enterprise Comprehensive Data Table Pagination Bar */}
+                {ticketsPagination.total_items > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '0.75rem',
+                      padding: '0.85rem 1.15rem',
+                      borderRadius: '0.95rem',
+                      backgroundColor: theme.surface,
+                      border: `1px solid ${theme.border}`,
+                      boxShadow: theme.cardShadow,
+                      marginTop: '0.45rem',
+                      marginBottom: '1.25rem'
+                    }}
+                  >
+                    {/* Left: Rows Per Page Selector & Record Count Summary */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Tampilkan:</span>
+                        <select
+                          value={ticketsPagination.limit}
+                          onChange={(e) => {
+                            const newLimit = parseInt(e.target.value, 10);
+                            fetchTickets(1, false, newLimit);
+                          }}
+                          style={{
+                            padding: '0.28rem 0.55rem',
+                            borderRadius: '0.45rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                            color: theme.textPrimary,
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
+                        <span style={{ fontSize: '0.74rem', color: theme.textMuted }}>tiket/hal</span>
+                      </div>
+
+                      <div style={{ width: '1px', height: '18px', backgroundColor: theme.border }} />
+
+                      <span style={{ fontSize: '0.74rem', color: theme.textSecondary, fontWeight: 600 }}>
+                        Menampilkan{' '}
+                        <strong style={{ color: theme.textPrimary }}>
+                          {ticketsPagination.total_items === 0 ? 0 : (ticketsPagination.page - 1) * ticketsPagination.limit + 1}
+                        </strong>
+                        {' '}&ndash;{' '}
+                        <strong style={{ color: theme.textPrimary }}>
+                          {Math.min(ticketsPagination.page * ticketsPagination.limit, ticketsPagination.total_items)}
+                        </strong>
+                        {' '}dari{' '}
+                        <strong style={{ color: theme.textPrimary }}>{ticketsPagination.total_items}</strong> tiket
+                      </span>
+                    </div>
+
+                    {/* Right: Page Navigation Buttons with Numbers and Quick Jump */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      {/* First Page */}
+                      <button
+                        type="button"
+                        title="Halaman Pertama"
+                        disabled={ticketsPagination.page <= 1}
+                        onClick={() => fetchTickets(1, false, ticketsPagination.limit)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '0.5rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: theme.surface,
+                          color: ticketsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
+                          cursor: ticketsPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: ticketsPagination.page <= 1 ? 0.4 : 1
+                        }}
+                      >
+                        <ChevronsLeft size={15} />
+                      </button>
+
+                      {/* Prev Page */}
+                      <button
+                        type="button"
+                        title="Halaman Sebelumnya"
+                        disabled={ticketsPagination.page <= 1}
+                        onClick={() => fetchTickets(ticketsPagination.page - 1, false, ticketsPagination.limit)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '0.5rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: theme.surface,
+                          color: ticketsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
+                          cursor: ticketsPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: ticketsPagination.page <= 1 ? 0.4 : 1
+                        }}
+                      >
+                        <ChevronLeft size={15} />
+                      </button>
+
+                      {/* Numbered Page Buttons with Ellipsis */}
+                      {(() => {
+                        const totalP = Math.max(1, ticketsPagination.total_pages || 1);
+                        const curP = ticketsPagination.page;
+                        const pages: (number | string)[] = [];
+
+                        if (totalP <= 7) {
+                          for (let i = 1; i <= totalP; i++) pages.push(i);
+                        } else {
+                          pages.push(1);
+                          if (curP > 3) pages.push('...');
+                          const start = Math.max(2, curP - 1);
+                          const end = Math.min(totalP - 1, curP + 1);
+                          for (let i = start; i <= end; i++) pages.push(i);
+                          if (curP < totalP - 2) pages.push('...');
+                          pages.push(totalP);
+                        }
+
+                        return pages.map((p, idx) => {
+                          if (p === '...') {
+                            return (
+                              <span key={`dots-${idx}`} style={{ padding: '0 0.25rem', color: theme.textMuted, fontSize: '0.78rem' }}>
+                                &hellip;
+                              </span>
+                            );
+                          }
+                          const pageNum = p as number;
+                          const isAct = pageNum === curP;
+                          return (
+                            <button
+                              key={`p-${pageNum}`}
+                              type="button"
+                              onClick={() => fetchTickets(pageNum, false, ticketsPagination.limit)}
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '0.5rem',
+                                border: isAct ? '1.5px solid var(--primary)' : `1px solid ${theme.border}`,
+                                backgroundColor: isAct ? 'var(--primary)' : theme.surface,
+                                color: isAct ? '#ffffff' : theme.textPrimary,
+                                fontSize: '0.76rem',
+                                fontWeight: isAct ? 800 : 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        });
+                      })()}
+
+                      {/* Next Page */}
+                      <button
+                        type="button"
+                        title="Halaman Selanjutnya"
+                        disabled={ticketsPagination.page >= ticketsPagination.total_pages}
+                        onClick={() => fetchTickets(ticketsPagination.page + 1, false, ticketsPagination.limit)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '0.5rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: theme.surface,
+                          color: ticketsPagination.page >= ticketsPagination.total_pages ? theme.textMuted : theme.textPrimary,
+                          cursor: ticketsPagination.page >= ticketsPagination.total_pages ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: ticketsPagination.page >= ticketsPagination.total_pages ? 0.4 : 1
+                        }}
+                      >
+                        <ChevronRight size={15} />
+                      </button>
+
+                      {/* Last Page */}
+                      <button
+                        type="button"
+                        title="Halaman Terakhir"
+                        disabled={ticketsPagination.page >= ticketsPagination.total_pages}
+                        onClick={() => fetchTickets(ticketsPagination.total_pages, false, ticketsPagination.limit)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '0.5rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: theme.surface,
+                          color: ticketsPagination.page >= ticketsPagination.total_pages ? theme.textMuted : theme.textPrimary,
+                          cursor: ticketsPagination.page >= ticketsPagination.total_pages ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: ticketsPagination.page >= ticketsPagination.total_pages ? 0.4 : 1
+                        }}
+                      >
+                        <ChevronsRight size={15} />
+                      </button>
+
+                      {/* Quick Jump Input */}
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const p = parseInt(ticketsJumpPage, 10);
+                          if (!isNaN(p) && p >= 1 && p <= (ticketsPagination.total_pages || 1)) {
+                            fetchTickets(p, false, ticketsPagination.limit);
+                            setTicketsJumpPage('');
+                          }
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.4rem' }}
+                      >
+                        <input
+                          type="number"
+                          min={1}
+                          max={ticketsPagination.total_pages || 1}
+                          placeholder="Hal"
+                          value={ticketsJumpPage}
+                          onChange={(e) => setTicketsJumpPage(e.target.value)}
+                          style={{
+                            width: '48px',
+                            height: '32px',
+                            padding: '0 0.35rem',
+                            borderRadius: '0.45rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                            color: theme.textPrimary,
+                            fontSize: '0.74rem',
+                            textAlign: 'center',
+                            outline: 'none'
+                          }}
+                        />
+                        <button
+                          type="submit"
+                          disabled={!ticketsJumpPage}
+                          style={{
+                            height: '32px',
+                            padding: '0 0.65rem',
+                            borderRadius: '0.45rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: theme.surface,
+                            color: !ticketsJumpPage ? theme.textMuted : theme.textPrimary,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: !ticketsJumpPage ? 'not-allowed' : 'pointer',
+                            opacity: !ticketsJumpPage ? 0.5 : 1
+                          }}
+                        >
+                          Lompat
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 )}
               </>
@@ -15184,7 +15463,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
-      {/* 5. STANDARD MOBILE BOTTOM SHEET MODAL: STATUS PENGERJAAN TIKET */}
+      {/* 5. DESKTOP CENTERED MODAL: STATUS PENGERJAAN TIKET */}
       {showFooterStatusMenu && selectedTicket && (
         <div
           style={{
@@ -15195,81 +15474,42 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',
             display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
             animation: 'fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
           onClick={() => {
             setShowFooterStatusMenu(false);
-            setStatusSheetDragY(0);
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              transform: `translateY(${Math.max(0, statusSheetDragY)}px)`,
-              transition: isStatusSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-              maxHeight: '82vh',
+              maxHeight: '85vh',
+              maxWidth: '520px',
               display: 'flex',
               flexDirection: 'column',
-              padding: '0.65rem 0 0 0',
               backgroundColor: theme.surface,
-              borderTop: `1px solid ${theme.borderStrong}`,
-              borderTopLeftRadius: '1.6rem',
-              borderTopRightRadius: '1.6rem',
-              boxShadow: isDark ? '0 -12px 48px rgba(0, 0, 0, 0.6)' : '0 -10px 35px rgba(0, 0, 0, 0.12)',
+              borderRadius: '1.25rem',
+              border: `1px solid ${theme.borderStrong}`,
+              boxShadow: isDark ? '0 16px 48px rgba(0, 0, 0, 0.6)' : '0 12px 35px rgba(0, 0, 0, 0.12)',
               color: theme.textPrimary,
               boxSizing: 'border-box',
               width: '100%',
               overflow: 'hidden'
             }}
           >
-            {/* Smooth Drag Handle Area (Touch & Mouse Drag to Dismiss) */}
+            {/* Header */}
             <div
               style={{
-                width: '100%',
-                display: 'flex',
-                justifyContent: 'center',
-                padding: '0.35rem 0 0.75rem',
-                flexShrink: 0,
-                cursor: isStatusSheetDragging ? 'grabbing' : 'grab',
-                touchAction: 'none',
-                userSelect: 'none'
-              }}
-              onTouchStart={(e) => handleStatusSheetDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleStatusSheetDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleStatusSheetDragEnd}
-              onMouseDown={(e) => handleStatusSheetDragStart(e.clientY)}
-              onMouseMove={(e) => handleStatusSheetDragMove(e.clientY)}
-              onMouseUp={handleStatusSheetDragEnd}
-            >
-              <div style={{
-                width: '44px',
-                height: '5px',
-                borderRadius: '999px',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.18)'
-              }} />
-            </div>
-
-            {/* Header (Clean, draggable, WITHOUT X icon, matching platform standard) */}
-            <div
-              style={{
-                padding: '0.15rem 1.25rem 0.85rem',
+                padding: '1.15rem 1.35rem 0.95rem',
                 borderBottom: `1px solid ${theme.border}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                flexShrink: 0,
-                cursor: isStatusSheetDragging ? 'grabbing' : 'grab',
-                touchAction: 'none',
-                userSelect: 'none'
+                flexShrink: 0
               }}
-              onTouchStart={(e) => handleStatusSheetDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleStatusSheetDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleStatusSheetDragEnd}
-              onMouseDown={(e) => handleStatusSheetDragStart(e.clientY)}
-              onMouseMove={(e) => handleStatusSheetDragMove(e.clientY)}
-              onMouseUp={handleStatusSheetDragEnd}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -15288,6 +15528,24 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   Pilih status terbaru untuk tiket #{selectedTicket.ticket_number || selectedTicket.id}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowFooterStatusMenu(false)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '0.5rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.cardAlt,
+                  color: theme.textSecondary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
             </div>
 
             {/* Scrollable Body: Standard Selection List */}

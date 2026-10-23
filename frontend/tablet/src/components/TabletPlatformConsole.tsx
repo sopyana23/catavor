@@ -55,6 +55,7 @@ import {
   AlertCircle,
   Info,
   Shield,
+  Star,
   Database
 } from 'lucide-react';
 import { TabletRailNav } from './TabletRailNav';
@@ -91,6 +92,51 @@ const TICKET_PRIORITY_OPTIONS: TabletSelectOption[] = [
   { value: 'high', label: 'High', badge: 'Tinggi', badgeBg: 'rgba(249, 115, 22, 0.15)', badgeColor: '#f97316', description: 'Prioritas penanganan tinggi' },
   { value: 'medium', label: 'Medium', badge: 'Sedang', badgeBg: 'rgba(245, 158, 11, 0.15)', badgeColor: '#f59e0b', description: 'Kendala operasional umum' },
   { value: 'low', label: 'Low', badge: 'Rendah', badgeBg: 'rgba(16, 185, 129, 0.15)', badgeColor: '#10b981', description: 'Pertanyaan atau konsultasi' },
+];
+
+const TICKET_CATEGORY_OPTIONS: TabletSelectOption[] = [
+  { value: 'all', label: 'Semua Kategori' },
+  { value: 'billing', label: 'Keuangan & Langganan', description: 'Pertanyaan tagihan atau aktivasi Pro' },
+  { value: 'technical', label: 'Kendala Teknis & Bug', description: 'Masalah akses atau error aplikasi' },
+  { value: 'catalog_help', label: 'Bantuan Katalog & Produk', description: 'Panduan upload item atau varian' },
+  { value: 'account', label: 'Akun & Keamanan', description: 'Reset password atau keamanan toko' },
+  { value: 'general', label: 'Pertanyaan Umum', description: 'Konsultasi fitur dan informasi umum' },
+];
+
+const TICKET_PRIORITY_FILTER_OPTIONS: TabletSelectOption[] = [
+  { value: 'all', label: 'Semua Prioritas' },
+  { value: 'urgent', label: 'Urgent', badge: 'Mendesak', badgeBg: 'rgba(239, 68, 68, 0.15)', badgeColor: '#ef4444' },
+  { value: 'high', label: 'High', badge: 'Tinggi', badgeBg: 'rgba(249, 115, 22, 0.15)', badgeColor: '#f97316' },
+  { value: 'medium', label: 'Medium', badge: 'Sedang', badgeBg: 'rgba(245, 158, 11, 0.15)', badgeColor: '#f59e0b' },
+  { value: 'low', label: 'Low', badge: 'Rendah', badgeBg: 'rgba(16, 185, 129, 0.15)', badgeColor: '#10b981' },
+];
+
+const DEFAULT_CANNED_TEMPLATES = [
+  {
+    title: 'Salam Pembuka & Konfirmasi Penerimaan',
+    category: 'Umum',
+    text: 'Halo Pengelola Toko, terima kasih telah menghubungi Pusat Bantuan Catavor. Kami telah menerima laporan/kendala yang Anda sampaikan dan tim kami sedang melakukan investigasi lebih lanjut.'
+  },
+  {
+    title: 'Permintaan Bukti / Tangkapan Layar Tambahan',
+    category: 'Investigasi',
+    text: 'Untuk membantu kami mempercepat penanganan kendala ini, mohon dapat melampirkan tangkapan layar (screenshot) atau rekaman pesan error yang muncul beserta waktu kejadian.'
+  },
+  {
+    title: 'Verifikasi Pembayaran & Aktivasi Pro',
+    category: 'Billing',
+    text: 'Terima kasih atas konfirmasinya. Bukti transaksi langganan Anda telah diverifikasi oleh tim keuangan kami dan paket Pro telah berhasil diaktifkan pada katalog toko Anda.'
+  },
+  {
+    title: 'Kendala Teknis Telah Diatasi',
+    category: 'Solusi',
+    text: 'Kendala teknis yang Anda laporkan telah berhasil diperbaiki oleh tim engineering kami. Silakan muat ulang halaman dashboard Anda dan coba kembali. Jika masih menemui kendala, jangan ragu untuk mengabari kami.'
+  },
+  {
+    title: 'Penutupan Tiket / Masalah Terselesaikan',
+    category: 'Selesai',
+    text: 'Karena solusi telah diberikan dan tidak ada pertanyaan lanjutan, tiket ini kami tandai sebagai terselesaikan. Anda dapat memberikan penilaian layanan (CSAT) untuk membantu kami meningkatkan kualitas dukungan.'
+  }
 ];
 
 const BROADCAST_CATEGORY_OPTIONS: TabletSelectOption[] = [
@@ -522,79 +568,284 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   };
 
   // =========================================================================
+  // =========================================================================
   // SUB-VIEW: SUPPORT (Helpdesk CS)
   // =========================================================================
   const [tickets, setTickets] = useState<any[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [ticketDetail, setTicketDetail] = useState<any | null>(null);
   const [ticketReply, setTicketReply] = useState('');
-  const [supportFilter, setSupportFilter] = useState<'all' | 'open' | 'in_progress' | 'waiting_user' | 'resolved' | 'closed'>('all');
+  const [supportFilter, setSupportFilter] = useState<'all' | 'action_required' | 'in_progress' | 'waiting_user' | 'urgent' | 'resolved'>('all');
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
+  const [ticketSlaFilter, setTicketSlaFilter] = useState<string>('all');
+  const [resolvedTimeRangeFilter, setResolvedTimeRangeFilter] = useState<'30d' | '90d' | 'all'>('30d');
   const [supportSearch, setSupportSearch] = useState('');
-  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
-  const [ticketAttachments, setTicketAttachments] = useState<string[]>([]);
+  const [debouncedTicketSearch, setDebouncedTicketSearch] = useState('');
+  const [isInternalNote, setIsInternalNote] = useState(false);
+  const [ticketReplyAttachments, setTicketReplyAttachments] = useState<any[]>([]);
+  const [isUploadingTicketAttachment, setIsUploadingTicketAttachment] = useState(false);
+  const [activePresences, setActivePresences] = useState<any[]>([]);
   const [showCannedModal, setShowCannedModal] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<any | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [ticketDetailsLoading, setTicketDetailsLoading] = useState(false);
+  const [ticketsMetrics, setTicketsMetrics] = useState<any>(null);
+  const [ticketsPagination, setTicketsPagination] = useState<{
+    page: number;
+    limit: number;
+    total_items: number;
+    total_pages: number;
+    has_more: boolean;
+  }>({
+    page: 1,
+    limit: 15,
+    total_items: 0,
+    total_pages: 1,
+    has_more: false
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const fetchTickets = useCallback(async () => {
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTicketSearch(supportSearch);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [supportSearch]);
+
+  // Support helpers
+  const getTicketStatusMeta = useCallback((status: string) => {
+    switch (status) {
+      case 'open':
+      case 'waiting_agent':
+        return {
+          label: 'Open (Baru)',
+          shortLabel: 'Baru',
+          color: '#06b6d4',
+          bg: 'rgba(6, 182, 212, 0.12)',
+          border: 'rgba(6, 182, 212, 0.3)'
+        };
+      case 'in_progress':
+        return {
+          label: 'Sedang Diproses',
+          shortLabel: 'Diproses',
+          color: '#f59e0b',
+          bg: 'rgba(245, 158, 11, 0.12)',
+          border: 'rgba(245, 158, 11, 0.3)'
+        };
+      case 'waiting_user':
+        return {
+          label: 'Menunggu Merchant',
+          shortLabel: 'Tunggu Merchant',
+          color: '#a855f7',
+          bg: 'rgba(168, 85, 247, 0.12)',
+          border: 'rgba(168, 85, 247, 0.3)'
+        };
+      case 'resolved':
+        return {
+          label: 'Terselesaikan',
+          shortLabel: 'Selesai',
+          color: '#10b981',
+          bg: 'rgba(16, 185, 129, 0.12)',
+          border: 'rgba(16, 185, 129, 0.3)'
+        };
+      case 'closed':
+        return {
+          label: 'Ditutup Permanen',
+          shortLabel: 'Ditutup',
+          color: '#94a3b8',
+          bg: 'rgba(100, 116, 139, 0.15)',
+          border: 'rgba(100, 116, 139, 0.3)'
+        };
+      default:
+        return {
+          label: String(status || 'OPEN').toUpperCase(),
+          shortLabel: String(status || 'OPEN').toUpperCase(),
+          color: 'var(--primary)',
+          bg: 'rgba(59, 130, 246, 0.12)',
+          border: 'rgba(59, 130, 246, 0.3)'
+        };
+    }
+  }, []);
+
+  const getStoreDisplayName = useCallback((ticket: any) => {
+    if (ticket?.store?.name) return ticket.store.name;
+    if (ticket?.store_name) return ticket.store_name;
+    if (ticket?.store?.slug) return ticket.store.slug;
+    if (ticket?.store_slug) return ticket.store_slug;
+    if (ticket?.user?.name) return ticket.user.name;
+    return ticket?.user_email || 'Merchant';
+  }, []);
+
+  const getStorePlanBadge = useCallback((ticket: any) => {
+    const plan = String(ticket?.store?.plan || ticket?.store_plan || 'free').toLowerCase();
+    if (plan === 'enterprise') return 'ENTERPRISE';
+    if (plan === 'pro') return 'PRO';
+    return 'FREE';
+  }, []);
+
+  const getUserRequesterName = useCallback((ticket: any, msgSender?: any) => {
+    if (msgSender?.name) return msgSender.name;
+    if (ticket?.user?.name) return ticket.user.name;
+    if (ticket?.user_name) return ticket.user_name;
+    const rawEmail = ticket?.user?.email || ticket?.user_email || msgSender?.email || '';
+    return rawEmail.split('@')[0] || 'Merchant';
+  }, []);
+
+  const formatSupportDateTime = useCallback((dateStr?: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }, []);
+
+  // Filter values reference guard to prevent recreation/infinite-loop
+  const ticketsFilterRef = useRef({
+    page: 1,
+    supportFilter,
+    ticketCategoryFilter,
+    ticketPriorityFilter,
+    ticketSlaFilter,
+    debouncedTicketSearch,
+    resolvedTimeRangeFilter
+  });
+
+  useEffect(() => {
+    ticketsFilterRef.current = {
+      page: ticketsPagination.page,
+      supportFilter,
+      ticketCategoryFilter,
+      ticketPriorityFilter,
+      ticketSlaFilter,
+      debouncedTicketSearch,
+      resolvedTimeRangeFilter
+    };
+  }, [ticketsPagination.page, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, debouncedTicketSearch, resolvedTimeRangeFilter]);
+
+  // Server-Side Support Tickets Fetcher
+  const fetchTickets = useCallback(async (
+    page = 1,
+    statusOverride?: string,
+    categoryOverride?: string,
+    priorityOverride?: string,
+    slaOverride?: string,
+    searchOverride?: string,
+    timeRangeOverride?: string
+  ) => {
     if (!token) return;
+    setTicketsLoading(true);
     try {
-      const res = await authFetch('/api/admin/support/tickets?limit=50', {
+      const st = statusOverride !== undefined ? statusOverride : ticketsFilterRef.current.supportFilter;
+      const cat = categoryOverride !== undefined ? categoryOverride : ticketsFilterRef.current.ticketCategoryFilter;
+      const pri = priorityOverride !== undefined ? priorityOverride : ticketsFilterRef.current.ticketPriorityFilter;
+      const sla = slaOverride !== undefined ? slaOverride : ticketsFilterRef.current.ticketSlaFilter;
+      const q = searchOverride !== undefined ? searchOverride : ticketsFilterRef.current.debouncedTicketSearch;
+      const tr = timeRangeOverride !== undefined ? timeRangeOverride : ticketsFilterRef.current.resolvedTimeRangeFilter;
+
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '15');
+      if (st !== 'all') params.set('status', st);
+      if (cat !== 'all') params.set('category', cat);
+      if (pri !== 'all') params.set('priority', pri);
+      if (sla === 'breached') params.set('sla_breached', 'true');
+      if (st === 'resolved' && tr !== 'all') {
+        params.set('time_range', tr);
+      }
+      if (q.trim()) {
+        params.set('q', q.trim());
+      }
+
+      const res = await authFetch(`/api/admin/support/tickets?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        const j = await res.json();
-        setTickets(j.data || []);
+        const json = await res.json();
+        const data = Array.isArray(json) ? json : (json.data || json.tickets || []);
+        setTickets(data);
+        if (json.pagination) {
+          setTicketsPagination(json.pagination);
+        }
+        if (json.metrics) {
+          setTicketsMetrics(json.metrics);
+        }
       }
     } catch {
       // Fail silently
+    } finally {
+      setTicketsLoading(false);
     }
   }, [token, authFetch]);
 
   useEffect(() => {
     if (activeView === 'support') {
-      fetchTickets();
+      fetchTickets(1);
     }
-  }, [activeView, fetchTickets]);
+  }, [activeView, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, debouncedTicketSearch, resolvedTimeRangeFilter, fetchTickets]);
 
-  const fetchTicketDetail = async (id: number) => {
+  const fetchTicketDetail = useCallback(async (id: number) => {
     setSelectedTicketId(id);
+    setTicketDetailsLoading(true);
     try {
       const res = await authFetch(`/api/admin/support/tickets/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const j = await res.json();
-        setTicketDetail(j.data || j.ticket || j);
+        const data = j.data || j.ticket || j;
+        setTicketDetail(data);
+
+        // Fetch collision presences
+        try {
+          const presRes = await authFetch(`/api/admin/support/tickets/${id}/presence`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (presRes.ok) {
+            const presJson = await presRes.json();
+            setActivePresences(presJson.presences || presJson.data || []);
+          }
+        } catch {}
       }
     } catch (e: any) {
       if (e?.message !== 'UNAUTHORIZED') {
         showToast('Gagal memuat rincian tiket', 'error');
       }
+    } finally {
+      setTicketDetailsLoading(false);
     }
-  };
+  }, [token, authFetch, showToast]);
 
-  const handleSendTicketReply = async () => {
-    if (!selectedTicketId || (!ticketReply.trim() && ticketAttachments.length === 0)) return;
+  const handleSendTicketReply = async (isNote = false) => {
+    if (!selectedTicketId || (!ticketReply.trim() && ticketReplyAttachments.length === 0)) return;
     try {
+      const payload: any = {
+        message: ticketReply.trim(),
+        attachments: ticketReplyAttachments,
+        is_internal_note: isNote || isInternalNote
+      };
       const res = await authFetch(`/api/admin/support/tickets/${selectedTicketId}/reply`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          message: ticketReply,
-          attachments: ticketAttachments
-        })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
-        showToast('Tanggapan berhasil dikirim');
+        showToast(isNote || isInternalNote ? 'Catatan internal berhasil disimpan' : 'Balasan berhasil dikirim ke merchant');
         setTicketReply('');
-        setTicketAttachments([]);
+        setTicketReplyAttachments([]);
         fetchTicketDetail(selectedTicketId);
-        fetchTickets();
+        fetchTickets(ticketsPagination.page);
+        loadPlatformStats();
       } else {
         showToast('Gagal mengirim balasan', 'error');
       }
@@ -605,32 +856,40 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsUploadingAttachment(true);
+  const handleUploadTicketAttachment = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsUploadingTicketAttachment(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await authFetch('/api/storage/upload?category=support', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
-      });
-      if (res.ok) {
-        const j = await res.json();
-        const url = j.url || j.data?.url || j.file_url;
-        if (url) {
-          setTicketAttachments(prev => [...prev, url]);
-          showToast('Lampiran berhasil diunggah');
+      for (let i = 0; i < Math.min(files.length, 5 - ticketReplyAttachments.length); i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await authFetch('/api/storage/upload?category=support', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
+        });
+        if (res.ok) {
+          const j = await res.json();
+          const fileUrl = j.url || j.data?.url || j.file_url;
+          if (fileUrl) {
+            setTicketReplyAttachments(prev => [
+              ...prev,
+              {
+                file_url: fileUrl,
+                file_name: file.name,
+                file_type: file.type,
+                file_size: file.size
+              }
+            ]);
+          }
         }
-      } else {
-        showToast('Gagal mengunggah berkas', 'error');
       }
+      showToast('Lampiran berhasil diunggah');
     } catch {
-      showToast('Terjadi kesalahan jaringan saat upload', 'error');
+      showToast('Gagal mengunggah lampiran', 'error');
     } finally {
-      setIsUploadingAttachment(false);
+      setIsUploadingTicketAttachment(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -647,9 +906,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         body: JSON.stringify({ status })
       });
       if (res.ok) {
-        showToast(`Status tiket diperbarui ke: ${status.toUpperCase()}`);
+        const statusMeta = getTicketStatusMeta(status);
+        showToast(`Status tiket diperbarui ke: ${statusMeta.label}`);
         fetchTicketDetail(selectedTicketId);
-        fetchTickets();
+        fetchTickets(ticketsPagination.page);
         loadPlatformStats();
       } else {
         showToast('Gagal memperbarui status tiket', 'error');
@@ -672,7 +932,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       if (res.ok) {
         showToast(`Prioritas tiket diubah ke ${priority.toUpperCase()}`);
         fetchTicketDetail(ticketId);
-        fetchTickets();
+        fetchTickets(ticketsPagination.page);
       } else {
         showToast('Gagal memperbarui prioritas tiket', 'error');
       }
@@ -686,19 +946,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     setShowCannedModal(false);
     showToast('Template balasan disisipkan ke pesan');
   };
-
-  const filteredTickets = useMemo(() => {
-    return tickets.filter(t => {
-      const matchStatus = supportFilter === 'all' || t.status === supportFilter;
-      const matchCategory = ticketCategoryFilter === 'all' || t.category === ticketCategoryFilter;
-      const matchPriority = ticketPriorityFilter === 'all' || t.priority === ticketPriorityFilter;
-      const matchSearch = !supportSearch ||
-        (t.subject || '').toLowerCase().includes(supportSearch.toLowerCase()) ||
-        (t.user_name || '').toLowerCase().includes(supportSearch.toLowerCase()) ||
-        (t.ticket_number || '').toLowerCase().includes(supportSearch.toLowerCase());
-      return matchStatus && matchCategory && matchPriority && matchSearch;
-    });
-  }, [tickets, supportFilter, ticketCategoryFilter, ticketPriorityFilter, supportSearch]);
 
   // =========================================================================
   // SUB-VIEW: FINANCE (Keuangan & Billing)
@@ -3579,16 +3826,28 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           {activeView === 'support' && (
             <TabletMasterDetailView
               title="Tiket Helpdesk CS"
-              subtitle={`${filteredTickets.length} antrean tiket`}
+              subtitle={`${ticketsPagination.total_items || tickets.length} antrean tiket`}
               selectedId={selectedTicketId}
-              onClearSelection={() => setSelectedTicketId(null)}
+              onClearSelection={() => {
+                setSelectedTicketId(null);
+                setTicketDetail(null);
+              }}
               hideHeaderTitle={true}
               masterPane={
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  {/* Search and Filters */}
-                  <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                  {/* Master Pane Header: Search, Triage Tabs, and Secondary Filters */}
+                  <div style={{
+                    padding: '0.85rem 1rem',
+                    borderBottom: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-card)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem',
+                    flexShrink: 0
+                  }}>
+                    {/* Search Box */}
                     <div style={{ position: 'relative' }}>
-                      <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)' }} />
+                      <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
                       <input
                         type="text"
                         value={supportSearch}
@@ -3596,77 +3855,248 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         placeholder="Cari nomor tiket, subjek, merchant..."
                         style={{
                           width: '100%',
-                          padding: '0.45rem 0.65rem 0.45rem 2rem',
-                          borderRadius: '0.5rem',
+                          padding: '0.5rem 2rem 0.5rem 2.2rem',
+                          borderRadius: '0.55rem',
                           border: '1px solid var(--border-light)',
                           backgroundColor: 'var(--bg-deep)',
                           color: 'var(--text-primary)',
-                          fontSize: '0.78rem',
+                          fontSize: '0.8rem',
                           boxSizing: 'border-box',
                           outline: 'none'
                         }}
                       />
+                      {supportSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setSupportSearch('')}
+                          style={{
+                            position: 'absolute',
+                            right: '0.6rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: '0.2rem',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
                     </div>
 
-                    {/* Status Filter */}
-                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto' }}>
-                      {(['all', 'open', 'in_progress', 'waiting_user', 'resolved', 'closed'] as const).map(st => (
+                    {/* 6 Unified Triage Tabs Pills (Single Source of Truth) */}
+                    <div style={{
+                      display: 'flex',
+                      gap: '0.35rem',
+                      overflowX: 'auto',
+                      paddingBottom: '0.2rem',
+                      scrollbarWidth: 'none'
+                    }}>
+                      {[
+                        { id: 'all', label: 'Semua', count: ticketsMetrics?.total ?? ticketsPagination.total_items ?? tickets.length, color: 'var(--primary)', isPriority: false },
+                        { id: 'action_required', label: 'Perlu Respon', count: ticketsMetrics?.action_required ?? 0, color: 'var(--primary)', isPriority: false },
+                        { id: 'in_progress', label: 'Diproses', count: ticketsMetrics?.in_progress ?? 0, color: '#f59e0b', isPriority: false },
+                        { id: 'waiting_user', label: 'Tunggu Merchant', count: ticketsMetrics?.waiting_user ?? 0, color: '#a855f7', isPriority: false },
+                        { id: 'urgent', label: 'Urgent', count: ticketsMetrics?.urgent ?? 0, color: '#ef4444', isPriority: true },
+                        { id: 'resolved', label: 'Selesai', count: ticketsMetrics?.resolved ?? 0, color: '#10b981', isPriority: false }
+                      ].map(tab => {
+                        const isActive = tab.isPriority
+                          ? ticketPriorityFilter === 'urgent'
+                          : (supportFilter === tab.id && ticketPriorityFilter !== 'urgent');
+
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => {
+                              if (tab.isPriority) {
+                                setTicketPriorityFilter(ticketPriorityFilter === 'urgent' ? 'all' : 'urgent');
+                                setSupportFilter('all');
+                              } else {
+                                setSupportFilter(tab.id as any);
+                                setTicketPriorityFilter('all');
+                              }
+                            }}
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '999px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              backgroundColor: isActive ? tab.color : 'transparent',
+                              color: isActive ? '#ffffff' : 'var(--text-muted)',
+                              border: `1px solid ${isActive ? tab.color : 'var(--border-light)'}`,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span>{tab.label}</span>
+                            <span style={{
+                              fontSize: '0.62rem',
+                              padding: '0.05rem 0.35rem',
+                              borderRadius: '999px',
+                              backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-deep)',
+                              color: isActive ? '#ffffff' : 'var(--text-muted)'
+                            }}>
+                              {tab.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Operational Secondary Filter Pills */}
+                    <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', alignItems: 'center', scrollbarWidth: 'none' }}>
+                      {/* Category Dropdown */}
+                      <TabletCustomSelect
+                        value={ticketCategoryFilter}
+                        onChange={(val) => setTicketCategoryFilter(val)}
+                        options={TICKET_CATEGORY_OPTIONS}
+                        variant="compact"
+                        triggerStyle={{
+                          minHeight: '34px',
+                          fontSize: '0.72rem',
+                          padding: '0.25rem 0.55rem'
+                        }}
+                        menuWidth={240}
+                        ariaLabel="Filter Kategori Tiket"
+                      />
+
+                      {/* Priority Dropdown */}
+                      <TabletCustomSelect
+                        value={ticketPriorityFilter}
+                        onChange={(val) => setTicketPriorityFilter(val)}
+                        options={TICKET_PRIORITY_FILTER_OPTIONS}
+                        variant="compact"
+                        triggerStyle={{
+                          minHeight: '34px',
+                          fontSize: '0.72rem',
+                          padding: '0.25rem 0.55rem',
+                          color: ticketPriorityFilter === 'urgent' ? '#ef4444' : undefined
+                        }}
+                        menuWidth={200}
+                        ariaLabel="Filter Prioritas Tiket"
+                      />
+
+                      {/* SLA Filter Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setTicketSlaFilter(prev => prev === 'breached' ? 'all' : 'breached')}
+                        style={{
+                          minHeight: '34px',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '0.5rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          backgroundColor: ticketSlaFilter === 'breached' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                          color: ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--text-muted)',
+                          border: `1px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--border-light)'}`,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <Clock size={12} />
+                        <span>SLA Lewat</span>
+                      </button>
+
+                      {/* Time range for resolved */}
+                      {supportFilter === 'resolved' && (
+                        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                          {(['30d', '90d', 'all'] as const).map(tr => (
+                            <button
+                              key={tr}
+                              type="button"
+                              onClick={() => setResolvedTimeRangeFilter(tr)}
+                              style={{
+                                minHeight: '34px',
+                                padding: '0.25rem 0.5rem',
+                                borderRadius: '0.5rem',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                backgroundColor: resolvedTimeRangeFilter === tr ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                color: resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--text-muted)',
+                                border: `1px solid ${resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--border-light)'}`,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {tr === '30d' ? '30 Hari' : tr === '90d' ? '90 Hari' : 'Semua'}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Reset Filter Button */}
+                      {(ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || supportSearch.trim()) && (
                         <button
-                          key={st}
                           type="button"
-                          onClick={() => setSupportFilter(st)}
+                          onClick={() => {
+                            setTicketCategoryFilter('all');
+                            setTicketPriorityFilter('all');
+                            setTicketSlaFilter('all');
+                            setSupportSearch('');
+                          }}
                           style={{
+                            minHeight: '34px',
                             padding: '0.25rem 0.55rem',
-                            borderRadius: '999px',
-                            border: `1px solid ${supportFilter === st ? 'var(--primary)' : 'var(--border-light)'}`,
-                            backgroundColor: supportFilter === st ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
-                            color: supportFilter === st ? 'var(--primary)' : 'var(--text-muted)',
+                            borderRadius: '0.5rem',
                             fontSize: '0.7rem',
                             fontWeight: 700,
+                            backgroundColor: 'var(--bg-deep)',
+                            color: 'var(--text-muted)',
+                            border: '1px solid var(--border-light)',
                             cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
                             whiteSpace: 'nowrap'
                           }}
                         >
-                          {st.toUpperCase()}
+                          <X size={12} />
+                          <span>Reset</span>
                         </button>
-                      ))}
-                    </div>
-
-                    {/* Priority & Category Pills */}
-                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto' }}>
-                      {(['all', 'urgent', 'high', 'medium', 'low'] as const).map(pr => (
-                        <button
-                          key={pr}
-                          type="button"
-                          onClick={() => setTicketPriorityFilter(pr)}
-                          style={{
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: '999px',
-                            border: `1px solid ${ticketPriorityFilter === pr ? '#f59e0b' : 'var(--border-light)'}`,
-                            backgroundColor: ticketPriorityFilter === pr ? 'rgba(245, 158, 11, 0.12)' : 'transparent',
-                            color: ticketPriorityFilter === pr ? '#f59e0b' : 'var(--text-muted)',
-                            fontSize: '0.68rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {pr === 'all' ? 'SEMUA PRIORITAS' : pr.toUpperCase()}
-                        </button>
-                      ))}
+                      )}
                     </div>
                   </div>
 
-                  {/* Ticket List */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {filteredTickets.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                        <LifeBuoy size={36} color="var(--primary)" style={{ marginBottom: '0.5rem' }} />
-                        <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Tidak ada tiket dalam antrean</div>
+                  {/* Tickets Master List */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {ticketsLoading ? (
+                      <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: 'var(--primary)' }} />
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>Memuat antrean tiket bantuan...</div>
+                      </div>
+                    ) : tickets.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
+                        <LifeBuoy size={40} color="var(--primary)" style={{ margin: '0 auto 0.65rem', display: 'block', opacity: 0.8 }} />
+                        <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>Tidak Ada Tiket</div>
+                        <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                          Tidak ada tiket bantuan yang cocok dengan kriteria filter saat ini.
+                        </p>
                       </div>
                     ) : (
-                      filteredTickets.map(t => {
+                      tickets.map(t => {
                         const isSelected = selectedTicketId === t.id;
+                        const isUnread = t.status === 'open' || t.status === 'waiting_agent';
+                        const statusMeta = getTicketStatusMeta(t.status);
+                        const storeName = getStoreDisplayName(t);
+                        const planBadge = getStorePlanBadge(t);
+                        const msgs = Array.isArray(t.messages) ? t.messages : [];
+                        const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+                        const messageCount = msgs.length || t.message_count || 1;
+                        const lastSenderName = lastMsg ? (lastMsg.sender_type === 'user' ? (lastMsg.sender_name || 'Merchant') : (lastMsg.sender_name || 'Staf CS')) : '';
+
                         return (
                           <div
                             key={t.id}
@@ -3675,321 +4105,1093 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               padding: '0.85rem',
                               borderRadius: '0.75rem',
                               backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
-                              border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
+                              border: `1.5px solid ${isSelected ? 'var(--primary)' : isUnread ? statusMeta.color : 'var(--border-light)'}`,
                               cursor: 'pointer',
                               display: 'flex',
                               flexDirection: 'column',
-                              gap: '0.3rem'
+                              gap: '0.5rem',
+                              transition: 'all 0.15s ease',
+                              boxShadow: isSelected ? '0 2px 10px rgba(59, 130, 246, 0.15)' : 'none'
                             }}
                           >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: t.priority === 'urgent' ? '#ef4444' : 'var(--primary)' }}>
-                                #{t.ticket_number || t.id}
+                            {/* Row 1: Ticket Number & Status Badge */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
+                                {isUnread && (
+                                  <span style={{
+                                    width: '6px',
+                                    height: '6px',
+                                    borderRadius: '50%',
+                                    backgroundColor: statusMeta.color,
+                                    boxShadow: `0 0 6px ${statusMeta.color}`,
+                                    flexShrink: 0
+                                  }} />
+                                )}
+                                <span style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 800,
+                                  color: t.priority === 'urgent' ? '#ef4444' : 'var(--primary)',
+                                  fontFamily: 'monospace',
+                                  padding: '0.1rem 0.35rem',
+                                  borderRadius: '0.3rem',
+                                  backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)'
+                                }}>
+                                  {t.ticket_number || `#TCK-${t.id}`}
+                                </span>
+                                {t.priority === 'urgent' && (
+                                  <span style={{
+                                    fontSize: '0.6rem',
+                                    fontWeight: 800,
+                                    padding: '0.1rem 0.4rem',
+                                    borderRadius: '999px',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                    color: '#ef4444',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)'
+                                  }}>
+                                    URGENT
+                                  </span>
+                                )}
+                              </div>
+
+                              <span style={{
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '999px',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                backgroundColor: statusMeta.bg,
+                                color: statusMeta.color,
+                                border: `1px solid ${statusMeta.border}`,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0
+                              }}>
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: statusMeta.color }} />
+                                {statusMeta.shortLabel || statusMeta.label}
                               </span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <span style={{
-                                  fontSize: '0.65rem',
-                                  fontWeight: 700,
-                                  padding: '0.1rem 0.4rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: t.priority === 'urgent' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                                  color: t.priority === 'urgent' ? '#ef4444' : 'var(--text-muted)'
-                                }}>
-                                  {t.priority?.toUpperCase() || 'NORMAL'}
+                            </div>
+
+                            {/* Row 2: Store Name & Subject */}
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.15rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                  {storeName}
                                 </span>
-                                <span style={{
-                                  fontSize: '0.68rem',
-                                  fontWeight: 700,
-                                  padding: '0.15rem 0.5rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: t.status === 'open' ? 'rgba(239, 68, 68, 0.12)' : t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                                  color: t.status === 'open' ? '#ef4444' : t.status === 'in_progress' ? '#f59e0b' : '#10b981'
-                                }}>
-                                  {t.status?.toUpperCase() || 'OPEN'}
-                                </span>
+                                {planBadge && planBadge !== 'FREE' && (
+                                  <span style={{
+                                    fontSize: '0.55rem',
+                                    fontWeight: 800,
+                                    padding: '0.06rem 0.35rem',
+                                    borderRadius: '4px',
+                                    backgroundColor: planBadge === 'ENTERPRISE' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                    color: planBadge === 'ENTERPRISE' ? '#a855f7' : '#f59e0b',
+                                    border: `1px solid ${planBadge === 'ENTERPRISE' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                                  }}>
+                                    {planBadge}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{
+                                fontSize: '0.84rem',
+                                fontWeight: isUnread ? 800 : 700,
+                                color: 'var(--text-primary)',
+                                lineHeight: 1.35
+                              }}>
+                                {t.subject || 'Pertanyaan Layanan'}
                               </div>
                             </div>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                              {t.subject || 'Pertanyaan Layanan'}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              {t.user_name || t.user_email || 'Merchant'}
+
+                            {/* Row 3: Last Message Snippet if any */}
+                            {lastMsg && (
+                              <div style={{
+                                padding: '0.4rem 0.55rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                fontSize: '0.72rem',
+                                color: 'var(--text-muted)',
+                                lineHeight: 1.3,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                <strong style={{ color: 'var(--text-primary)' }}>{lastSenderName}: </strong>
+                                {lastMsg.message || 'Lampiran Berkas'}
+                              </div>
+                            )}
+
+                            {/* Row 4: Footer Timestamp & Message Count */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.2rem', borderTop: '1px solid var(--border-light)' }}>
+                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <Clock size={11} />
+                                {formatSupportDateTime(t.created_at)}
+                              </span>
+                              <span style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 700,
+                                padding: '0.1rem 0.4rem',
+                                borderRadius: '999px',
+                                backgroundColor: 'var(--bg-deep)',
+                                color: 'var(--text-muted)',
+                                border: '1px solid var(--border-light)'
+                              }}>
+                                {messageCount} pesan
+                              </span>
                             </div>
                           </div>
                         );
                       })
                     )}
                   </div>
+
+                  {/* Bottom Pagination Control */}
+                  <TabletSegmentedPagination
+                    currentPage={ticketsPagination.page}
+                    totalPages={ticketsPagination.total_pages}
+                    totalRecords={ticketsPagination.total_items}
+                    pageSize={ticketsPagination.limit}
+                    isLoading={ticketsLoading}
+                    onPageChange={(newPage) => {
+                      fetchTickets(newPage);
+                    }}
+                  />
                 </div>
               }
               detailPane={
-                ticketDetail ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' }}>
-                    {/* Ticket Header */}
+                !ticketDetail ? (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    padding: '2.5rem',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)'
+                  }}>
+                    <LifeBuoy size={48} color="var(--primary)" style={{ marginBottom: '1rem', opacity: 0.8 }} />
+                    <h4 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
+                      Pusat Bantuan CS Catavor
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', maxWidth: '360px', lineHeight: 1.5, margin: 0 }}>
+                      Pilih salah satu tiket dari antrean di samping untuk melihat riwayat percakapan lengkap, rincian pelapor, dan mengirim respon bantuan.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                    {/* Detail Header */}
                     <div style={{
-                      padding: '1rem 1.5rem',
+                      padding: '1rem 1.25rem',
                       borderBottom: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      backgroundColor: 'var(--bg-deep)'
+                      flexDirection: 'column',
+                      gap: '0.75rem',
+                      flexShrink: 0
                     }}>
-                      <div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          Tiket #{ticketDetail.ticket_number || ticketDetail.id} &bull; {ticketDetail.user_name || ticketDetail.user_email}
+                      {/* Agent Collision Warning Banner */}
+                      {activePresences.filter(p => p.user_id !== currentUser?.id).length > 0 && (
+                        <div style={{
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          color: '#ef4444',
+                          fontSize: '0.75rem',
+                          fontWeight: 700
+                        }}>
+                          <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                          <span>
+                            <strong>{activePresences.filter(p => p.user_id !== currentUser?.id).map(p => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
+                            {activePresences.filter(p => p.user_id !== currentUser?.id).some(p => p.is_typing) ? ' dan sedang mengetik...' : '.'}
+                          </span>
                         </div>
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0.15rem 0 0 0' }}>
-                          {ticketDetail.subject}
-                        </h3>
+                      )}
+
+                      {/* Subject, Ticket Number & Time */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.25)', marginBottom: '0.3rem' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>
+                              {ticketDetail.ticket_number || `#TCK-${ticketDetail.id}`}
+                            </span>
+                          </div>
+                          <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                            {ticketDetail.subject || 'Pertanyaan Layanan'}
+                          </h3>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', paddingTop: '0.2rem' }}>
+                          {formatSupportDateTime(ticketDetail.created_at)}
+                        </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        {/* Status selector */}
+
+                      {/* Identity & Status Chips Row */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                        {/* Store Identity Chip */}
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                          color: 'var(--primary)',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          fontSize: '0.72rem',
+                          fontWeight: 800
+                        }}>
+                          <StoreIcon size={13} />
+                          <span>{getStoreDisplayName(ticketDetail)}</span>
+                          <span style={{
+                            fontSize: '0.58rem',
+                            padding: '0.08rem 0.35rem',
+                            borderRadius: '4px',
+                            backgroundColor: getStorePlanBadge(ticketDetail) === 'ENTERPRISE' ? '#a855f7' : getStorePlanBadge(ticketDetail) === 'PRO' ? '#f59e0b' : 'rgba(100, 116, 139, 0.2)',
+                            color: '#ffffff',
+                            fontWeight: 800
+                          }}>
+                            {getStorePlanBadge(ticketDetail)}
+                          </span>
+                        </div>
+
+                        {/* Requester Identity Chip */}
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '0.72rem',
+                          fontWeight: 600
+                        }}>
+                          <User size={12} color="var(--text-muted)" />
+                          <span style={{ fontWeight: 700 }}>{getUserRequesterName(ticketDetail)}</span>
+                          {(ticketDetail.user?.email || ticketDetail.user_email) && (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.66rem' }}>
+                              ({ticketDetail.user?.email || ticketDetail.user_email})
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Category Chip */}
+                        <span style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-muted)',
+                          border: '1px solid var(--border-light)'
+                        }}>
+                          {
+                            ticketDetail.category === 'billing' ? 'Keuangan & Langganan' :
+                            ticketDetail.category === 'technical' ? 'Kendala Teknis & Bug' :
+                            ticketDetail.category === 'catalog_help' ? 'Bantuan Katalog & Produk' :
+                            ticketDetail.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
+                          }
+                        </span>
+
+                        {/* Status Selector Dropdown */}
                         <TabletCustomSelect
                           value={ticketDetail.status || 'open'}
                           onChange={(val) => handleUpdateTicketStatus(val)}
                           options={TICKET_STATUS_OPTIONS}
                           variant="compact"
                           triggerStyle={{
-                            minHeight: '40px',
+                            minHeight: '34px',
                             minWidth: '135px',
-                            fontSize: '0.8rem',
-                            padding: '0.35rem 0.65rem'
+                            fontSize: '0.75rem',
+                            padding: '0.25rem 0.6rem'
                           }}
                           menuWidth={240}
                           ariaLabel="Perbarui Status Tiket"
                         />
 
-                        {/* Priority selector */}
+                        {/* Priority Selector Dropdown */}
                         <TabletCustomSelect
                           value={ticketDetail.priority || 'medium'}
                           onChange={(val) => handleUpdateTicketPriority(ticketDetail.id, val)}
                           options={TICKET_PRIORITY_OPTIONS}
                           variant="compact"
                           triggerStyle={{
-                            minHeight: '40px',
+                            minHeight: '34px',
                             minWidth: '125px',
-                            fontSize: '0.8rem',
-                            padding: '0.35rem 0.65rem',
+                            fontSize: '0.75rem',
+                            padding: '0.25rem 0.6rem',
                             color: ticketDetail.priority === 'urgent' ? '#ef4444' : undefined
                           }}
                           menuWidth={230}
                           ariaLabel="Perbarui Prioritas Tiket"
                         />
                       </div>
-                    </div>
 
-                    {/* Merchant Action Bar */}
-                    {(ticketDetail.user_phone || ticketDetail.store_slug) && (
-                      <div style={{ padding: '0.5rem 1.5rem', backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                        {ticketDetail.user_phone && (
-                          <a
-                            href={`https://wa.me/${ticketDetail.user_phone.replace(/\D/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              fontSize: '0.75rem',
-                              color: '#10b981',
-                              fontWeight: 700,
-                              textDecoration: 'none'
-                            }}
-                          >
-                            <Phone size={14} />
-                            <span>WhatsApp Merchant</span>
-                          </a>
-                        )}
-                        {ticketDetail.store_slug && (
-                          <a
-                            href={`/${ticketDetail.store_slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              fontSize: '0.75rem',
-                              color: 'var(--primary)',
-                              fontWeight: 700,
-                              textDecoration: 'none'
-                            }}
-                          >
-                            <ExternalLink size={14} />
-                            <span>Katalog Merchant</span>
-                          </a>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Messages Thread */}
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {/* Initial message */}
-                      <div style={{
-                        padding: '1rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        maxWidth: '85%'
-                      }}>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-                          {ticketDetail.user_name || 'Pelapor'} (Pesan Pembuka)
-                        </div>
-                        <div style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>
-                          {ticketDetail.description || ticketDetail.message || 'Tidak ada detail pesan'}
-                        </div>
-                      </div>
-
-                      {/* Replies */}
-                      {(ticketDetail.messages || ticketDetail.replies || []).map((msg: any, idx: number) => {
-                        const isStaff = msg.is_staff || msg.is_admin || msg.sender_role === 'staff' || msg.user_id !== ticketDetail.user_id;
-                        return (
-                          <div
-                            key={idx}
-                            style={{
-                              padding: '1rem',
-                              borderRadius: '0.85rem',
-                              backgroundColor: isStaff ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-deep)',
-                              border: `1px solid ${isStaff ? 'rgba(59, 130, 246, 0.3)' : 'var(--border-light)'}`,
-                              alignSelf: isStaff ? 'flex-end' : 'flex-start',
-                              maxWidth: '85%'
-                            }}
-                          >
-                            <div style={{ fontSize: '0.72rem', color: isStaff ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 700, marginBottom: '0.25rem' }}>
-                              {isStaff ? 'Staf CS Catavor' : ticketDetail.user_name || 'Merchant'}
-                            </div>
-                            <div style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>
-                              {msg.message || msg.content}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Reply Bar */}
-                    <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
-                      {/* Quick Macro & Canned button */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => setShowCannedModal(true)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '0.45rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-card)',
-                            color: 'var(--text-muted)',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Zap size={13} color="#f59e0b" />
-                          <span>Gunakan Template CS</span>
-                        </button>
-                      </div>
-
-                      {/* Attachments preview */}
-                      {ticketAttachments.length > 0 && (
-                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                          {ticketAttachments.map((att, i) => (
-                            <div key={i} style={{ position: 'relative', width: '48px', height: '48px' }}>
-                              <img
-                                src={att}
-                                alt="Attachment"
-                                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '0.4rem' }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setTicketAttachments(prev => prev.filter((_, idx) => idx !== i))}
-                                style={{
-                                  position: 'absolute',
-                                  top: -4,
-                                  right: -4,
-                                  width: '16px',
-                                  height: '16px',
-                                  borderRadius: '50%',
-                                  backgroundColor: '#ef4444',
-                                  color: '#fff',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  fontSize: '10px'
-                                }}
-                              >
-                                &times;
-                              </button>
-                            </div>
-                          ))}
+                      {/* Merchant Action Links Bar */}
+                      {(ticketDetail.user_phone || ticketDetail.store_slug || ticketDetail.store?.slug) && (
+                        <div style={{
+                          display: 'flex',
+                          gap: '0.75rem',
+                          alignItems: 'center',
+                          paddingTop: '0.5rem',
+                          borderTop: '1px solid var(--border-light)'
+                        }}>
+                          {ticketDetail.user_phone && (
+                            <a
+                              href={`https://wa.me/${ticketDetail.user_phone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                fontSize: '0.75rem',
+                                color: '#10b981',
+                                fontWeight: 700,
+                                textDecoration: 'none'
+                              }}
+                            >
+                              <Phone size={14} />
+                              <span>WhatsApp Merchant</span>
+                            </a>
+                          )}
+                          {(ticketDetail.store_slug || ticketDetail.store?.slug) && (
+                            <a
+                              href={`/${ticketDetail.store_slug || ticketDetail.store?.slug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                fontSize: '0.75rem',
+                                color: 'var(--primary)',
+                                fontWeight: 700,
+                                textDecoration: 'none'
+                              }}
+                            >
+                              <ExternalLink size={14} />
+                              <span>Katalog Merchant</span>
+                            </a>
+                          )}
                         </div>
                       )}
 
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          style={{ display: 'none' }}
-                          onChange={handleFileUpload}
-                          accept="image/*,.pdf"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={isUploadingAttachment}
-                          title="Lampirkan File"
-                          style={{
-                            padding: '0.65rem',
+                      {/* CSAT Rating Card if Rated */}
+                      {ticketDetail.rating && (
+                        <div style={{
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                          border: '1px solid rgba(245, 158, 11, 0.25)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <Star size={13} fill="#f59e0b" color="#f59e0b" /> Ulasan Kepuasan Merchant (CSAT)
+                            </span>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#f59e0b' }}>
+                              {ticketDetail.rating} / 5 Bintang
+                            </span>
+                          </div>
+                          {ticketDetail.rating_comment && (
+                            <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                              "{ticketDetail.rating_comment}"
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* SLA Status Card */}
+                      {ticketDetail.sla_due_at && (
+                        <div style={{
+                          padding: '0.55rem 0.75rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: ticketDetail.sla_breached ? 'rgba(239, 68, 68, 0.08)' : (ticketDetail.first_response_at ? 'rgba(16, 185, 129, 0.08)' : 'rgba(59, 130, 246, 0.08)'),
+                          border: `1px solid ${ticketDetail.sla_breached ? 'rgba(239, 68, 68, 0.25)' : (ticketDetail.first_response_at ? 'rgba(16, 185, 129, 0.25)' : 'rgba(59, 130, 246, 0.25)')}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: ticketDetail.sla_breached ? '#ef4444' : (ticketDetail.first_response_at ? '#10b981' : 'var(--primary)')
+                        }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Clock size={13} /> Target Respon Pertama:
+                          </span>
+                          <span>
+                            {ticketDetail.sla_breached ? 'Melewati SLA' : (ticketDetail.first_response_at ? 'Terpenuhi Tepat Waktu' : 'Sedang Berjalan')}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Two-Stage Lifecycle Grace Period & Locked Banners */}
+                      {ticketDetail.status === 'resolved' && (
+                        <div style={{
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          color: '#10b981',
+                          fontSize: '0.74rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.35rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
+                            <CheckCircle2 size={14} color="#10b981" />
+                            <span>Tiket Terselesaikan (Masa Sanggah 7 Hari)</span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            Tiket akan otomatis ditutup permanen (Read-Only) jika tidak ada balasan lebih lanjut dari merchant.
+                          </p>
+                          <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.15rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateTicketStatus('closed')}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'rgba(100, 116, 139, 0.15)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <Lock size={12} />
+                              <span>Kunci &amp; Tutup Sekarang</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateTicketStatus('in_progress')}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'transparent',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-muted)',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <RefreshCw size={12} />
+                              <span>Buka Kembali</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {ticketDetail.status === 'closed' && (
+                        <div style={{
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'rgba(100, 116, 139, 0.1)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.74rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.5rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
+                            <Lock size={14} />
+                            <span>Arsip Permanen (Read-Only)</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTicketStatus('in_progress')}
+                            style={{
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                              border: '1px solid rgba(59, 130, 246, 0.3)',
+                              color: 'var(--primary)',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
+                          >
+                            <RefreshCw size={12} />
+                            <span>Buka Kembali</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Messages Thread Stream */}
+                    <div style={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      padding: '1.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.85rem'
+                    }}>
+                      {ticketDetailsLoading ? (
+                        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: 'var(--primary)' }} />
+                          <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>Memuat percakapan tiket...</div>
+                        </div>
+                      ) : (() => {
+                        const allMessages: any[] = ticketDetail.messages || ticketDetail.replies || [];
+                        if (allMessages.length === 0 && !ticketDetail.description && !ticketDetail.message) {
+                          return (
+                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                              Belum ada riwayat pesan dalam tiket ini.
+                            </div>
+                          );
+                        }
+
+                        // Combine initial inquiry into list if not already in allMessages
+                        const displayMessages: any[] = [...allMessages];
+                        if (displayMessages.length === 0 && (ticketDetail.description || ticketDetail.message)) {
+                          displayMessages.push({
+                            id: 0,
+                            sender_type: 'user',
+                            sender: ticketDetail.user,
+                            message: ticketDetail.description || ticketDetail.message,
+                            created_at: ticketDetail.created_at,
+                            attachments: ticketDetail.attachments || []
+                          });
+                        }
+
+                        const firstUnreadIdx = displayMessages.findIndex((m: any) => m.sender_type === 'user' && !m.read_at);
+
+                        return (
+                          <>
+                            {displayMessages.map((msg: any, idx: number) => {
+                              const isStaff = msg.sender_type === 'agent' || msg.is_admin || msg.is_staff || msg.sender_role === 'staff' || (msg.user_id && msg.user_id !== ticketDetail.user_id);
+                              const isInternal = msg.is_internal_note;
+                              const isSystemBot = msg.sender_type === 'system';
+                              const showUnreadDivider = firstUnreadIdx > 0 && idx === firstUnreadIdx;
+
+                              return (
+                                <React.Fragment key={msg.id || idx}>
+                                  {showUnreadDivider && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.5rem 0' }}>
+                                      <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--primary)', opacity: 0.3 }} />
+                                      <span style={{
+                                        fontSize: '0.65rem',
+                                        fontWeight: 800,
+                                        color: 'var(--primary)',
+                                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                        padding: '0.15rem 0.55rem',
+                                        borderRadius: '999px',
+                                        border: '1px solid rgba(59, 130, 246, 0.3)'
+                                      }}>
+                                        Pesan Baru Belum Terbaca
+                                      </span>
+                                      <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--primary)', opacity: 0.3 }} />
+                                    </div>
+                                  )}
+
+                                  {isSystemBot ? (
+                                    <div style={{
+                                      padding: '0.85rem 1rem',
+                                      borderRadius: '0.85rem',
+                                      backgroundColor: 'rgba(59, 130, 246, 0.06)',
+                                      border: '1px solid rgba(59, 130, 246, 0.2)',
+                                      maxWidth: '92%',
+                                      alignSelf: 'center',
+                                      width: '100%',
+                                      boxSizing: 'border-box'
+                                    }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                          <Bot size={14} color="var(--primary)" />
+                                          <strong style={{ fontSize: '0.74rem', color: 'var(--primary)', fontWeight: 800 }}>
+                                            Sistem Otomatis Catavor
+                                          </strong>
+                                        </div>
+                                        <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                                          {formatSupportDateTime(msg.created_at)}
+                                        </span>
+                                      </div>
+                                      <p style={{ margin: 0, fontSize: '0.82rem', lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                                        {msg.message || msg.content}
+                                      </p>
+                                    </div>
+                                  ) : isInternal ? (
+                                    <div style={{
+                                      padding: '0.85rem 1rem',
+                                      borderRadius: '0.85rem',
+                                      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                                      border: '1px dashed rgba(245, 158, 11, 0.45)',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '0.3rem',
+                                      maxWidth: '92%',
+                                      alignSelf: 'center',
+                                      width: '100%',
+                                      boxSizing: 'border-box'
+                                    }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                          <Lock size={12} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
+                                        </span>
+                                        <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                                          {formatSupportDateTime(msg.created_at)}
+                                        </span>
+                                      </div>
+                                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                        Oleh: {msg.sender?.name || 'Staf Admin'}
+                                      </div>
+                                      <p style={{ margin: 0, fontSize: '0.82rem', lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                                        {msg.message || msg.content}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: isStaff ? 'flex-end' : 'flex-start',
+                                      maxWidth: '100%'
+                                    }}>
+                                      <div style={{
+                                        maxWidth: '85%',
+                                        minWidth: '220px',
+                                        padding: '0.85rem 1.1rem',
+                                        borderRadius: isStaff ? '1rem 1rem 0.25rem 1rem' : '1rem 1rem 1rem 0.25rem',
+                                        backgroundColor: isStaff ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-deep)',
+                                        border: `1px solid ${isStaff ? 'rgba(59, 130, 246, 0.3)' : 'var(--border-light)'}`,
+                                        color: 'var(--text-primary)',
+                                        boxSizing: 'border-box'
+                                      }}>
+                                        {/* Bubble Header */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                            {isStaff ? (
+                                              <ShieldCheck size={13} color="var(--primary)" />
+                                            ) : (
+                                              <StoreIcon size={13} color="var(--text-muted)" />
+                                            )}
+                                            <strong style={{ fontSize: '0.74rem', color: isStaff ? 'var(--primary)' : 'var(--text-primary)', fontWeight: 800 }}>
+                                              {isStaff ? (msg.sender?.name || 'Staf CS Catavor') : getStoreDisplayName(ticketDetail)}
+                                            </strong>
+                                          </div>
+                                          <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+                                            {formatSupportDateTime(msg.created_at)}
+                                          </span>
+                                        </div>
+
+                                        {/* Message text */}
+                                        {msg.message || msg.content ? (
+                                          <p style={{ margin: 0, fontSize: '0.84rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                            {msg.message || msg.content}
+                                          </p>
+                                        ) : null}
+
+                                        {/* Attachments */}
+                                        {msg.attachments && msg.attachments.length > 0 && (
+                                          <div style={{
+                                            marginTop: (msg.message || msg.content) ? '0.6rem' : '0.2rem',
+                                            paddingTop: (msg.message || msg.content) ? '0.5rem' : '0',
+                                            borderTop: (msg.message || msg.content) ? '1px solid var(--border-light)' : 'none'
+                                          }}>
+                                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                              <Paperclip size={11} color="var(--primary)" /> {msg.attachments.length} Lampiran Berkas:
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '0.45rem' }}>
+                                              {msg.attachments.map((att: any, aIdx: number) => {
+                                                const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
+                                                if (isPDF) {
+                                                  return (
+                                                    <div
+                                                      key={aIdx}
+                                                      style={{
+                                                        gridColumn: '1 / -1',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        padding: '0.55rem 0.75rem',
+                                                        borderRadius: '0.65rem',
+                                                        backgroundColor: 'var(--bg-card)',
+                                                        border: '1px solid var(--border-light)',
+                                                        gap: '0.5rem'
+                                                      }}
+                                                    >
+                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
+                                                        <div style={{
+                                                          width: '32px',
+                                                          height: '32px',
+                                                          borderRadius: '0.45rem',
+                                                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                          display: 'flex',
+                                                          alignItems: 'center',
+                                                          justifyContent: 'center',
+                                                          flexShrink: 0
+                                                        }}>
+                                                          <FileText size={16} color="#ef4444" />
+                                                        </div>
+                                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                                          <div style={{ fontSize: '0.75rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {att.file_name || 'Dokumen.pdf'}
+                                                          </div>
+                                                          <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>
+                                                            PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => setPreviewDocument({
+                                                            isOpen: true,
+                                                            fileName: att.file_name || 'Dokumen.pdf',
+                                                            fileUrl: att.file_url,
+                                                            fileSize: att.file_size,
+                                                            fileType: att.file_type || 'application/pdf'
+                                                          })}
+                                                          style={{
+                                                            padding: '0.3rem 0.55rem',
+                                                            borderRadius: '0.4rem',
+                                                            backgroundColor: 'var(--primary)',
+                                                            color: '#ffffff',
+                                                            border: 'none',
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.25rem'
+                                                          }}
+                                                        >
+                                                          <Eye size={12} /> Pratinjau
+                                                        </button>
+                                                        <a
+                                                          href={att.file_url}
+                                                          download={att.file_name || 'Dokumen.pdf'}
+                                                          target="_blank"
+                                                          rel="noopener noreferrer"
+                                                          style={{
+                                                            padding: '0.3rem 0.55rem',
+                                                            borderRadius: '0.4rem',
+                                                            backgroundColor: 'var(--bg-deep)',
+                                                            color: 'var(--text-primary)',
+                                                            border: '1px solid var(--border-light)',
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: 700,
+                                                            textDecoration: 'none',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.25rem'
+                                                          }}
+                                                        >
+                                                          <Download size={12} /> Unduh
+                                                        </a>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                }
+                                                return (
+                                                  <div
+                                                    key={aIdx}
+                                                    onClick={() => setPreviewImageUrl(att.file_url)}
+                                                    style={{
+                                                      position: 'relative',
+                                                      borderRadius: '0.45rem',
+                                                      overflow: 'hidden',
+                                                      border: '1px solid var(--border-light)',
+                                                      aspectRatio: '1',
+                                                      cursor: 'pointer',
+                                                      backgroundColor: '#000000'
+                                                    }}
+                                                    title="Klik untuk perbesar gambar"
+                                                  >
+                                                    <img
+                                                      src={att.file_url}
+                                                      alt={att.file_name || 'Lampiran'}
+                                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                    />
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                            <div ref={messagesEndRef} />
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Docked Reply Composer (Pane Footer) */}
+                    <div style={{
+                      padding: '0.85rem 1.25rem',
+                      borderTop: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.55rem',
+                      flexShrink: 0
+                    }}>
+                      {ticketDetail.status === 'closed' ? (
+                        <div style={{
+                          padding: '0.75rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.76rem',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          border: '1px solid var(--border-light)'
+                        }}>
+                          <Lock size={14} />
+                          <span>Tiket telah ditutup permanen (Read-Only). Balasan dinonaktifkan.</span>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Segmented Mode Control: Balas Merchant vs Catatan Internal */}
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: '0.35rem',
+                            backgroundColor: 'var(--bg-deep)',
                             borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-card)',
-                            color: 'var(--text-muted)',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Paperclip size={18} />
-                        </button>
-                        <textarea
-                          rows={2}
-                          value={ticketReply}
-                          onChange={e => setTicketReply(e.target.value)}
-                          placeholder="Tuliskan respon bantuan ke merchant..."
-                          style={{
-                            flex: 1,
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-card)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.85rem',
-                            outline: 'none',
-                            resize: 'none'
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleSendTicketReply}
-                          style={{
-                            padding: '0.65rem 1.25rem',
-                            borderRadius: '0.55rem',
-                            border: 'none',
-                            backgroundColor: 'var(--primary)',
-                            color: '#ffffff',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.35rem'
-                          }}
-                        >
-                          <Send size={16} />
-                          <span>Kirim</span>
-                        </button>
-                      </div>
+                            padding: '3px',
+                            border: '1px solid var(--border-light)'
+                          }}>
+                            <button
+                              type="button"
+                              onClick={() => setIsInternalNote(false)}
+                              style={{
+                                padding: '0.45rem 0.5rem',
+                                borderRadius: '0.45rem',
+                                fontSize: '0.74rem',
+                                fontWeight: !isInternalNote ? 800 : 600,
+                                backgroundColor: !isInternalNote ? 'var(--primary)' : 'transparent',
+                                color: !isInternalNote ? '#ffffff' : 'var(--text-muted)',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <span>Balas Merchant</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsInternalNote(true)}
+                              style={{
+                                padding: '0.45rem 0.5rem',
+                                borderRadius: '0.45rem',
+                                fontSize: '0.74rem',
+                                fontWeight: isInternalNote ? 800 : 600,
+                                backgroundColor: isInternalNote ? '#f59e0b' : 'transparent',
+                                color: isInternalNote ? '#ffffff' : 'var(--text-muted)',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <Lock size={12} />
+                              <span>Catatan Internal</span>
+                            </button>
+                          </div>
+
+                          {/* Attachment Previews */}
+                          {ticketReplyAttachments.length > 0 && (
+                            <div style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', padding: '0.2rem 0', alignItems: 'center' }}>
+                              {ticketReplyAttachments.map((att, idx) => (
+                                <div key={idx} style={{
+                                  position: 'relative',
+                                  width: '42px',
+                                  height: '42px',
+                                  borderRadius: '0.5rem',
+                                  overflow: 'hidden',
+                                  border: '1px solid var(--border-light)',
+                                  flexShrink: 0,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  backgroundColor: 'var(--bg-deep)'
+                                }}>
+                                  {(att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? (
+                                    <FileText size={20} color="#ef4444" />
+                                  ) : (
+                                    <img src={att.file_url} alt="Attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setTicketReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
+                                    style={{
+                                      position: 'absolute',
+                                      top: 2,
+                                      right: 2,
+                                      width: '16px',
+                                      height: '16px',
+                                      borderRadius: '50%',
+                                      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      fontSize: '0.6rem',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      padding: 0
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                {ticketReplyAttachments.length} berkas terlampir
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Input Area + Toolbar */}
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                            <input
+                              type="file"
+                              ref={fileInputRef}
+                              style={{ display: 'none' }}
+                              onChange={e => handleUploadTicketAttachment(e.target.files)}
+                              multiple
+                              accept="image/*,.pdf"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={isUploadingTicketAttachment}
+                              title="Lampirkan File (Gambar/PDF)"
+                              style={{
+                                height: '42px',
+                                padding: '0 0.75rem',
+                                borderRadius: '0.55rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-deep)',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem',
+                                fontSize: '0.74rem',
+                                fontWeight: 700
+                              }}
+                            >
+                              {isUploadingTicketAttachment ? (
+                                <RefreshCw size={15} className="animate-spin" color="var(--primary)" />
+                              ) : (
+                                <Paperclip size={16} />
+                              )}
+                              <span>Lampiran</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setShowCannedModal(true)}
+                              title="Gunakan Template CS"
+                              style={{
+                                height: '42px',
+                                padding: '0 0.75rem',
+                                borderRadius: '0.55rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-deep)',
+                                color: '#f59e0b',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem',
+                                fontSize: '0.74rem',
+                                fontWeight: 700
+                              }}
+                            >
+                              <Zap size={14} color="#f59e0b" />
+                              <span>Template</span>
+                            </button>
+
+                            <textarea
+                              rows={2}
+                              value={ticketReply}
+                              onChange={e => setTicketReply(e.target.value)}
+                              placeholder={isInternalNote ? 'Tuliskan catatan internal (hanya terlihat oleh tim admin)...' : 'Tuliskan respon bantuan ke merchant...'}
+                              style={{
+                                flex: 1,
+                                padding: '0.65rem 0.85rem',
+                                borderRadius: '0.55rem',
+                                border: `1px solid ${isInternalNote ? 'rgba(245, 158, 11, 0.4)' : 'var(--border-light)'}`,
+                                backgroundColor: isInternalNote ? 'rgba(245, 158, 11, 0.05)' : 'var(--bg-deep)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.82rem',
+                                outline: 'none',
+                                resize: 'none',
+                                lineHeight: 1.45
+                              }}
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() => handleSendTicketReply(isInternalNote)}
+                              disabled={!ticketReply.trim() && ticketReplyAttachments.length === 0}
+                              style={{
+                                height: '42px',
+                                padding: '0 1.25rem',
+                                borderRadius: '0.55rem',
+                                border: 'none',
+                                backgroundColor: isInternalNote ? '#f59e0b' : 'var(--primary)',
+                                color: '#ffffff',
+                                fontWeight: 700,
+                                fontSize: '0.82rem',
+                                cursor: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 'not-allowed' : 'pointer',
+                                opacity: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 0.6 : 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <Send size={15} />
+                              <span>{isInternalNote ? 'Simpan Catatan' : 'Kirim'}</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
-                ) : null
+                )
               }
             />
           )}
@@ -5828,6 +7030,169 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
         </div>
       </main>
+
+      {/* DOCUMENT PREVIEW MODAL */}
+      {previewDocument && (
+        <DocumentPreviewModal
+          document={previewDocument}
+          onClose={() => setPreviewDocument(null)}
+          token={token}
+        />
+      )}
+
+      {/* IMAGE LIGHTBOX MODAL */}
+      {previewImageUrl && (
+        <div
+          onClick={() => setPreviewImageUrl(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem'
+          }}
+        >
+          <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
+            <img
+              src={previewImageUrl}
+              alt="Pratinjau"
+              style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '0.75rem' }}
+            />
+            <button
+              type="button"
+              onClick={() => setPreviewImageUrl(null)}
+              style={{
+                position: 'absolute',
+                top: -12,
+                right: -12,
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CANNED CS RESPONSE TEMPLATES MODAL */}
+      {showCannedModal && (
+        <div
+          onClick={() => setShowCannedModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem'
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '560px',
+              maxHeight: '80vh',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{
+              padding: '1rem 1.25rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Zap size={18} color="#f59e0b" />
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Template Balasan Cepat CS
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCannedModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{
+              padding: '1rem 1.25rem',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.65rem'
+            }}>
+              {DEFAULT_CANNED_TEMPLATES.map((tmpl, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => handleInsertCannedTemplate(tmpl.text)}
+                  style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{tmpl.title}</strong>
+                    <span style={{
+                      fontSize: '0.62rem',
+                      fontWeight: 700,
+                      padding: '0.1rem 0.4rem',
+                      borderRadius: '999px',
+                      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                      color: 'var(--primary)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)'
+                    }}>
+                      {tmpl.category}
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+                    {tmpl.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
