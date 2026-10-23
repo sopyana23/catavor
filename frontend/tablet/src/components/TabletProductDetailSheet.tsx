@@ -182,7 +182,7 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
               <Package size={64} strokeWidth={1} color="var(--text-muted)" />
             )}
 
-            {product.category_name && (
+            {(product.class || product.category_name) && (
               <div style={{
                 position: 'absolute',
                 top: '12px',
@@ -199,7 +199,7 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
                 gap: '0.35rem'
               }}>
                 <Tag size={12} />
-                {product.category_name}
+                {product.class || product.category_name}
               </div>
             )}
           </div>

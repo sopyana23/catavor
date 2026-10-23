@@ -65,7 +65,9 @@ import {
   Sun,
   Droplets,
   RotateCcw,
-  X
+  Edit3,
+  X,
+  Info
 } from 'lucide-react';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
@@ -75,9 +77,32 @@ import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
 import { TabletProductFilterSheet, type TabletProductFilterValues } from './TabletProductFilterSheet';
 import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
+import { TabletCustomSelect } from './TabletCustomSelect';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { useModalBackHandler } from '../utils/navigation';
 import { createAuthFetch, isTokenExpired } from '../utils/auth';
+
+export type ItemCategoryType = 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property' | 'plant';
+
+export const DEFAULT_MASTER_CATEGORIES: Record<ItemCategoryType, string[]> = {
+  physical: ['Pakaian & Fashion', 'Aksesoris & Gadget', 'Elektronik & Komputer', 'Perlengkapan Rumah', 'Kerajinan & Kriya', 'Koleksi & Hobi', 'Lainnya'],
+  food: ['Makanan Utama (Main Course)', 'Dessert & Manisan', 'Minuman & Olahan Kopi', 'Camilan & Kudapan (Appetizer)', 'Bakery, Roti & Pastry', 'Makanan Beku (Frozen)', 'Paket Hemat & Bundling', 'Lainnya'],
+  service: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance', 'Lainnya'],
+  digital: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software', 'Lainnya'],
+  fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil', 'Kucing & Anjing', 'Invertebrata & Serangga', 'Lainnya'],
+  property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya'],
+  plant: ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni', 'Tanaman Herbal & Rempah', 'Aquascape & Tanaman Air', 'Lainnya']
+};
+
+export const MASTER_CATEGORY_DEFINITIONS: Array<{ id: ItemCategoryType; label: string; desc: string; icon: React.ComponentType<{ size?: number | string; color?: string; style?: React.CSSProperties }>; color: string }> = [
+  { id: 'physical', label: 'Barang Fisik', desc: 'Produk ritel fisik, pakaian, fashion, elektronik, kerajinan, dan perlengkapan umum', icon: Package, color: '#2563eb' },
+  { id: 'food', label: 'Menu Kuliner (F&B)', desc: 'Makanan siap santap, minuman segar, camilan, bakery, frozen food, dan katering', icon: Utensils, color: '#ea580c' },
+  { id: 'digital', label: 'Item Digital', desc: 'E-book, template dokumen, source code, video materi, dan lisensi software', icon: FileCode, color: '#7c3aed' },
+  { id: 'service', label: 'Jasa & Layanan', desc: 'Jasa konsultasi, perbaikan/servis, desain kreatif, kursus, dan pengerjaan ahli', icon: Wrench, color: '#d97706' },
+  { id: 'plant', label: 'Tanaman & Bibit', desc: 'Tanaman hias, bunga anggrek, bibit buah, kaktus, sukulen, bonsai, dan media tanam', icon: Sprout, color: '#059669' },
+  { id: 'fauna', label: 'Satwa Peliharaan', desc: 'Satwa peliharaan, ikan hias, reptil, amfibi, burung, mamalia, dan serangga hidup', icon: PawPrint, color: '#e11d48' },
+  { id: 'property', label: 'Properti & Aset', desc: 'Rumah tinggal, apartemen, tanah kavling, ruko, ruang usaha, dan villa', icon: Building2, color: '#0891b2' }
+];
 
 export interface CatalogTypeOption {
   id: string;
@@ -364,6 +389,29 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     is_paused: false
   });
 
+  // Master Categories State (Two-Tier Architecture matching Mobile & Desktop)
+  const [masterCategories, setMasterCategories] = useState<Record<ItemCategoryType, string[]>>(DEFAULT_MASTER_CATEGORIES);
+  const [masterCategoryContextTab, setMasterCategoryContextTab] = useState<ItemCategoryType>('physical');
+  const [newCustomCategoryInput, setNewCustomCategoryInput] = useState<string>('');
+  const [renameMasterModalData, setRenameMasterModalData] = useState<{
+    field: 'class';
+    fieldLabel?: string;
+    oldValue: string;
+    newValue: string;
+    productType: ItemCategoryType;
+  } | null>(null);
+  const [deleteMasterModalData, setDeleteMasterModalData] = useState<{
+    field: 'class';
+    value: string;
+    replacementOptions: string[];
+    selectedReplacement: string;
+    productType: ItemCategoryType;
+  } | null>(null);
+
+  // Product Form inline custom category input state
+  const [showCustomClassInput, setShowCustomClassInput] = useState<boolean>(false);
+  const [customClass, setCustomClass] = useState<string>('');
+
   const availableThemes = [
     { id: 'navy', name: 'Royal Navy', color: '#1e3a8a', desc: 'Klasik, elegan & profesional (Light Mode)' },
     { id: 'emerald', name: 'Midnight Emerald', color: '#10b981', desc: 'Nuansa hijau alami modern' },
@@ -400,6 +448,18 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           show_hours: data.show_hours !== undefined ? data.show_hours : true,
           is_paused: Boolean(data.is_suspended || data.is_dormant)
         });
+        if (data.master_categories) {
+          setMasterCategories(prev => {
+            const merged: Record<ItemCategoryType, string[]> = { ...DEFAULT_MASTER_CATEGORIES };
+            (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[]).forEach(type => {
+              const storeList = data.master_categories[type];
+              if (Array.isArray(storeList) && storeList.length > 0) {
+                merged[type] = Array.from(new Set([...(DEFAULT_MASTER_CATEGORIES[type] || []), ...storeList]));
+              }
+            });
+            return merged;
+          });
+        }
         if (newTheme && newTheme !== appliedThemeRef.current) {
           appliedThemeRef.current = newTheme;
           if (onThemeChangeRef.current) {
@@ -504,7 +564,36 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     categoriesRef.current = categories;
   }, [categories]);
   const [products, setProducts] = useState<any[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<number | 'new' | null>(() => {
+
+  // Helper to retrieve category options for a specific product type (Two-Tier Master Data)
+  const getCategoryOptionsForType = useCallback((productType: string = 'physical'): string[] => {
+    const pType = (productType || 'physical') as ItemCategoryType;
+    const fromMaster = masterCategories[pType] || [];
+    const fromDefaults = DEFAULT_MASTER_CATEGORIES[pType] || [];
+
+    // Collect defaults from other product types so cross-industry defaults don't leak into this type
+    const otherDefaults = new Set<string>();
+    (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[]).forEach(otherType => {
+      if (otherType !== pType) {
+        (DEFAULT_MASTER_CATEGORIES[otherType] || []).forEach(c => otherDefaults.add(c));
+      }
+    });
+
+    const customUsed = products
+      .filter(p => (p.product_type || 'physical') === pType && p.class)
+      .map(p => p.class)
+      .filter(c => !otherDefaults.has(c));
+
+    const merged = Array.from(new Set([...fromDefaults, ...fromMaster, ...customUsed])).filter(Boolean);
+    return merged.length > 0 ? merged : ['Lainnya'];
+  }, [masterCategories, products]);
+
+  const getDefaultCategoryForType = useCallback((productType: string = 'physical'): string => {
+    const options = getCategoryOptionsForType(productType);
+    return options[0] || 'Lainnya';
+  }, [getCategoryOptionsForType]);
+
+  const [selectedProductId, setSelectedProductId] = useState<number | string | null>(() => {
     if (typeof window !== 'undefined') {
       const isNarrow = window.innerWidth < 880;
       const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
@@ -664,20 +753,40 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     ];
   }, [isHybridStore, availableCatalogTypes, catalogMetrics?.total_items, catalogMetrics?.by_type, productTotalRecords]);
 
-  // Category tag items for the horizontal scrollable track
+  // Category tag items for the horizontal scrollable track (combines relational categories & master classes)
   const categoryTagItems: FilterTagItem[] = useMemo(() => {
-    return [
+    const list: FilterTagItem[] = [
       {
         id: 'all',
         label: 'Semua Kategori'
-      },
-      ...categories.map((cat) => ({
-        id: String(cat.id),
-        label: cat.name,
-        icon: Tag
-      }))
+      }
     ];
-  }, [categories]);
+
+    const seen = new Set<string>();
+    categories.forEach((cat) => {
+      if (cat.name && !seen.has(cat.name.toLowerCase())) {
+        seen.add(cat.name.toLowerCase());
+        list.push({
+          id: String(cat.id),
+          label: cat.name,
+          icon: Tag
+        });
+      }
+    });
+
+    products.forEach((p) => {
+      if (p.class && !seen.has(p.class.toLowerCase())) {
+        seen.add(p.class.toLowerCase());
+        list.push({
+          id: p.class,
+          label: p.class,
+          icon: Tag
+        });
+      }
+    });
+
+    return list;
+  }, [categories, products]);
 
   const [productForm, setProductForm] = useState({
     id: 0,
@@ -685,6 +794,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     price: 0,
     stock: 1,
     category_id: '',
+    class: '',
     product_type: '',
     scientific_name: '',
     unit: 'Pcs',
@@ -707,11 +817,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const handleStartNewProduct = useCallback((presetType?: string) => {
     setSelectedProductId('new');
+    setShowCustomClassInput(false);
+    setCustomClass('');
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const targetType = presetType || params?.get('type') || params?.get('catalog_type') || '';
     const isValidType = CATALOG_TYPE_OPTIONS.some(t => t.id === targetType);
     const chosenType = isValidType ? targetType : '';
     const typeDef = chosenType ? CATALOG_TYPE_OPTIONS.find(t => t.id === chosenType) : undefined;
+    const initialClass = chosenType ? getDefaultCategoryForType(chosenType) : '';
 
     const defaultAttrs: Record<string, any> = {};
     if (chosenType === 'physical') defaultAttrs.condition = 'Baru';
@@ -752,6 +865,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       price: 0,
       stock: 1,
       category_id: categoriesRef.current.length > 0 ? String(categoriesRef.current[0].id) : '',
+      class: initialClass,
       product_type: chosenType,
       scientific_name: '',
       unit: typeDef?.defaultUnit || 'Pcs',
@@ -768,17 +882,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     });
 
     setIsSelectingProductType(!isValidType);
-  }, []);
+  }, [getDefaultCategoryForType]);
 
   const handleCancelToProductTypeSelection = useCallback(() => {
     setSelectedProductId('new');
     setIsSelectingProductType(true);
+    setShowCustomClassInput(false);
+    setCustomClass('');
     setProductForm({
       id: 0,
       name: '',
       price: 0,
       stock: 1,
       category_id: categoriesRef.current.length > 0 ? String(categoriesRef.current[0].id) : '',
+      class: '',
       product_type: '',
       scientific_name: '',
       unit: 'Pcs',
@@ -923,13 +1040,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
     }
 
+    const editProdType = prod.product_type || 'physical';
+    const resolvedClass = prod.class || prod.category_name || (categories.find(c => String(c.id) === String(prod.category_id))?.name) || getDefaultCategoryForType(editProdType);
+    setShowCustomClassInput(false);
+    setCustomClass('');
+
     setProductForm({
       id: prod.id,
       name: prod.name || '',
       price: prod.price || 0,
       stock: prod.stock !== undefined ? prod.stock : 1,
       category_id: prod.category_id || '',
-      product_type: prod.product_type || 'physical',
+      class: resolvedClass,
+      product_type: editProdType,
       scientific_name: prod.scientific_name || rawAttrs.scientific_name || '',
       unit: prod.unit || 'Pcs',
       description: prod.description || '',
@@ -978,9 +1101,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const isDefaultUnit = !prev.unit || prev.unit === 'Pcs' || CATALOG_TYPE_OPTIONS.some(o => o.defaultUnit === prev.unit);
       const shouldUpdateUnit = prev.id === 0 && isDefaultUnit;
 
+      const validCategories = getCategoryOptionsForType(typeId);
+      const isFromOtherTypeDefault = (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[])
+        .some(otherType => otherType !== typeId && DEFAULT_MASTER_CATEGORIES[otherType].includes(prev.class));
+      const nextClass = (prev.class && validCategories.includes(prev.class) && !isFromOtherTypeDefault)
+        ? prev.class
+        : (validCategories[0] || 'Lainnya');
+
       return {
         ...prev,
         product_type: typeId,
+        class: nextClass,
         unit: shouldUpdateUnit ? (typeDef?.defaultUnit || 'Pcs') : prev.unit,
         attributes: defaultAttrs
       };
@@ -1029,6 +1160,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       } catch {}
     },
     modalId: 'tablet_new_item_type_step'
+  });
+
+  // Sub-workflow Back Interceptor for Rename Master Category Modal
+  useModalBackHandler({
+    isOpen: Boolean(renameMasterModalData),
+    onClose: () => setRenameMasterModalData(null),
+    modalId: 'tablet_rename_master_modal'
+  });
+
+  // Sub-workflow Back Interceptor for Delete & Reassign Master Category Modal
+  useModalBackHandler({
+    isOpen: Boolean(deleteMasterModalData),
+    onClose: () => setDeleteMasterModalData(null),
+    modalId: 'tablet_delete_master_modal'
   });
 
   // Comprehensive browser history listener (activeTab + sub-view query state)
@@ -1090,11 +1235,47 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const url = isNew ? '/api/products' : `/api/products/${productForm.id}`;
       const method = isNew ? 'POST' : 'PUT';
 
+      const effectiveClass = (showCustomClassInput ? customClass.trim() : productForm.class.trim()) || getDefaultCategoryForType(productForm.product_type);
+      
+      // Auto register custom category to backend master options if typed directly
+      if (showCustomClassInput && customClass.trim()) {
+        const pType = (productForm.product_type || 'physical') as ItemCategoryType;
+        const existingOpts = getCategoryOptionsForType(pType);
+        if (!existingOpts.includes(customClass.trim())) {
+          try {
+            fetch('/api/stores/add-master-option', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'X-Store-Slug': storeSlug,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                field: 'class',
+                value: customClass.trim(),
+                product_type: pType
+              })
+            }).then(() => {
+              setMasterCategories(prev => {
+                const cur = prev[pType] || [];
+                return {
+                  ...prev,
+                  [pType]: Array.from(new Set([...cur, customClass.trim()]))
+                };
+              });
+            }).catch(() => {});
+          } catch {}
+        }
+      }
+
+      const matchedCat = categories.find(c => c.name.toLowerCase() === effectiveClass.toLowerCase());
+
       const payload = {
         name: productForm.name.trim(),
         price: Number(productForm.price),
         stock: Number(productForm.stock),
-        category_id: productForm.category_id ? Number(productForm.category_id) : undefined,
+        class: effectiveClass,
+        category_id: productForm.category_id ? Number(productForm.category_id) : (matchedCat ? matchedCat.id : undefined),
         product_type: productForm.product_type,
         scientific_name: productForm.scientific_name || (productForm.attributes?.scientific_name) || undefined,
         unit: productForm.unit,
@@ -1239,11 +1420,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   };
 
   // =========================================================================
-  // 3. CATEGORIES STATE
+  // 3. MASTER CATEGORIES ACTIONS (Two-Tier Data Architecture)
   // =========================================================================
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'new' | null>(null);
-  const [categoryForm, setCategoryForm] = useState({ id: 0, name: '' });
-
   const fetchCategories = useCallback(async () => {
     try {
       const endpoint = storeSlug ? `/api/u/${storeSlug}/categories` : '/api/categories';
@@ -1252,61 +1430,219 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const json = await res.json();
         const list = json.data || json.categories || [];
         setCategories(list);
-        if (list.length > 0 && !isNarrowScreen) {
-          setSelectedCategoryId(prev => {
-            if (prev === null) {
-              setCategoryForm({ id: list[0].id, name: list[0].name });
-              return list[0].id;
-            }
-            return prev;
-          });
-        }
       }
     } catch {
       // safe fallback
     }
-  }, [storeSlug, getHeaders, isNarrowScreen]);
+  }, [storeSlug, getHeaders]);
 
-  const handleSaveCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!categoryForm.name.trim()) return;
+  const handleAddMasterOption = async (
+    value: string,
+    productType: ItemCategoryType,
+    resetInput?: (val: string) => void
+  ) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      showToast('Nama kategori tidak boleh kosong.', 'error');
+      return false;
+    }
+
+    const isAlreadyDefault = (DEFAULT_MASTER_CATEGORIES[productType] || []).some(
+      c => c.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (isAlreadyDefault) {
+      showToast(`Kategori "${trimmed}" sudah tersedia sebagai standar bawaan sistem.`, 'error');
+      return false;
+    }
+
     setSaving(true);
     try {
-      const isNew = selectedCategoryId === 'new';
-      const url = isNew ? '/api/categories' : `/api/categories/${categoryForm.id}`;
-      const method = isNew ? 'POST' : 'PUT';
-      const res = await fetch(url, {
-        method,
-        headers: getHeaders(),
-        body: JSON.stringify({ name: categoryForm.name.trim() })
+      const res = await fetch('/api/stores/add-master-option', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': storeSlug,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          field: 'class',
+          value: trimmed,
+          product_type: productType
+        })
       });
-      if (res.ok) {
-        showToast(isNew ? 'Kategori berhasil dibuat' : 'Kategori berhasil diperbarui');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Kategori baru berhasil ditambahkan!');
+        if (resetInput) resetInput('');
+        setMasterCategories(prev => {
+          const cur = prev[productType] || [];
+          return {
+            ...prev,
+            [productType]: Array.from(new Set([...cur, trimmed]))
+          };
+        });
+        await fetchStoreProfile();
         await fetchCategories();
+        return true;
       } else {
-        showToast('Gagal menyimpan kategori', 'error');
+        showToast(data.message || 'Gagal menambahkan kategori baru.', 'error');
+        return false;
       }
     } catch {
-      showToast('Terjadi kesalahan jaringan', 'error');
+      showToast('Terjadi kesalahan koneksi saat menambah kategori baru.', 'error');
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteCategory = async (id: number) => {
-    if (!confirm('Yakin ingin menghapus kategori ini?')) return;
+  const handleRenameMasterOption = async (
+    oldValue: string,
+    newValue: string,
+    productType: ItemCategoryType
+  ) => {
+    if ((DEFAULT_MASTER_CATEGORIES[productType] || []).includes(oldValue)) {
+      showToast(`Kategori "${oldValue}" adalah standar bawaan sistem dan tidak dapat diubah namanya.`, 'error');
+      setRenameMasterModalData(null);
+      return;
+    }
+
+    const trimmed = newValue.trim();
+    if (!trimmed) {
+      showToast('Nama kategori tidak boleh kosong.', 'error');
+      return;
+    }
+    if (trimmed === oldValue) {
+      setRenameMasterModalData(null);
+      return;
+    }
+
+    const isAlreadyDefault = (DEFAULT_MASTER_CATEGORIES[productType] || []).some(
+      c => c.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (isAlreadyDefault) {
+      showToast(`Kategori "${trimmed}" sudah merupakan standar bawaan sistem.`, 'error');
+      return;
+    }
+
+    setSaving(true);
     try {
-      const res = await fetch(`/api/categories/${id}`, {
-        method: 'DELETE',
-        headers: getHeaders()
+      const res = await fetch('/api/stores/rename-master-option', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': storeSlug,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          field: 'class',
+          old_value: oldValue,
+          new_value: trimmed,
+          product_type: productType
+        })
       });
-      if (res.ok) {
-        showToast('Kategori berhasil dihapus');
-        setSelectedCategoryId(null);
-        await fetchCategories();
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Nama kategori berhasil diubah dan disinkronkan!');
+        setRenameMasterModalData(null);
+        setMasterCategories(prev => {
+          const cur = prev[productType] || [];
+          return {
+            ...prev,
+            [productType]: cur.map(c => c === oldValue ? trimmed : c)
+          };
+        });
+        await fetchStoreProfile();
+        await fetchProducts(
+          productPage,
+          productSearch,
+          productStatusFilter,
+          productCategoryFilter,
+          productTypeFilter,
+          productSortFilter,
+          productStockFilter
+        );
+      } else {
+        showToast(data.message || 'Gagal mengubah nama kategori.', 'error');
       }
     } catch {
-      showToast('Gagal menghapus kategori', 'error');
+      showToast('Terjadi kesalahan koneksi saat mengubah nama kategori.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOpenDeleteMasterOption = (value: string, productType: ItemCategoryType) => {
+    if ((DEFAULT_MASTER_CATEGORIES[productType] || []).includes(value)) {
+      showToast(`Kategori "${value}" adalah standar bawaan sistem dan tidak dapat dihapus.`, 'error');
+      return;
+    }
+
+    const options = getCategoryOptionsForType(productType);
+    const replacementOptions = options.filter(opt => opt !== value && opt !== '+ Tambah Baru...' && opt !== '__NEW__' && opt !== '__ADD_NEW__');
+
+    if (replacementOptions.length === 0) {
+      showToast('Tidak ada opsi kategori pengganti lain yang tersedia untuk menghapus kategori ini.', 'error');
+      return;
+    }
+
+    setDeleteMasterModalData({
+      field: 'class',
+      value,
+      replacementOptions,
+      selectedReplacement: replacementOptions[0],
+      productType
+    });
+  };
+
+  const handleConfirmDeleteMasterOption = async () => {
+    if (!deleteMasterModalData) return;
+    const { field, value, selectedReplacement, productType } = deleteMasterModalData;
+    setDeleteMasterModalData(null);
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/stores/delete-master-option', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': storeSlug,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          field,
+          value,
+          replacement_option: selectedReplacement,
+          product_type: productType
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Kategori berhasil dihapus dan item telah dialihkan!');
+        setMasterCategories(prev => {
+          const cur = prev[productType] || [];
+          return {
+            ...prev,
+            [productType]: cur.filter(c => c !== value)
+          };
+        });
+        await fetchStoreProfile();
+        await fetchProducts(
+          productPage,
+          productSearch,
+          productStatusFilter,
+          productCategoryFilter,
+          productTypeFilter,
+          productSortFilter,
+          productStockFilter
+        );
+      } else {
+        showToast(data.message || 'Gagal menghapus kategori.', 'error');
+      }
+    } catch {
+      showToast('Koneksi internet bermasalah. Gagal menghapus kategori.', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -3467,28 +3803,188 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       </div>
 
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Kategori Produk
-                        </label>
-                        <select
-                          value={productForm.category_id}
-                          onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
+                            Kategori {activeTypeDef.name} *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = !showCustomClassInput;
+                              setShowCustomClassInput(next);
+                              if (!next) setCustomClass('');
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: '0.2rem 0.4rem',
+                              color: 'var(--primary)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
+                          >
+                            {showCustomClassInput ? (
+                              <>
+                                <RotateCcw size={13} />
+                                <span>Pilih dari Daftar</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={13} strokeWidth={2.5} />
+                                <span>+ Buat Kategori Baru</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {showCustomClassInput ? (
+                          <div style={{
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.65rem',
                             backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        >
-                          <option value="">Pilih Kategori...</option>
-                          {categories.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
+                            border: '1.5px solid var(--primary)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.65rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                <Tag size={15} color="var(--primary)" />
+                                <span>Buat Kategori Kustom ({activeTypeDef.name})</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowCustomClassInput(false);
+                                  setCustomClass('');
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  padding: '0.2rem',
+                                  display: 'flex',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                <X size={15} />
+                              </button>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <input
+                                type="text"
+                                placeholder={`Ketik nama kategori baru untuk ${activeTypeDef.name}...`}
+                                value={customClass}
+                                onChange={(e) => {
+                                  setCustomClass(e.target.value);
+                                  setProductForm(p => ({ ...p, class: e.target.value }));
+                                }}
+                                autoFocus
+                                style={{
+                                  flex: 1,
+                                  minHeight: '42px',
+                                  padding: '0.55rem 0.85rem',
+                                  borderRadius: '0.5rem',
+                                  backgroundColor: 'var(--bg-card)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.88rem',
+                                  outline: 'none'
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (customClass.trim()) {
+                                      handleAddMasterOption(customClass.trim(), (productForm.product_type || 'physical') as ItemCategoryType, (val) => {
+                                        setProductForm(p => ({ ...p, class: customClass.trim() }));
+                                        setCustomClass(val);
+                                        setShowCustomClassInput(false);
+                                      });
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                disabled={!customClass.trim() || saving}
+                                onClick={async () => {
+                                  if (!customClass.trim()) return;
+                                  await handleAddMasterOption(customClass.trim(), (productForm.product_type || 'physical') as ItemCategoryType, (val) => {
+                                    setProductForm(p => ({ ...p, class: customClass.trim() }));
+                                    setCustomClass(val);
+                                    setShowCustomClassInput(false);
+                                  });
+                                }}
+                                style={{
+                                  minHeight: '42px',
+                                  padding: '0 1rem',
+                                  borderRadius: '0.5rem',
+                                  backgroundColor: 'var(--primary)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontWeight: 700,
+                                  fontSize: '0.82rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.4rem',
+                                  cursor: !customClass.trim() ? 'not-allowed' : 'pointer',
+                                  opacity: !customClass.trim() ? 0.6 : 1,
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                <Check size={14} strokeWidth={2.5} />
+                                <span>Simpan & Gunakan</span>
+                              </button>
+                            </div>
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                              Kategori ini akan otomatis tersimpan ke daftar master toko dan dapat Anda gunakan kembali nanti.
+                            </span>
+                          </div>
+                        ) : (
+                          <TabletCustomSelect
+                            value={
+                              (productForm.class && getCategoryOptionsForType(productForm.product_type).includes(productForm.class))
+                                ? productForm.class
+                                : getDefaultCategoryForType(productForm.product_type)
+                            }
+                            onChange={(val) => {
+                              if (val === '__ADD_NEW__') {
+                                setShowCustomClassInput(true);
+                                setCustomClass('');
+                              } else {
+                                setProductForm(p => ({ ...p, class: val }));
+                              }
+                            }}
+                            options={[
+                              ...getCategoryOptionsForType(productForm.product_type).map(catName => {
+                                const isDefault = (DEFAULT_MASTER_CATEGORIES[productForm.product_type as ItemCategoryType] || []).includes(catName);
+                                return {
+                                  value: catName,
+                                  label: catName,
+                                  badge: isDefault ? 'Standar' : 'Kustom',
+                                  badgeBg: isDefault ? 'var(--bg-deep)' : 'rgba(30, 58, 138, 0.12)',
+                                  badgeColor: isDefault ? 'var(--text-muted)' : 'var(--primary)'
+                                };
+                              }),
+                              {
+                                value: '__ADD_NEW__',
+                                label: '+ Buat Kategori Baru (Ketik Sendiri)...',
+                                badge: 'Aksi',
+                                badgeBg: 'var(--primary-glow)',
+                                badgeColor: 'var(--primary)'
+                              }
+                            ]}
+                            placeholder={`Pilih Kategori ${activeTypeDef.name}...`}
+                            searchable={true}
+                            searchPlaceholder="Cari kategori..."
+                            triggerStyle={{ minHeight: '42px', fontSize: '0.88rem' }}
+                          />
+                        )}
                       </div>
 
                       <div>
@@ -4987,149 +5483,438 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         )}
 
         {/* ===================================================================
-            TAB 2: KATEGORI ETALASE (Master-Detail Split View)
+            TAB 2: KATEGORI ETALASE (Two-Tier Master Data Hub - Master-Detail Split View)
             =================================================================== */}
-        {activeTab === 'categories' && (
-          <TabletMasterDetailView
-            title="Kategori Etalase Toko"
-            subtitle={`${categories.length} kategori aktif`}
-            headerAction={
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCategoryId('new');
-                  setCategoryForm({ id: 0, name: '' });
-                }}
-                style={{
-                  minHeight: '40px',
-                  padding: '0.45rem 1rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={16} />
-                Tambah Kategori
-              </button>
-            }
-            selectedId={selectedCategoryId}
-            onClearSelection={() => setSelectedCategoryId(null)}
-            masterPane={
-              <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto' }}>
-                {categories.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    Belum ada kategori etalase dibuat
+        {activeTab === 'categories' && (() => {
+          const activeTypeDef = MASTER_CATEGORY_DEFINITIONS.find(t => t.id === masterCategoryContextTab) || MASTER_CATEGORY_DEFINITIONS[0];
+          const ActiveTypeIcon = activeTypeDef.icon;
+          const activeCategories = getCategoryOptionsForType(masterCategoryContextTab);
+          const defaultList = DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || [];
+          const systemCategories = activeCategories.filter(c => defaultList.includes(c));
+          const customCategories = activeCategories.filter(c => !defaultList.includes(c));
+
+          return (
+            <TabletMasterDetailView
+              title="Master Kategori Etalase"
+              subtitle="Kelola taksonomi kategori etalase per format spesialisasi katalog"
+              selectedId={masterCategoryContextTab}
+              onClearSelection={() => {}}
+              masterPane={
+                <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', overflowY: 'auto' }}>
+                  <div style={{ padding: '0.25rem 0.5rem 0.5rem', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                    Pilih Tipe Katalog
                   </div>
-                ) : (
-                  categories.map(cat => {
-                    const isSelected = selectedCategoryId === cat.id;
+                  {MASTER_CATEGORY_DEFINITIONS.map(tab => {
+                    const isSelected = masterCategoryContextTab === tab.id;
+                    const TabIcon = tab.icon;
+                    const opts = getCategoryOptionsForType(tab.id);
+                    const defaults = DEFAULT_MASTER_CATEGORIES[tab.id] || [];
+                    const customCount = opts.filter(c => !defaults.includes(c)).length;
+
                     return (
                       <div
-                        key={cat.id}
-                        onClick={() => {
-                          setSelectedCategoryId(cat.id);
-                          setCategoryForm({ id: cat.id, name: cat.name });
+                        key={tab.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setMasterCategoryContextTab(tab.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setMasterCategoryContextTab(tab.id);
+                          }
                         }}
                         style={{
                           padding: '0.85rem 1rem',
                           borderRadius: '0.65rem',
-                          backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                          border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? `${tab.color}15` : 'var(--bg-card)',
+                          border: isSelected ? `1.5px solid ${tab.color}` : '1px solid var(--border-light)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <Tag size={18} color="var(--primary)" />
-                          <span style={{ fontSize: '0.92rem', fontWeight: 600 }}>{cat.name}</span>
+                          <div style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '0.5rem',
+                            backgroundColor: `${tab.color}20`,
+                            color: tab.color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <TabIcon size={19} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: isSelected ? 800 : 600, color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                              {tab.label}
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                              {opts.length} Kategori
+                            </div>
+                          </div>
                         </div>
+
+                        {customCount > 0 && (
+                          <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '0.12rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                            color: '#10b981'
+                          }}>
+                            +{customCount} Kustom
+                          </span>
+                        )}
                       </div>
                     );
-                  })
-                )}
-              </div>
-            }
-            detailPane={
-              <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
-                  {selectedCategoryId === 'new' ? 'Buat Kategori Baru' : 'Ubah Nama Kategori'}
-                </h3>
-                <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '440px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                      Nama Kategori
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: Pakan Hewan, Aksesoris, Tanaman"
-                      value={categoryForm.name}
-                      onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem 0.85rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.88rem',
-                        outline: 'none'
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0.65rem 1.25rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--primary)',
-                        color: '#ffffff',
-                        border: 'none',
+                  })}
+                </div>
+              }
+              detailPane={
+                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
+                  {/* Context Header Card */}
+                  <div style={{
+                    padding: '1.25rem 1.5rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: `${activeTypeDef.color}10`,
+                    border: `1px solid ${activeTypeDef.color}30`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '1rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                      <div style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '0.75rem',
+                        backgroundColor: `${activeTypeDef.color}25`,
+                        color: activeTypeDef.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <ActiveTypeIcon size={24} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          {activeTypeDef.label}
+                        </h3>
+                        <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {activeTypeDef.desc}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: '0.74rem',
                         fontWeight: 700,
-                        cursor: 'pointer',
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '6px',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid var(--border-light)',
                         display: 'inline-flex',
                         alignItems: 'center',
+                        gap: '0.35rem'
+                      }}>
+                        <Lock size={12} strokeWidth={2.2} /> {systemCategories.length} Standar
+                      </span>
+                      {customCategories.length > 0 && (
+                        <span style={{
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                          color: '#10b981',
+                          border: '1px solid rgba(16, 185, 129, 0.3)'
+                        }}>
+                          +{customCategories.length} Kustom
+                        </span>
+                      )}
+                      <span style={{
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '6px',
+                        backgroundColor: 'var(--primary)',
+                        color: '#ffffff'
+                      }}>
+                        Total {activeCategories.length} Kategori
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Section 1: Kategori Standar Sistem */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Lock size={14} strokeWidth={2.2} style={{ color: 'var(--text-muted)' }} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
+                          Kategori Standar Sistem
+                        </span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }}>
+                          {systemCategories.length}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Standar bawaan ekosistem (terkunci demi konsistensi etalase)
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                      {systemCategories.map(c => {
+                        const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
+                        return (
+                          <div
+                            key={c}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              padding: '0.45rem 0.85rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border-light)',
+                              fontSize: '0.84rem',
+                              color: 'var(--text-primary)'
+                            }}
+                            title="Kategori bawaan standar sistem yang terkunci"
+                          >
+                            <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                            <span style={{ fontWeight: 500 }}>{c}</span>
+                            {count > 0 && (
+                              <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '999px',
+                                backgroundColor: 'var(--bg-deep)',
+                                color: 'var(--text-secondary)',
+                                border: '1px solid var(--border-light)'
+                              }}>
+                                {count} item
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Section 2: Kategori Kustom Anda */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: customCategories.length > 0 ? 'rgba(16, 185, 129, 0.03)' : 'var(--bg-deep)',
+                    border: customCategories.length > 0 ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-light)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Tag size={15} style={{ color: 'var(--primary)' }} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--primary)' }}>
+                          Kategori Kustom Anda
+                        </span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.1rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                          {customCategories.length}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        Dapat diubah nama atau dihapus kapan saja
+                      </span>
+                    </div>
+
+                    {customCategories.length === 0 ? (
+                      <div style={{
+                        padding: '1rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px dashed var(--border-light)',
+                        fontSize: '0.82rem',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: '0.5rem'
-                      }}
-                    >
-                      <Save size={16} />
-                      Simpan Kategori
-                    </button>
-                    {selectedCategoryId && selectedCategoryId !== 'new' && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCategory(Number(selectedCategoryId))}
-                        style={{
-                          minHeight: '44px',
-                          padding: '0.65rem 1.25rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                          color: '#ef4444',
-                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                          fontWeight: 600,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Hapus
-                      </button>
+                      }}>
+                        <Tag size={15} style={{ opacity: 0.5 }} />
+                        <span>Belum ada kategori kustom untuk <strong>{activeTypeDef.label}</strong>. Tambahkan melalui kolom di bawah.</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                        {customCategories.map(c => {
+                          const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
+                          return (
+                            <div
+                              key={c}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.45rem',
+                                padding: '0.4rem 0.55rem 0.4rem 0.85rem',
+                                borderRadius: '0.55rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                fontSize: '0.84rem',
+                                color: 'var(--text-primary)'
+                              }}
+                            >
+                              <Tag size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                              <span style={{ fontWeight: 600 }}>{c}</span>
+                              {count > 0 && (
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  padding: '0.1rem 0.45rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                  color: '#10b981'
+                                }}>
+                                  {count} item
+                                </span>
+                              )}
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setRenameMasterModalData({
+                                    field: 'class',
+                                    fieldLabel: `Kategori (${activeTypeDef.label})`,
+                                    oldValue: c,
+                                    newValue: c,
+                                    productType: masterCategoryContextTab
+                                  })}
+                                  style={{
+                                    width: '26px',
+                                    height: '26px',
+                                    borderRadius: '4px',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                  title={`Ubah nama kategori "${c}"`}
+                                >
+                                  <Edit3 size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDeleteMasterOption(c, masterCategoryContextTab)}
+                                  style={{
+                                    width: '26px',
+                                    height: '26px',
+                                    borderRadius: '4px',
+                                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                    color: '#ef4444',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                  title={`Hapus kategori "${c}"`}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-                </form>
-              </div>
-            }
-          />
-        )}
+
+                  {/* Section 3: Add Custom Category Form */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem'
+                  }}>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Tambah Kategori Kustom Baru ({activeTypeDef.label})
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <input
+                          type="text"
+                          placeholder={`Ketik nama kategori baru untuk ${activeTypeDef.label}... (tekan Enter untuk menyimpan)`}
+                          value={newCustomCategoryInput}
+                          onChange={(e) => setNewCustomCategoryInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput);
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            minHeight: '42px',
+                            padding: '0.55rem 0.85rem 0.55rem 2.25rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                        <Plus size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving || !newCustomCategoryInput.trim()}
+                        onClick={() => handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput)}
+                        style={{
+                          minHeight: '42px',
+                          padding: '0 1.25rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.84rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          cursor: saving || !newCustomCategoryInput.trim() ? 'not-allowed' : 'pointer',
+                          opacity: saving || !newCustomCategoryInput.trim() ? 0.6 : 1,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <Plus size={16} />
+                        <span>Tambah Kategori</span>
+                      </button>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Sparkles size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                      <span>Kategori yang Anda tambahkan di sini akan langsung tersedia di formulir input produk <strong>{activeTypeDef.label}</strong>.</span>
+                    </div>
+                  </div>
+                </div>
+              }
+            />
+          );
+        })()}
 
         {/* ===================================================================
             TAB 3: STATISTIK & TRAFIK BISNIS
@@ -7087,6 +7872,409 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         onApply={handleApplyProductFilters}
         onReset={handleResetAllFilters}
       />
+
+      {/* ===================================================================
+          RENAME MASTER CATEGORY MODAL (Tablet Native Standard)
+          =================================================================== */}
+      {renameMasterModalData && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.25rem',
+            animation: 'fadeIn 0.18s ease'
+          }}
+          onClick={() => setRenameMasterModalData(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Edit3 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Ubah Nama Kategori
+                  </h3>
+                  {renameMasterModalData.fieldLabel && (
+                    <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                      {renameMasterModalData.fieldLabel}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRenameMasterModalData(null)}
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                  Nama Kategori Saat Ini:
+                </label>
+                <div style={{
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '0.55rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.88rem',
+                  fontWeight: 600
+                }}>
+                  {renameMasterModalData.oldValue}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                  Nama Baru Kategori *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Masukkan nama baru kategori..."
+                  value={renameMasterModalData.newValue}
+                  onChange={(e) => setRenameMasterModalData({ ...renameMasterModalData, newValue: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (renameMasterModalData.newValue.trim() && !saving) {
+                        handleRenameMasterOption(
+                          renameMasterModalData.oldValue,
+                          renameMasterModalData.newValue,
+                          renameMasterModalData.productType
+                        );
+                      }
+                    }
+                  }}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    minHeight: '44px',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Informative Synchronize Note */}
+              <div style={{
+                padding: '0.75rem 0.95rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.22)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.65rem'
+              }}>
+                <Info size={16} color="#3b82f6" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  Perubahan nama kategori ini akan otomatis disinkronkan ke seluruh item katalog yang menggunakan kategori ini secara aman.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '0.75rem',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setRenameMasterModalData(null)}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 1.25rem',
+                  borderRadius: '0.55rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={saving || !renameMasterModalData.newValue.trim() || renameMasterModalData.newValue.trim() === renameMasterModalData.oldValue}
+                onClick={() => handleRenameMasterOption(
+                  renameMasterModalData.oldValue,
+                  renameMasterModalData.newValue,
+                  renameMasterModalData.productType
+                )}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 1.5rem',
+                  borderRadius: '0.55rem',
+                  border: 'none',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: (saving || !renameMasterModalData.newValue.trim() || renameMasterModalData.newValue.trim() === renameMasterModalData.oldValue) ? 'not-allowed' : 'pointer',
+                  opacity: (saving || !renameMasterModalData.newValue.trim() || renameMasterModalData.newValue.trim() === renameMasterModalData.oldValue) ? 0.6 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem'
+                }}
+              >
+                <Save size={15} />
+                <span>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          DELETE & REASSIGN MASTER CATEGORY MODAL (Tablet Native Standard)
+          =================================================================== */}
+      {deleteMasterModalData && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.25rem',
+            animation: 'fadeIn 0.18s ease'
+          }}
+          onClick={() => setDeleteMasterModalData(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '500px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  color: '#ef4444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Trash2 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#ef4444' }}>
+                    Konfirmasi Hapus Kategori
+                  </h3>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                    Pengalihan Relasi Item Katalog Wajib Dilakukan
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteMasterModalData(null)}
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                Anda akan menghapus kategori <strong style={{ color: 'var(--text-primary)' }}>"{deleteMasterModalData.value}"</strong>. 
+                Seluruh item katalog yang saat ini menggunakan kategori ini akan dialihkan ke kategori pengganti di bawah ini.
+              </p>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.45rem' }}>
+                  Pilih Kategori Pengganti *
+                </label>
+                <TabletCustomSelect
+                  value={deleteMasterModalData.selectedReplacement}
+                  onChange={(val) => setDeleteMasterModalData({
+                    ...deleteMasterModalData,
+                    selectedReplacement: val
+                  })}
+                  options={deleteMasterModalData.replacementOptions.map(opt => ({
+                    value: opt,
+                    label: opt
+                  }))}
+                  placeholder="Pilih Kategori Pengganti..."
+                  triggerStyle={{ minHeight: '44px', fontSize: '0.88rem' }}
+                />
+              </div>
+
+              {/* Informative Note */}
+              <div style={{
+                padding: '0.75rem 0.95rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.65rem'
+              }}>
+                <AlertCircle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  Tindakan ini tidak dapat dibatalkan. Kategori lama akan dihapus permanen dari daftar etalase toko Anda.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '0.75rem',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setDeleteMasterModalData(null)}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 1.25rem',
+                  borderRadius: '0.55rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={saving || !deleteMasterModalData.selectedReplacement}
+                onClick={handleConfirmDeleteMasterOption}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 1.5rem',
+                  borderRadius: '0.55rem',
+                  border: 'none',
+                  backgroundColor: '#ef4444',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: (saving || !deleteMasterModalData.selectedReplacement) ? 'not-allowed' : 'pointer',
+                  opacity: (saving || !deleteMasterModalData.selectedReplacement) ? 0.6 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem'
+                }}
+              >
+                <Trash2 size={15} />
+                <span>{saving ? 'Menghapus...' : 'Hapus & Alihkan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
