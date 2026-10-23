@@ -564,6 +564,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     categoriesRef.current = categories;
   }, [categories]);
   const [products, setProducts] = useState<any[]>([]);
+  const productsRef = useRef<any[]>(products);
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
 
   // Helper to retrieve category options for a specific product type (Two-Tier Master Data)
   const getCategoryOptionsForType = useCallback((productType: string = 'physical'): string[] => {
@@ -579,14 +583,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
     });
 
-    const customUsed = products
+    const customUsed = (productsRef.current || [])
       .filter(p => (p.product_type || 'physical') === pType && p.class)
       .map(p => p.class)
       .filter(c => !otherDefaults.has(c));
 
     const merged = Array.from(new Set([...fromDefaults, ...fromMaster, ...customUsed])).filter(Boolean);
     return merged.length > 0 ? merged : ['Lainnya'];
-  }, [masterCategories, products]);
+  }, [masterCategories]);
 
   const getDefaultCategoryForType = useCallback((productType: string = 'physical'): string => {
     const options = getCategoryOptionsForType(productType);
@@ -973,26 +977,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setProductTotalPages(totalPages);
         setProductTotalRecords(totalItems);
         setHasEverLoadedProducts(true);
-
-        const isUrlActionNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('action') === 'new';
-        if (isUrlActionNew) {
-          handleStartNewProduct();
-        } else if (!isNarrowScreen) {
-          setSelectedProductId(prev => {
-            if (prev === null) {
-              handleStartNewProduct();
-              return 'new';
-            }
-            return prev;
-          });
-        }
       }
     } catch {
       // safe fallback
     } finally {
       setLoading(false);
     }
-  }, [token, storeSlug, isNarrowScreen, handleStartNewProduct]);
+  }, [token, storeSlug, fetch]);
 
   const fetchCatalogMetrics = useCallback(async () => {
     if (!storeSlug) return;
@@ -1206,7 +1197,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [isNarrowScreen, products, handleSelectProduct]);
+  }, []);
 
   const updateProductAttribute = (field: string, value: any) => {
     setProductForm(prev => ({
@@ -2023,13 +2014,18 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     return () => clearTimeout(timer);
   }, [productSearch]);
 
+  const fetchProductsRef = useRef(fetchProducts);
+  useEffect(() => {
+    fetchProductsRef.current = fetchProducts;
+  }, [fetchProducts]);
+
   const isInitialFilterMountRef = useRef<boolean>(true);
   useEffect(() => {
     if (isInitialFilterMountRef.current) {
       isInitialFilterMountRef.current = false;
       return;
     }
-    fetchProducts(
+    fetchProductsRef.current(
       1,
       debouncedProductSearch,
       productStatusFilter,
@@ -2044,8 +2040,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     productCategoryFilter,
     productTypeFilter,
     productSortFilter,
-    productStockFilter,
-    fetchProducts
+    productStockFilter
   ]);
 
   // 3. Lazy Tab Loading (Only fetch on-demand when switching to the relevant tab)
