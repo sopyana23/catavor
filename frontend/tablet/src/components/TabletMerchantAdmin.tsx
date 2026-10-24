@@ -1014,22 +1014,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       defaultAttrs.weight = 100;
       defaultAttrs.brand = '';
       defaultAttrs.variant = '';
-      defaultAttrs.material = '';
     }
     if (chosenType === 'food') {
       defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
       defaultAttrs.variant = '';
-      defaultAttrs.portion_size = '';
-      defaultAttrs.prep_time = '';
-      defaultAttrs.storage_temp = 'Suhu Ruang (Kering & Sejuk)';
-      defaultAttrs.expired_info = '';
-      defaultAttrs.delivery_condition = 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)';
     }
     if (chosenType === 'digital') {
       defaultAttrs.file_format = 'PDF';
       defaultAttrs.file_size = '10 MB';
       defaultAttrs.license_type = 'Lisensi Personal';
-      defaultAttrs.delivery_condition = 'Akses Instan Otomatis (Link Cloud)';
     }
     if (chosenType === 'service') {
       defaultAttrs.duration = '1 Sesi / 1 Jam';
@@ -1037,6 +1030,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       defaultAttrs.service_area = 'Jabodetabek';
     }
     if (chosenType === 'plant') {
+      defaultAttrs.scientific_name = '';
       defaultAttrs.sunlight = 'Partial Sun (Teduh Terang)';
       defaultAttrs.watering = 'Sedang (2-3 Hari Sekali)';
       defaultAttrs.planting_medium = 'Tanah Subur & Kompos';
@@ -1046,13 +1040,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       defaultAttrs.conservation_status = 'Ready Stock';
     }
     if (chosenType === 'fauna') {
+      defaultAttrs.scientific_name = '';
       defaultAttrs.habitat = 'General';
       defaultAttrs.diet = '';
       defaultAttrs.native_region = '';
       defaultAttrs.lifespan = '';
       defaultAttrs.weight = '';
       defaultAttrs.conservation_status = 'Tersedia';
-      defaultAttrs.delivery_condition = 'Bisa Kirim se-Indonesia (Legal & Berizin)';
     }
     if (chosenType === 'property') {
       defaultAttrs.transaction_type = 'Dijual';
@@ -1067,7 +1061,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       defaultAttrs.water_source = 'PDAM & Sumur Bor';
       defaultAttrs.furnishing = 'Semi-Furnished';
       defaultAttrs.facing = 'Timur';
-      defaultAttrs.facilities = 'One Gate System, Keamanan 24 Jam';
       defaultAttrs.property_location = 'BSD City, Tangerang Selatan';
     }
 
@@ -1568,32 +1561,29 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const matchedCat = categories.find(c => c.name.toLowerCase() === effectiveClass.toLowerCase());
       const cleanLinks = productForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== '');
 
+      const isFauna = productForm.product_type === 'fauna';
+      const isPlant = productForm.product_type === 'plant';
+
       const payload = {
         name: productForm.name.trim(),
         price: Number(productForm.price),
-        stock: Number(productForm.stock),
+        stock: Number(productForm.stock) || 1,
         class: effectiveClass,
         category_id: productForm.category_id ? Number(productForm.category_id) : (matchedCat ? matchedCat.id : undefined),
         product_type: productForm.product_type,
-        scientific_name: productForm.scientific_name || (productForm.attributes?.scientific_name) || undefined,
-        habitat: (productForm.product_type === 'fauna' || productForm.product_type === 'plant') ? (productForm.attributes?.habitat || undefined) : undefined,
-        diet: productForm.product_type === 'fauna' ? (productForm.attributes?.diet || undefined) : undefined,
-        conservation_status: (productForm.product_type === 'fauna' || productForm.product_type === 'plant') ? (productForm.attributes?.conservation_status || undefined) : undefined,
-        unit: productForm.unit,
+        scientific_name: (isFauna || isPlant) ? (productForm.scientific_name || productForm.attributes?.scientific_name || undefined) : undefined,
+        habitat: isFauna ? (productForm.attributes?.habitat || undefined) : undefined,
+        diet: isFauna ? (productForm.attributes?.diet || undefined) : undefined,
+        conservation_status: isFauna ? (productForm.attributes?.conservation_status || 'Tersedia') : (isPlant ? (productForm.attributes?.conservation_status || 'Ready Stock') : 'Tersedia'),
+        unit: productForm.unit || 'Pcs',
         description: productForm.description,
         image_url: validPhotos[0] || '',
-        video_url: productForm.video_url,
-        is_active: productForm.is_active,
+        video_url: productForm.video_url || null,
+        is_active: productForm.is_active !== false,
         is_shipping_available: productForm.is_shipping_available,
         min_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? 1 : (Number(productForm.min_order) || 1),
-        max_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? null : (productForm.max_order !== '' ? Number(productForm.max_order) : null),
-        gallery_images: validPhotos.slice(1),
-        variants: productForm.variants.map(v => ({
-          variant_name: v.variant_name,
-          sku: v.sku,
-          price_override: v.price_override !== undefined && v.price_override !== null && v.price_override > 0 ? Number(v.price_override) : null,
-          stock_qty: Number(v.stock_qty) || 0
-        })),
+        max_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? null : (productForm.max_order !== '' && productForm.max_order !== null ? Number(productForm.max_order) : null),
+        gallery_images: validPhotos,
         attributes: {
           ...(productForm.attributes || {}),
           ...(productForm.product_type === 'fauna' ? {
@@ -1701,32 +1691,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
-  // Add Product Variant Row
-  const handleAddVariant = () => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: [
-        ...prev.variants,
-        { variant_name: '', sku: '', price_override: undefined, stock_qty: 0 }
-      ]
-    }));
-  };
-
-  // Remove Product Variant Row
-  const handleRemoveVariant = (index: number) => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: prev.variants.filter((_, idx) => idx !== index)
-    }));
-  };
-
-  // Update Product Variant Field
-  const handleUpdateVariant = (index: number, field: string, value: any) => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: prev.variants.map((v, idx) => idx === index ? { ...v, [field]: value } : v)
-    }));
-  };
 
   // Add Gallery Image URL
   const handleAddGalleryImage = (url: string) => {
@@ -4720,51 +4684,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         </div>
                       </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Jumlah Stok
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={productForm.stock}
-                          onChange={(e) => setProductForm({ ...productForm, stock: Number(e.target.value) })}
-                          style={{
-                            width: '100%',
-                            minHeight: '42px',
-                            padding: '0.55rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Satuan Unit
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.unit}
-                          onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
-                          placeholder="Contoh: Pcs, Ekor, Kg, Paket"
-                          style={{
-                            width: '100%',
-                            minHeight: '42px',
-                            padding: '0.55rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
 
                       {typeConfig.minOrderLabel && (
                         <div>
@@ -4902,16 +4821,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               value={productForm.attributes.condition || 'Baru'}
                               onChange={(val) => updateProductAttribute('condition', val)}
                               options={[
-                                { value: 'Baru', label: 'Baru (100% Baru & Tersegel)', description: 'Produk dalam kondisi gres 100% baru & tersegel' },
-                                { value: 'Bekas', label: 'Bekas / Second (Pre-owned)', description: 'Produk pernah digunakan / pre-owned' },
-                                { value: 'Refurbished', label: 'Refurbished (Rekondisi Resmi)', description: 'Produk rekondisi resmi & siap pakai' }
+                                { value: 'Baru', label: 'Baru', description: 'Produk dalam kondisi gres 100% baru & tersegel' },
+                                { value: 'Bekas', label: 'Bekas / Second', description: 'Produk pernah digunakan / pre-owned' },
+                                { value: 'Refurbished', label: 'Refurbished', description: 'Produk rekondisi resmi & siap pakai' }
                               ]}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Berat Pengiriman (Gram) *
+                              Berat (Gram) *
                             </label>
                             <input
                               type="number"
@@ -4932,33 +4851,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               type="text"
                               value={productForm.attributes.brand || ''}
                               onChange={(e) => updateProductAttribute('brand', e.target.value)}
-                              placeholder="Contoh: Nike / Asus / Custom Handmade"
+                              placeholder="Contoh: Nike / Asus / Custom"
                               style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Varian / Ukuran / Warna (Opsional)
+                              Varian / Ukuran (Opsional)
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.variant || ''}
                               onChange={(e) => updateProductAttribute('variant', e.target.value)}
-                              placeholder="Contoh: S, M, L, XL / Hitam, Putih / 128GB"
-                              style={tabletInputStyle}
-                            />
-                          </div>
-
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Bahan / Material (Opsional)
-                            </label>
-                            <input
-                              type="text"
-                              value={productForm.attributes.material || ''}
-                              onChange={(e) => updateProductAttribute('material', e.target.value)}
-                              placeholder="Contoh: Cotton Combed 24s / Aluminium Alloy / Kayu Jati"
+                              placeholder="Contoh: Hitam, Putih / S, M, L"
                               style={tabletInputStyle}
                             />
                           </div>
@@ -4977,14 +4883,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               onChange={(val) => updateProductAttribute('halal_status', val)}
                               options={[
                                 { value: 'Bersertifikat Halal Resmi (BPJPH / MUI)', label: 'Bersertifikat Halal Resmi (BPJPH / MUI)', description: 'Telah terverifikasi & terdaftar resmi di BPJPH/MUI' },
-                                { value: 'Halal (Bahan Baku Halal & Thayyib)', label: 'Halal (Bahan Baku Halal & Thayyib)', description: '100% menggunakan bahan baku halal, bebas babi & alkohol' },
-                                { value: 'Dalam Proses Sertifikasi Halal', label: 'Dalam Proses Sertifikasi Halal', description: 'Sedang dalam tahap audit / pendaftaran sertifikasi halal' },
+                                { value: 'Halal (Bahan Baku Halal & Thayyib)', label: 'Halal (Bahan Baku Halal & Thayyib)', description: '100% menggunakan bahan baku halal, bebas babi/alkohol, bersih & higienis' },
+                                { value: 'Dalam Proses Sertifikasi Halal', label: 'Dalam Proses Sertifikasi Halal', description: 'Sedang dalam proses audit sertifikasi halal' },
                                 { value: 'Non-Halal', label: 'Non-Halal', description: 'Mengandung bahan non-halal / khusus non-muslim' }
                               ]}
                             />
                           </div>
 
-                          <div>
+                          <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               Pilihan Varian / Level Rasa (Opsional)
                             </label>
@@ -4992,80 +4898,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               type="text"
                               value={productForm.attributes.variant || ''}
                               onChange={(e) => updateProductAttribute('variant', e.target.value)}
-                              placeholder="Contoh: Pedas Sedang, Level 1-5 / Manis Gurih"
+                              placeholder="Contoh: Pedas Sedang, Ekstra Pedas / 500gr"
                               style={tabletInputStyle}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Takaran Porsi / Kemasan (Opsional)
-                            </label>
-                            <input
-                              type="text"
-                              value={productForm.attributes.portion_size || ''}
-                              onChange={(e) => updateProductAttribute('portion_size', e.target.value)}
-                              placeholder="Contoh: 1 Porsi (Personal) / 2-3 Orang / 500gr"
-                              style={tabletInputStyle}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Estimasi Waktu Penyajian (Opsional)
-                            </label>
-                            <input
-                              type="text"
-                              value={productForm.attributes.prep_time || ''}
-                              onChange={(e) => updateProductAttribute('prep_time', e.target.value)}
-                              placeholder="Contoh: 15-20 Menit / Siap Santap Langsung"
-                              style={tabletInputStyle}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Suhu Penyimpanan
-                            </label>
-                            <TabletCustomSelect
-                              value={productForm.attributes.storage_temp || 'Suhu Ruang (Kering & Sejuk)'}
-                              onChange={(val) => updateProductAttribute('storage_temp', val)}
-                              options={[
-                                { value: 'Suhu Ruang (Kering & Sejuk)', label: 'Suhu Ruang (Kering & Sejuk)', description: 'Simpan di tempat teduh, sejuk & tidak lembab' },
-                                { value: 'Chiller / Lemari Pendingin (2°C - 8°C)', label: 'Chiller / Dingin (2°C - 8°C)', description: 'Simpan di dalam kulkas / chiller pendingin' },
-                                { value: 'Freezer / Beku (-18°C)', label: 'Freezer / Beku (-18°C)', description: 'Simpan beku di freezer untuk daya tahan maksimal' },
-                                { value: 'Hangat / Siap Santap', label: 'Hangat / Siap Santap Langsung', description: 'Disajikan hangat, konsumsi segera saat tiba' }
-                              ]}
-                            />
-                          </div>
-
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Masa Simpan / Daya Tahan
-                            </label>
-                            <input
-                              type="text"
-                              value={productForm.attributes.expired_info || ''}
-                              onChange={(e) => updateProductAttribute('expired_info', e.target.value)}
-                              placeholder="Contoh: Hari ini (Fresh Daily) / 3 Hari Kulkas / 3 Bulan Freezer"
-                              style={tabletInputStyle}
-                            />
-                          </div>
-
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Pengiriman & Ketentuan Kemasan (F&B)
-                            </label>
-                            <TabletCustomSelect
-                              value={productForm.attributes.delivery_condition || 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)'}
-                              onChange={(val) => updateProductAttribute('delivery_condition', val)}
-                              options={[
-                                { value: 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)', label: 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)', description: 'Siap santap / fresh, langsung dikirim dalam hitungan jam' },
-                                { value: 'Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)', label: 'Ekspedisi Cold-Chain / Paxel Next Day (Frozen / Segar)', description: 'Pengiriman berpendingin khusus makanan beku antarkota' },
-                                { value: 'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)', label: 'Bisa Kirim se-Indonesia (Ekspedisi Reguler / Kering)', description: 'Aman untuk makanan kering / kemasan tahan lama' },
-                                { value: 'Dine-in & Takeaway Only (Makan di Tempat / Bawa Pulang)', label: 'Dine-in & Takeaway Only (No Delivery)', description: 'Hanya melayani makan di tempat atau pesan ambil sendiri' },
-                                { value: 'Pre-Order Khusus (Katering / Acara)', label: 'Pre-Order Khusus (Katering / Acara)', description: 'Pemesanan terjadwal H-1 s/d H-3 untuk acara' }
-                              ]}
                             />
                           </div>
                         </div>
@@ -5076,60 +4910,44 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Format Berkas / File *
+                              Format File *
                             </label>
                             <input
                               type="text"
                               required
                               value={productForm.attributes.file_format || ''}
                               onChange={(e) => updateProductAttribute('file_format', e.target.value)}
-                              placeholder="Contoh: PDF / EPUB / ZIP / MP4"
+                              placeholder="Contoh: PDF / EPUB / ZIP"
                               style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Ukuran Berkas File *
+                              Ukuran File *
                             </label>
                             <input
                               type="text"
                               required
                               value={productForm.attributes.file_size || ''}
                               onChange={(e) => updateProductAttribute('file_size', e.target.value)}
-                              placeholder="Contoh: 15 MB / 1.2 GB"
+                              placeholder="Contoh: 15 MB"
                               style={tabletInputStyle}
                             />
                           </div>
 
-                          <div>
+                          <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Tipe Lisensi Digital *
+                              Tipe Lisensi *
                             </label>
                             <TabletCustomSelect
                               value={productForm.attributes.license_type || 'Lisensi Personal'}
                               onChange={(val) => updateProductAttribute('license_type', val)}
                               options={[
-                                { value: 'Lisensi Personal', label: 'Lisensi Personal (Penggunaan Pribadi)', description: 'Hanya untuk pemakaian individu non-komersial' },
-                                { value: 'Lisensi Komersial', label: 'Lisensi Komersial (Bisnis & Proyek)', description: 'Boleh digunakan untuk bisnis & proyek berbayar' },
-                                { value: 'Extended License', label: 'Extended License / Resale Rights', description: 'Hak cipta diperluas / dapat dijual kembali' },
+                                { value: 'Lisensi Personal', label: 'Lisensi Personal', description: 'Hanya untuk pemakaian individu non-komersial' },
+                                { value: 'Lisensi Komersial', label: 'Lisensi Komersial', description: 'Boleh digunakan untuk bisnis & proyek berbayar' },
+                                { value: 'Resale Rights', label: 'Extended License / Resale Rights', description: 'Hak cipta diperluas / dapat dijual kembali' },
                                 { value: 'Open Source', label: 'Open Source / Bebas', description: 'Bebas digunakan tanpa batasan royalti' }
-                              ]}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Panduan Pengiriman / Akses File
-                            </label>
-                            <TabletCustomSelect
-                              value={productForm.attributes.delivery_condition || 'Akses Instan Otomatis (Link Cloud)'}
-                              onChange={(val) => updateProductAttribute('delivery_condition', val)}
-                              options={[
-                                { value: 'Akses Instan Otomatis (Link Cloud)', label: 'Akses Instan Otomatis (Link Cloud)', description: 'Tautan Google Drive / Cloud dikirim otomatis' },
-                                { value: 'Kirim via Email Pembeli', label: 'Kirim via Email Pembeli', description: 'File atau link dikirim manual/otomatis ke email' },
-                                { value: 'Kirim via WhatsApp Admin', label: 'Kirim via WhatsApp Admin', description: 'Admin mengirimkan file via chat WhatsApp resmi' },
-                                { value: 'Akses Member Area', label: 'Akses Member Area / LMS', description: 'Akses login ke portal materi / kelas digital' }
                               ]}
                             />
                           </div>
@@ -5141,44 +4959,43 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Estimasi Durasi Layanan *
+                              Durasi Layanan *
                             </label>
                             <input
                               type="text"
                               required
                               value={productForm.attributes.duration || ''}
                               onChange={(e) => updateProductAttribute('duration', e.target.value)}
-                              placeholder="Contoh: 1 Jam / 1 Sesi / 3 Hari Kerja"
+                              placeholder="Contoh: 1 Sesi / 1 Jam / 1 Hari"
                               style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Metode Pelaksanaan Layanan *
+                              Metode Layanan *
                             </label>
                             <TabletCustomSelect
                               value={productForm.attributes.service_location || 'Datang ke Toko'}
                               onChange={(val) => updateProductAttribute('service_location', val)}
                               options={[
-                                { value: 'Datang ke Toko', label: 'Datang ke Lokasi Toko / Workshop', description: 'Klien datang langsung ke studio / outlet workshop' },
-                                { value: 'Home Visit (Ke Rumah)', label: 'Panggilan ke Rumah (Home Service)', description: 'Penyedia jasa datang ke lokasi / rumah klien' },
-                                { value: 'Online', label: 'Online / Jarak Jauh (Remote)', description: 'Layanan digital via internet, Zoom, Google Meet' },
-                                { value: 'Fleksibel', label: 'Fleksibel (Toko / Home Visit)', description: 'Dapat disepakati bersama antara klien & penjual' }
+                                { value: 'Datang ke Toko', label: 'Datang ke Toko', description: 'Klien datang langsung ke outlet / workshop' },
+                                { value: 'Home Visit (Ke Rumah)', label: 'Home Visit (Ke Rumah)', description: 'Penyedia jasa datang ke lokasi / rumah klien' },
+                                { value: 'Online', label: 'Online / Jarak Jauh', description: 'Layanan digital via internet / remote' }
                               ]}
                             />
                           </div>
 
                           <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Area Jangkauan Layanan *
+                              Area Jangkauan *
                             </label>
                             <input
                               type="text"
                               required
                               value={productForm.attributes.service_area || ''}
                               onChange={(e) => updateProductAttribute('service_area', e.target.value)}
-                              placeholder="Contoh: Jabodetabek / Kota Bandung / Seluruh Indonesia"
+                              placeholder="Contoh: Jabodetabek / Bandung Kota / Seluruh Indonesia"
                               style={tabletInputStyle}
                             />
                           </div>
@@ -5199,7 +5016,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 const v = e.target.value;
                                 setProductForm(p => ({ ...p, scientific_name: v, attributes: { ...(p.attributes || {}), scientific_name: v } }));
                               }}
-                              placeholder="Contoh: Monstera deliciosa, Sansevieria trifasciata..."
+                              placeholder="Contoh: Monstera deliciosa, Sansevieria..."
                               style={{ ...tabletInputStyle, fontStyle: 'italic' }}
                             />
                           </div>
@@ -5207,16 +5024,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           <div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               <Sun size={14} style={{ color: '#f59e0b' }} />
-                              <span>Kebutuhan Sinar Matahari *</span>
+                              <span>Cahaya *</span>
                             </label>
                             <TabletCustomSelect
                               value={productForm.attributes.sunlight || 'Partial Sun (Teduh Terang)'}
                               onChange={(val) => updateProductAttribute('sunlight', val)}
                               options={[
-                                { value: 'Full Sun (Matahari Langsung)', label: 'Full Sun (Matahari Penuh > 6 Jam)', description: 'Butuh 6+ jam sinar matahari langsung per hari' },
-                                { value: 'Partial Sun (Teduh Terang)', label: 'Partial Sun (Teduh Terang / Naungan Paranet)', description: 'Cahaya terang tidak langsung / naungan paranet' },
-                                { value: 'Low Light / Indoor (Cahaya Rendah)', label: 'Indoor / Low Light (Dalam Ruangan)', description: 'Cocok dalam ruangan dengan pencahayaan minim' },
-                                { value: 'Fleksibel (Indoor / Outdoor)', label: 'Fleksibel (Bisa Indoor / Outdoor)', description: 'Bisa beradaptasi di dalam maupun luar ruangan' }
+                                { value: 'Full Sun (Matahari Langsung)', label: 'Full Sun (Matahari Langsung)', description: 'Butuh 6+ jam sinar matahari langsung per hari' },
+                                { value: 'Partial Sun (Teduh Terang)', label: 'Partial Sun (Teduh Terang)', description: 'Cahaya terang tidak langsung / naungan paranet' },
+                                { value: 'Low Light / Indoor (Cahaya Rendah)', label: 'Low Light / Indoor', description: 'Cocok dalam ruangan dengan pencahayaan minim' },
+                                { value: 'Fleksibel (Indoor / Outdoor)', label: 'Fleksibel (Indoor/Outdoor)', description: 'Bisa beradaptasi di dalam maupun luar ruangan' }
                               ]}
                             />
                           </div>
@@ -5224,43 +5041,43 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           <div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               <Droplets size={14} style={{ color: '#0ea5e9' }} />
-                              <span>Kebutuhan Penyiraman *</span>
+                              <span>Penyiraman *</span>
                             </label>
                             <TabletCustomSelect
                               value={productForm.attributes.watering || 'Sedang (2-3 Hari Sekali)'}
                               onChange={(val) => updateProductAttribute('watering', val)}
                               options={[
-                                { value: 'Banyak (Setiap Hari)', label: 'Rutin Harian (1-2x Sehari)', description: 'Media harus selalu lembab & rutin disiram' },
-                                { value: 'Sedang (2-3 Hari Sekali)', label: 'Sedang (2-3 Hari Sekali / Media Kering)', description: 'Siram saat media tanam mulai agak kering' },
-                                { value: 'Sedikit (1-2 Minggu Sekali / Sukulen & Kaktus)', label: 'Minim Air (1-2 Minggu Sekali)', description: 'Tahan kering, sukulen, kaktus, sansevieria' },
-                                { value: 'Khusus / Tanaman Air', label: 'Khusus / Hidroponik & Tanaman Air', description: 'Aquascape atau media terendam air' }
+                                { value: 'Banyak (Setiap Hari)', label: 'Banyak (Setiap Hari)', description: 'Media harus selalu lembab & rutin disiram' },
+                                { value: 'Sedang (2-3 Hari Sekali)', label: 'Sedang (2-3 Hari Sekali)', description: 'Siram saat media tanam mulai agak kering' },
+                                { value: 'Sedikit (1-2 Minggu Sekali / Sukulen & Kaktus)', label: 'Sedikit (1-2 Minggu Sekali)', description: 'Tahan kering, sukulen, kaktus, sansiviera' },
+                                { value: 'Khusus / Tanaman Air', label: 'Khusus / Hidroponik & Air', description: 'Aquascape atau media terendam air' }
                               ]}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Rekomendasi Media Tanam *
+                              Media Tanam *
                             </label>
                             <input
                               type="text"
                               required
                               value={productForm.attributes.planting_medium || ''}
                               onChange={(e) => updateProductAttribute('planting_medium', e.target.value)}
-                              placeholder="Contoh: Sekam Bakar, Pasir Malang, Humus"
+                              placeholder="Contoh: Sekam Bakar, Humus"
                               style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Ukuran / Estimasi Tinggi Tanaman
+                              Ukuran / Tinggi
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.plant_size || ''}
                               onChange={(e) => updateProductAttribute('plant_size', e.target.value)}
-                              placeholder="Contoh: Tinggi 25-35 cm, Pot D15"
+                              placeholder="Contoh: 25-35 cm, Pot D15"
                               style={tabletInputStyle}
                             />
                           </div>
@@ -5268,15 +5085,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           <div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               <ShieldCheck size={14} style={{ color: '#10b981' }} />
-                              <span>Status Perlindungan & Legalitas *</span>
+                              <span>Legalitas Bibit *</span>
                             </label>
                             <TabletCustomSelect
                               value={productForm.attributes.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)'}
                               onChange={(val) => updateProductAttribute('protection_status', val)}
                               options={[
-                                { value: 'Non-Dilindungi (Aman Diperjualbelikan)', label: 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)', description: 'Tanaman umum bebas izin diperjualbelikan' },
+                                { value: 'Non-Dilindungi (Aman Diperjualbelikan)', label: 'Non-Dilindungi (Aman & Bebas)', description: 'Tanaman umum bebas izin diperjualbelikan' },
                                 { value: 'Hasil Budidaya Nursery', label: 'Hasil Budidaya Nursery Resmi', description: 'Perbanyakan legal dari kebun/nursery bersertifikat' },
-                                { value: 'Dilindungi (Sertifikasi/Izin Khusus)', label: 'Dilindungi / Wajib Izin Khusus (BKSDA / CITES)', description: 'Wajib sertifikasi BKSDA / CITES resmi' }
+                                { value: 'Dilindungi (Sertifikasi/Izin Khusus)', label: 'Dilindungi (Izin Khusus/CITES)', description: 'Wajib sertifikasi BKSDA / CITES resmi' }
                               ]}
                             />
                           </div>
@@ -5284,16 +5101,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           <div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               <Package size={14} style={{ color: '#8b5cf6' }} />
-                              <span>Kondisi Pengiriman Tanaman *</span>
+                              <span>Kondisi Kirim *</span>
                             </label>
                             <TabletCustomSelect
                               value={productForm.attributes.delivery_condition || 'Kirim Bersama Pot & Media Tanam'}
                               onChange={(val) => updateProductAttribute('delivery_condition', val)}
                               options={[
-                                { value: 'Kirim Bersama Pot & Media Tanam', label: 'Kirim Bersama Pot & Media Tanam', description: 'Tanaman aman dan siap langsung dipajang' },
-                                { value: 'Kirim Bare Root (Kurangi Media)', label: 'Kirim Bare Root (Kurangi Media - Hemat Ongkir)', description: 'Akar dibungkus cocopeat lembab rapi' },
-                                { value: 'Khusus Kurir Instan / Sameday', label: 'Khusus Kurir Instan / Sameday (Siap Pajang)', description: 'Siap pajang, tanpa risiko layu di perjalanan' },
-                                { value: 'Bisa Kirim se-Indonesia', label: 'Bisa Kirim se-Indonesia (Packing Paralon/Kardus)', description: 'Packing paralon kuat aman antar kota & pulau' }
+                                { value: 'Kirim Bersama Pot & Media Tanam', label: 'Dengan Pot & Media Tanam', description: 'Tanaman aman dan siap langsung dipajang' },
+                                { value: 'Kirim Bare Root (Tanpa Pot/Media Dikurangi)', label: 'Bare Root (Hemat Ongkir)', description: 'Akar dibungkus cocopeat lembab rapi' },
+                                { value: 'Kirim Polybag', label: 'Polybag (Bibit)', description: 'Kemasan polybag bibit kebun hemat tempat' },
+                                { value: 'Khusus Kurir Instan / Sameday', label: 'Khusus Kurir Instan / Sameday', description: 'Siap pajang, tanpa risiko rusak di perjalanan' }
                               ]}
                             />
                           </div>
@@ -5324,7 +5141,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                           <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Nama Ilmiah / Taksonomi (Latin) <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Opsional)</span>
+                              Nama Ilmiah / Taksonomi (Latin)
                             </label>
                             <input
                               type="text"
@@ -5333,7 +5150,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 const v = e.target.value;
                                 setProductForm(p => ({ ...p, scientific_name: v, attributes: { ...(p.attributes || {}), scientific_name: v } }));
                               }}
-                              placeholder="Contoh: Scleropages formosus, Felis catus..."
+                              placeholder="Contoh: Scleropages formosus..."
                               style={{ ...tabletInputStyle, fontStyle: 'italic' }}
                             />
                           </div>
@@ -5347,7 +5164,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               required
                               value={productForm.attributes.habitat || ''}
                               onChange={(e) => updateProductAttribute('habitat', e.target.value)}
-                              placeholder="Contoh: Air Tawar / Air Laut / Darat"
+                              placeholder="Contoh: Air Tawar / Darat"
                               style={tabletInputStyle}
                             />
                           </div>
@@ -5361,63 +5178,47 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               required
                               value={productForm.attributes.diet || ''}
                               onChange={(e) => updateProductAttribute('diet', e.target.value)}
-                              placeholder="Contoh: Pelet / Jangkrik / Karnivora"
+                              placeholder="Contoh: Pelet / Karnivora"
                               style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Asal Wilayah Persebaran
+                              Asal Wilayah
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.native_region || ''}
                               onChange={(e) => updateProductAttribute('native_region', e.target.value)}
-                              placeholder="Contoh: Kalimantan Barat / Amerika Selatan"
+                              placeholder="Kalimantan..."
                               style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Estimasi Usia / Masa Hidup
+                              Masa Hidup
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.lifespan || ''}
                               onChange={(e) => updateProductAttribute('lifespan', e.target.value)}
-                              placeholder="Contoh: 2 Bulan / 10-15 tahun"
+                              placeholder="10 tahun..."
                               style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Ukuran / Bobot Satwa
+                              Bobot
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.weight || ''}
                               onChange={(e) => updateProductAttribute('weight', e.target.value)}
-                              placeholder="Contoh: Size 15 cm / 500 gram / 1 kg"
+                              placeholder="1 kg..."
                               style={tabletInputStyle}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Kondisi Pengiriman & Garansi
-                            </label>
-                            <TabletCustomSelect
-                              value={productForm.attributes.delivery_condition || 'Bisa Kirim se-Indonesia (Legal & Berizin)'}
-                              onChange={(val) => updateProductAttribute('delivery_condition', val)}
-                              options={[
-                                { value: 'Bisa Kirim se-Indonesia (Legal & Berizin)', label: 'Bisa Kirim se-Indonesia (Legal & Berizin)', description: 'Pengiriman legal & resmi dengan dokumen perjalanan' },
-                                { value: 'Khusus Pulau Jawa / Jalur Kereta', label: 'Khusus Pulau Jawa / Jalur Kereta', description: 'Ekspedisi Kereta Api Express (KIB/Herona) sehari sampai' },
-                                { value: 'Ambil Sendiri di Toko (Pickup Only)', label: 'Ambil Sendiri di Toko (Pickup Only)', description: 'Hanya melayani serah terima langsung di workshop' },
-                                { value: 'Kurir Instan Hewan (Gojek/Grab)', label: 'Kurir Instan Hewan (Gojek/Grab)', description: 'Kirim cepat hari ini area satu kota' }
-                              ]}
                             />
                           </div>
 
@@ -5432,9 +5233,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 setProductForm(p => ({ ...p, conservation_status: val }));
                               }}
                               options={[
-                                { value: 'Tersedia', label: 'Tersedia (Ready Stock / Siap Adopsi)', description: 'Satwa siap dikirim / diadopsi segera' },
-                                { value: 'Pre-Order', label: 'Pre-Order (PO / Inden Khusus)', description: 'Pemesanan terlebih dahulu / inden khusus' },
-                                { value: 'Koleksi / Display', label: 'Koleksi / Display Showcase (Tanya Penjual)', description: 'Hanya pajangan showcase, hubungi penjual via WA' },
+                                { value: 'Tersedia', label: 'Tersedia (Ready Stock)', description: 'Satwa / fauna siap dikirim / diadopsi segera' },
+                                { value: 'Pre-Order', label: 'Pre-Order (PO)', description: 'Pemesanan terlebih dahulu / inden khusus' },
+                                { value: 'Koleksi / Display', label: 'Koleksi / Display Only', description: 'Hanya pajangan showcase, hubungi penjual via WA' },
                                 { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', description: 'Stok satwa saat ini sedang kosong / telah diadopsi' }
                               ]}
                             />
@@ -5453,7 +5254,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               value={productForm.attributes.transaction_type || 'Dijual'}
                               onChange={(val) => updateProductAttribute('transaction_type', val)}
                               options={[
-                                { value: 'Dijual', label: 'Dijual (Jual Putus / Kepemilikan Penuh)', description: 'Pengalihan hak milik properti secara penuh' },
+                                { value: 'Dijual', label: 'Dijual (Jual Putus)', description: 'Pengalihan hak milik properti secara penuh' },
                                 { value: 'Disewakan (Tahunan)', label: 'Disewakan (Tahunan)', description: 'Sewa kontrak dengan termin per tahun' },
                                 { value: 'Disewakan (Bulanan)', label: 'Disewakan (Bulanan)', description: 'Sewa fleksibel dengan pembayaran per bulan' }
                               ]}
@@ -5469,11 +5270,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               onChange={(val) => updateProductAttribute('certificate', val)}
                               options={[
                                 { value: 'SHM (Sertifikat Hak Milik)', label: 'SHM (Sertifikat Hak Milik)', description: 'Tingkat kepemilikan terkuat & tertinggi' },
-                                { value: 'HGB (Hak Guna Bangunan)', label: 'HGB (Hak Guna Bangunan)', description: 'Hak mendirikan bangunan di atas tanah negara/pihak lain' },
-                                { value: 'Strata Title / SHMRS', label: 'Strata Title / SHMRS (Apartemen)', description: 'Kepemilikan unit apartemen / kondominium' },
+                                { value: 'HGB (Hak Guna Bangunan)', label: 'HGB (Hak Guna Bangunan)', description: 'Hak mendirikan bangunan di atas tanah' },
+                                { value: 'Strata Title / SHMRS', label: 'Strata Title / SHMRS', description: 'Kepemilikan unit apartemen / kondominium' },
                                 { value: 'AJB (Akta Jual Beli)', label: 'AJB (Akta Jual Beli)', description: 'Bukti sah transaksi di hadapan PPAT' },
                                 { value: 'Girik / Letter C', label: 'Girik / Letter C', description: 'Surat keterangan tanah adat / warisan' },
-                                { value: 'Lainnya', label: 'Lainnya / PPJB', description: 'Status legalitas atau perjanjian pengikatan jual beli' }
+                                { value: 'Lainnya', label: 'Lainnya', description: 'Status legalitas atau dokumen khusus' }
                               ]}
                             />
                           </div>
@@ -5500,7 +5301,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               type="text"
                               value={productForm.attributes.building_area || ''}
                               onChange={(e) => updateProductAttribute('building_area', e.target.value)}
-                              placeholder="Contoh: 90 (0 jika tanah kavling)"
+                              placeholder="Contoh: 90 (0 jika tanah)"
                               style={tabletInputStyle}
                             />
                           </div>
@@ -5595,14 +5396,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               options={[
                                 { value: 'Unfurnished (Kosong)', label: 'Unfurnished (Kosong)', description: 'Unit kosong siap diisi perabot sendiri' },
                                 { value: 'Semi-Furnished', label: 'Semi-Furnished', description: 'Sudah ada beberapa perabot utama (AC, Kitchen Set)' },
-                                { value: 'Fully Furnished (Lengkap)', label: 'Fully Furnished (Lengkap Siap Huni)', description: 'Unit lengkap siap huni / tinggal bawa koper' }
+                                { value: 'Fully Furnished (Lengkap)', label: 'Fully Furnished (Lengkap)', description: 'Unit lengkap siap huni / tinggal bawa koper' }
                               ]}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Arah Hadap Bangunan
+                              Arah Hadap
                             </label>
                             <TabletCustomSelect
                               value={productForm.attributes.facing || 'Timur'}
@@ -5618,19 +5419,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 { value: 'Barat Laut', label: 'Barat Laut' },
                                 { value: 'Bebas / Fleksibel', label: 'Bebas / Fleksibel' }
                               ]}
-                            />
-                          </div>
-
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Fasilitas Tambahan & Cluster (Opsional)
-                            </label>
-                            <input
-                              type="text"
-                              value={productForm.attributes.facilities || ''}
-                              onChange={(e) => updateProductAttribute('facilities', e.target.value)}
-                              placeholder="Contoh: One Gate System, Keamanan 24 Jam, Kolam Renang, Akses Jalan 2 Mobil"
-                              style={tabletInputStyle}
                             />
                           </div>
 
@@ -5906,149 +5694,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </div>
                   </div>
 
-                  {/* Product Variants Manager */}
-                  <div style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>Variasi Produk (Ukuran, Rasa, Warna, SKU)</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Atur harga dan stok spesifik untuk masing-masing varian</div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleAddVariant}
-                        style={{
-                          minHeight: '38px',
-                          padding: '0.4rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--primary)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <Plus size={15} />
-                        Tambah Varian
-                      </button>
-                    </div>
-
-                    {productForm.variants.length === 0 ? (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        Item tunggal standar tanpa variasi. Klik "Tambah Varian" bila produk memiliki ragam opsi.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                        {productForm.variants.map((v, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr)) 40px',
-                              gap: '0.6rem',
-                              alignItems: 'center',
-                              padding: '0.65rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--bg-card)',
-                              border: '1px solid var(--border-light)'
-                            }}
-                          >
-                            <input
-                              type="text"
-                              placeholder="Nama Varian (misal: Size L)"
-                              value={v.variant_name}
-                              onChange={(e) => handleUpdateVariant(idx, 'variant_name', e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.35rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.82rem',
-                                outline: 'none'
-                              }}
-                            />
-                            <input
-                              type="text"
-                              placeholder="SKU (Opsional)"
-                              value={v.sku}
-                              onChange={(e) => handleUpdateVariant(idx, 'sku', e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.35rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.82rem',
-                                outline: 'none'
-                              }}
-                            />
-                            <input
-                              type="number"
-                              placeholder="Harga Khusus (Rp)"
-                              value={v.price_override ?? ''}
-                              onChange={(e) => handleUpdateVariant(idx, 'price_override', e.target.value === '' ? undefined : Number(e.target.value))}
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.35rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.82rem',
-                                outline: 'none'
-                              }}
-                            />
-                            <input
-                              type="number"
-                              placeholder="Stok"
-                              value={v.stock_qty}
-                              onChange={(e) => handleUpdateVariant(idx, 'stock_qty', Number(e.target.value))}
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.35rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.82rem',
-                                outline: 'none'
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveVariant(idx)}
-                              style={{
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '0.35rem',
-                                border: 'none',
-                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                color: '#ef4444',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
 
                   {/* Video Showcase Input */}
                   <div style={{
