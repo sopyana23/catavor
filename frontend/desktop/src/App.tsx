@@ -887,7 +887,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryOptions: ['E-Book & Publikasi', 'Template & Dokumen', 'Desain Grafis & UI Kit', 'Source Code & Skrip', 'Audio, Musik & SFX', 'Preset, Filter & LUTs', 'Video & Aset 3D', 'Software & Tool', 'Kursus & Modul', 'Lainnya'],
         priceLabel: 'Harga Lisensi (IDR) *',
         pricePlaceholder: 'Contoh: 75.000 (Ketik 0 jika Gratis)',
-        photoLabel: 'Banner / Mockup File (1-5 Gambar) *',
+        photoLabel: 'Banner / Mockup File (1-10 Gambar) *',
         photoHelper: 'Unggah cover mockup, screenshot preview, atau banner item digital.',
         videoLabel: 'Video Preview / Demo Item Digital (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
@@ -30619,7 +30619,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                             <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                              Foto Produk
+                              {typeConfig.photoLabel}
                             </h3>
                             <span style={{
                               flexShrink: 0,
@@ -30636,7 +30636,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             </span>
                           </div>
                           <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                            Unggah hingga 10 foto beresolusi jelas. Foto pertama otomatis menjadi foto sampul utama katalog Anda.
+                            {typeConfig.photoHelper}
                           </p>
                         </div>
                         {crudImages.length < MAX_PRODUCT_PHOTOS && (
