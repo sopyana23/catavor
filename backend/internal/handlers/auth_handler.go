@@ -33,6 +33,7 @@ type LoginRequest struct {
 	Email     string `json:"email" validate:"required,email,max=254"`
 	Password  string `json:"password" validate:"required,max=72"`
 	StoreSlug string `json:"store_slug"`
+	Portal    string `json:"portal"`
 }
 
 type RegisterRequest struct {
@@ -304,6 +305,42 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
 		user.IsPlatformStaff()
+
+	// Enterprise Portal Separation & Stealth Defense (Opsi 1)
+	requestedPortal := strings.ToLower(strings.TrimSpace(req.Portal))
+	if requestedPortal == "" {
+		requestedPortal = strings.ToLower(strings.TrimSpace(c.Get("X-Auth-Portal")))
+	}
+
+	if isPlatformAdmin {
+		// Akun Staf Pengelola Platform WAJIB masuk melalui portal resmi /admin (portal: "admin")
+		if requestedPortal != "admin" {
+			logAuthEvent(h.db, c, "AUTH_LOGIN_PORTAL_MISMATCH", "Percobaan login akun staf pengelola melalui portal merchant ditolak", &user, map[string]interface{}{
+				"method": "password",
+				"portal": requestedPortal,
+				"reason": "admin_on_merchant_portal",
+			})
+			// Opsi 1 (Stealth Mode / OWASP): Kembalikan pesan umum seolah-olah akun tidak terdaftar di portal merchant
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"message": "Email atau kata sandi yang Anda masukkan salah.",
+			})
+		}
+	} else {
+		// Akun Merchant biasa TIDAK DIIZINKAN masuk melalui konsol pengelola /admin (portal: "admin")
+		if requestedPortal == "admin" {
+			logAuthEvent(h.db, c, "AUTH_LOGIN_PORTAL_MISMATCH", "Percobaan login akun merchant melalui portal pengelola ditolak", &user, map[string]interface{}{
+				"method": "password",
+				"portal": requestedPortal,
+				"reason": "merchant_on_admin_portal",
+			})
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "PORTAL_ACCESS_DENIED",
+				"message": "Akun Anda tidak memiliki hak akses ke konsol pengelola platform. Silakan masuk melalui portal merchant di /login.",
+			})
+		}
+	}
 
 	if !isPlatformAdmin && user.IsBlacklisted {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -952,6 +989,18 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		if belumTertautGoogle && googleID != "" {
 			user.GoogleID = &googleID
 			h.db.Save(&user)
+		}
+
+		isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") || user.IsPlatformStaff()
+		if isPlatformAdmin {
+			logAuthEvent(h.db, c, "AUTH_LOGIN_PORTAL_MISMATCH", "Percobaan Google SSO akun staf pengelola melalui portal merchant ditolak", &user, map[string]interface{}{
+				"method": "google_sso",
+				"reason": "admin_on_merchant_portal",
+			})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"message": "Akun pengelola platform wajib masuk melalui formulir resmi di /admin.",
+			})
 		}
 
 		targetSlug := cleanSlug(req.StoreSlug)

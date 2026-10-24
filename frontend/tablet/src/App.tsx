@@ -233,11 +233,20 @@ export const App: React.FC = () => {
     e.preventDefault();
     setLoginLoading(true);
     setLoginError(null);
+    const authPortal = isPlatformAdminPath ? 'admin' : 'merchant';
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword })
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Auth-Portal': authPortal,
+        },
+        body: JSON.stringify({
+          email: loginEmail,
+          password: loginPassword,
+          portal: authPortal,
+        })
       });
       const json = await res.json();
       if (res.ok && json.token) {
