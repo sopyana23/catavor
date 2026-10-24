@@ -800,8 +800,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // Tag mode switcher for horizontal scrollable filter bar: Format Katalog vs Kategori
   const [filterTagMode, setFilterTagMode] = useState<'types' | 'categories'>('types');
 
-  // Effective tag mode: if not hybrid, always fallback to 'categories'
-  const effectiveFilterTagMode = isHybridStore ? filterTagMode : 'categories';
+  // Effective tag mode: defaults to filterTagMode ('types')
+  const effectiveFilterTagMode = filterTagMode;
 
   // Format Katalog tag items with Lucide vector icons, badges, and distinct theme colors
   // Only populated if isHybridStore is true (more than 1 catalog type exists)
@@ -3583,11 +3583,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       </div>
                     </div>
 
-                    {/* Row 3: Horizontal Scrollable Tag/Badge Track (Only if multiple types exist OR categories exist) */}
-                    {(isHybridStore || categories.length > 0) && (
+                    {/* Row 3: Horizontal Scrollable Tag/Badge Track (Only shown if catalog has multiple different types) */}
+                    {isHybridStore && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                         {/* Tag Mode Switcher: Only displayed when both multiple catalog types exist AND categories exist */}
-                        {isHybridStore && categories.length > 0 && (
+                        {categories.length > 0 && (
                           <div style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -3685,19 +3685,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </div>
                         )}
 
-                        {/* Scrollable Badges Track: if not hybrid, always displays categoryTagItems */}
+                        {/* Scrollable Badges Track: displays catalogTypeTagItems if mode is types (or if categories.length === 0), else categoryTagItems */}
                         <TabletScrollableFilterTags
-                          items={effectiveFilterTagMode === 'types' ? catalogTypeTagItems : categoryTagItems}
-                          selectedId={effectiveFilterTagMode === 'types' ? productTypeFilter : productCategoryFilter}
+                          items={(effectiveFilterTagMode === 'types' || categories.length === 0) ? catalogTypeTagItems : categoryTagItems}
+                          selectedId={(effectiveFilterTagMode === 'types' || categories.length === 0) ? productTypeFilter : productCategoryFilter}
                           onSelect={(id) => {
-                            if (effectiveFilterTagMode === 'types') {
+                            if (effectiveFilterTagMode === 'types' || categories.length === 0) {
                               setProductTypeFilter(id);
                             } else {
                               setProductCategoryFilter(id);
                             }
                             setProductPage(1);
                           }}
-                          ariaLabel={effectiveFilterTagMode === 'types' ? 'Filter Tipe Format Katalog' : 'Filter Kategori Produk'}
+                          ariaLabel={(effectiveFilterTagMode === 'types' || categories.length === 0) ? 'Filter Tipe Format Katalog' : 'Filter Kategori Produk'}
                           containerBg="var(--bg-deep)"
                         />
                       </div>

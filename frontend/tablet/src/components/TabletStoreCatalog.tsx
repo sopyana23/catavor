@@ -418,27 +418,29 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
           />
         </div>
 
-        {/* Category Filter Pills (Horizontal Touch & Drag Scroll) */}
-        <TabletScrollableFilterTags
-          items={[
-            {
-              id: 'all',
-              label: 'Semua Produk',
-              count: products.length
-            },
-            ...categories.map((cat) => ({
-              id: String(cat.id),
-              label: cat.name,
-              count: products.filter(
-                (p) => String(p.category_id) === String(cat.id) || p.category_name?.toLowerCase() === cat.name.toLowerCase()
-              ).length
-            }))
-          ]}
-          selectedId={selectedCategory}
-          onSelect={(id) => setSelectedCategory(id)}
-          ariaLabel="Filter Kategori Toko"
-          containerBg="var(--bg-card)"
-        />
+        {/* Category Filter Pills (Horizontal Touch & Drag Scroll - only if categories exist) */}
+        {categories.length > 0 && (
+          <TabletScrollableFilterTags
+            items={[
+              {
+                id: 'all',
+                label: 'Semua Produk',
+                count: products.length
+              },
+              ...categories.map((cat) => ({
+                id: String(cat.id),
+                label: cat.name,
+                count: products.filter(
+                  (p) => String(p.category_id) === String(cat.id) || p.category_name?.toLowerCase() === cat.name.toLowerCase()
+                ).length
+              }))
+            ]}
+            selectedId={selectedCategory}
+            onSelect={(id) => setSelectedCategory(id)}
+            ariaLabel="Filter Kategori Toko"
+            containerBg="var(--bg-card)"
+          />
+        )}
       </div>
 
       {/* 4. Product Catalog Grid (Tablet 3-Column Native) */}
