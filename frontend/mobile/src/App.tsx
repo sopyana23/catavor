@@ -19621,7 +19621,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 </div>
 
                 {/* Status Ketersediaan Kontekstual (Universal untuk Seluruh 7 Tipe Katalog) */}
-                <div className="form-group" style={{ marginBottom: 0 }}>
+                <div className="form-group" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
                   <label className="form-label" style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>Status Ketersediaan &amp; Pemesanan *</span>
                     <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>
