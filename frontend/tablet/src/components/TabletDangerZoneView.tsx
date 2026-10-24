@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  AlertTriangle,
   Trash2,
   Lock,
   Store,
@@ -8,7 +7,6 @@ import {
   X,
   HardDriveDownload,
   FolderMinus,
-  ShieldAlert,
   CheckCircle2,
   RefreshCw
 } from 'lucide-react';
@@ -196,50 +194,51 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Top Banner Alert */}
+      {/* Top Banner */}
       <div style={{
         padding: '1.25rem 1.5rem',
         borderRadius: '1rem',
-        background: 'var(--bg-card)',
+        background: 'var(--card-bg-gradient, var(--bg-card))',
         border: '1px solid var(--border-light)',
         display: 'flex',
         alignItems: 'flex-start',
-        gap: '1rem'
+        gap: '1rem',
+        boxShadow: 'var(--shadow-sm)'
       }}>
         <div style={{
           width: '42px',
           height: '42px',
           borderRadius: '10px',
-          background: 'rgba(239, 68, 68, 0.1)',
-          border: '1px solid rgba(239, 68, 68, 0.25)',
+          background: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+          border: '1px solid var(--border-light)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#ef4444',
+          color: 'var(--text-secondary)',
           flexShrink: 0
         }}>
-          <ShieldAlert size={22} />
+          <FolderMinus size={22} />
         </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
             <span style={{
               padding: '0.2rem 0.6rem',
               borderRadius: '6px',
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-              color: '#ef4444',
-              fontWeight: 800,
+              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.06))',
+              color: 'var(--text-secondary)',
+              fontWeight: 700,
               fontSize: '0.72rem',
               letterSpacing: '0.04em',
-              border: '1px solid rgba(239, 68, 68, 0.25)'
+              border: '1px solid var(--border-light)'
             }}>
-              PENGATURAN TINGKAT TINGGI
+              PENGATURAN LANJUTAN
             </span>
             <h3 style={{ fontSize: '1.15rem', margin: 0, fontWeight: 800, color: 'var(--text-primary)' }}>
-              Penutupan Akun &amp; Profil Katalog
+              Penutupan Akun dan Katalog
             </h3>
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', margin: '0.45rem 0 0 0', lineHeight: 1.55 }}>
-            Bagian ini memungkinkan Anda menghapus profil katalog yang sudah tidak aktif atau mengajukan penutupan akun pengguna permanen (PDP/GDPR). Seluruh tindakan memerlukan verifikasi kata sandi demi keamanan akun Anda.
+            Bagian ini memungkinkan Anda menghapus profil katalog yang sudah tidak digunakan atau mengajukan penutupan akun pengguna secara permanen. Seluruh tindakan memerlukan verifikasi kata sandi demi keamanan kepemilikan akun Anda.
           </p>
         </div>
       </div>
@@ -247,7 +246,7 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
       {/* PANEL 1: BACKUP / CADANGKAN DATA KATALOG (JSON) */}
       {onExportCatalogJSON && (
         <div style={{
-          backgroundColor: 'var(--bg-card)',
+          backgroundColor: 'var(--card-bg-gradient, var(--bg-card))',
           padding: '1.5rem 1.75rem',
           borderRadius: '1rem',
           border: '1px solid var(--border-light)',
@@ -255,7 +254,8 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '1.25rem',
-          flexWrap: 'wrap'
+          flexWrap: 'wrap',
+          boxShadow: 'var(--shadow-sm)'
         }}>
           <div style={{ flex: 1, minWidth: '280px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
@@ -286,7 +286,7 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               minHeight: '44px',
               padding: '0.65rem 1.25rem',
               borderRadius: '0.65rem',
-              backgroundColor: 'var(--bg-deep)',
+              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
               border: '1px solid var(--border-light)',
               color: 'var(--text-primary)',
               fontWeight: 700,
@@ -294,7 +294,8 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.5rem',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
             }}
           >
             <HardDriveDownload size={16} style={{ color: 'var(--primary)' }} />
@@ -307,8 +308,9 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
       <div style={{
         borderRadius: '1rem',
         border: '1px solid var(--border-light)',
-        background: 'var(--bg-card)',
-        padding: '1.5rem 1.75rem'
+        background: 'var(--card-bg-gradient, var(--bg-card))',
+        padding: '1.5rem 1.75rem',
+        boxShadow: 'var(--shadow-sm)'
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1.25rem', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '280px' }}>
@@ -317,11 +319,11 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                background: 'rgba(239, 68, 68, 0.08)',
+                background: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#ef4444'
+                color: 'var(--text-secondary)'
               }}>
                 <Store size={17} />
               </div>
@@ -330,7 +332,7 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               </h4>
             </div>
             <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 0.85rem 0', lineHeight: 1.55 }}>
-              Hapus profil katalog <strong style={{ color: 'var(--text-primary)' }}>"{currentStore?.store_title || expectedStoreSlug}"</strong> (slug: <code style={{ background: 'var(--bg-deep)', padding: '0.15rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem', border: '1px solid var(--border-light)' }}>{expectedStoreSlug}</code>). 
+              Hapus profil katalog <strong style={{ color: 'var(--text-primary)' }}>"{currentStore?.store_title || expectedStoreSlug}"</strong> (slug: <code style={{ background: 'var(--btn-secondary-bg, rgba(255,255,255,0.06))', padding: '0.15rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem', border: '1px solid var(--border-light)' }}>{expectedStoreSlug}</code>). 
               Produk, varian, etalase, dan berkas foto di server toko ini akan dibersihkan. Akun email Anda dan katalog lainnya ({Math.max(0, userStores.length - 1)} katalog) tetap aktif.
             </p>
 
@@ -340,7 +342,7 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               gap: '0.5rem',
               padding: '0.45rem 0.75rem',
               borderRadius: '8px',
-              background: 'var(--bg-deep)',
+              background: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.04))',
               border: '1px solid var(--border-light)',
               fontSize: '0.78rem',
               color: 'var(--text-secondary)'
@@ -365,13 +367,24 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               gap: '0.55rem',
               padding: '0.65rem 1.25rem',
               borderRadius: '0.65rem',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              backgroundColor: 'rgba(239, 68, 68, 0.08)',
-              color: '#ef4444',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+              color: 'var(--text-primary)',
               fontWeight: 700,
               fontSize: '0.85rem',
               cursor: 'pointer',
+              transition: 'all 0.2s ease',
               alignSelf: 'center'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+              e.currentTarget.style.color = '#ef4444';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-light)';
+              e.currentTarget.style.backgroundColor = 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))';
+              e.currentTarget.style.color = 'var(--text-primary)';
             }}
           >
             <Trash2 size={16} />
@@ -380,12 +393,13 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
         </div>
       </div>
 
-      {/* PANEL 3: PENUTUPAN AKUN PENGGUNA PERMANEN (GDPR / PDP) */}
+      {/* PANEL 3: PENUTUPAN AKUN PENGGUNA (GDPR / PDP) */}
       <div style={{
         borderRadius: '1rem',
-        border: '1px solid rgba(239, 68, 68, 0.35)',
-        background: 'var(--bg-card)',
-        padding: '1.5rem 1.75rem'
+        border: '1px solid var(--border-light)',
+        background: 'var(--card-bg-gradient, var(--bg-card))',
+        padding: '1.5rem 1.75rem',
+        boxShadow: 'var(--shadow-sm)'
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1.25rem', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '280px' }}>
@@ -394,21 +408,32 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                background: 'rgba(239, 68, 68, 0.15)',
+                background: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#ef4444'
+                color: 'var(--text-secondary)'
               }}>
                 <UserX size={17} />
               </div>
-              <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ef4444', margin: 0 }}>
-                Penutupan Akun Pengguna Permanen
+              <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                Penutupan Akun Pengguna
               </h4>
+              <span style={{
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '6px',
+                backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.06))',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-light)',
+                letterSpacing: '0.03em'
+              }}>
+                Privasi &amp; UU PDP
+              </span>
             </div>
             <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 0.85rem 0', lineHeight: 1.55 }}>
-              Tutup akun pengguna Anda secara permanen. Seluruh kredensial, hak akses, sesi login di seluruh perangkat, dan 
-              <strong> seluruh katalog ({userStores.length} profil toko)</strong> beserta berkas media di server akan dimusnahkan secara permanen dan tidak dapat dipulihkan kembali.
+              Tutup akun <strong style={{ color: 'var(--text-primary)' }}>{currentUser?.email}</strong> secara permanen. Opsi ini akan menghapus akun pengelola, seluruh <strong style={{ color: 'var(--text-primary)' }}>{userStores.length} profil katalog</strong> yang terdaftar, seluruh media, serta mencabut sesi di semua perangkat terhubung.
             </p>
 
             <div style={{
@@ -417,13 +442,13 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               gap: '0.5rem',
               padding: '0.45rem 0.75rem',
               borderRadius: '8px',
-              background: 'rgba(239, 68, 68, 0.08)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
+              background: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.04))',
+              border: '1px solid var(--border-light)',
               fontSize: '0.78rem',
-              color: '#ef4444'
+              color: 'var(--text-secondary)'
             }}>
-              <AlertTriangle size={15} />
-              <span>Aksi ini bersifat final dan tidak dapat dibatalkan (irreversible).</span>
+              <CheckCircle2 size={15} style={{ color: 'var(--primary)' }} />
+              <span>Setelah ditutup, alamat email dapat digunakan kembali jika Anda ingin mendaftar ulang di kemudian hari.</span>
             </div>
           </div>
 
@@ -442,17 +467,28 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               gap: '0.55rem',
               padding: '0.65rem 1.25rem',
               borderRadius: '0.65rem',
-              border: 'none',
-              backgroundColor: '#ef4444',
-              color: '#ffffff',
-              fontWeight: 800,
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+              color: 'var(--text-primary)',
+              fontWeight: 700,
               fontSize: '0.85rem',
               cursor: 'pointer',
+              transition: 'all 0.2s ease',
               alignSelf: 'center'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+              e.currentTarget.style.color = '#ef4444';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-light)';
+              e.currentTarget.style.backgroundColor = 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))';
+              e.currentTarget.style.color = 'var(--text-primary)';
             }}
           >
             <UserX size={16} />
-            <span>Tutup Akun Permanen</span>
+            <span>Tutup Akun Pengguna</span>
           </button>
         </div>
       </div>
@@ -480,9 +516,9 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
             maxWidth: '520px',
             backgroundColor: 'var(--bg-card)',
             border: '1px solid var(--border-light)',
-            borderRadius: '1rem',
+            borderRadius: '1.15rem',
             overflow: 'hidden',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)'
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
           }}>
             <div style={{
               padding: '1.25rem 1.5rem',
@@ -492,26 +528,34 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               justifyContent: 'space-between',
               backgroundColor: 'var(--bg-deep)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  color: '#ef4444',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.06))',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  flexShrink: 0
                 }}>
-                  <Trash2 size={17} />
+                  <Store size={19} />
                 </div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Konfirmasi Hapus Katalog
-                </h3>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Konfirmasi Hapus Profil Katalog
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Verifikasi identitas katalog &amp; kata sandi akun
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowStoreDeleteModal(false)}
+                disabled={isDeletingStore}
                 style={{
                   width: '32px',
                   height: '32px',
@@ -519,7 +563,7 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                   border: 'none',
                   background: 'none',
                   color: 'var(--text-muted)',
-                  cursor: 'pointer',
+                  cursor: isDeletingStore ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -529,25 +573,32 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleConfirmDeleteStore} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleConfirmDeleteStore} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
               <div style={{
-                padding: '0.85rem 1rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
-                fontSize: '0.82rem',
+                padding: '0.9rem 1rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.04))',
+                border: '1px solid var(--border-light)',
+                fontSize: '0.8rem',
                 color: 'var(--text-secondary)',
-                lineHeight: 1.5
+                lineHeight: 1.55
               }}>
-                Anda akan menghapus profil katalog <strong style={{ color: 'var(--text-primary)' }}>"{currentStore?.store_title || expectedStoreSlug}"</strong>. Seluruh item etalase dan media fisik di server toko ini akan dibersihkan.
+                <p style={{ margin: '0 0 0.45rem 0', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Rincian data yang akan dibersihkan dari server:
+                </p>
+                <ul style={{ margin: 0, paddingLeft: '1.1rem', lineHeight: 1.6 }}>
+                  <li>Semua produk, varian, dan etalase pada katalog <strong style={{ color: 'var(--text-primary)' }}>"{currentStore?.store_title || expectedStoreSlug}"</strong></li>
+                  <li>Seluruh berkas media foto di disk penyimpanan toko ini</li>
+                  <li>Tautan publik <code style={{ color: 'var(--primary)' }}>/{expectedStoreSlug}</code> akan dinonaktifkan</li>
+                </ul>
               </div>
 
               {storeDeleteError && (
                 <div style={{
                   padding: '0.75rem 1rem',
                   borderRadius: '0.5rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
                   color: '#ef4444',
                   fontSize: '0.82rem',
                   fontWeight: 600
@@ -557,8 +608,8 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               )}
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                  Ketik persis slug toko: <code style={{ backgroundColor: 'var(--bg-deep)', padding: '0.15rem 0.4rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}>{expectedStoreSlug}</code>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                  Ketik persis slug toko: <code style={{ backgroundColor: 'var(--btn-secondary-bg, rgba(255,255,255,0.06))', padding: '0.15rem 0.4rem', borderRadius: '4px', border: '1px solid var(--border-light)', color: '#ef4444' }}>{expectedStoreSlug}</code>
                 </label>
                 <input
                   type="text"
@@ -566,21 +617,23 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                   value={storeSlugConfirmation}
                   onChange={(e) => setStoreSlugConfirmation(e.target.value)}
                   placeholder={`Ketik "${expectedStoreSlug}" di sini`}
+                  disabled={isDeletingStore}
                   style={{
                     width: '100%',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '0.5rem',
+                    padding: '0.7rem 0.85rem',
+                    borderRadius: '0.55rem',
                     backgroundColor: 'var(--bg-deep)',
-                    border: isStoreSlugMatched ? '1px solid #10b981' : '1px solid var(--border-light)',
+                    border: isStoreSlugMatched ? '1.5px solid #10b981' : '1px solid var(--border-light)',
                     color: 'var(--text-primary)',
                     fontSize: '0.88rem',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
                   Kata Sandi Akun Pengelola
                 </label>
                 <div style={{ position: 'relative' }}>
@@ -590,35 +643,38 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                     value={storePassword}
                     onChange={(e) => setStorePassword(e.target.value)}
                     placeholder="Masukkan kata sandi akun Anda"
+                    disabled={isDeletingStore}
                     style={{
                       width: '100%',
-                      padding: '0.65rem 2.2rem 0.65rem 0.85rem',
-                      borderRadius: '0.5rem',
+                      padding: '0.7rem 2.2rem 0.7rem 0.85rem',
+                      borderRadius: '0.55rem',
                       backgroundColor: 'var(--bg-deep)',
                       border: '1px solid var(--border-light)',
                       color: 'var(--text-primary)',
                       fontSize: '0.88rem',
-                      outline: 'none'
+                      outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                   />
                   <Lock size={15} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.35rem' }}>
                 <button
                   type="button"
                   onClick={() => setShowStoreDeleteModal(false)}
+                  disabled={isDeletingStore}
                   style={{
                     minHeight: '44px',
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--bg-deep)',
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
                     border: '1px solid var(--border-light)',
                     color: 'var(--text-primary)',
                     fontSize: '0.85rem',
                     fontWeight: 700,
-                    cursor: 'pointer'
+                    cursor: isDeletingStore ? 'not-allowed' : 'pointer'
                   }}
                 >
                   Batal
@@ -628,8 +684,8 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                   disabled={!isStoreSlugMatched || !storePassword || isDeletingStore}
                   style={{
                     minHeight: '44px',
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: '0.5rem',
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '0.6rem',
                     backgroundColor: '#ef4444',
                     border: 'none',
                     color: '#ffffff',
@@ -661,7 +717,7 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
       )}
 
       {/* =========================================================================
-          MODAL 2: KONFIRMASI TUTUP AKUN PENGGUNA PERMANEN
+          MODAL 2: KONFIRMASI TUTUP AKUN PENGGUNA
           ========================================================================= */}
       {showAccountDeleteModal && (
         <div style={{
@@ -682,10 +738,10 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
             width: '100%',
             maxWidth: '540px',
             backgroundColor: 'var(--bg-card)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            borderRadius: '1rem',
+            border: '1px solid var(--border-light)',
+            borderRadius: '1.15rem',
             overflow: 'hidden',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)'
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
           }}>
             <div style={{
               padding: '1.25rem 1.5rem',
@@ -693,28 +749,36 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: 'rgba(239, 68, 68, 0.08)'
+              backgroundColor: 'var(--bg-deep)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                  color: '#ef4444',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.06))',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  flexShrink: 0
                 }}>
-                  <UserX size={17} />
+                  <UserX size={19} />
                 </div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: '#ef4444' }}>
-                  Konfirmasi Penutupan Akun Permanen
-                </h3>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Konfirmasi Penutupan Akun
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Verifikasi otentikasi &amp; konfirmasi penutupan data permanen
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAccountDeleteModal(false)}
+                disabled={isDeletingAccount}
                 style={{
                   width: '32px',
                   height: '32px',
@@ -722,7 +786,7 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                   border: 'none',
                   background: 'none',
                   color: 'var(--text-muted)',
-                  cursor: 'pointer',
+                  cursor: isDeletingAccount ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -732,25 +796,32 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleConfirmDeleteAccount} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleConfirmDeleteAccount} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
               <div style={{
-                padding: '0.85rem 1rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
-                fontSize: '0.82rem',
+                padding: '0.9rem 1rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.04))',
+                border: '1px solid var(--border-light)',
+                fontSize: '0.8rem',
                 color: 'var(--text-secondary)',
-                lineHeight: 1.5
+                lineHeight: 1.55
               }}>
-                Tindakan ini akan menghapus akun login Anda (<strong style={{ color: 'var(--text-primary)' }}>{currentUser?.email || 'email terdaftar'}</strong>) serta <strong>seluruh {userStores.length} profil toko</strong> dan arsip katalog secara permanen.
+                <p style={{ margin: '0 0 0.45rem 0', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Akun email (<strong style={{ color: 'var(--text-primary)' }}>{currentUser?.email || 'email terdaftar'}</strong>) dan rincian berikut akan ditutup:
+                </p>
+                <ul style={{ margin: 0, paddingLeft: '1.1rem', lineHeight: 1.6 }}>
+                  <li>Seluruh profil katalog (<strong style={{ color: 'var(--text-primary)' }}>{userStores.length} katalog</strong>) beserta item produk</li>
+                  <li>Semua berkas foto di server dan riwayat aktivitas toko</li>
+                  <li>Hak akses akun dan sesi login di semua perangkat</li>
+                </ul>
               </div>
 
               {accountDeleteError && (
                 <div style={{
                   padding: '0.75rem 1rem',
                   borderRadius: '0.5rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
                   color: '#ef4444',
                   fontSize: '0.82rem',
                   fontWeight: 600
@@ -760,8 +831,8 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
               )}
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                  Ketik persis kalimat konfirmasi: <code style={{ backgroundColor: 'var(--bg-deep)', padding: '0.15rem 0.4rem', borderRadius: '4px', border: '1px solid var(--border-light)', color: '#ef4444' }}>{REQUIRED_ACCOUNT_PHRASE}</code>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                  Ketik persis kalimat konfirmasi: <code style={{ backgroundColor: 'var(--btn-secondary-bg, rgba(255,255,255,0.06))', padding: '0.15rem 0.4rem', borderRadius: '4px', border: '1px solid var(--border-light)', color: '#ef4444' }}>{REQUIRED_ACCOUNT_PHRASE}</code>
                 </label>
                 <input
                   type="text"
@@ -769,21 +840,23 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                   value={accountPhraseConfirmation}
                   onChange={(e) => setAccountPhraseConfirmation(e.target.value)}
                   placeholder={`Ketik "${REQUIRED_ACCOUNT_PHRASE}" di sini`}
+                  disabled={isDeletingAccount}
                   style={{
                     width: '100%',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '0.5rem',
+                    padding: '0.7rem 0.85rem',
+                    borderRadius: '0.55rem',
                     backgroundColor: 'var(--bg-deep)',
-                    border: isAccountPhraseMatched ? '1px solid #10b981' : '1px solid var(--border-light)',
+                    border: isAccountPhraseMatched ? '1.5px solid #10b981' : '1px solid var(--border-light)',
                     color: 'var(--text-primary)',
                     fontSize: '0.88rem',
-                    outline: 'none'
+                    outline: 'none',
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
                   Kata Sandi Akun untuk Otentikasi
                 </label>
                 <div style={{ position: 'relative' }}>
@@ -793,35 +866,38 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                     value={accountPassword}
                     onChange={(e) => setAccountPassword(e.target.value)}
                     placeholder="Masukkan kata sandi akun Anda"
+                    disabled={isDeletingAccount}
                     style={{
                       width: '100%',
-                      padding: '0.65rem 2.2rem 0.65rem 0.85rem',
-                      borderRadius: '0.5rem',
+                      padding: '0.7rem 2.2rem 0.7rem 0.85rem',
+                      borderRadius: '0.55rem',
                       backgroundColor: 'var(--bg-deep)',
                       border: '1px solid var(--border-light)',
                       color: 'var(--text-primary)',
                       fontSize: '0.88rem',
-                      outline: 'none'
+                      outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                   />
                   <Lock size={15} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.35rem' }}>
                 <button
                   type="button"
                   onClick={() => setShowAccountDeleteModal(false)}
+                  disabled={isDeletingAccount}
                   style={{
                     minHeight: '44px',
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--bg-deep)',
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
                     border: '1px solid var(--border-light)',
                     color: 'var(--text-primary)',
                     fontSize: '0.85rem',
                     fontWeight: 700,
-                    cursor: 'pointer'
+                    cursor: isDeletingAccount ? 'not-allowed' : 'pointer'
                   }}
                 >
                   Batal
@@ -831,8 +907,8 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                   disabled={!isAccountPhraseMatched || !accountPassword || isDeletingAccount}
                   style={{
                     minHeight: '44px',
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: '0.5rem',
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '0.6rem',
                     backgroundColor: '#ef4444',
                     border: 'none',
                     color: '#ffffff',
@@ -865,3 +941,4 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
     </div>
   );
 };
+

@@ -76,7 +76,8 @@ import {
   UserX,
   CheckCircle2,
   Mail,
-  ArrowLeft
+  ArrowLeft,
+  FolderMinus
 } from 'lucide-react';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
@@ -7556,12 +7557,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   </button>
                 </div>
 
-                {/* Zona Berbahaya Link */}
+                {/* Penutupan Akun & Katalog Link */}
                 <div style={{
                   backgroundColor: 'var(--bg-card)',
                   padding: '1.75rem',
                   borderRadius: '1rem',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  border: '1px solid var(--border-light)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -7570,13 +7571,25 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                      <AlertTriangle size={18} color="#ef4444" />
-                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: '#ef4444' }}>
-                        Zona Berbahaya: Penutupan Profil Toko &amp; Akun
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        <FolderMinus size={17} />
+                      </div>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                        Penutupan Akun &amp; Katalog
                       </h3>
                     </div>
                     <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, maxWidth: '600px', lineHeight: 1.45 }}>
-                      Hapus permanen profil katalog ini atau ajukan penutupan akun pengelola secara menyeluruh dengan verifikasi kata sandi.
+                      Hapus profil katalog yang sudah tidak aktif atau ajukan penutupan akun pengelola secara permanen dengan verifikasi kata sandi.
                     </p>
                   </div>
                   <button
@@ -7589,20 +7602,21 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       minHeight: '44px',
                       padding: '0.65rem 1.25rem',
                       borderRadius: '0.65rem',
-                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                      color: '#ef4444',
-                      fontWeight: 800,
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      color: 'var(--text-primary)',
+                      fontWeight: 700,
                       fontSize: '0.85rem',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '0.5rem',
                       cursor: 'pointer',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.2s ease'
                     }}
                   >
-                    <Trash2 size={15} />
-                    <span>Buka Panel Penutupan</span>
+                    <FolderMinus size={15} />
+                    <span>Kelola Penutupan</span>
                   </button>
                 </div>
               </div>
@@ -8059,7 +8073,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 { id: 'info', label: 'Profil & Kredensial', icon: UserCheck },
                 { id: 'devices', label: 'Sesi & Perangkat Terhubung', icon: Smartphone },
                 { id: 'audit_logs', label: 'Jejak Audit & Log', icon: History },
-                { id: 'danger', label: 'Zona Berbahaya & Penutupan', icon: AlertTriangle, isDanger: true }
+                { id: 'danger', label: 'Penutupan Akun & Katalog', icon: FolderMinus }
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = profileSubTab === tab.id;
@@ -8073,15 +8087,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       padding: '0.5rem 1.15rem',
                       borderRadius: '0.55rem',
                       border: '1px solid',
-                      borderColor: isActive
-                        ? (tab.isDanger ? '#ef4444' : 'var(--primary)')
-                        : 'transparent',
-                      backgroundColor: isActive
-                        ? (tab.isDanger ? '#ef4444' : 'var(--primary)')
-                        : 'transparent',
-                      color: isActive
-                        ? '#ffffff'
-                        : (tab.isDanger ? '#ef4444' : 'var(--text-secondary)'),
+                      borderColor: isActive ? 'var(--primary)' : 'transparent',
+                      backgroundColor: isActive ? 'var(--primary)' : 'transparent',
+                      color: isActive ? '#ffffff' : 'var(--text-secondary)',
                       fontWeight: isActive ? 800 : 600,
                       fontSize: '0.84rem',
                       display: 'inline-flex',
@@ -8090,9 +8098,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
                       transition: 'all 0.15s ease',
-                      boxShadow: isActive
-                        ? (tab.isDanger ? '0 2px 8px rgba(239, 68, 68, 0.3)' : '0 2px 8px var(--primary-glow)')
-                        : 'none'
+                      boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none'
                     }}
                   >
                     <Icon size={16} />
@@ -8968,7 +8974,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               </div>
             )}
 
-            {/* SUB-TAB 4: ZONA BERBAHAYA & PENUTUPAN AKUN */}
+            {/* SUB-TAB 4: PENUTUPAN AKUN & KATALOG */}
             {profileSubTab === 'danger' && (
               <div className="animate-fade-in">
                 <TabletDangerZoneView
