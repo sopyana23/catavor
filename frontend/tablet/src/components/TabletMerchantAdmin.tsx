@@ -71,7 +71,12 @@ import {
   CheckCheck,
   ArrowRight,
   Scale,
-  MessageSquare
+  MessageSquare,
+  AlertTriangle,
+  UserX,
+  CheckCircle2,
+  Mail,
+  ArrowLeft
 } from 'lucide-react';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
@@ -79,6 +84,7 @@ import { TabletAnalyticsView } from './TabletAnalyticsView';
 import { TabletSubscriptionModal, type StoreQuotaData } from './TabletSubscriptionModal';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
+import { TabletDangerZoneView } from './TabletDangerZoneView';
 import { TabletProductFilterSheet, type TabletProductFilterValues } from './TabletProductFilterSheet';
 import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
 import { TabletCustomSelect } from './TabletCustomSelect';
@@ -342,7 +348,31 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       url.searchParams.delete('action');
       url.searchParams.delete('type');
       url.searchParams.delete('catalog_type');
+      if (tab !== 'profile') {
+        url.searchParams.delete('sub');
+      }
       window.history.pushState({ tab }, '', url.toString());
+    }
+  }, []);
+
+  const [profileSubTab, setProfileSubTabState] = useState<'info' | 'devices' | 'audit_logs' | 'danger'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const sub = params.get('sub');
+      if (sub === 'devices' || sub === 'security') return 'devices';
+      if (sub === 'audit_logs' || sub === 'logs') return 'audit_logs';
+      if (sub === 'danger') return 'danger';
+    }
+    return 'info';
+  });
+
+  const setProfileSubTab = useCallback((sub: 'info' | 'devices' | 'audit_logs' | 'danger') => {
+    setProfileSubTabState(sub);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'profile');
+      url.searchParams.set('sub', sub);
+      window.history.pushState({ tab: 'profile', sub }, '', url.toString());
     }
   }, []);
   const [isNavExpanded, setIsNavExpanded] = useState<boolean>(false);
@@ -1457,6 +1487,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             setProductForm(prev => ({ ...prev, product_type: '' }));
           }
         }
+      } else if (activeT === 'profile') {
+        const subParam = params.get('sub');
+        if (subParam === 'devices' || subParam === 'security') setProfileSubTabState('devices');
+        else if (subParam === 'audit_logs' || subParam === 'logs') setProfileSubTabState('audit_logs');
+        else if (subParam === 'danger') setProfileSubTabState('danger');
+        else setProfileSubTabState('info');
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -2370,15 +2406,76 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 
+  // OTP Password Recovery States
+  const [profilePasswordMode, setProfilePasswordMode] = useState<'standard' | 'otp'>('standard');
+  const [profileOtpCode, setProfileOtpCode] = useState<string>('');
+  const [profileOtpLoading, setProfileOtpLoading] = useState<boolean>(false);
+  const [profileOtpSent, setProfileOtpSent] = useState<boolean>(false);
+  const [profileOtpCooldown, setProfileOtpCooldown] = useState<number>(0);
+  const [profileOtpSuccess, setProfileOtpSuccess] = useState<string | null>(null);
+  const [profileOtpError, setProfileOtpError] = useState<string | null>(null);
+
+  // Cooldown countdown effect
+  useEffect(() => {
+    if (profileOtpCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setProfileOtpCooldown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [profileOtpCooldown]);
+
+  const handleSendProfileBackupOTP = async () => {
+    const emailToUse = ((adminUser?.email || currentUser?.email) || '').trim().toLowerCase();
+    if (!emailToUse) {
+      setProfileOtpError('Alamat email akun tidak ditemukan.');
+      return;
+    }
+    setProfileOtpLoading(true);
+    setProfileOtpError(null);
+    setProfileOtpSuccess(null);
+    try {
+      const res = await fetch('/api/profile/request-password-otp', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ email: emailToUse })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProfileOtpSent(true);
+        setProfileOtpCooldown(60);
+        const msg = data.message || `Kode OTP berhasil dikirimkan ke ${emailToUse}. Periksa inbox atau spam email Anda.`;
+        setProfileOtpSuccess(msg);
+        showToast(msg, 'success');
+      } else {
+        const errMsg = data.message || 'Gagal mengirim kode OTP pemulihan.';
+        setProfileOtpError(errMsg);
+        showToast(errMsg, 'error');
+      }
+    } catch {
+      const netMsg = 'Gagal menghubungi server. Periksa koneksi internet Anda.';
+      setProfileOtpError(netMsg);
+      showToast(netMsg, 'error');
+    } finally {
+      setProfileOtpLoading(false);
+    }
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     const newPass = passwordForm.new_password.trim();
     const confirmPass = passwordForm.confirm_password.trim();
     const oldPass = passwordForm.old_password.trim();
 
-    if (hasCustomPassword && !oldPass) {
-      showToast('Kata sandi saat ini wajib diisi', 'error');
-      return;
+    if (hasCustomPassword) {
+      if (profilePasswordMode === 'standard' && !oldPass) {
+        showToast('Kata sandi saat ini wajib diisi', 'error');
+        return;
+      }
+      if (profilePasswordMode === 'otp' && (!profileOtpCode || profileOtpCode.trim().length !== 6)) {
+        setProfileOtpError('Kode verifikasi OTP harus berjumlah 6 digit angka');
+        showToast('Kode verifikasi OTP harus berjumlah 6 digit angka', 'error');
+        return;
+      }
     }
 
     if (newPass.length < 8) {
@@ -2405,22 +2502,31 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       showToast('Konfirmasi kata sandi tidak cocok', 'error');
       return;
     }
-    if (hasCustomPassword && oldPass && newPass === oldPass) {
+    if (hasCustomPassword && profilePasswordMode === 'standard' && oldPass && newPass === oldPass) {
       showToast('Kata sandi baru tidak boleh sama dengan kata sandi saat ini', 'error');
       return;
     }
 
     setSaving(true);
+    setProfileOtpError(null);
+    setProfileOtpSuccess(null);
     try {
+      const payload: any = {
+        name: profileName || adminUser?.name || currentUser?.name || 'Admin Toko',
+        password: newPass,
+        confirm_password: confirmPass
+      };
+      if (hasCustomPassword) {
+        if (profilePasswordMode === 'otp') {
+          payload.otp = profileOtpCode.trim();
+        } else {
+          payload.current_password = oldPass;
+        }
+      }
       const res = await fetch('/api/profile', {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({
-          name: currentUser?.name || 'Admin Toko',
-          current_password: hasCustomPassword ? oldPass : '',
-          password: newPass,
-          confirm_password: confirmPass
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -2432,6 +2538,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           const userObj = saved ? JSON.parse(saved) : {};
           const merged = { ...userObj, ...(data.user || {}), has_custom_password: true, is_password_changed: true };
           localStorage.setItem('catavor_user', JSON.stringify(merged));
+          setAdminUser(merged);
         } catch {
           // ignore
         }
@@ -2440,19 +2547,124 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setShowOldPassword(false);
         setShowNewPassword(false);
         setShowConfirmPassword(false);
-        const successMsg = hasCustomPassword
-          ? 'Kata sandi berhasil diperbarui!'
-          : 'Kata sandi cadangan akun berhasil disimpan!';
+        setProfileOtpCode('');
+        setProfileOtpSent(false);
+        setProfilePasswordMode('standard');
+        const successMsg = profilePasswordMode === 'otp'
+          ? 'Kata sandi berhasil diperbarui via verifikasi OTP email!'
+          : (hasCustomPassword ? 'Kata sandi berhasil diperbarui!' : 'Kata sandi cadangan akun berhasil disimpan!');
         showToast(successMsg, 'success');
       } else {
-        showToast(data.message || 'Gagal menyimpan kata sandi', 'error');
+        const errMsg = data.message || 'Gagal menyimpan kata sandi';
+        if (profilePasswordMode === 'otp') {
+          setProfileOtpError(errMsg);
+        }
+        showToast(errMsg, 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan sistem saat menghubungi server', 'error');
+      const netErr = 'Terjadi kesalahan sistem saat menghubungi server';
+      if (profilePasswordMode === 'otp') {
+        setProfileOtpError(netErr);
+      }
+      showToast(netErr, 'error');
     } finally {
       setSaving(false);
     }
   };
+
+  // User profile state and name updater
+  const [adminUser, setAdminUser] = useState<any>(currentUser);
+  useEffect(() => {
+    if (currentUser) setAdminUser(currentUser);
+  }, [currentUser]);
+
+  const [profileName, setProfileName] = useState<string>(() => currentUser?.name || '');
+  useEffect(() => {
+    if (currentUser?.name) setProfileName(currentUser.name);
+  }, [currentUser?.name]);
+
+  const [updatingProfileName, setUpdatingProfileName] = useState<boolean>(false);
+
+  const handleUpdateProfileName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = profileName.trim();
+    if (!trimmed) {
+      showToast('Nama lengkap pengelola wajib diisi', 'error');
+      return;
+    }
+    if (trimmed.length < 2) {
+      showToast('Nama lengkap minimal 2 karakter', 'error');
+      return;
+    }
+
+    setUpdatingProfileName(true);
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          name: trimmed
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const updated = { ...(adminUser || {}), name: trimmed, ...(data.user || {}) };
+        setAdminUser(updated);
+        try {
+          localStorage.setItem('catavor_user', JSON.stringify(updated));
+        } catch {}
+        showToast('Nama profil pengelola berhasil diperbarui!', 'success');
+      } else {
+        showToast(data.message || 'Gagal memperbarui nama profil', 'error');
+      }
+    } catch {
+      showToast('Terjadi kesalahan jaringan saat memperbarui profil', 'error');
+    } finally {
+      setUpdatingProfileName(false);
+    }
+  };
+
+  // User stores list for Danger Zone multi-store coordination
+  const [userStores, setUserStores] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem('catavor_stores');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleStoreDeleted = (deletedSlug: string, remainingStores: any[]) => {
+    setUserStores(remainingStores);
+    try {
+      localStorage.setItem('catavor_stores', JSON.stringify(remainingStores));
+    } catch {}
+    if (remainingStores && remainingStores.length > 0) {
+      window.location.href = `/${remainingStores[0].slug}/admin`;
+    } else {
+      onLogout();
+    }
+  };
+
+  const handleAccountDeleted = () => {
+    try {
+      localStorage.removeItem('catavor_token');
+      localStorage.removeItem('catavor_user');
+      localStorage.removeItem('catavor_stores');
+      localStorage.removeItem('catavor_active_slug');
+    } catch {}
+    onLogout();
+  };
+
+  const currentStoreObj = useMemo(() => {
+    const matched = userStores.find(s => s.slug?.toLowerCase() === storeSlug.toLowerCase());
+    if (matched) return matched;
+    return {
+      id: (storeSettings as any).id || (currentUser as any)?.store_id || 0,
+      slug: storeSlug,
+      store_title: storeSettings.name || storeSlug
+    };
+  }, [userStores, storeSlug, storeSettings, currentUser]);
 
   // 1. Initial Core Data Fetching (Run ONCE per store/token mount - Essential store profile, categories, products, notifications & tickets ping)
   const initialLoadedKeyRef = useRef<string>('');
@@ -7343,6 +7555,56 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     Buka Etalase Publik
                   </button>
                 </div>
+
+                {/* Zona Berbahaya Link */}
+                <div style={{
+                  backgroundColor: 'var(--bg-card)',
+                  padding: '1.75rem',
+                  borderRadius: '1rem',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1.25rem',
+                  flexWrap: 'wrap'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <AlertTriangle size={18} color="#ef4444" />
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: '#ef4444' }}>
+                        Zona Berbahaya: Penutupan Profil Toko &amp; Akun
+                      </h3>
+                    </div>
+                    <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, maxWidth: '600px', lineHeight: 1.45 }}>
+                      Hapus permanen profil katalog ini atau ajukan penutupan akun pengelola secara menyeluruh dengan verifikasi kata sandi.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('profile');
+                      setProfileSubTab('danger');
+                    }}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.65rem 1.25rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#ef4444',
+                      fontWeight: 800,
+                      fontSize: '0.85rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Trash2 size={15} />
+                    <span>Buka Panel Penutupan</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSaveSettings} style={{
@@ -7753,280 +8015,974 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 6: AKUN & KEAMANAN (Profile, Password, Sessions, Danger Zone)
             =================================================================== */}
         {activeTab === 'profile' && (
-          <div style={{ padding: '2rem', maxWidth: '960px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-              Akun & Keamanan Pengelola
-            </h2>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Kelola kredensial akun, pembaruan kata sandi, dan pemantauan sesi perangkat aktif.
-            </p>
+          <div style={{ padding: '1.75rem 2rem', maxWidth: '1040px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Akun &amp; Keamanan Pengelola
+                </h2>
+                <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
+                  Pusat kendali identitas akun, kredensial login, sesi perangkat terhubung, dan tata kelola akun.
+                </p>
+              </div>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '999px',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                color: '#10b981',
+                fontSize: '0.75rem',
+                fontWeight: 700
+              }}>
+                <ShieldCheck size={14} />
+                <span>Proteksi Keamanan Aktif</span>
+              </div>
+            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
-              {/* Profile Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 1rem 0' }}>
-                  Informasi Pengelola
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.88rem' }}>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.78rem' }}>Nama Pemilik</span>
-                    <strong>{currentUser?.name || 'Pengelola Toko'}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.78rem' }}>Alamat Email</span>
-                    <strong>{currentUser?.email || '-'}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.78rem' }}>Hak Akses</span>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: '999px',
-                      backgroundColor: 'rgba(30, 58, 138, 0.12)',
-                      color: 'var(--primary)',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      marginTop: '0.2rem'
-                    }}>
-                      Merchant Store Owner
-                    </span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.78rem' }}>Status Keamanan</span>
-                    <span style={{
+            {/* Segmented Sub-Tab Switcher Pills */}
+            <div style={{
+              display: 'flex',
+              gap: '0.5rem',
+              padding: '0.35rem',
+              backgroundColor: 'var(--bg-deep)',
+              borderRadius: '0.75rem',
+              border: '1px solid var(--border-light)',
+              marginBottom: '1.5rem',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch'
+            }}>
+              {[
+                { id: 'info', label: 'Profil & Kredensial', icon: UserCheck },
+                { id: 'devices', label: 'Sesi & Perangkat Terhubung', icon: Smartphone },
+                { id: 'audit_logs', label: 'Jejak Audit & Log', icon: History },
+                { id: 'danger', label: 'Zona Berbahaya & Penutupan', icon: AlertTriangle, isDanger: true }
+              ].map(tab => {
+                const Icon = tab.icon;
+                const isActive = profileSubTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setProfileSubTab(tab.id as any)}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.5rem 1.15rem',
+                      borderRadius: '0.55rem',
+                      border: '1px solid',
+                      borderColor: isActive
+                        ? (tab.isDanger ? '#ef4444' : 'var(--primary)')
+                        : 'transparent',
+                      backgroundColor: isActive
+                        ? (tab.isDanger ? '#ef4444' : 'var(--primary)')
+                        : 'transparent',
+                      color: isActive
+                        ? '#ffffff'
+                        : (tab.isDanger ? '#ef4444' : 'var(--text-secondary)'),
+                      fontWeight: isActive ? 800 : 600,
+                      fontSize: '0.84rem',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '999px',
-                      backgroundColor: hasCustomPassword ? 'rgba(16, 185, 129, 0.12)' : 'rgba(37, 99, 235, 0.12)',
-                      color: hasCustomPassword ? '#10b981' : '#2563eb',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      marginTop: '0.2rem'
-                    }}>
-                      <ShieldCheck size={13} />
-                      {hasCustomPassword ? 'Kata Sandi Kustom Aktif' : 'Google SSO (Kata Sandi Manual Belum Disetel)'}
-                    </span>
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease',
+                      boxShadow: isActive
+                        ? (tab.isDanger ? '0 2px 8px rgba(239, 68, 68, 0.3)' : '0 2px 8px var(--primary-glow)')
+                        : 'none'
+                    }}
+                  >
+                    <Icon size={16} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* SUB-TAB 1: PROFIL & KREDENSIAL */}
+            {profileSubTab === 'info' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* 4-Item Summary Metric Strip */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                  gap: '0.85rem',
+                  padding: '1.15rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Role Akun</span>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--primary)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <ShieldCheck size={14} />
+                      {(adminUser?.role === 'superadmin' || adminUser?.is_superadmin) ? 'Superadmin Platform' : 'Pengelola Toko (Merchant)'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>ID Akun Pengguna</span>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem', fontFamily: 'monospace' }}>
+                      #{adminUser?.id || currentUser?.id || '-'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Status Otentikasi</span>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <CheckCircle2 size={14} />
+                      Aktif &amp; Terverifikasi
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Metode Kredensial</span>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: hasCustomPassword ? '#10b981' : '#2563eb', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Key size={14} />
+                      {hasCustomPassword ? 'Kata Sandi Kustom Aktif' : 'Google SSO Terhubung'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2-Column Grid: Profile Name Form & Password Security Form */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem' }}>
+                  {/* Card 1: Informasi Pengelola & Ubah Nama */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+                      <UserCheck size={18} style={{ color: 'var(--primary)' }} />
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                        Identitas Profil Pengelola
+                      </h3>
+                    </div>
+
+                    <form onSubmit={handleUpdateProfileName} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                          Nama Lengkap Pengelola *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          placeholder="Masukkan nama lengkap Anda..."
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0', lineHeight: 1.4 }}>
+                          Nama ini digunakan sebagai identitas resmi pengelola akun di seluruh sistem dan dicatat pada riwayat audit log.
+                        </p>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                          <label style={{ fontSize: '0.82rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                            Alamat Email Login
+                          </label>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <Lock size={12} /> Terkunci (SSO)
+                          </span>
+                        </div>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            type="email"
+                            disabled
+                            value={adminUser?.email || currentUser?.email || ''}
+                            style={{
+                              width: '100%',
+                              padding: '0.65rem 2.2rem 0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-secondary)',
+                              fontSize: '0.88rem',
+                              cursor: 'not-allowed',
+                              opacity: 0.85
+                            }}
+                          />
+                          <Lock size={14} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        </div>
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0', lineHeight: 1.4 }}>
+                          Alamat email dikunci demi integritas Single Sign-On (SSO) dan otorisasi kepemilikan katalog.
+                        </p>
+                      </div>
+
+                      <div style={{
+                        padding: '0.75rem 0.85rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'rgba(30, 58, 138, 0.08)',
+                        border: '1px solid rgba(30, 58, 138, 0.2)',
+                        fontSize: '0.76rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.45,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.5rem'
+                      }}>
+                        <ShieldCheck size={16} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+                        <div>
+                          Identitas akun Anda terproteksi secara terenkripsi. Pembaruan nama profil langsung tersinkronisasi ke seluruh etalase katalog yang Anda kelola.
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.6rem 1.25rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: (updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')) ? 'not-allowed' : 'pointer',
+                          opacity: (updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')) ? 0.6 : 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        {updatingProfileName ? (
+                          <>
+                            <RefreshCw size={15} className="animate-spin" />
+                            <span>Menyimpan...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save size={15} />
+                            <span>Simpan Nama Profil</span>
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Card 2: Keamanan Kata Sandi */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {hasCustomPassword ? (
+                          <Lock size={18} style={{ color: 'var(--primary)' }} />
+                        ) : (
+                          <Key size={18} style={{ color: '#2563eb' }} />
+                        )}
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                          {hasCustomPassword ? 'Ubah Kata Sandi Akun' : 'Setel Kata Sandi Cadangan'}
+                        </h3>
+                      </div>
+                      {!hasCustomPassword ? (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                          color: '#2563eb',
+                          fontSize: '0.72rem',
+                          fontWeight: 700
+                        }}>
+                          <ShieldCheck size={12} />
+                          Google SSO
+                        </span>
+                      ) : (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                          color: '#10b981',
+                          fontSize: '0.72rem',
+                          fontWeight: 700
+                        }}>
+                          <ShieldCheck size={12} />
+                          Terenkripsi Bcrypt
+                        </span>
+                      )}
+                    </div>
+
+                    {profilePasswordMode === 'otp' ? (
+                      /* OTP Recovery View */
+                      <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                        <div style={{
+                          padding: '1rem 1.15rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1.5px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.85rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '8px',
+                                background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+                                color: 'var(--primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                <Key size={16} />
+                              </div>
+                              <div>
+                                <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  Pemulihan Kata Sandi via OTP Email
+                                </h4>
+                                <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                                  Kode OTP dikirimkan ke email terdaftar: <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>{adminUser?.email || currentUser?.email}</strong>
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProfilePasswordMode('standard');
+                                setProfileOtpError(null);
+                                setProfileOtpSuccess(null);
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0.4rem 0.85rem',
+                                borderRadius: '0.55rem',
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer'
+                              }}
+                              title="Kembali ke formulir kata sandi saat ini"
+                            >
+                              <ArrowLeft size={13} />
+                              <span>Batal &amp; Gunakan Sandi Lama</span>
+                            </button>
+                          </div>
+
+                          {profileOtpSuccess && (
+                            <div style={{
+                              fontSize: '0.78rem',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              background: 'rgba(16, 185, 129, 0.12)',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              color: '#10b981',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem'
+                            }}>
+                              <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+                              <span>{profileOtpSuccess}</span>
+                            </div>
+                          )}
+
+                          {profileOtpError && (
+                            <div style={{
+                              fontSize: '0.78rem',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              background: 'rgba(239, 68, 68, 0.12)',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              color: '#ef4444',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem'
+                            }}>
+                              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                              <span>{profileOtpError}</span>
+                            </div>
+                          )}
+
+                          {!profileOtpSent ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
+                              <p style={{ margin: 0, fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                                Klik tombol di bawah untuk menerima 6-digit kode OTP ke alamat email terdaftar Anda guna mereset kata sandi akun secara aman tanpa memerlukan kata sandi lama.
+                              </p>
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={handleSendProfileBackupOTP}
+                                  disabled={profileOtpLoading}
+                                  style={{
+                                    minHeight: '44px',
+                                    padding: '0.6rem 1.35rem',
+                                    fontSize: '0.84rem',
+                                    fontWeight: 800,
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: 'var(--primary)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    cursor: profileOtpLoading ? 'not-allowed' : 'pointer',
+                                    opacity: profileOtpLoading ? 0.7 : 1
+                                  }}
+                                >
+                                  {profileOtpLoading ? (
+                                    <>
+                                      <RefreshCw size={15} className="animate-spin" />
+                                      <span>Mengirim Kode OTP...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Mail size={15} />
+                                      <span>Kirim Kode OTP ke Email Saya</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                              <div style={{ maxWidth: '280px' }}>
+                                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Kode OTP 6-Digit *
+                                </label>
+                                <input
+                                  type="text"
+                                  maxLength={6}
+                                  required
+                                  placeholder="------"
+                                  value={profileOtpCode}
+                                  onChange={(e) => setProfileOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.6rem',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '1.35rem',
+                                    fontWeight: 800,
+                                    letterSpacing: '8px',
+                                    textAlign: 'center',
+                                    fontFamily: 'monospace',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '2px solid var(--primary)',
+                                    color: 'var(--primary)',
+                                    outline: 'none'
+                                  }}
+                                />
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                    Kata Sandi Baru *
+                                  </label>
+                                  <div style={{ position: 'relative' }}>
+                                    <input
+                                      type={showNewPassword ? 'text' : 'password'}
+                                      required
+                                      value={passwordForm.new_password}
+                                      onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                                      placeholder="Minimal 8 karakter..."
+                                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowNewPassword(!showNewPassword)}
+                                      aria-label="Tampilkan atau sembunyikan kata sandi baru"
+                                      style={{
+                                        position: 'absolute',
+                                        right: '0.5rem',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-muted)',
+                                        padding: '0.25rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                    >
+                                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                    Konfirmasi Kata Sandi Baru *
+                                  </label>
+                                  <div style={{ position: 'relative' }}>
+                                    <input
+                                      type={showConfirmPassword ? 'text' : 'password'}
+                                      required
+                                      value={passwordForm.confirm_password}
+                                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
+                                      placeholder="Ketik ulang kata sandi baru"
+                                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                      aria-label="Tampilkan atau sembunyikan konfirmasi kata sandi baru"
+                                      style={{
+                                        position: 'absolute',
+                                        right: '0.5rem',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-muted)',
+                                        padding: '0.25rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                    >
+                                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Interactive Criteria Checklist */}
+                              {(() => {
+                                const pass = passwordForm.new_password || '';
+                                const requirements = [
+                                  { label: 'Min. 8 karakter', valid: pass.length >= 8 },
+                                  { label: 'Huruf besar & huruf kecil (A-Z, a-z)', valid: /[A-Z]/.test(pass) && /[a-z]/.test(pass) },
+                                  { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(pass) },
+                                  { label: 'Simbol unik (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(pass) }
+                                ];
+                                return (
+                                  <div style={{
+                                    padding: '0.75rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '1px solid var(--border-light)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.45rem'
+                                  }}>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                      Kriteria Kekuatan Kata Sandi
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.4rem' }}>
+                                      {requirements.map((req, idx) => (
+                                        <div
+                                          key={idx}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem',
+                                            fontSize: '0.74rem',
+                                            color: req.valid ? '#10b981' : 'var(--text-muted)',
+                                            fontWeight: req.valid ? 700 : 500,
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                        >
+                                          <div style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            borderRadius: '50%',
+                                            backgroundColor: req.valid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                                            border: req.valid ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: req.valid ? '#10b981' : 'var(--text-muted)',
+                                            flexShrink: 0
+                                          }}>
+                                            {req.valid ? <Check size={10} strokeWidth={3} /> : <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />}
+                                          </div>
+                                          <span>{req.label}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                                <button
+                                  type="submit"
+                                  disabled={saving || profileOtpCode.length !== 6}
+                                  style={{
+                                    minHeight: '44px',
+                                    padding: '0.6rem 1.4rem',
+                                    fontSize: '0.84rem',
+                                    borderRadius: '0.55rem',
+                                    fontWeight: 800,
+                                    backgroundColor: 'var(--primary)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.45rem',
+                                    cursor: (saving || profileOtpCode.length !== 6) ? 'not-allowed' : 'pointer',
+                                    opacity: (saving || profileOtpCode.length !== 6) ? 0.6 : 1
+                                  }}
+                                >
+                                  {saving ? (
+                                    <>
+                                      <RefreshCw size={15} className="animate-spin" />
+                                      <span>Memverifikasi...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 size={15} />
+                                      <span>Verifikasi OTP &amp; Simpan Kata Sandi</span>
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleSendProfileBackupOTP}
+                                  disabled={profileOtpCooldown > 0 || profileOtpLoading}
+                                  style={{
+                                    minHeight: '44px',
+                                    padding: '0.55rem 0.95rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '1px solid var(--border-light)',
+                                    color: profileOtpCooldown > 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    cursor: (profileOtpCooldown > 0 || profileOtpLoading) ? 'default' : 'pointer'
+                                  }}
+                                >
+                                  <RefreshCw size={13} className={profileOtpLoading ? 'animate-spin' : ''} />
+                                  <span>{profileOtpCooldown > 0 ? `Kirim Ulang OTP (${profileOtpCooldown}s)` : 'Kirim Ulang OTP'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </form>
+                    ) : (
+                      /* Standard Password Mode */
+                      <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                        {!hasCustomPassword ? (
+                          <div style={{
+                            padding: '0.75rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'rgba(37, 99, 235, 0.06)',
+                            border: '1px solid rgba(37, 99, 235, 0.2)',
+                            fontSize: '0.78rem',
+                            color: 'var(--text-secondary)',
+                            lineHeight: 1.45,
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.5rem'
+                          }}>
+                            <ShieldAlert size={16} style={{ color: '#2563eb', flexShrink: 0, marginTop: '2px' }} />
+                            <div>
+                              Akun Anda saat ini login via Google SSO. Menyetel kata sandi cadangan memungkinkan Anda tetap bisa masuk manual jika layanan SSO Google sedang mengalami gangguan.
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, margin: 0 }}>
+                                Kata Sandi Saat Ini *
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProfilePasswordMode('otp');
+                                  setProfileOtpError(null);
+                                  setProfileOtpSuccess(null);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '0.25rem 0.65rem',
+                                  borderRadius: '0.45rem',
+                                  background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                                  border: '1px solid var(--primary)',
+                                  color: 'var(--primary)',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                                title="Reset dengan kode OTP via email jika lupa kata sandi lama"
+                              >
+                                Lupa Kata Sandi?
+                              </button>
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                              <input
+                                type={showOldPassword ? 'text' : 'password'}
+                                required
+                                value={passwordForm.old_password}
+                                onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
+                                placeholder="Masukkan kata sandi lama Anda"
+                                style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowOldPassword(!showOldPassword)}
+                                aria-label="Tampilkan atau sembunyikan kata sandi saat ini"
+                                style={{
+                                  position: 'absolute',
+                                  right: '0.5rem',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  color: 'var(--text-muted)',
+                                  padding: '0.25rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                {showOldPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                            {hasCustomPassword ? 'Kata Sandi Baru *' : 'Kata Sandi Baru Cadangan *'}
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type={showNewPassword ? 'text' : 'password'}
+                              required
+                              value={passwordForm.new_password}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                              placeholder="Minimal 8 karakter..."
+                              style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              aria-label="Tampilkan atau sembunyikan kata sandi baru"
+                              style={{
+                                position: 'absolute',
+                                right: '0.5rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'var(--text-muted)',
+                                padding: '0.25rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                            Konfirmasi Kata Sandi Baru *
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type={showConfirmPassword ? 'text' : 'password'}
+                              required
+                              value={passwordForm.confirm_password}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
+                              placeholder="Ketik ulang kata sandi baru"
+                              style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              aria-label="Tampilkan atau sembunyikan konfirmasi kata sandi baru"
+                              style={{
+                                position: 'absolute',
+                                right: '0.5rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'var(--text-muted)',
+                                padding: '0.25rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Interactive Criteria Checklist */}
+                        {(() => {
+                          const pass = passwordForm.new_password || '';
+                          const requirements = [
+                            { label: 'Min. 8 karakter', valid: pass.length >= 8 },
+                            { label: 'Huruf besar & huruf kecil (A-Z, a-z)', valid: /[A-Z]/.test(pass) && /[a-z]/.test(pass) },
+                            { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(pass) },
+                            { label: 'Simbol unik (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(pass) }
+                          ];
+                          return (
+                            <div style={{
+                              padding: '0.75rem 0.85rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.45rem'
+                            }}>
+                              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Kriteria Kekuatan Kata Sandi
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.4rem' }}>
+                                {requirements.map((req, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.4rem',
+                                      fontSize: '0.74rem',
+                                      color: req.valid ? '#10b981' : 'var(--text-muted)',
+                                      fontWeight: req.valid ? 700 : 500,
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    <div style={{
+                                      width: '16px',
+                                      height: '16px',
+                                      borderRadius: '50%',
+                                      backgroundColor: req.valid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                                      border: req.valid ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: req.valid ? '#10b981' : 'var(--text-muted)',
+                                      flexShrink: 0
+                                    }}>
+                                      {req.valid ? <Check size={10} strokeWidth={3} /> : <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />}
+                                    </div>
+                                    <span>{req.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        <button
+                          type="submit"
+                          disabled={saving}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.6rem 1rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--primary)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontWeight: 700,
+                            fontSize: '0.85rem',
+                            cursor: saving ? 'not-allowed' : 'pointer',
+                            marginTop: '0.35rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.5rem',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                          }}
+                        >
+                          {saving ? (
+                            <>
+                              <RefreshCw size={16} className="animate-spin" />
+                              <span>Menyimpan...</span>
+                            </>
+                          ) : hasCustomPassword ? (
+                            <>
+                              <Lock size={16} />
+                              <span>Perbarui Kata Sandi</span>
+                            </>
+                          ) : (
+                            <>
+                              <Key size={16} />
+                              <span>Simpan Kata Sandi Cadangan</span>
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    )}
                   </div>
                 </div>
               </div>
+            )}
 
-              {/* Password Form Card (Dual-Mode: SSO Backup vs Standard Update) */}
-              <form onSubmit={handleChangePassword} style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {hasCustomPassword ? (
-                      <Lock size={18} style={{ color: 'var(--primary)' }} />
-                    ) : (
-                      <Key size={18} style={{ color: '#2563eb' }} />
-                    )}
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
-                      {hasCustomPassword ? 'Ubah Kata Sandi Akun' : 'Kata Sandi Cadangan (Opsional)'}
-                    </h3>
-                  </div>
-                  {!hasCustomPassword && (
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '999px',
-                      backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                      color: '#2563eb',
-                      fontSize: '0.72rem',
-                      fontWeight: 700
-                    }}>
-                      <ShieldCheck size={12} />
-                      Google SSO
-                    </span>
-                  )}
-                </div>
+            {/* SUB-TAB 2: SESI & PERANGKAT TERHUBUNG */}
+            {profileSubTab === 'devices' && (
+              <div className="animate-fade-in">
+                <TabletConnectedDevicesView
+                  token={token}
+                  showToast={showToast}
+                  onLogoutCurrent={onLogout}
+                  onLogout={onLogout}
+                  onUnauthorized={onUnauthorized}
+                />
+              </div>
+            )}
 
-                {!hasCustomPassword ? (
-                  <div style={{
-                    padding: '0.75rem 0.85rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'rgba(37, 99, 235, 0.06)',
-                    border: '1px solid rgba(37, 99, 235, 0.2)',
-                    fontSize: '0.8rem',
-                    color: 'var(--text-secondary)',
-                    lineHeight: 1.45,
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.5rem'
-                  }}>
-                    <ShieldAlert size={16} style={{ color: '#2563eb', flexShrink: 0, marginTop: '2px' }} />
-                    <div>
-                      Akun Anda terhubung dengan Google SSO. Anda dapat menyetel kata sandi manual untuk login alternatif jika layanan Google mengalami kendala.
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      Kata Sandi Saat Ini
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type={showOldPassword ? 'text' : 'password'}
-                        required
-                        value={passwordForm.old_password}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
-                        placeholder="Masukkan kata sandi lama Anda"
-                        style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowOldPassword(!showOldPassword)}
-                        aria-label="Tampilkan atau sembunyikan kata sandi saat ini"
-                        style={{
-                          position: 'absolute',
-                          right: '0.5rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--text-muted)',
-                          padding: '0.25rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                      >
-                        {showOldPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                  </div>
-                )}
+            {/* SUB-TAB 3: JEJAK AUDIT & LOG AKTIVITAS */}
+            {profileSubTab === 'audit_logs' && (
+              <div className="animate-fade-in">
+                <TabletAuditLogsView
+                  token={token}
+                  currentUser={adminUser || currentUser}
+                  storeSlug={storeSlug}
+                  showToast={showToast}
+                  onLogout={onLogout}
+                  onUnauthorized={onUnauthorized}
+                />
+              </div>
+            )}
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                    {hasCustomPassword ? 'Kata Sandi Baru' : 'Kata Sandi Baru Cadangan'}
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      required
-                      value={passwordForm.new_password}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
-                      placeholder="Minimal 8 karakter (huruf besar, kecil, angka, simbol)"
-                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      aria-label="Tampilkan atau sembunyikan kata sandi baru"
-                      style={{
-                        position: 'absolute',
-                        right: '0.5rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        padding: '0.25rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                    Konfirmasi Kata Sandi Baru
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      required
-                      value={passwordForm.confirm_password}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
-                      placeholder="Ketik ulang kata sandi baru"
-                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      aria-label="Tampilkan atau sembunyikan konfirmasi kata sandi baru"
-                      style={{
-                        position: 'absolute',
-                        right: '0.5rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        padding: '0.25rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.4, marginTop: '-0.2rem' }}>
-                  Kriteria: Min. 8 karakter, wajib kombinasi huruf besar (A-Z), huruf kecil (a-z), angka (0-9), dan simbol unik (@, #, $, dll).
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  style={{
-                    minHeight: '44px',
-                    padding: '0.6rem 1rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--primary)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    cursor: saving ? 'not-allowed' : 'pointer',
-                    marginTop: '0.35rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                  }}
-                >
-                  {saving ? (
-                    <>
-                      <RefreshCw size={16} className="animate-spin" />
-                      <span>Menyimpan...</span>
-                    </>
-                  ) : hasCustomPassword ? (
-                    <>
-                      <Lock size={16} />
-                      <span>Perbarui Kata Sandi</span>
-                    </>
-                  ) : (
-                    <>
-                      <Key size={16} />
-                      <span>Simpan Kata Sandi Cadangan</span>
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* Connected Devices (Real Active Sessions Management) */}
-            <TabletConnectedDevicesView
-              token={token}
-              showToast={showToast}
-              onLogoutCurrent={onLogout}
-              onLogout={onLogout}
-              onUnauthorized={onUnauthorized}
-            />
+            {/* SUB-TAB 4: ZONA BERBAHAYA & PENUTUPAN AKUN */}
+            {profileSubTab === 'danger' && (
+              <div className="animate-fade-in">
+                <TabletDangerZoneView
+                  currentStore={currentStoreObj}
+                  currentUser={adminUser || currentUser}
+                  userStores={userStores}
+                  token={token}
+                  onStoreDeleted={handleStoreDeleted}
+                  onAccountDeleted={handleAccountDeleted}
+                  showToast={showToast}
+                  onExportCatalogJSON={handleExportCatalogJSON}
+                />
+              </div>
+            )}
           </div>
         )}
 
