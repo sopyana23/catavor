@@ -65,7 +65,8 @@ import {
   Sparkles,
   Calendar,
   Compass,
-  Target
+  Target,
+  Code
 } from 'lucide-react';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
@@ -1594,15 +1595,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [monetizationSubTab, setMonetizationSubTab] = useState<'adsense' | 'analytics'>('adsense');
   const [googleSettings, setGoogleSettings] = useState<Record<string, string>>({
     ads_enabled: '0',
-    adsense_client_id: '',
-    ads_auto_enabled: '0',
-    ads_test_mode: '0',
+    ads_client_id: '',
+    ads_auto_enabled: '1',
     ads_slot_header: '',
     ads_slot_infeed: '',
+    ads_slot_product_detail: '',
+    ads_slot_bottom: '',
+    ads_test_mode: '1',
     ads_txt_content: 'google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0',
-    ga4_measurement_id: '',
-    ga4_enabled: '0',
-    ga4_debug_mode: '0',
+    ga_enabled: '0',
+    ga_measurement_id: '',
     rekber_enabled: '1',
     rekber_partner_name: 'Rekber Syariah',
     rekber_website_url: 'https://rekbersyariah.com',
@@ -1611,6 +1613,19 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     ...REKBER_FACTORY_DEFAULTS
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [copiedAdsTxt, setCopiedAdsTxt] = useState(false);
+
+  const handleCopyAdsTxt = () => {
+    if (!googleSettings.ads_txt_content) return;
+    try {
+      navigator.clipboard.writeText(googleSettings.ads_txt_content);
+      setCopiedAdsTxt(true);
+      showToast('Konten ads.txt disalin ke clipboard');
+      setTimeout(() => setCopiedAdsTxt(false), 2500);
+    } catch {
+      showToast('Gagal menyalin konten ads.txt', 'error');
+    }
+  };
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -3003,7 +3018,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       { key: 'staff', label: 'Staf & Role RBAC', desc: 'Penugasan hak akses tim', icon: ShieldCheck, color: '#8b5cf6' },
                       { key: 'broadcast', label: 'Siaran Broadcast', desc: 'Kirim notifikasi masal', icon: Radio, color: '#ec4899' },
                       { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316' },
-                      { key: 'monetization', label: 'Monetisasi & Ads', desc: 'Google AdSense & GA4', icon: Flame, color: '#eab308' },
+                      { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308' },
                       { key: 'master-data', label: 'Master Data & Rekber', desc: 'Rekber Syariah & Whitelist', icon: Layers, color: '#10b981' },
                       { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b' }
                     ].map(mod => {
@@ -8550,255 +8565,556 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   type="button"
                   onClick={() => setMonetizationSubTab('adsense')}
                   style={{
-                    padding: '0.45rem 1rem',
-                    borderRadius: '0.55rem',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
                     border: `1px solid ${monetizationSubTab === 'adsense' ? '#eab308' : 'var(--border-light)'}`,
-                    backgroundColor: monetizationSubTab === 'adsense' ? 'rgba(234, 179, 8, 0.12)' : 'var(--bg-card)',
+                    backgroundColor: monetizationSubTab === 'adsense' ? 'rgba(234, 179, 8, 0.15)' : 'var(--bg-card)',
                     color: monetizationSubTab === 'adsense' ? '#eab308' : 'var(--text-muted)',
                     fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    minHeight: '44px',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  Google AdSense (Monetisasi Iklan)
+                  <DollarSign size={16} />
+                  <span>Google AdSense</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setMonetizationSubTab('analytics')}
                   style={{
-                    padding: '0.45rem 1rem',
-                    borderRadius: '0.55rem',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
                     border: `1px solid ${monetizationSubTab === 'analytics' ? 'var(--primary)' : 'var(--border-light)'}`,
-                    backgroundColor: monetizationSubTab === 'analytics' ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
+                    backgroundColor: monetizationSubTab === 'analytics' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-card)',
                     color: monetizationSubTab === 'analytics' ? 'var(--primary)' : 'var(--text-muted)',
                     fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    minHeight: '44px',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  Google Analytics 4 (GA4)
+                  <BarChart3 size={16} />
+                  <span>Google Analytics 4 (GA4)</span>
                 </button>
               </div>
 
               <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
-                <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+                <div style={{ maxWidth: '920px', margin: '0 auto', width: '100%' }}>
+                  {/* TAB 1: GOOGLE ADSENSE SETTINGS */}
                   {monetizationSubTab === 'adsense' && (
-                    <form onSubmit={handleSaveGoogleSettings} style={{
-                      padding: '1.5rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '1.25rem'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>
-                            Integrasi Google AdSense
-                          </h3>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-                            Monetisasi etalase publik melalui slot banner dan in-feed resmi Google.
-                          </p>
+                    <form onSubmit={handleSaveGoogleSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {/* Notice Policy Card */}
+                      <div style={{
+                        padding: '1rem 1.25rem',
+                        borderRadius: '0.95rem',
+                        backgroundColor: 'rgba(234, 179, 8, 0.08)',
+                        border: '1px solid rgba(234, 179, 8, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.4rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <DollarSign size={18} color="#eab308" />
+                          <strong style={{ fontSize: '0.85rem', color: '#eab308' }}>
+                            Google AdSense Monetization (Plan B):
+                          </strong>
                         </div>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                          <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>Status Iklan:</span>
-                          <input
-                            type="checkbox"
-                            checked={googleSettings.ads_enabled === '1'}
-                            onChange={e => setGoogleSettings(prev => ({ ...prev, ads_enabled: e.target.checked ? '1' : '0' }))}
-                          />
-                        </label>
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          Iklan hanya akan disuntikkan pada katalog merchant <strong>Versi Gratis (Free)</strong>. Merchant yang berlangganan <strong>Paket Pro</strong> dijamin 100% bebas iklan.
+                        </p>
                       </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                          Publisher Client ID (ca-pub-...)
-                        </label>
-                        <input
-                          type="text"
-                          value={googleSettings.adsense_client_id}
-                          onChange={e => setGoogleSettings(prev => ({ ...prev, adsense_client_id: e.target.value }))}
-                          placeholder="ca-pub-1234567890123456"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.85rem',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
+                      {/* Master Status & Mode */}
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1rem'
+                      }}>
+                        {/* Master Switch */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              Status Iklan Platform
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Aktifkan penayangan Google AdSense di seluruh ekosistem platform
+                            </div>
+                          </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                            Header Banner Slot ID
-                          </label>
-                          <input
-                            type="text"
-                            value={googleSettings.ads_slot_header}
-                            onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_header: e.target.value }))}
-                            placeholder="Contoh: 1234567890"
-                            style={{
-                              width: '100%',
-                              padding: '0.65rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.85rem',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
-
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                            In-Feed Catalog Slot ID
-                          </label>
-                          <input
-                            type="text"
-                            value={googleSettings.ads_slot_infeed}
-                            onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_infeed: e.target.value }))}
-                            placeholder="Contoh: 9876543210"
-                            style={{
-                              width: '100%',
-                              padding: '0.65rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.85rem',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                          <label style={{ fontSize: '0.82rem', fontWeight: 700 }}>
-                            Konten ads.txt Resmi
-                          </label>
                           <button
                             type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(googleSettings.ads_txt_content);
-                              showToast('Konten ads.txt disalin ke clipboard');
+                            onClick={() => setGoogleSettings(prev => ({ ...prev, ads_enabled: prev.ads_enabled === '1' ? '0' : '1' }))}
+                            style={{
+                              width: '48px',
+                              height: '26px',
+                              borderRadius: '999px',
+                              backgroundColor: googleSettings.ads_enabled === '1' ? '#10b981' : 'rgba(148, 163, 184, 0.3)',
+                              padding: '2px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              position: 'relative',
+                              transition: 'all 0.2s ease',
+                              flexShrink: 0
                             }}
+                          >
+                            <div style={{
+                              width: '22px',
+                              height: '22px',
+                              borderRadius: '50%',
+                              backgroundColor: '#ffffff',
+                              position: 'absolute',
+                              top: '2px',
+                              left: googleSettings.ads_enabled === '1' ? '24px' : '2px',
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }} />
+                          </button>
+                        </div>
+
+                        {/* Publisher ID Input */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                            Google AdSense Publisher ID (Client ID)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="ca-pub-XXXXXXXXXXXXXXXX"
+                            value={googleSettings.ads_client_id || ''}
+                            onChange={e => setGoogleSettings(prev => ({ ...prev, ads_client_id: e.target.value.trim() }))}
+                            style={{
+                              width: '100%',
+                              padding: '0.7rem 0.85rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.85rem',
+                              fontFamily: 'monospace',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
+                            Salin Publisher ID dari Dashboard Akun Google AdSense Anda.
+                          </span>
+                        </div>
+
+                        {/* Auto Ads & Test Mode Switches (2-Column Grid on Tablet) */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, 1fr)',
+                          gap: '0.85rem',
+                          paddingTop: '0.65rem',
+                          borderTop: '1px solid var(--border-light)'
+                        }}>
+                          {/* Auto Ads */}
+                          <div style={{
+                            padding: '0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.45rem'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)' }}>Auto Ads</span>
+                              <input
+                                type="checkbox"
+                                checked={googleSettings.ads_auto_enabled === '1'}
+                                onChange={e => setGoogleSettings(prev => ({ ...prev, ads_auto_enabled: e.target.checked ? '1' : '0' }))}
+                                style={{ accentColor: '#eab308', cursor: 'pointer', width: '18px', height: '18px' }}
+                              />
+                            </div>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Iklan otomatis AI Google</span>
+                          </div>
+
+                          {/* Test Mode */}
+                          <div style={{
+                            padding: '0.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.45rem'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)' }}>Mode Sandbox</span>
+                              <input
+                                type="checkbox"
+                                checked={googleSettings.ads_test_mode === '1'}
+                                onChange={e => setGoogleSettings(prev => ({ ...prev, ads_test_mode: e.target.checked ? '1' : '0' }))}
+                                style={{ accentColor: '#38bdf8', cursor: 'pointer', width: '18px', height: '18px' }}
+                              />
+                            </div>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Pratinjau tanpa klik palsu</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ad Placement Slots Configuration */}
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1rem'
+                      }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            Unit Penempatan Iklan Khusus (Slot IDs)
+                          </h4>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            Konfigurasi unit slot iklan spesifik di berbagai halaman (opsional jika Auto Ads aktif)
+                          </span>
+                        </div>
+
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, 1fr)',
+                          gap: '1rem'
+                        }}>
+                          {/* Slot 1: Header Banner */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                              1. Header Banner Slot ID (Di Bawah Search Bar Toko)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Contoh: 1234567890"
+                              value={googleSettings.ads_slot_header || ''}
+                              onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_header: e.target.value.trim() }))}
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.8rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.82rem',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+
+                          {/* Slot 2: In-Feed Product Catalog */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                              2. In-Feed Catalog Slot ID (Di Sela-Sela Produk)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Contoh: 2345678901"
+                              value={googleSettings.ads_slot_infeed || ''}
+                              onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_infeed: e.target.value.trim() }))}
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.8rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.82rem',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+
+                          {/* Slot 3: Product Detail View */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                              3. Product Detail Slot ID (Di Bawah Spesifikasi Produk)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Contoh: 3456789012"
+                              value={googleSettings.ads_slot_product_detail || ''}
+                              onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_product_detail: e.target.value.trim() }))}
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.8rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.82rem',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+
+                          {/* Slot 4: Bottom Banner */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                              4. Sticky Footer Slot ID (Banner Melayang Bawah Layar)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Contoh: 4567890123"
+                              value={googleSettings.ads_slot_bottom || ''}
+                              onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_bottom: e.target.value.trim() }))}
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.8rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.82rem',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ads.txt Manager Card */}
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Code size={18} color="#10b981" />
+                            <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              File ads.txt Domain Publik
+                            </h4>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleCopyAdsTxt}
                             style={{
                               background: 'none',
                               border: 'none',
-                              color: 'var(--primary)',
-                              fontSize: '0.75rem',
+                              color: copiedAdsTxt ? '#10b981' : 'var(--text-muted)',
+                              fontSize: '0.78rem',
                               fontWeight: 700,
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.4rem 0.65rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)'
                             }}
                           >
-                            Salin Teks
+                            {copiedAdsTxt ? <CheckCheck size={14} /> : <Copy size={14} />}
+                            <span>{copiedAdsTxt ? 'Tersalin' : 'Salin Teks'}</span>
                           </button>
                         </div>
+
+                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+                          File ini disajikan otomatis oleh server di <a href="/ads.txt" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 700 }}>catavor.com/ads.txt</a> untuk verifikasi robot Google.
+                        </p>
+
                         <textarea
-                          rows={4}
-                          value={googleSettings.ads_txt_content}
+                          rows={3}
+                          value={googleSettings.ads_txt_content || ''}
                           onChange={e => setGoogleSettings(prev => ({ ...prev, ads_txt_content: e.target.value }))}
-                          placeholder="google.com, pub-xxxxxxxxxxxxxxxx, DIRECT, f08c47fec0942fa0"
                           style={{
                             width: '100%',
                             padding: '0.65rem 0.85rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
+                            borderRadius: '0.65rem',
                             backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.82rem',
+                            border: '1px solid var(--border-light)',
+                            color: '#10b981',
                             fontFamily: 'monospace',
-                            boxSizing: 'border-box'
+                            fontSize: '0.8rem',
+                            boxSizing: 'border-box',
+                            resize: 'none'
                           }}
                         />
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                      {/* Submit Save Button */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
                         <button
                           type="submit"
                           disabled={isSavingSettings}
                           style={{
-                            padding: '0.65rem 1.75rem',
-                            borderRadius: '0.55rem',
-                            border: 'none',
+                            padding: '0.75rem 1.85rem',
+                            borderRadius: '0.75rem',
                             backgroundColor: '#eab308',
                             color: '#000000',
-                            fontWeight: 800,
+                            border: 'none',
                             fontSize: '0.85rem',
-                            cursor: 'pointer'
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            minHeight: '44px',
+                            boxShadow: '0 4px 15px rgba(234, 179, 8, 0.25)'
                           }}
                         >
-                          {isSavingSettings ? 'Menyimpan...' : 'Simpan Konfigurasi AdSense'}
+                          <Check size={16} />
+                          <span>{isSavingSettings ? 'Menyimpan Pengaturan...' : 'Simpan Konfigurasi AdSense'}</span>
                         </button>
                       </div>
                     </form>
                   )}
 
+                  {/* TAB 2: GOOGLE ANALYTICS 4 (GA4) */}
                   {monetizationSubTab === 'analytics' && (
-                    <form onSubmit={handleSaveGoogleSettings} style={{
-                      padding: '1.5rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '1.25rem'
-                    }}>
-                      <div>
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>
-                          Google Analytics 4 (GA4)
-                        </h3>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-                          Pengukuran lalu lintas pengunjung katalog digital dan analitik konversi platform.
+                    <form onSubmit={handleSaveGoogleSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      <div style={{
+                        padding: '1rem 1.25rem',
+                        borderRadius: '0.95rem',
+                        backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                        border: '1px solid rgba(56, 189, 248, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.4rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <BarChart3 size={18} color="#38bdf8" />
+                          <strong style={{ fontSize: '0.85rem', color: '#38bdf8' }}>
+                            Google Analytics 4 (GA4 Dinamis):
+                          </strong>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          Pelacakan analitik lalu lintas pengunjung platform secara instan tanpa perlu melakukan hardcode atau rebuild kodingan.
                         </p>
                       </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                          Measurement ID (G-XXXXXXXXXX)
-                        </label>
-                        <input
-                          type="text"
-                          value={googleSettings.ga4_measurement_id}
-                          onChange={e => setGoogleSettings(prev => ({ ...prev, ga4_measurement_id: e.target.value }))}
-                          placeholder="G-ABC123XYZ"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.85rem',
-                            boxSizing: 'border-box'
-                          }}
-                        />
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1rem'
+                      }}>
+                        {/* Master Switch GA4 */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              Status Pelacakan GA4
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Aktifkan injeksi script gtag.js di katalog publik
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setGoogleSettings(prev => ({ ...prev, ga_enabled: prev.ga_enabled === '1' ? '0' : '1' }))}
+                            style={{
+                              width: '48px',
+                              height: '26px',
+                              borderRadius: '999px',
+                              backgroundColor: googleSettings.ga_enabled === '1' ? '#38bdf8' : 'rgba(148, 163, 184, 0.3)',
+                              padding: '2px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              position: 'relative',
+                              transition: 'all 0.2s ease',
+                              flexShrink: 0
+                            }}
+                          >
+                            <div style={{
+                              width: '22px',
+                              height: '22px',
+                              borderRadius: '50%',
+                              backgroundColor: '#ffffff',
+                              position: 'absolute',
+                              top: '2px',
+                              left: googleSettings.ga_enabled === '1' ? '24px' : '2px',
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }} />
+                          </button>
+                        </div>
+
+                        {/* Measurement ID */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                            Google Analytics Measurement ID
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="G-XXXXXXXXXX"
+                            value={googleSettings.ga_measurement_id || ''}
+                            onChange={e => setGoogleSettings(prev => ({ ...prev, ga_measurement_id: e.target.value.trim().toUpperCase() }))}
+                            style={{
+                              width: '100%',
+                              padding: '0.7rem 0.85rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.85rem',
+                              fontFamily: 'monospace',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
+                            Contoh format: G-4K89Z1X234 (Dapat ditemukan di Google Analytics Admin &gt; Data Streams).
+                          </span>
+                        </div>
+
+                        {/* Events Information */}
+                        <div style={{
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '0.76rem',
+                          color: 'var(--text-secondary)',
+                          lineHeight: 1.6
+                        }}>
+                          <div style={{ fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
+                            Event Otomatis yang Terkirim:
+                          </div>
+                          <div>&bull; <code>page_view</code> saat pengunjung berpindah halaman toko.</div>
+                          <div>&bull; <code>view_item</code> saat detail produk katalog dilihat.</div>
+                        </div>
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                      {/* Submit Save Button */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
                         <button
                           type="submit"
                           disabled={isSavingSettings}
                           style={{
-                            padding: '0.65rem 1.75rem',
-                            borderRadius: '0.55rem',
+                            padding: '0.75rem 1.85rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: '#38bdf8',
+                            color: '#000000',
                             border: 'none',
-                            backgroundColor: 'var(--primary)',
-                            color: '#ffffff',
-                            fontWeight: 800,
                             fontSize: '0.85rem',
-                            cursor: 'pointer'
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            minHeight: '44px',
+                            boxShadow: '0 4px 15px rgba(56, 189, 248, 0.25)'
                           }}
                         >
-                          {isSavingSettings ? 'Menyimpan...' : 'Simpan Konfigurasi GA4'}
+                          <Check size={16} />
+                          <span>{isSavingSettings ? 'Menyimpan Pengaturan...' : 'Simpan Konfigurasi GA4'}</span>
                         </button>
                       </div>
                     </form>

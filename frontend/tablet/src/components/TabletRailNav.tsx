@@ -9,6 +9,7 @@ import {
   Radio,
   Cpu,
   Flame,
+  DollarSign,
   Layers,
   History,
   Sun,
@@ -66,7 +67,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
     { key: 'finance', label: 'Keuangan & Billing', icon: CreditCard },
     { key: 'broadcast', label: 'Siaran Broadcast', icon: Radio },
     { key: 'automation', label: 'Mesin Otomatisasi', icon: Cpu },
-    { key: 'monetization', label: 'Monetisasi & Ads', icon: Flame },
+    { key: 'monetization', label: 'Monetisasi & Iklan', icon: DollarSign },
     { key: 'master-data', label: 'Master Data & Rekber', icon: Layers },
     { key: 'audit', label: 'Audit Trail', icon: History },
   ];

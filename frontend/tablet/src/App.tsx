@@ -13,6 +13,8 @@ import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
 import { type UserRBACInfo, isPlatformAdmin } from './utils/rbac';
 import { isTokenExpired } from './utils/auth';
+import { initGoogleAdSense } from './utils/googleAdSense';
+import { initGoogleAnalytics } from './utils/googleAnalytics';
 
 export const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('catavor_token') || localStorage.getItem('token') || '');
@@ -58,6 +60,33 @@ export const App: React.FC = () => {
     document.body.setAttribute('data-theme', resolvedTheme);
     localStorage.setItem('catavor_theme', resolvedTheme);
   }, [storeTheme]);
+
+  // Dynamic Google AdSense & GA4 Runtime Initialization
+  useEffect(() => {
+    const fetchPlatformSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          const s = data.data || data;
+          if (s) {
+            if (s.ga_measurement_id) {
+              const isGaEnabled = s.ga_enabled === '1' || s.ga_enabled === 'true';
+              initGoogleAnalytics(s.ga_measurement_id, isGaEnabled);
+            }
+            if (s.ads_client_id) {
+              const isAdsEnabled = s.ads_enabled === '1' || s.ads_enabled === 'true';
+              const isAutoEnabled = s.ads_auto_enabled === '1' || s.ads_auto_enabled === 'true';
+              initGoogleAdSense(s.ads_client_id, isAdsEnabled, isAutoEnabled);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch platform settings for GA4 / AdSense:', err);
+      }
+    };
+    fetchPlatformSettings();
+  }, []);
 
   // Session Token & RBAC Verification Hook on Mount
   useEffect(() => {
