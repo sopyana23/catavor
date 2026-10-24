@@ -1499,8 +1499,70 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
   }
 }
 
+export function getAvailabilityStatusOptions(productType: ItemCategoryType = 'physical'): Array<{ value: string; label: string; desc: string }> {
+  switch (productType) {
+    case 'physical':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Stok tersedia siap dikirim segera' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Produk dibuat / dipesan berdasarkan pesanan' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase, hubungi penjual' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok barang saat ini sedang habis' }
+      ];
+    case 'food':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready / Siap Saji)', desc: 'Menu siap diolah & disajikan segera' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO / Pesan H-1)', desc: 'Pemesanan terjadwal (katering / hampers)' },
+        { value: 'Habis Hari Ini', label: 'Habis Hari Ini (Sold Out)', desc: 'Porsi untuk hari ini telah habis' },
+        { value: 'Musiman', label: 'Musiman (Seasonal Menu)', desc: 'Menu khusus periode / musim tertentu' }
+      ];
+    case 'service':
+      return [
+        { value: 'Buka Jadwal', label: 'Buka Jadwal (Tersedia)', desc: 'Menerima order & booking jadwal baru' },
+        { value: 'Slot Penuh', label: 'Slot Penuh (Full Booked)', desc: 'Antrean pengerjaan penuh sementara' },
+        { value: 'Pre-Order', label: 'Pre-Order (Jadwal Mendatang)', desc: 'Booking untuk minggu / bulan depan' },
+        { value: 'Tutup Sementara', label: 'Tutup Sementara (Off Duty)', desc: 'Layanan sedang libur / cuti sementara' }
+      ];
+    case 'digital':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Instan Download)', desc: 'Link unduh / lisensi langsung dikirim' },
+        { value: 'Pre-Order', label: 'Pre-Order (Coming Soon)', desc: 'Akses awal / pre-order produk digital' },
+        { value: 'Batch Terbatas', label: 'Batch Terbatas (Limited Seat)', desc: 'Slot mentoring / kuota lisensi terbatas' },
+        { value: 'Sedang Diperbarui', label: 'Sedang Diperbarui (Maintenance)', desc: 'File sedang revisi ke versi terbaru' }
+      ];
+    case 'property':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Available)', desc: 'Unit / tanah siap disurvey & ditransaksikan' },
+        { value: 'Ter-Booking', label: 'Ter-Booking (Under Offer)', desc: 'Sudah ada tanda jadi / proses verifikasi' },
+        { value: 'Terjual', label: 'Terjual (Sold Out)', desc: 'Properti telah resmi terjual / AJB' },
+        { value: 'Tersewa', label: 'Tersewa (Leased)', desc: 'Unit sedang dalam masa sewa aktif' }
+      ];
+    case 'fauna':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Satwa sehat siap dikirim / diadopsi' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Pemesanan indukan / inden varian khusus' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Maskot pameran / koleksi showcase' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Telah Diadopsi)', desc: 'Satwa telah diadopsi / terjual' }
+      ];
+    case 'plant':
+      return [
+        { value: 'Ready Stock', label: 'Ready Stock (Tersedia)', desc: 'Tanaman segar siap kirim dari nursery' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO / Inden)', desc: 'Bibit dalam proses rawatan / semai' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Indukan kebun / display kontes' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tanaman saat ini kosong' }
+      ];
+    default:
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Stok item tersedia' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Pemesanan terlebih dahulu' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tidak tersedia' }
+      ];
+  }
+}
+
 export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
   const typeConfig = getItemTypeFormConfig(type);
+  const statusOptions = getAvailabilityStatusOptions(type);
 
   return {
     is_active: true,
@@ -1509,7 +1571,7 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
     class: typeConfig.defaultCategory,
     habitat: 'General',
     diet: '',
-    conservation_status: 'Tersedia',
+    conservation_status: statusOptions[0].value,
     price: 0,
     min_order: 1,
     max_order: '' as string | number,
@@ -13649,7 +13711,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       class: item.class || typeConfig.defaultCategory,
       habitat: item.attributes?.habitat || item.habitat || 'General',
       diet: item.attributes?.diet || item.diet || '',
-      conservation_status: item.conservation_status || 'Tersedia',
+      conservation_status: item.conservation_status || getAvailabilityStatusOptions(itemType)[0].value,
       price: item.price,
       min_order: minOrderVal,
       max_order: maxOrderVal,
@@ -13839,6 +13901,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
     const isFauna = crudForm.product_type === 'fauna';
     const isPlant = crudForm.product_type === 'plant';
+    const effectiveAvailabilityStatus = selectedConservationStatus || crudForm.conservation_status || getAvailabilityStatusOptions(crudForm.product_type)[0].value;
 
     const payload = {
       name: crudForm.name,
@@ -13846,7 +13909,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       class: selectedClass || 'Umum',
       habitat: isFauna ? (selectedHabitat || '') : '',
       diet: isFauna ? (crudForm.diet || '') : '',
-      conservation_status: isFauna ? (selectedConservationStatus || 'Tersedia') : 'Tersedia',
+      conservation_status: effectiveAvailabilityStatus,
       price: crudForm.price,
       min_order: minOrderNum,
       max_order: maxOrderNum,
@@ -13859,6 +13922,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       is_active: crudForm.is_active !== false,
       attributes: {
         ...crudForm.attributes,
+        conservation_status: effectiveAvailabilityStatus,
         ...(isFauna ? { habitat: selectedHabitat || '', diet: crudForm.diet || '' } : {}),
         min_order: minOrderNum,
         max_order: maxOrderNum,
@@ -13868,6 +13932,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         whatsapp_contact_id: crudForm.whatsapp_contact_id || 'default'
       },
       detailed_info: {
+        conservation_status: effectiveAvailabilityStatus,
         native_region: crudForm.native_region,
         lifespan: crudForm.lifespan,
         weight: crudForm.weight,
@@ -19555,6 +19620,47 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   )}
                 </div>
 
+                {/* Status Ketersediaan Kontekstual (Universal untuk Seluruh 7 Tipe Katalog) */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Status Ketersediaan &amp; Pemesanan *</span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                      {crudForm.product_type === 'service' ? 'Ketersediaan Jadwal' : (crudForm.product_type === 'property' ? 'Status Listing Unit' : (crudForm.product_type === 'food' ? 'Ketersediaan Menu' : 'Status Stok'))}
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCrudDropdownPicker({
+                        title: 'Status Ketersediaan & Pemesanan',
+                        icon: CheckCircle,
+                        options: getAvailabilityStatusOptions(crudForm.product_type),
+                        selectedValue: crudForm.conservation_status || getAvailabilityStatusOptions(crudForm.product_type)[0].value,
+                        onSelect: (val) => setCrudForm(prev => ({ ...prev, conservation_status: val }))
+                      });
+                    }}
+                    className="form-input"
+                    style={{
+                      height: '42px',
+                      padding: '0 0.85rem',
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)'
+                    }}
+                  >
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                      {getAvailabilityStatusOptions(crudForm.product_type).find(o => o.value === (crudForm.conservation_status || getAvailabilityStatusOptions(crudForm.product_type)[0].value))?.label || crudForm.conservation_status}
+                    </span>
+                    <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                  </button>
+                </div>
+
                 {/* DYNAMIC FIELDS SPECIFIC TO PRODUCT TYPE */}
                 {/* 1. BARANG FISIK */}
                 {crudForm.product_type === 'physical' && (
@@ -19772,45 +19878,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           onChange={(e) => setCrudForm({ ...crudForm, weight: e.target.value })}
                         />
                       </div>
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Status Ketersediaan *</label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCrudDropdownPicker({
-                            title: 'Pilih Status Ketersediaan',
-                            icon: CheckCircle,
-                            options: [
-                              { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Satwa / fauna siap dikirim / diadopsi segera' },
-                              { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Pemesanan terlebih dahulu / inden khusus' },
-                              { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase, hubungi penjual via WA' },
-                              { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok satwa saat ini sedang kosong / telah diadopsi' }
-                            ],
-                            selectedValue: crudForm.conservation_status || 'Tersedia',
-                            onSelect: (val) => setCrudForm(prev => ({ ...prev, conservation_status: val }))
-                          });
-                        }}
-                        className="form-input"
-                        style={{
-                          height: '42px',
-                          padding: '0 0.85rem',
-                          fontSize: '0.85rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          color: 'var(--text-primary)',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)'
-                        }}
-                      >
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                          {crudForm.conservation_status || 'Ready Stock'}
-                        </span>
-                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                      </button>
                     </div>
                   </div>
                 )}
@@ -20488,52 +20555,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <ChevronDown size={15} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                         </button>
                       </div>
-                    </div>
-
-                    {/* 5. Status Ketersediaan / Stok Tanaman */}
-                    <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
-                      <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <CheckCircle2 size={13} style={{ color: '#059669', flexShrink: 0 }} />
-                        <span>Status Ketersediaan Tanaman *</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCrudDropdownPicker({
-                            title: 'Pilih Status Ketersediaan',
-                            icon: CheckCircle2,
-                            options: [
-                              { value: 'Ready Stock', label: 'Ready Stock (Tersedia)', desc: 'Tanaman siap kirim segera dari kebun/nursery' },
-                              { value: 'Pre-Order', label: 'Pre-Order (PO / Inden)', desc: 'Pemesanan terlebih dahulu / bibit dalam tahap rawatan' },
-                              { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase, hubungi penjual via WA' },
-                              { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tanaman saat ini sedang kosong' }
-                            ],
-                            selectedValue: crudForm.conservation_status || 'Ready Stock',
-                            onSelect: (val) => setCrudForm(prev => ({ ...prev, conservation_status: val }))
-                          });
-                        }}
-                        className="form-input"
-                        style={{
-                          height: '42px',
-                          padding: '0 0.85rem',
-                          fontSize: '0.85rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          color: 'var(--text-primary)',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          minWidth: 0,
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, minWidth: 0, flex: 1, paddingRight: '0.5rem' }}>
-                          {crudForm.conservation_status || 'Ready Stock'}
-                        </span>
-                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                      </button>
                     </div>
                   </div>
                 )}

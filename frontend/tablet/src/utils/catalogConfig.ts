@@ -430,3 +430,65 @@ export function formatPhoneNumber(num: string | null | undefined): string {
   return num;
 }
 
+export function getAvailabilityStatusOptions(productType: ItemCategoryType = 'physical'): Array<{ value: string; label: string; desc: string }> {
+  switch (productType) {
+    case 'physical':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Stok tersedia siap dikirim segera' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Produk dibuat / dipesan berdasarkan pesanan' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase, hubungi penjual' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok barang saat ini sedang habis' }
+      ];
+    case 'food':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready / Siap Saji)', desc: 'Menu siap diolah & disajikan segera' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO / Pesan H-1)', desc: 'Pemesanan terjadwal (katering / hampers)' },
+        { value: 'Habis Hari Ini', label: 'Habis Hari Ini (Sold Out)', desc: 'Porsi untuk hari ini telah habis' },
+        { value: 'Musiman', label: 'Musiman (Seasonal Menu)', desc: 'Menu khusus periode / musim tertentu' }
+      ];
+    case 'service':
+      return [
+        { value: 'Buka Jadwal', label: 'Buka Jadwal (Tersedia)', desc: 'Menerima order & booking jadwal baru' },
+        { value: 'Slot Penuh', label: 'Slot Penuh (Full Booked)', desc: 'Antrean pengerjaan penuh sementara' },
+        { value: 'Pre-Order', label: 'Pre-Order (Jadwal Mendatang)', desc: 'Booking untuk minggu / bulan depan' },
+        { value: 'Tutup Sementara', label: 'Tutup Sementara (Off Duty)', desc: 'Layanan sedang libur / cuti sementara' }
+      ];
+    case 'digital':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Instan Download)', desc: 'Link unduh / lisensi langsung dikirim' },
+        { value: 'Pre-Order', label: 'Pre-Order (Coming Soon)', desc: 'Akses awal / pre-order produk digital' },
+        { value: 'Batch Terbatas', label: 'Batch Terbatas (Limited Seat)', desc: 'Slot mentoring / kuota lisensi terbatas' },
+        { value: 'Sedang Diperbarui', label: 'Sedang Diperbarui (Maintenance)', desc: 'File sedang revisi ke versi terbaru' }
+      ];
+    case 'property':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Available)', desc: 'Unit / tanah siap disurvey & ditransaksikan' },
+        { value: 'Ter-Booking', label: 'Ter-Booking (Under Offer)', desc: 'Sudah ada tanda jadi / proses verifikasi' },
+        { value: 'Terjual', label: 'Terjual (Sold Out)', desc: 'Properti telah resmi terjual / AJB' },
+        { value: 'Tersewa', label: 'Tersewa (Leased)', desc: 'Unit sedang dalam masa sewa aktif' }
+      ];
+    case 'fauna':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Satwa sehat siap dikirim / diadopsi' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Pemesanan indukan / inden varian khusus' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Maskot pameran / koleksi showcase' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Telah Diadopsi)', desc: 'Satwa telah diadopsi / terjual' }
+      ];
+    case 'plant':
+      return [
+        { value: 'Ready Stock', label: 'Ready Stock (Tersedia)', desc: 'Tanaman segar siap kirim dari nursery' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO / Inden)', desc: 'Bibit dalam proses rawatan / semai' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Indukan kebun / display kontes' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tanaman saat ini kosong' }
+      ];
+    default:
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Stok item tersedia' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Pemesanan terlebih dahulu' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tidak tersedia' }
+      ];
+  }
+}
+
+

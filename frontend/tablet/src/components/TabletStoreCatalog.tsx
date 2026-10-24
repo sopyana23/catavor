@@ -515,10 +515,54 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                       padding: '0.2rem 0.55rem',
                       borderRadius: '999px',
                       backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                      color: '#ffffff'
+                      color: '#ffffff',
+                      zIndex: 2
                     }}>
                       {prod.category_name}
                     </span>
+                  )}
+
+                  {/* Availability Status Badge */}
+                  {prod.conservation_status && prod.conservation_status !== 'Tersedia' && (
+                    <div
+                      title={prod.conservation_status}
+                      style={{
+                        position: 'absolute',
+                        top: '8px',
+                        right: '8px',
+                        padding: '0.18rem 0.55rem',
+                        borderRadius: '6px',
+                        backgroundColor: prod.conservation_status === 'Habis Terjual'
+                          ? 'rgba(239, 68, 68, 0.92)'
+                          : prod.conservation_status === 'Pre-Order'
+                          ? 'rgba(217, 119, 6, 0.92)'
+                          : prod.conservation_status === 'Buka Jadwal'
+                          ? 'rgba(124, 58, 237, 0.92)'
+                          : 'rgba(59, 130, 246, 0.92)',
+                        backdropFilter: 'blur(8px)',
+                        color: '#ffffff',
+                        fontSize: '0.64rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.02em',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                        maxWidth: 'calc(100% - 1rem)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        zIndex: 2
+                      }}
+                    >
+                      <span style={{
+                        width: '5px',
+                        height: '5px',
+                        borderRadius: '50%',
+                        backgroundColor: '#ffffff'
+                      }} />
+                      <span>{prod.conservation_status}</span>
+                    </div>
                   )}
                 </div>
 
@@ -560,7 +604,16 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                     fontSize: '0.78rem',
                     color: 'var(--text-muted)'
                   }}>
-                    <span>{prod.stock > 0 ? `Stok: ${prod.stock}` : 'Siap Pesan'}</span>
+                    <span style={{
+                      fontWeight: 600,
+                      color: prod.conservation_status === 'Habis Terjual'
+                        ? '#ef4444'
+                        : prod.conservation_status === 'Pre-Order'
+                        ? '#f59e0b'
+                        : 'var(--text-secondary)'
+                    }}>
+                      {prod.conservation_status || (prod.stock > 0 ? `Stok: ${prod.stock}` : 'Tersedia')}
+                    </span>
                     <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       Rincian &rarr;
                     </span>

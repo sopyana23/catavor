@@ -96,6 +96,7 @@ import { safeOpenUrl } from '../utils/urlSecurity';
 import { normalizeNotification, parseModerationCase, extractTicketFromNotif } from '../utils/notificationHelpers';
 import {
   getItemTypeFormConfig,
+  getAvailabilityStatusOptions,
   formatRupiahInput,
   parseRupiahInput,
   parseWAContacts,
@@ -876,6 +877,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     category_id: '',
     class: '',
     product_type: '',
+    conservation_status: 'Tersedia',
     scientific_name: '',
     unit: 'Pcs',
     description: '',
@@ -893,7 +895,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     enable_wa_direct: true,
     whatsapp_contact_id: 'default',
     gallery_images: [] as string[],
-    variants: [] as Array<{ variant_name: string; sku: string; price_override?: number; stock_qty: number }>,
     attributes: {} as Record<string, any>
   });
 
@@ -1064,6 +1065,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       defaultAttrs.property_location = 'BSD City, Tangerang Selatan';
     }
 
+    defaultAttrs.conservation_status = getAvailabilityStatusOptions((chosenType || 'physical') as ItemCategoryType)[0].value;
+
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', 'items');
@@ -1087,6 +1090,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       category_id: categoriesRef.current.length > 0 ? String(categoriesRef.current[0].id) : '',
       class: initialClass,
       product_type: chosenType,
+      conservation_status: getAvailabilityStatusOptions((chosenType || 'physical') as ItemCategoryType)[0].value,
       scientific_name: '',
       unit: typeDef?.defaultUnit || 'Pcs',
       description: '',
@@ -1104,7 +1108,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       enable_wa_direct: true,
       whatsapp_contact_id: 'default',
       gallery_images: [],
-      variants: [],
       attributes: defaultAttrs
     });
 
@@ -1125,6 +1128,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       category_id: categoriesRef.current.length > 0 ? String(categoriesRef.current[0].id) : '',
       class: '',
       product_type: '',
+      conservation_status: 'Tersedia',
       scientific_name: '',
       unit: 'Pcs',
       description: '',
@@ -1142,7 +1146,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       enable_wa_direct: true,
       whatsapp_contact_id: 'default',
       gallery_images: [],
-      variants: [],
       attributes: {}
     });
     try {
@@ -1267,13 +1270,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (prod.detailed_info?.custom_shop_url) loadedPurchaseLinks.push({ platform: prod.detailed_info.custom_shop_name || 'Marketplace', url: prod.detailed_info.custom_shop_url });
     }
 
-    const variants = (prod.variants || []).map((v: any) => ({
-      variant_name: v.variant_name || '',
-      sku: v.sku || '',
-      price_override: v.price_override,
-      stock_qty: v.stock_qty || 0
-    }));
-
     let rawAttrs: Record<string, any> = {};
     if (prod.attributes) {
       if (typeof prod.attributes === 'string') {
@@ -1314,11 +1310,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       enable_wa_direct: prod.detailed_info?.enable_wa_direct !== undefined ? Boolean(prod.detailed_info.enable_wa_direct) : true,
       whatsapp_contact_id: prod.detailed_info?.whatsapp_contact_id || 'default',
       gallery_images: loadedPhotos.slice(1),
-      variants: variants,
+      conservation_status: prod.conservation_status || prod.attributes?.conservation_status || rawAttrs.conservation_status || getAvailabilityStatusOptions(editProdType as ItemCategoryType)[0].value,
       attributes: {
         habitat: prod.habitat || prod.attributes?.habitat || rawAttrs.habitat || 'General',
         diet: prod.diet || prod.attributes?.diet || rawAttrs.diet || '',
-        conservation_status: prod.conservation_status || prod.attributes?.conservation_status || rawAttrs.conservation_status || 'Tersedia',
+        conservation_status: prod.conservation_status || prod.attributes?.conservation_status || rawAttrs.conservation_status || getAvailabilityStatusOptions(editProdType as ItemCategoryType)[0].value,
         lifespan: prod.detailed_info?.lifespan || prod.lifespan || prod.attributes?.lifespan || rawAttrs.lifespan || '',
         native_region: prod.detailed_info?.native_region || prod.native_region || prod.attributes?.native_region || rawAttrs.native_region || '',
         weight: prod.detailed_info?.weight || prod.weight || prod.attributes?.weight || rawAttrs.weight || (editProdType === 'physical' ? 100 : ''),
@@ -1339,6 +1335,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     } catch {}
     setProductForm(prev => {
       const defaultAttrs: Record<string, any> = { ...(prev.attributes || {}) };
+      const statusOpts = getAvailabilityStatusOptions(typeId as ItemCategoryType);
+      defaultAttrs.conservation_status = statusOpts[0].value;
+
       if (typeId === 'physical') {
         if (!defaultAttrs.condition) defaultAttrs.condition = 'Baru';
         if (defaultAttrs.weight === undefined) defaultAttrs.weight = 100;
@@ -1362,10 +1361,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         if (!defaultAttrs.watering) defaultAttrs.watering = 'Sedang (2-3 Hari Sekali)';
         if (!defaultAttrs.protection_status) defaultAttrs.protection_status = 'Non-Dilindungi (Aman Diperjualbelikan)';
         if (!defaultAttrs.delivery_condition) defaultAttrs.delivery_condition = 'Kirim Bersama Pot & Media Tanam';
-        if (!defaultAttrs.conservation_status) defaultAttrs.conservation_status = 'Ready Stock';
       }
       if (typeId === 'fauna') {
-        if (!defaultAttrs.conservation_status) defaultAttrs.conservation_status = 'Tersedia';
         if (!defaultAttrs.habitat) defaultAttrs.habitat = 'General';
       }
       if (typeId === 'property') {
@@ -1388,6 +1385,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       return {
         ...prev,
         product_type: typeId,
+        conservation_status: statusOpts[0].value,
         class: nextClass,
         unit: shouldUpdateUnit ? (typeDef?.defaultUnit || 'Pcs') : prev.unit,
         shipping_coverage: prev.shipping_coverage || typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
@@ -1563,6 +1561,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
       const isFauna = productForm.product_type === 'fauna';
       const isPlant = productForm.product_type === 'plant';
+      const isNoShipping = productForm.product_type === 'service' || productForm.product_type === 'digital' || productForm.product_type === 'property';
+      const effectiveAvailabilityStatus = productForm.conservation_status || productForm.attributes?.conservation_status || getAvailabilityStatusOptions((productForm.product_type || 'physical') as ItemCategoryType)[0].value;
 
       const payload = {
         name: productForm.name.trim(),
@@ -1574,22 +1574,22 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         scientific_name: (isFauna || isPlant) ? (productForm.scientific_name || productForm.attributes?.scientific_name || undefined) : undefined,
         habitat: isFauna ? (productForm.attributes?.habitat || undefined) : undefined,
         diet: isFauna ? (productForm.attributes?.diet || undefined) : undefined,
-        conservation_status: isFauna ? (productForm.attributes?.conservation_status || 'Tersedia') : (isPlant ? (productForm.attributes?.conservation_status || 'Ready Stock') : 'Tersedia'),
+        conservation_status: effectiveAvailabilityStatus,
         unit: productForm.unit || 'Pcs',
         description: productForm.description,
         image_url: validPhotos[0] || '',
         video_url: productForm.video_url || null,
         is_active: productForm.is_active !== false,
-        is_shipping_available: productForm.is_shipping_available,
+        is_shipping_available: !isNoShipping,
         min_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? 1 : (Number(productForm.min_order) || 1),
         max_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? null : (productForm.max_order !== '' && productForm.max_order !== null ? Number(productForm.max_order) : null),
         gallery_images: validPhotos,
         attributes: {
           ...(productForm.attributes || {}),
+          conservation_status: effectiveAvailabilityStatus,
           ...(productForm.product_type === 'fauna' ? {
             habitat: productForm.attributes?.habitat || 'General',
-            diet: productForm.attributes?.diet || '',
-            conservation_status: productForm.attributes?.conservation_status || 'Tersedia'
+            diet: productForm.attributes?.diet || ''
           } : {}),
           min_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? 1 : (Number(productForm.min_order) || 1),
           max_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? null : (productForm.max_order !== '' ? Number(productForm.max_order) : null),
@@ -1598,6 +1598,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           whatsapp_contact_id: productForm.whatsapp_contact_id || 'default'
         },
         detailed_info: {
+          conservation_status: effectiveAvailabilityStatus,
           native_region: productForm.attributes?.native_region || '',
           lifespan: productForm.attributes?.lifespan || '',
           weight: productForm.attributes?.weight || '',
@@ -3993,14 +3994,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               </div>
                               <div style={{
                                 fontSize: '0.74rem',
-                                fontWeight: (prod.stock ?? 1) <= 5 ? 700 : 500,
-                                color: (prod.stock ?? 1) === 0 ? '#ef4444' : (prod.stock ?? 1) <= 5 ? '#f59e0b' : 'var(--text-muted)'
+                                fontWeight: 600,
+                                color: prod.conservation_status === 'Habis Terjual'
+                                  ? '#ef4444'
+                                  : prod.conservation_status === 'Pre-Order'
+                                  ? '#f59e0b'
+                                  : 'var(--text-muted)'
                               }}>
-                                {(prod.stock ?? 1) === 0
-                                  ? 'Habis'
-                                  : (prod.stock ?? 1) <= 5
-                                  ? `Sisa ${prod.stock} ${prod.unit || 'Pcs'}`
-                                  : `Stok: ${prod.stock} ${prod.unit || 'Pcs'}`}
+                                {prod.conservation_status || ((prod.stock ?? 1) === 0 ? 'Habis' : `Stok: ${prod.stock ?? 1}`)}
                               </div>
                             </div>
                           </div>
@@ -4339,31 +4340,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         </p>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        {/* Active Toggle Switch */}
-                        <button
-                          type="button"
-                          onClick={() => setProductForm(p => ({ ...p, is_active: !p.is_active }))}
-                          style={{
-                            minHeight: '38px',
-                            padding: '0.4rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: productForm.is_active ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                            color: productForm.is_active ? '#10b981' : '#ef4444',
-                            fontWeight: 700,
-                            fontSize: '0.82rem',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {productForm.is_active ? <Eye size={15} /> : <EyeOff size={15} />}
-                          {productForm.is_active ? 'Status: Aktif di Etalase' : 'Status: Diarsipkan'}
-                        </button>
-
-                        {selectedProductId !== 'new' && (
+                      {selectedProductId !== 'new' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <button
                             id="btn-hapus-produk"
                             data-testid="btn-hapus-produk"
@@ -4387,8 +4365,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             <Trash2 size={15} />
                             Hapus
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Basic Information Grid */}
@@ -4652,37 +4630,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         )}
                       </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Format Spesialisasi
-                        </label>
-                        <div
-                          onClick={() => setIsSelectingProductType(true)}
-                          style={{
-                            width: '100%',
-                            minHeight: '42px',
-                            padding: '0.55rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            cursor: 'pointer'
-                          }}
-                          title="Klik untuk mengubah tipe katalog"
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <ActiveTypeIcon size={16} color={activeTypeDef.color} />
-                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                              {activeTypeDef.name}
-                            </span>
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: activeTypeDef.color }}>
-                            Ubah
-                          </span>
-                        </div>
-                      </div>
+
 
 
                       {typeConfig.minOrderLabel && (
@@ -4738,44 +4686,29 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       )}
                     </div>
 
-                    {/* Shipping toggle */}
-                    <div style={{
-                      padding: '0.85rem 1rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}>
-                      <div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {typeConfig.deliveryLabel || 'Dukungan Pengiriman / Kurir Ekspedisi'}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          Aktifkan jika item dapat dikirimkan ke pembeli
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setProductForm(p => ({ ...p, is_shipping_available: !p.is_shipping_available }))}
-                        style={{
-                          minHeight: '36px',
-                          padding: '0.35rem 0.85rem',
-                          borderRadius: '999px',
-                          border: 'none',
-                          backgroundColor: productForm.is_shipping_available ? 'var(--primary)' : 'var(--bg-card)',
-                          color: productForm.is_shipping_available ? '#ffffff' : 'var(--text-muted)',
-                          fontWeight: 700,
-                          fontSize: '0.8rem',
-                          cursor: 'pointer'
+                    {/* Status Ketersediaan Kontekstual (Universal untuk Seluruh 7 Tipe Katalog) */}
+                    <div>
+                      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
+                        <span>Status Ketersediaan &amp; Pemesanan *</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          {productForm.product_type === 'service' ? 'Ketersediaan Jadwal' : (productForm.product_type === 'property' ? 'Status Listing Unit' : (productForm.product_type === 'food' ? 'Ketersediaan Menu' : 'Status Stok'))}
+                        </span>
+                      </label>
+                      <TabletCustomSelect
+                        value={productForm.conservation_status || productForm.attributes?.conservation_status || getAvailabilityStatusOptions((productForm.product_type || 'physical') as ItemCategoryType)[0].value}
+                        onChange={(val) => {
+                          setProductForm(p => ({ ...p, conservation_status: val }));
+                          updateProductAttribute('conservation_status', val);
                         }}
-                      >
-                        {productForm.is_shipping_available ? 'Dapat Dikirim' : 'Ambil Sendiri / Khusus'}
-                      </button>
+                        options={getAvailabilityStatusOptions((productForm.product_type || 'physical') as ItemCategoryType).map(opt => ({
+                          value: opt.value,
+                          label: opt.label,
+                          description: opt.desc
+                        }))}
+                      />
                     </div>
 
-                    {/* Dynamic Type-Specific Attributes Card */}
+                    {/* Dynamic Type-Specific Attributes */}
                     <div style={{
                       padding: '1.25rem',
                       borderRadius: '0.75rem',
@@ -4785,30 +4718,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       flexDirection: 'column',
                       gap: '1rem'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.5rem',
-                          backgroundColor: activeTypeDef.bgColor,
-                          border: `1px solid ${activeTypeDef.borderColor}`,
-                          color: activeTypeDef.color,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          <ActiveTypeIcon size={18} />
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Spesifikasi & Atribut: {activeTypeDef.name}
-                          </h4>
-                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                            {activeTypeDef.formHighlights}
-                          </span>
-                        </div>
-                      </div>
 
                       {/* 1. BARANG FISIK */}
                       {productForm.product_type === 'physical' && (
@@ -5114,25 +5023,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               ]}
                             />
                           </div>
-
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Status Ketersediaan Tanaman *
-                            </label>
-                            <TabletCustomSelect
-                              value={productForm.attributes.conservation_status || 'Ready Stock'}
-                              onChange={(val) => {
-                                updateProductAttribute('conservation_status', val);
-                                setProductForm(p => ({ ...p, conservation_status: val }));
-                              }}
-                              options={[
-                                { value: 'Ready Stock', label: 'Ready Stock (Tersedia)', description: 'Tanaman siap kirim segera dari kebun/nursery' },
-                                { value: 'Pre-Order', label: 'Pre-Order (PO / Inden)', description: 'Pemesanan terlebih dahulu / bibit dalam tahap rawatan' },
-                                { value: 'Koleksi / Display', label: 'Koleksi / Display Only', description: 'Hanya pajangan showcase, hubungi penjual via WA' },
-                                { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', description: 'Stok tanaman saat ini sedang kosong' }
-                              ]}
-                            />
-                          </div>
                         </div>
                       )}
 
@@ -5219,25 +5109,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               onChange={(e) => updateProductAttribute('weight', e.target.value)}
                               placeholder="1 kg..."
                               style={tabletInputStyle}
-                            />
-                          </div>
-
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Status Ketersediaan *
-                            </label>
-                            <TabletCustomSelect
-                              value={productForm.attributes.conservation_status || 'Tersedia'}
-                              onChange={(val) => {
-                                updateProductAttribute('conservation_status', val);
-                                setProductForm(p => ({ ...p, conservation_status: val }));
-                              }}
-                              options={[
-                                { value: 'Tersedia', label: 'Tersedia (Ready Stock)', description: 'Satwa / fauna siap dikirim / diadopsi segera' },
-                                { value: 'Pre-Order', label: 'Pre-Order (PO)', description: 'Pemesanan terlebih dahulu / inden khusus' },
-                                { value: 'Koleksi / Display', label: 'Koleksi / Display Only', description: 'Hanya pajangan showcase, hubungi penjual via WA' },
-                                { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', description: 'Stok satwa saat ini sedang kosong / telah diadopsi' }
-                              ]}
                             />
                           </div>
                         </div>

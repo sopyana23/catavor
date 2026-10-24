@@ -1232,7 +1232,7 @@ export function getAvailabilityStatusOptions(productType: ItemCategoryType = 'ph
       ];
     case 'plant':
       return [
-        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Tanaman segar siap kirim dari nursery' },
+        { value: 'Ready Stock', label: 'Ready Stock (Tersedia)', desc: 'Tanaman segar siap kirim dari nursery' },
         { value: 'Pre-Order', label: 'Pre-Order (PO / Inden)', desc: 'Bibit dalam proses rawatan / semai' },
         { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Indukan kebun / display kontes' },
         { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tanaman saat ini kosong' }
@@ -13627,7 +13627,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
           max_order: maxOrderNum,
           file_format: crudForm.attributes.file_format || 'PDF',
           enable_wa_rekber: crudForm.enable_wa_rekber !== false,
-          enable_wa_direct: crudForm.enable_wa_direct !== false
+          enable_wa_direct: crudForm.enable_wa_direct !== false,
+          whatsapp_contact_id: crudForm.whatsapp_contact_id || 'default'
         },
         detailed_info: {
           native_region: crudForm.native_region,
@@ -30143,7 +30144,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           options={[
                             { value: 'Lisensi Personal', label: 'Lisensi Personal (Penggunaan Pribadi)' },
                             { value: 'Lisensi Komersial', label: 'Lisensi Komersial (Bisnis/Proyek)' },
-                            { value: 'Extended License', label: 'Extended License / Resell Rights' },
+                            { value: 'Resale Rights', label: 'Extended License / Resell Rights' },
                             { value: 'Open Source', label: 'Open Source / Bebas' }
                           ]}
                           style={{ height: '42px' }}
@@ -30263,8 +30264,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, protection_status: val } })}
                           options={[
                             { value: 'Non-Dilindungi (Aman Diperjualbelikan)', label: 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)' },
-                            { value: 'Dilindungi / Budidaya Legal', label: 'Dilindungi / Budidaya Legal (Penangkar Bersertifikat)' },
-                            { value: 'Tanaman Endemik / Karantina', label: 'Tanaman Endemik / Bersertifikat Karantina' }
+                            { value: 'Hasil Budidaya Nursery', label: 'Hasil Budidaya Nursery (Penangkar Bersertifikat)' },
+                            { value: 'Dilindungi (Sertifikasi/Izin Khusus)', label: 'Dilindungi (Sertifikasi/Izin Khusus / CITES)' }
                           ]}
                           style={{ height: '42px' }}
                         />
@@ -30279,9 +30280,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           value={crudForm.attributes?.sunlight || 'Partial Sun (Teduh Terang)'}
                           onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, sunlight: val } })}
                           options={[
-                            { value: 'Full Sun (Matahari Penuh > 6 jam)', label: 'Full Sun (Matahari Penuh > 6 Jam)' },
+                            { value: 'Full Sun (Matahari Langsung)', label: 'Full Sun (Matahari Penuh > 6 Jam)' },
                             { value: 'Partial Sun (Teduh Terang)', label: 'Partial Sun (Teduh Terang / Cahaya Tersaring)' },
-                            { value: 'Indoor / Low Light (Dalam Ruangan)', label: 'Indoor / Low Light (Dalam Ruangan)' },
+                            { value: 'Low Light / Indoor (Cahaya Rendah)', label: 'Low Light / Indoor (Dalam Ruangan)' },
                             { value: 'Fleksibel (Indoor / Outdoor)', label: 'Fleksibel (Bisa Indoor / Outdoor)' }
                           ]}
                           style={{ height: '42px' }}
@@ -30293,10 +30294,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           value={crudForm.attributes?.watering || 'Sedang (2-3 Hari Sekali)'}
                           onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, watering: val } })}
                           options={[
-                            { value: 'Rutin Harian (1-2x Sehari)', label: 'Rutin Harian (1-2x Sehari)' },
+                            { value: 'Banyak (Setiap Hari)', label: 'Banyak (Setiap Hari / 1-2x Sehari)' },
                             { value: 'Sedang (2-3 Hari Sekali)', label: 'Sedang (2-3 Hari Sekali / Saat Media Kering)' },
-                            { value: 'Minim Air (1-2 Minggu Sekali)', label: 'Minim Air (1-2 Minggu Sekali - Sukulen/Kaktus)' },
-                            { value: 'Khusus / Hidroponik / Air', label: 'Khusus / Hidroponik / Terendam Air' }
+                            { value: 'Sedikit (1-2 Minggu Sekali / Sukulen & Kaktus)', label: 'Sedikit (1-2 Minggu Sekali - Sukulen/Kaktus)' },
+                            { value: 'Khusus / Tanaman Air', label: 'Khusus / Hidroponik / Terendam Air' }
                           ]}
                           style={{ height: '42px' }}
                         />
@@ -30305,15 +30306,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                     {/* Row 3: Kondisi Pengiriman */}
                     <div className="form-group" style={{ marginBottom: '0.85rem' }}>
-                      <label className="form-label">Kondisi Pengiriman Tanaman</label>
+                      <label className="form-label">Kondisi Pengiriman Tanaman *</label>
                       <DesktopCustomSelect
                         value={crudForm.attributes?.delivery_condition || 'Kirim Bersama Pot & Media Tanam'}
                         onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, delivery_condition: val } })}
                         options={[
                           { value: 'Kirim Bersama Pot & Media Tanam', label: 'Kirim Bersama Pot & Media Tanam' },
-                          { value: 'Kirim Bare Root (Kurangi Media)', label: 'Kirim Bare Root (Kurangi Media - Hemat Ongkir)' },
-                          { value: 'Khusus Kurir Instan / Sameday', label: 'Khusus Kurir Instan / Sameday (Siap Pajang)' },
-                          { value: 'Bisa Kirim se-Indonesia', label: 'Bisa Kirim se-Indonesia (Packing Paralon/Kardus)' }
+                          { value: 'Kirim Bare Root (Tanpa Pot/Media Dikurangi)', label: 'Kirim Bare Root (Kurangi Media - Hemat Ongkir)' },
+                          { value: 'Kirim Polybag', label: 'Kirim Polybag (Bibit Tanaman)' },
+                          { value: 'Khusus Kurir Instan / Sameday', label: 'Khusus Kurir Instan / Sameday (Siap Pajang)' }
                         ]}
                         style={{ height: '42px' }}
                       />
@@ -30322,11 +30323,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     {/* Row 4: Fisik & Spesifikasi Tanaman */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
                       <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
-                        <label className="form-label">Rekomendasi Media Tanam</label>
+                        <label className="form-label">Rekomendasi Media Tanam *</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: Tanah Humus / Sekam / Pasir Malang..."
+                          placeholder="Contoh: Sekam Bakar, Pasir Malang, Humus"
+                          required
                           value={crudForm.attributes?.planting_medium || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, planting_medium: e.target.value } })}
                           style={{ height: '42px' }}
@@ -30374,12 +30376,23 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           options={[
                             { value: 'Datang ke Toko', label: 'Datang ke Lokasi Toko / Studio' },
                             { value: 'Home Visit (Ke Rumah)', label: 'Panggilan ke Rumah (Home Service)' },
-                            { value: 'Online', label: 'Online / Jarak Jauh (Remote)' },
-                            { value: 'Fleksibel', label: 'Fleksibel (Toko / Home Visit)' }
+                            { value: 'Online', label: 'Online / Jarak Jauh (Remote)' }
                           ]}
                           style={{ height: '42px' }}
                         />
                       </div>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Area Jangkauan Layanan *</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: Jabodetabek / Bandung Kota / Seluruh Indonesia"
+                        required
+                        value={crudForm.attributes.service_area || ''}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
+                        style={{ height: '42px' }}
+                      />
                     </div>
                   </div>
                 )}
@@ -30435,11 +30448,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Luas Bangunan (m²) *</label>
+                        <label className="form-label">Luas Bangunan (m²)</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: 90"
+                          placeholder="Contoh: 90 (0 jika tanah)"
                           value={crudForm.attributes.building_area || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, building_area: e.target.value } })}
                           style={{ height: '42px' }}
@@ -30532,21 +30545,30 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Arah Hadap</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
-                          placeholder="Contoh: Hadap Timur / Utara"
-                          value={crudForm.attributes.facing || ''}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, facing: e.target.value } })}
+                        <DesktopCustomSelect
+                          value={crudForm.attributes.facing || 'Timur'}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, facing: val } })}
+                          options={[
+                            { value: 'Utara', label: 'Utara' },
+                            { value: 'Selatan', label: 'Selatan' },
+                            { value: 'Timur', label: 'Timur (Matahari Pagi)' },
+                            { value: 'Barat', label: 'Barat' },
+                            { value: 'Timur Laut', label: 'Timur Laut' },
+                            { value: 'Tenggara', label: 'Tenggara' },
+                            { value: 'Barat Daya', label: 'Barat Daya' },
+                            { value: 'Barat Laut', label: 'Barat Laut' },
+                            { value: 'Bebas / Fleksibel', label: 'Bebas / Fleksibel' }
+                          ]}
                           style={{ height: '42px' }}
                         />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Lokasi / Wilayah Properti</label>
+                        <label className="form-label">Lokasi / Wilayah Properti *</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: BSD City, Tangerang Selatan"
+                          placeholder="Contoh: BSD City, Serpong, Tangerang Selatan"
+                          required
                           value={crudForm.attributes.property_location || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, property_location: e.target.value } })}
                           style={{ height: '42px' }}
