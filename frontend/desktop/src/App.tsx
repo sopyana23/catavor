@@ -1095,11 +1095,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         warrantyLabel: 'Legalitas & Kelengkapan Dokumen',
         warrantyPlaceholder: 'Contoh: Sertifikat Hak Milik (SHM) on hand, IMB/PBG lengkap, PBB lunas. Pembayaran bisa Cash Keras, Cash Bertahap, atau KPR Bank (dibantu hingga akad)...',
         descLabel: 'Deskripsi Lengkap & Keunggulan Properti *',
-        descPlaceholder: 'Jelaskan fasilitas cluster (one gate, security 24 jam), akses transportasi terdekat (stasiun/tol), spesifikasi pondasi/kusen, dan nilai investasi properti ini...',
-        minOrderLabel: 'Minimal Unit *',
-        minOrderPlaceholder: '1',
-        maxOrderLabel: 'Maksimal Unit per Pembeli (Opsional)',
-        maxOrderPlaceholder: '1'
+        descPlaceholder: 'Jelaskan fasilitas cluster (one gate, security 24 jam), akses transportasi terdekat (stasiun/tol), spesifikasi pondasi/kusen, dan nilai investasi properti ini...'
       };
   }
 }
@@ -13559,9 +13555,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return
     }
 
-    const minOrderNum = Math.max(1, parseInt(String(crudForm.min_order)) || 1);
-    const maxOrderParsed = crudForm.max_order !== '' && crudForm.max_order !== null && crudForm.max_order !== undefined ? parseInt(String(crudForm.max_order)) : null;
-    const maxOrderNum = (maxOrderParsed && maxOrderParsed > 0) ? Math.max(minOrderNum, maxOrderParsed) : null;
+    const isNoMinMax = crudForm.product_type === 'service' || crudForm.product_type === 'property';
+    const minOrderNum = isNoMinMax ? 1 : Math.max(1, parseInt(String(crudForm.min_order)) || 1);
+    const maxOrderParsed = isNoMinMax ? null : (crudForm.max_order !== '' && crudForm.max_order !== null && crudForm.max_order !== undefined ? parseInt(String(crudForm.max_order)) : null);
+    const maxOrderNum = isNoMinMax ? null : ((maxOrderParsed && maxOrderParsed > 0) ? Math.max(minOrderNum, maxOrderParsed) : null);
 
     try {
       // Step A: Deferred Upload Execution - upload any staged File objects right now
@@ -18350,14 +18347,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       {selectedFauna.attributes.halal_status}
                     </span>
                   )}
-                  {selectedFauna.product_type !== 'service' && ((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
+                  {selectedFauna.product_type !== 'service' && selectedFauna.product_type !== 'property' && ((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
                     <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.15)', color: '#60a5fa', border: '1px solid rgba(37, 99, 235, 0.3)' }}>
-                      {selectedFauna.product_type === 'food' ? 'Min. Pesanan' : (selectedFauna.product_type === 'property' ? 'Min. Unit' : 'Min. Beli')}: {selectedFauna.min_order || selectedFauna.attributes?.min_order} {getCatalogItemUnit(selectedFauna)}
+                      {selectedFauna.product_type === 'food' ? 'Min. Pesanan' : 'Min. Beli'}: {selectedFauna.min_order || selectedFauna.attributes?.min_order} {getCatalogItemUnit(selectedFauna)}
                     </span>
                   )}
-                  {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
+                  {selectedFauna.product_type !== 'property' && ((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
                     <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
-                      {selectedFauna.product_type === 'food' ? 'Maks. Pesanan' : (selectedFauna.product_type === 'service' ? 'Maks. Pemesanan' : (selectedFauna.product_type === 'property' ? 'Maks. Unit' : 'Maks. Beli'))}: {selectedFauna.max_order || selectedFauna.attributes?.max_order} {getCatalogItemUnit(selectedFauna)}
+                      {selectedFauna.product_type === 'food' ? 'Maks. Pesanan' : (selectedFauna.product_type === 'service' ? 'Maks. Pemesanan' : 'Maks. Beli')}: {selectedFauna.max_order || selectedFauna.attributes?.max_order} {getCatalogItemUnit(selectedFauna)}
                     </span>
                   )}
                 </div>
@@ -18496,8 +18493,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             {renderRow('Kondisi Perabotan', selectedFauna.attributes?.furnishing)}
                             {renderRow('Arah Hadap', selectedFauna.attributes?.facing)}
                             {renderRow('Lokasi / Wilayah Properti', selectedFauna.attributes?.property_location || selectedFauna.habitat)}
-                            {minOrderVal > 1 && renderRow('Minimal Unit', `${minOrderVal} Unit`)}
-                            {maxOrderVal && Number(maxOrderVal) > 0 && renderRow('Maksimal Unit', `${maxOrderVal} Unit`)}
                           </>
                         );
                       } else if (selectedFauna.product_type === 'physical') {
