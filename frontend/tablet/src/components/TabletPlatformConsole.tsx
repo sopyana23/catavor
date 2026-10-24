@@ -66,7 +66,17 @@ import {
   Calendar,
   Compass,
   Target,
-  Code
+  Code,
+  ChevronLeft,
+  Utensils,
+  FileCode,
+  Briefcase,
+  Sprout,
+  PawPrint,
+  ShoppingBag,
+  PhoneCall,
+  Link as LinkIcon,
+  Upload
 } from 'lucide-react';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
@@ -1678,97 +1688,60 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: MASTER DATA (Rekber, Domains, CS Templates)
   // =========================================================================
-  const [masterSubTab, setMasterSubTab] = useState<'rekber' | 'domains' | 'templates'>('rekber');
-  const [selectedRekberCategory, setSelectedRekberCategory] = useState<string>('rekber_template_physical');
-  const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
-  const [templateFilter, setTemplateFilter] = useState<'all' | 'general' | 'order' | 'animal' | 'technical' | 'billing'>('all');
-  const [showAddTemplateModal, setShowAddTemplateModal] = useState(false);
-  const [newTemplate, setNewTemplate] = useState({
-    title: '',
-    shortcut_code: '',
-    category: 'general',
-    content: ''
+  const [masterSubTab, setMasterSubTab] = useState<'rekber' | 'domains' | 'templates'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const sub = params.get('sub');
+      if (sub === 'domains' || sub === 'templates' || sub === 'rekber') return sub;
+    }
+    return 'rekber';
   });
 
-  const fetchCannedTemplates = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await authFetch('/api/admin/support/templates', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const j = await res.json();
-        setCannedTemplates(j.data || []);
-      }
-    } catch {
-      // Fail silently
-    }
-  }, [token, authFetch]);
-
-  useEffect(() => {
-    if (activeView === 'master-data' && masterSubTab === 'templates') {
-      fetchCannedTemplates();
-    }
-  }, [activeView, masterSubTab, fetchCannedTemplates]);
-
-  const handleSaveNewTemplate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTemplate.title.trim() || !newTemplate.content.trim()) return;
-    try {
-      const res = await authFetch('/api/admin/support/templates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(newTemplate)
-      });
-      if (res.ok) {
-        showToast('Template balasan CS berhasil disimpan!');
-        setShowAddTemplateModal(false);
-        setNewTemplate({ title: '', shortcut_code: '', category: 'general', content: '' });
-        fetchCannedTemplates();
-      } else {
-        showToast('Gagal menyimpan template', 'error');
-      }
-    } catch {
-      showToast('Terjadi kesalahan jaringan', 'error');
+  const handleSwitchMasterSubTab = (sub: 'rekber' | 'domains' | 'templates') => {
+    setMasterSubTab(sub);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'master-data');
+      url.searchParams.set('sub', sub);
+      window.history.pushState({}, '', url.toString());
     }
   };
 
-  const handleDeleteTemplate = async (id: number) => {
-    if (!window.confirm('Hapus template balasan ini?')) return;
-    try {
-      const res = await authFetch(`/api/admin/support/templates/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        showToast('Template berhasil dihapus');
-        fetchCannedTemplates();
-      } else {
-        showToast('Gagal menghapus template', 'error');
-      }
-    } catch {
-      showToast('Gagal menghapus template', 'error');
-    }
-  };
+  // 1. REKBER SYARIAH ESCROW CONFIGURATION
+  const [rekberActiveTemplateTab, setRekberActiveTemplateTab] = useState<'physical' | 'food' | 'digital' | 'service' | 'plant' | 'fauna'>('physical');
+  const [isUploadingRekberLogo, setIsUploadingRekberLogo] = useState(false);
+  const rekberLogoInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleResetTemplateDefaults = async () => {
-    if (!window.confirm('Reset seluruh template balasan CS ke standar pabrik Catavor?')) return;
+  const handleUploadRekberLogo = async (file: File) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Ukuran file logo maksimal 5MB', 'error');
+      return;
+    }
+    setIsUploadingRekberLogo(true);
     try {
-      const res = await authFetch('/api/admin/support/templates/reset-defaults', {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('category', 'rekber');
+      const res = await authFetch('/api/storage/upload?category=rekber', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
       });
-      if (res.ok) {
-        showToast('Template balasan CS berhasil direset ke standar pabrik');
-        fetchCannedTemplates();
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        setGoogleSettings(prev => ({
+          ...prev,
+          rekber_logo_url: data.url
+        }));
+        showToast('Logo partner rekber berhasil diunggah!', 'success');
       } else {
-        showToast('Gagal mereset template', 'error');
+        showToast(data.message || 'Gagal mengunggah logo partner', 'error');
       }
     } catch {
-      showToast('Gagal mereset template', 'error');
+      showToast('Terjadi kesalahan jaringan saat mengunggah logo', 'error');
+    } finally {
+      setIsUploadingRekberLogo(false);
     }
   };
 
@@ -1801,6 +1774,245 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       setIsSavingSettings(false);
     }
   };
+
+  const handleSaveRekberSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingSettings(true);
+    try {
+      const res = await authFetch('/api/admin/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(googleSettings)
+      });
+      if (res.ok) {
+        showToast('Konfigurasi Rekber Syariah berhasil disimpan!', 'success');
+        fetchSettings();
+      } else {
+        showToast('Gagal menyimpan konfigurasi', 'error');
+      }
+    } catch {
+      showToast('Terjadi kesalahan jaringan', 'error');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // 2. CANNED RESPONSES / TEMPLATE CS
+  const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+  const [debouncedTemplateSearch, setDebouncedTemplateSearch] = useState('');
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState<string>('all');
+  const [templatePage, setTemplatePage] = useState(1);
+  const [templateLimit] = useState(10);
+  const [templatePagination, setTemplatePagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    total_pages: 1
+  });
+  const [showTemplateFormModal, setShowTemplateFormModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [templateForm, setTemplateForm] = useState({
+    title: '',
+    shortcut: '',
+    category: 'general',
+    content: '',
+    is_active: true,
+    sort_order: 1
+  });
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [copiedTemplateId, setCopiedTemplateId] = useState<number | null>(null);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTemplateSearch(templateSearchQuery);
+      setTemplatePage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [templateSearchQuery]);
+
+  const fetchCannedTemplates = useCallback(async (
+    targetPage: number = templatePage,
+    targetSearch: string = debouncedTemplateSearch,
+    targetCategory: string = templateCategoryFilter,
+    targetLimit: number = templateLimit,
+    includeInactive: boolean = true
+  ) => {
+    if (!token) return;
+    setLoadingTemplates(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(targetPage));
+      params.set('limit', String(targetLimit));
+      if (includeInactive) params.set('include_inactive', 'true');
+      if (targetCategory && targetCategory !== 'all') params.set('category', targetCategory);
+      if (targetSearch && targetSearch.trim()) params.set('search', targetSearch.trim());
+
+      const res = await authFetch(`/api/admin/support/templates?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCannedTemplates(data.data || []);
+        if (data.pagination) {
+          setTemplatePagination(data.pagination);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load canned response templates:', e);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, [token, authFetch, templatePage, debouncedTemplateSearch, templateCategoryFilter, templateLimit]);
+
+  useEffect(() => {
+    if (activeView === 'master-data' && masterSubTab === 'templates') {
+      fetchCannedTemplates(templatePage, debouncedTemplateSearch, templateCategoryFilter, templateLimit, true);
+    }
+  }, [activeView, masterSubTab, templatePage, debouncedTemplateSearch, templateCategoryFilter, templateLimit, fetchCannedTemplates]);
+
+  const handleOpenCreateTemplate = () => {
+    setEditingTemplate(null);
+    setTemplateForm({
+      title: '',
+      shortcut: '',
+      category: 'general',
+      content: '',
+      is_active: true,
+      sort_order: cannedTemplates.length + 1
+    });
+    setShowTemplateFormModal(true);
+  };
+
+  const handleOpenEditTemplate = (tmpl: any) => {
+    setEditingTemplate(tmpl);
+    setTemplateForm({
+      title: tmpl.title || '',
+      shortcut: tmpl.shortcut || tmpl.shortcut_code || '',
+      category: tmpl.category || 'general',
+      content: tmpl.content || '',
+      is_active: tmpl.is_active !== false,
+      sort_order: tmpl.sort_order || 0
+    });
+    setShowTemplateFormModal(true);
+  };
+
+  const handleSaveTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!templateForm.title.trim() || !templateForm.content.trim()) {
+      showToast('Judul dan isi template wajib diisi!', 'error');
+      return;
+    }
+    setSavingTemplate(true);
+    try {
+      const isEdit = !!editingTemplate?.id;
+      const url = isEdit ? `/api/admin/support/templates/${editingTemplate.id}` : '/api/admin/support/templates';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await authFetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(templateForm)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(isEdit ? 'Template berhasil diperbarui!' : 'Template baru berhasil ditambahkan!', 'success');
+        setShowTemplateFormModal(false);
+        fetchCannedTemplates(templatePage, debouncedTemplateSearch, templateCategoryFilter, templateLimit, true);
+      } else {
+        showToast(data.message || 'Gagal menyimpan template', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Terjadi kesalahan saat menyimpan template', 'error');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (tmplId: number, tmplTitle: string) => {
+    if (!window.confirm(`Hapus template "${tmplTitle}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+    try {
+      const res = await authFetch(`/api/admin/support/templates/${tmplId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Template berhasil dihapus!', 'success');
+        fetchCannedTemplates(templatePage, debouncedTemplateSearch, templateCategoryFilter, templateLimit, true);
+      } else {
+        showToast(data.message || 'Gagal menghapus template', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Gagal menghubungi server', 'error');
+    }
+  };
+
+  const handleToggleTemplateActive = async (tmpl: any) => {
+    try {
+      const nextActive = !tmpl.is_active;
+      const res = await authFetch(`/api/admin/support/templates/${tmpl.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ is_active: nextActive })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Template "${tmpl.title}" ${nextActive ? 'diaktifkan' : 'dinonaktifkan'}!`, 'success');
+        fetchCannedTemplates(templatePage, debouncedTemplateSearch, templateCategoryFilter, templateLimit, true);
+      }
+    } catch (e) {
+      console.error('Failed to toggle template active status:', e);
+    }
+  };
+
+  const handleResetDefaultTemplates = async () => {
+    if (!window.confirm('Pulihkan template bawaan standar Catavor? Template kustom Anda akan direset ke daftar default.')) return;
+    try {
+      const res = await authFetch('/api/admin/support/templates/reset-defaults', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Template bawaan berhasil dipulihkan!', 'success');
+        fetchCannedTemplates(1, '', 'all', templateLimit, true);
+      } else {
+        showToast(data.message || 'Gagal memulihkan template', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Gagal menghubungi server', 'error');
+    }
+  };
+
+  const handleCopyTemplate = (tmpl: any) => {
+    if (!tmpl?.content) return;
+    try {
+      navigator.clipboard.writeText(tmpl.content);
+      setCopiedTemplateId(tmpl.id);
+      showToast(`Teks template "${tmpl.title}" berhasil disalin!`);
+      setTimeout(() => setCopiedTemplateId(null), 2500);
+    } catch {
+      showToast('Gagal menyalin teks template', 'error');
+    }
+  };
+
+  useModalBackHandler({
+    isOpen: showTemplateFormModal,
+    onClose: () => setShowTemplateFormModal(false),
+    modalId: 'cs_template_form'
+  });
 
   // =========================================================================
   // SUB-VIEW: AUDIT TRAIL (Forensik Log)
@@ -9126,370 +9338,1195 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
           {/* TAB 10: MASTER DATA (REKBER, DOMAINS, CS TEMPLATES) */}
           {activeView === 'master-data' && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              {/* 3 Sub-Tabs */}
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-main)' }}>
+              {/* Segmented Sub-Tab Switcher Bar */}
               <div style={{
-                padding: '0.75rem 1.5rem',
+                padding: '0.85rem 1.5rem',
                 borderBottom: '1px solid var(--border-light)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
-                backgroundColor: 'var(--bg-deep)'
+                gap: '0.65rem',
+                backgroundColor: 'var(--bg-deep)',
+                flexWrap: 'wrap'
               }}>
                 <button
                   type="button"
-                  onClick={() => setMasterSubTab('rekber')}
+                  onClick={() => handleSwitchMasterSubTab('rekber')}
                   style={{
-                    padding: '0.45rem 1rem',
-                    borderRadius: '0.55rem',
-                    border: `1px solid ${masterSubTab === 'rekber' ? '#10b981' : 'var(--border-light)'}`,
-                    backgroundColor: masterSubTab === 'rekber' ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-card)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.75rem',
+                    border: `1.5px solid ${masterSubTab === 'rekber' ? '#10b981' : 'var(--border-light)'}`,
+                    backgroundColor: masterSubTab === 'rekber' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
                     color: masterSubTab === 'rekber' ? '#10b981' : 'var(--text-muted)',
                     fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
+                    fontWeight: masterSubTab === 'rekber' ? 800 : 600,
+                    cursor: 'pointer',
+                    minHeight: '44px',
+                    transition: 'all 0.18s ease'
                   }}
                 >
-                  Proteksi Rekber Syariah
+                  <ShieldCheck size={17} />
+                  <span>Proteksi Rekber Syariah</span>
+                  <span style={{
+                    fontSize: '0.65rem',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    backgroundColor: googleSettings.rekber_enabled !== '0' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                    color: googleSettings.rekber_enabled !== '0' ? '#10b981' : '#ef4444'
+                  }}>
+                    {googleSettings.rekber_enabled !== '0' ? 'Aktif' : 'Nonaktif'}
+                  </span>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setMasterSubTab('domains')}
+                  onClick={() => handleSwitchMasterSubTab('domains')}
                   style={{
-                    padding: '0.45rem 1rem',
-                    borderRadius: '0.55rem',
-                    border: `1px solid ${masterSubTab === 'domains' ? 'var(--primary)' : 'var(--border-light)'}`,
-                    backgroundColor: masterSubTab === 'domains' ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.75rem',
+                    border: `1.5px solid ${masterSubTab === 'domains' ? 'var(--primary)' : 'var(--border-light)'}`,
+                    backgroundColor: masterSubTab === 'domains' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-card)',
                     color: masterSubTab === 'domains' ? 'var(--primary)' : 'var(--text-muted)',
                     fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
+                    fontWeight: masterSubTab === 'domains' ? 800 : 600,
+                    cursor: 'pointer',
+                    minHeight: '44px',
+                    transition: 'all 0.18s ease'
                   }}
                 >
-                  Whitelist Domain Aman
+                  <Globe size={17} />
+                  <span>Whitelist Domain Aman</span>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setMasterSubTab('templates')}
+                  onClick={() => handleSwitchMasterSubTab('templates')}
                   style={{
-                    padding: '0.45rem 1rem',
-                    borderRadius: '0.55rem',
-                    border: `1px solid ${masterSubTab === 'templates' ? '#8b5cf6' : 'var(--border-light)'}`,
-                    backgroundColor: masterSubTab === 'templates' ? 'rgba(139, 92, 246, 0.12)' : 'var(--bg-card)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.75rem',
+                    border: `1.5px solid ${masterSubTab === 'templates' ? '#8b5cf6' : 'var(--border-light)'}`,
+                    backgroundColor: masterSubTab === 'templates' ? 'rgba(139, 92, 246, 0.15)' : 'var(--bg-card)',
                     color: masterSubTab === 'templates' ? '#8b5cf6' : 'var(--text-muted)',
                     fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
+                    fontWeight: masterSubTab === 'templates' ? 800 : 600,
+                    cursor: 'pointer',
+                    minHeight: '44px',
+                    transition: 'all 0.18s ease'
                   }}
                 >
-                  Template Balasan CS ({cannedTemplates.length})
+                  <Zap size={17} />
+                  <span>Template Balasan CS</span>
+                  <span style={{
+                    fontSize: '0.65rem',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                    color: '#8b5cf6'
+                  }}>
+                    {templatePagination.total || cannedTemplates.length}
+                  </span>
                 </button>
               </div>
 
-              {/* Subtab Content */}
+              {/* Subtab Content Area */}
               <div style={{ flex: 1, overflowY: 'auto' }}>
-                {/* 1. Rekber Syariah */}
+                {/* SUBTAB 1: REKBER SYARIAH ESCROW */}
                 {masterSubTab === 'rekber' && (
                   <div style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
-                    <form onSubmit={handleSaveGoogleSettings} style={{
-                      maxWidth: '850px',
-                      margin: '0 auto',
-                      padding: '1.5rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '1.25rem'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>
-                            Konfigurasi Escrow Rekber Syariah
-                          </h3>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-                            Proteksi transaksi jual-beli aman dan bebas riba bagi pembeli dan merchant.
+                    <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {/* Security Advisory Callout */}
+                      <div style={{
+                        padding: '1rem 1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.06)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.75rem'
+                      }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                          color: '#10b981',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <Lock size={18} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <strong style={{ fontSize: '0.88rem', color: '#10b981' }}>
+                            Otoritas Terpusat Platform
+                          </strong>
+                          <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                            Platform Catavor bermitra resmi eksklusif dengan <strong>rekbersyariah.com</strong>. Layanan Rekber Syariah aktif untuk 6 tipe katalog: <strong>Barang Fisik, Menu Kuliner, Item Digital, Jasa & Layanan, Tanaman, dan Satwa/Hewan</strong> (Properti otomatis dikecualikan via Notaris/PPAT).
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={handleResetRekberDefaults}
-                          style={{
-                            padding: '0.45rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'transparent',
-                            color: 'var(--text-muted)',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Reset Standar Pabrik
-                        </button>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                            Nama Mitra Rekber
-                          </label>
-                          <input
-                            type="text"
-                            value={googleSettings.rekber_partner_name}
-                            onChange={e => setGoogleSettings(prev => ({ ...prev, rekber_partner_name: e.target.value }))}
-                            style={{
-                              width: '100%',
-                              padding: '0.65rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.85rem',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
+                      {/* Main Configuration Form */}
+                      <form onSubmit={handleSaveRekberSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* 1. MASTER TOGGLE & CREDENTIALS CARD */}
+                        <div style={{
+                          padding: '1.25rem',
+                          borderRadius: '1rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '1.25rem'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-light)' }}>
+                            <div>
+                              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                Status Master Layanan Rekber
+                              </h4>
+                              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                Kontrol global izin transaksi Rekber Syariah di seluruh katalog platform
+                              </p>
+                            </div>
 
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                            WhatsApp Hotline Rekber
-                          </label>
-                          <input
-                            type="text"
-                            value={googleSettings.rekber_wa_number}
-                            onChange={e => setGoogleSettings(prev => ({ ...prev, rekber_wa_number: e.target.value }))}
-                            style={{
-                              width: '100%',
-                              padding: '0.65rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.85rem',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* 7 WhatsApp Category Templates Selector */}
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                          Pilih Template WhatsApp Berdasarkan Kategori Bisnis:
-                        </label>
-                        <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', marginBottom: '0.75rem' }}>
-                          {[
-                            { key: 'rekber_template_physical', label: 'Item Fisik' },
-                            { key: 'rekber_template_general', label: 'Barang Umum' },
-                            { key: 'rekber_template_food', label: 'Kuliner' },
-                            { key: 'rekber_template_digital', label: 'Digital' },
-                            { key: 'rekber_template_service', label: 'Jasa/Layanan' },
-                            { key: 'rekber_template_plant', label: 'Tanaman' },
-                            { key: 'rekber_template_fauna', label: 'Fauna/Satwa' }
-                          ].map(cat => (
-                            <button
-                              key={cat.key}
-                              type="button"
-                              onClick={() => setSelectedRekberCategory(cat.key)}
-                              style={{
-                                padding: '0.35rem 0.65rem',
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }}>
+                              <span style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                padding: '0.2rem 0.65rem',
                                 borderRadius: '999px',
-                                border: `1px solid ${selectedRekberCategory === cat.key ? '#10b981' : 'var(--border-light)'}`,
-                                backgroundColor: selectedRekberCategory === cat.key ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-deep)',
-                                color: selectedRekberCategory === cat.key ? '#10b981' : 'var(--text-muted)',
-                                fontSize: '0.72rem',
+                                backgroundColor: googleSettings.rekber_enabled !== '0'
+                                  ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)')
+                                  : (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)'),
+                                color: googleSettings.rekber_enabled !== '0' ? '#10b981' : '#ef4444',
+                                border: `1px solid ${googleSettings.rekber_enabled !== '0' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`
+                              }}>
+                                {googleSettings.rekber_enabled !== '0' ? 'Aktif' : 'Nonaktif'}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={googleSettings.rekber_enabled !== '0'}
+                                onChange={(e) => setGoogleSettings(prev => ({
+                                  ...prev,
+                                  rekber_enabled: e.target.checked ? '1' : '0'
+                                }))}
+                                style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#10b981' }}
+                              />
+                            </label>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem' }}>
+                            {/* Left Column: Text Inputs */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                              {/* Partner Name */}
+                              <div>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                                  Nama Layanan Mitra
+                                </label>
+                                <input
+                                  type="text"
+                                  value={googleSettings.rekber_partner_name || 'Rekber Syariah'}
+                                  onChange={(e) => setGoogleSettings(prev => ({ ...prev, rekber_partner_name: e.target.value }))}
+                                  placeholder="Contoh: Rekber Syariah"
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.65rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.82rem',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </div>
+
+                              {/* Official Website URL */}
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                    Alamat Website Resmi Mitra
+                                  </label>
+                                  {googleSettings.rekber_website_url && (
+                                    <a
+                                      href={googleSettings.rekber_website_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                        fontSize: '0.72rem',
+                                        color: '#10b981',
+                                        fontWeight: 700,
+                                        textDecoration: 'none'
+                                      }}
+                                    >
+                                      <span>Tes Buka</span>
+                                      <ExternalLink size={12} />
+                                    </a>
+                                  )}
+                                </div>
+                                <input
+                                  type="url"
+                                  value={googleSettings.rekber_website_url !== undefined ? googleSettings.rekber_website_url : 'https://rekbersyariah.com'}
+                                  onChange={(e) => setGoogleSettings(prev => ({ ...prev, rekber_website_url: e.target.value }))}
+                                  placeholder="https://rekbersyariah.com"
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.65rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.82rem',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </div>
+
+                              {/* WhatsApp Number */}
+                              <div>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                                  Nomor WhatsApp Resmi Admin Rekber
+                                </label>
+                                <input
+                                  type="text"
+                                  value={googleSettings.rekber_wa_number || ''}
+                                  onChange={(e) => setGoogleSettings(prev => ({
+                                    ...prev,
+                                    rekber_wa_number: e.target.value.replace(/[^0-9]/g, '')
+                                  }))}
+                                  placeholder="Contoh: 62811220227 (Default resmi)"
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.65rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.82rem',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
+                                  Format angka internasional tanpa tanda plus atau spasi (contoh: 62811220227).
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Right Column: Logo Upload */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <ImageIcon size={16} style={{ color: '#10b981' }} />
+                                <span>Logo / Ikon Resmi Partner Rekber</span>
+                              </label>
+
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.85rem',
+                                padding: '1rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px dashed var(--border-light)'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                  {/* Live Preview Box */}
+                                  <div style={{
+                                    width: '64px',
+                                    height: '64px',
+                                    borderRadius: '12px',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '1px solid var(--border-light)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    overflow: 'hidden',
+                                    flexShrink: 0
+                                  }}>
+                                    {googleSettings.rekber_logo_url ? (
+                                      <img
+                                        src={googleSettings.rekber_logo_url}
+                                        alt="Logo Partner"
+                                        style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
+                                        onError={(e) => {
+                                          (e.target as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
+                                    ) : (
+                                      <ShieldCheck size={28} style={{ color: '#10b981' }} />
+                                    )}
+                                  </div>
+
+                                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <input
+                                      type="file"
+                                      ref={rekberLogoInputRef}
+                                      accept="image/*"
+                                      style={{ display: 'none' }}
+                                      onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                          handleUploadRekberLogo(e.target.files[0]);
+                                          e.target.value = '';
+                                        }
+                                      }}
+                                    />
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => rekberLogoInputRef.current?.click()}
+                                        disabled={isUploadingRekberLogo}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.4rem',
+                                          padding: '0.5rem 0.85rem',
+                                          fontSize: '0.78rem',
+                                          fontWeight: 700,
+                                          borderRadius: '0.55rem',
+                                          border: '1px solid var(--border-light)',
+                                          backgroundColor: 'var(--bg-card)',
+                                          color: 'var(--text-primary)',
+                                          cursor: isUploadingRekberLogo ? 'not-allowed' : 'pointer'
+                                        }}
+                                      >
+                                        {isUploadingRekberLogo ? (
+                                          <>
+                                            <Loader2 size={13} className="animate-spin" />
+                                            <span>Mengunggah...</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Upload size={13} />
+                                            <span>Pilih Gambar</span>
+                                          </>
+                                        )}
+                                      </button>
+
+                                      {googleSettings.rekber_logo_url && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setGoogleSettings(prev => ({ ...prev, rekber_logo_url: '' }))}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem',
+                                            padding: '0.5rem 0.75rem',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 700,
+                                            borderRadius: '0.55rem',
+                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                            color: '#ef4444',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <Trash2 size={13} />
+                                          <span>Hapus</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <input
+                                  type="text"
+                                  value={googleSettings.rekber_logo_url || ''}
+                                  onChange={(e) => setGoogleSettings(prev => ({ ...prev, rekber_logo_url: e.target.value }))}
+                                  placeholder="Atau tempel URL gambar (https://...)"
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.55rem 0.75rem',
+                                    borderRadius: '0.55rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-card)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.78rem',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  Tampil di Landing Page platform (seksi Transaksi Aman) dan dialog info rekber katalog publik.
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 2. DYNAMIC MESSAGE TEMPLATES CARD */}
+                        <div style={{
+                          padding: '1.25rem',
+                          borderRadius: '1rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '1rem'
+                        }}>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              Format Template Pesan WhatsApp
+                            </h4>
+                            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                              Template teks pesan otomatis saat pembeli mengklik aksi transaksi Rekber di katalog publik
+                            </p>
+                          </div>
+
+                          {/* Dynamic Variables Guide Chips */}
+                          <div style={{
+                            padding: '0.75rem 1rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px dashed var(--border-light)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.45rem'
+                          }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <Tag size={13} style={{ color: '#0284c7' }} />
+                              <span>Klik variabel di bawah untuk menyisipkan ke dalam draf template:</span>
+                            </span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                              {[
+                                { code: '{item_name}', label: 'Nama Produk', icon: <ShoppingBag size={11} /> },
+                                { code: '{item_price}', label: 'Harga', icon: <DollarSign size={11} /> },
+                                { code: '{item_type_label}', label: 'Label Kategori', icon: <Layers size={11} /> },
+                                { code: '{store_title}', label: 'Nama Toko', icon: <StoreIcon size={11} /> },
+                                { code: '{rekber_website_url}', label: 'URL Website', icon: <Globe size={11} /> },
+                                { code: '{rekber_website_domain}', label: 'Domain Web', icon: <LinkIcon size={11} /> },
+                                { code: '{rekber_wa_number}', label: 'No WA Rekber', icon: <PhoneCall size={11} /> },
+                                { code: '{rekber_wa_section}', label: 'Paragraf Bantuan', icon: <ShieldCheck size={11} /> },
+                              ].map((item, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    const keyName = `rekber_template_${rekberActiveTemplateTab}`;
+                                    setGoogleSettings(prev => ({
+                                      ...prev,
+                                      [keyName]: `${prev[keyName] || ''} ${item.code}`
+                                    }));
+                                  }}
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 600,
+                                    padding: '0.2rem 0.55rem',
+                                    borderRadius: '0.45rem',
+                                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                                    color: isDark ? '#38bdf8' : '#0284c7',
+                                    border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.2)'}`,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <span>{item.icon}</span>
+                                  <code>{item.code}</code>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 6 Category Tabs */}
+                          <div style={{ display: 'flex', gap: '0.4rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', overflowX: 'auto' }}>
+                            {[
+                              { key: 'physical', label: 'Barang Fisik', icon: <Package size={14} /> },
+                              { key: 'food', label: 'Kuliner', icon: <Utensils size={14} /> },
+                              { key: 'digital', label: 'Item Digital', icon: <FileCode size={14} /> },
+                              { key: 'service', label: 'Jasa/Layanan', icon: <Briefcase size={14} /> },
+                              { key: 'plant', label: 'Tanaman', icon: <Sprout size={14} /> },
+                              { key: 'fauna', label: 'Satwa/Hewan', icon: <PawPrint size={14} /> },
+                            ].map((tab) => (
+                              <button
+                                key={tab.key}
+                                type="button"
+                                onClick={() => setRekberActiveTemplateTab(tab.key as any)}
+                                style={{
+                                  padding: '0.45rem 0.85rem',
+                                  borderRadius: '0.55rem',
+                                  border: `1px solid ${rekberActiveTemplateTab === tab.key ? '#10b981' : 'transparent'}`,
+                                  backgroundColor: rekberActiveTemplateTab === tab.key
+                                    ? (isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.12)')
+                                    : 'transparent',
+                                  color: rekberActiveTemplateTab === tab.key ? '#10b981' : 'var(--text-muted)',
+                                  fontSize: '0.78rem',
+                                  fontWeight: rekberActiveTemplateTab === tab.key ? 800 : 600,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.4rem',
+                                  minHeight: '38px'
+                                }}
+                              >
+                                <span>{tab.icon}</span>
+                                <span>{tab.label}</span>
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* 2-Column Split: Active Textarea & Live Simulation */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1rem' }}>
+                            {/* Left: Textarea Editor */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                Edit Format Teks Template:
+                              </label>
+                              <textarea
+                                rows={7}
+                                value={googleSettings[`rekber_template_${rekberActiveTemplateTab}`] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setGoogleSettings(prev => {
+                                    const next = { ...prev, [`rekber_template_${rekberActiveTemplateTab}`]: val };
+                                    if (rekberActiveTemplateTab === 'physical') {
+                                      next.rekber_template_general = val;
+                                    }
+                                    return next;
+                                  });
+                                }}
+                                placeholder={REKBER_FACTORY_DEFAULTS[`rekber_template_${rekberActiveTemplateTab}`]}
+                                style={{
+                                  width: '100%',
+                                  padding: '0.75rem',
+                                  borderRadius: '0.65rem',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.8rem',
+                                  fontFamily: 'monospace',
+                                  lineHeight: 1.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  resize: 'vertical'
+                                }}
+                              />
+                            </div>
+
+                            {/* Right: Real-Time WhatsApp Live Simulation Preview */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <MessageSquare size={13} />
+                                <span>Pratinjau Balon Pesan WhatsApp (Simulasi Nyata):</span>
+                              </label>
+                              <div style={{
+                                padding: '0.85rem 1rem',
+                                borderRadius: '0.75rem',
+                                backgroundColor: isDark ? '#064e3b' : '#dcfce7',
+                                color: isDark ? '#ecfdf5' : '#14532d',
+                                fontSize: '0.78rem',
+                                lineHeight: 1.5,
+                                whiteSpace: 'pre-wrap',
+                                border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)'}`,
+                                minHeight: '150px',
+                                maxHeight: '240px',
+                                overflowY: 'auto'
+                              }}>
+                                {(() => {
+                                  const websiteUrl = googleSettings.rekber_website_url || 'https://rekbersyariah.com';
+                                  let websiteDomain = 'rekbersyariah.com';
+                                  try {
+                                    websiteDomain = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname || 'rekbersyariah.com';
+                                  } catch {}
+                                  const waNumber = (googleSettings.rekber_wa_number || '62811220227').trim();
+                                  const cleanWANum = waNumber.replace(/\D/g, '') || '62811220227';
+                                  const waLink = `https://wa.me/${cleanWANum}`;
+                                  const waSection = ` atau hubungi WhatsApp Admin Rekber Syariah di *+${cleanWANum}* agar dapat dibuatkan grup transaksi bersama`;
+
+                                  let tmpl = '';
+                                  let sampleName = 'Sepatu Sneakers Vintage Original';
+                                  let samplePrice = 'Rp 450.000';
+                                  let typeLabel = 'Barang Fisik';
+
+                                  if (rekberActiveTemplateTab === 'food') {
+                                    tmpl = googleSettings.rekber_template_food || REKBER_FACTORY_DEFAULTS.rekber_template_food;
+                                    sampleName = 'Paket Nasi Kebuli Kambing Spesial';
+                                    samplePrice = 'Rp 85.000';
+                                    typeLabel = 'Menu Kuliner';
+                                  } else if (rekberActiveTemplateTab === 'digital') {
+                                    tmpl = googleSettings.rekber_template_digital || REKBER_FACTORY_DEFAULTS.rekber_template_digital;
+                                    sampleName = 'Preset Lightroom Pro & Lisensi E-Book';
+                                    samplePrice = 'Rp 120.000';
+                                    typeLabel = 'Item Digital';
+                                  } else if (rekberActiveTemplateTab === 'service') {
+                                    tmpl = googleSettings.rekber_template_service || REKBER_FACTORY_DEFAULTS.rekber_template_service;
+                                    sampleName = 'Jasa Desain Arsitektur & Denah 3D';
+                                    samplePrice = 'Rp 1.500.000';
+                                    typeLabel = 'Layanan Jasa';
+                                  } else if (rekberActiveTemplateTab === 'plant') {
+                                    tmpl = googleSettings.rekber_template_plant || REKBER_FACTORY_DEFAULTS.rekber_template_plant;
+                                    sampleName = 'Tanaman Hias Monstera Variegata Albo';
+                                    samplePrice = 'Rp 650.000';
+                                    typeLabel = 'Tanaman';
+                                  } else if (rekberActiveTemplateTab === 'fauna') {
+                                    tmpl = googleSettings.rekber_template_fauna || REKBER_FACTORY_DEFAULTS.rekber_template_fauna;
+                                    sampleName = 'Kucing British Shorthair Pedigree';
+                                    samplePrice = 'Rp 4.500.000';
+                                    typeLabel = 'Satwa / Hewan';
+                                  } else {
+                                    tmpl = googleSettings.rekber_template_physical || googleSettings.rekber_template_general || REKBER_FACTORY_DEFAULTS.rekber_template_physical;
+                                  }
+
+                                  return (tmpl || '')
+                                    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+                                    .replace(/{store_title}/g, 'Catavor Demo Store')
+                                    .replace(/{item_name}/g, sampleName)
+                                    .replace(/{product_name}/g, sampleName)
+                                    .replace(/{item_price}/g, samplePrice)
+                                    .replace(/{product_price}/g, samplePrice)
+                                    .replace(/{item_type_label}/g, typeLabel)
+                                    .replace(/{rekber_website_url}/g, websiteUrl)
+                                    .replace(/{rekber_website_domain}/g, websiteDomain)
+                                    .replace(/{rekber_wa_number}/g, cleanWANum)
+                                    .replace(/{rekber_wa_link}/g, waLink)
+                                    .replace(/{rekber_wa_section}/g, waSection);
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Submit & Reset Actions */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+                          <button
+                            type="button"
+                            onClick={handleResetRekberDefaults}
+                            disabled={isSavingSettings}
+                            style={{
+                              padding: '0.65rem 1.15rem',
+                              borderRadius: '0.65rem',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              backgroundColor: 'transparent',
+                              color: '#ef4444',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              cursor: isSavingSettings ? 'not-allowed' : 'pointer',
+                              minHeight: '44px'
+                            }}
+                          >
+                            Reset Standar Pabrik
+                          </button>
+
+                          <button
+                            type="submit"
+                            disabled={isSavingSettings}
+                            style={{
+                              padding: '0.65rem 1.5rem',
+                              borderRadius: '0.65rem',
+                              border: 'none',
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              color: '#ffffff',
+                              fontSize: '0.82rem',
+                              fontWeight: 800,
+                              cursor: isSavingSettings ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                              minHeight: '44px'
+                            }}
+                          >
+                            {isSavingSettings ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                            <span>{isSavingSettings ? 'Menyimpan...' : 'Simpan Konfigurasi Rekber'}</span>
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* SUBTAB 2: SAFE DOMAINS WHITELIST */}
+                {masterSubTab === 'domains' && (
+                  <div style={{ padding: '1rem', boxSizing: 'border-box' }}>
+                    <AdminSafeDomainsManagement
+                      token={token}
+                      themeMode={themeMode}
+                    />
+                  </div>
+                )}
+
+                {/* SUBTAB 3: CANNED RESPONSES / TEMPLATE CS */}
+                {masterSubTab === 'templates' && (
+                  <div style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
+                    <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {/* Top Action & Filter Bar */}
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.85rem',
+                        padding: '1rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)'
+                      }}>
+                        {/* Search Input & Action Buttons */}
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
+                            <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                            <input
+                              type="text"
+                              value={templateSearchQuery}
+                              onChange={(e) => setTemplateSearchQuery(e.target.value)}
+                              placeholder="Cari judul, shortcut (/salam), atau isi template..."
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 2.2rem 0.65rem 2.4rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.82rem',
+                                outline: 'none',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                            {templateSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setTemplateSearchQuery('')}
+                                style={{
+                                  position: 'absolute',
+                                  right: '0.75rem',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  fontSize: '0.85rem',
+                                  padding: '0.2rem'
+                                }}
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={handleResetDefaultTemplates}
+                              style={{
+                                padding: '0.6rem 0.95rem',
+                                borderRadius: '0.65rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'transparent',
+                                color: 'var(--text-muted)',
+                                fontSize: '0.78rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
-                                whiteSpace: 'nowrap'
+                                minHeight: '42px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <RefreshCw size={13} />
+                              <span>Reset Standar</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleOpenCreateTemplate}
+                              style={{
+                                padding: '0.6rem 1.15rem',
+                                borderRadius: '0.65rem',
+                                border: 'none',
+                                backgroundColor: '#8b5cf6',
+                                color: '#ffffff',
+                                fontSize: '0.82rem',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                minHeight: '42px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)'
+                              }}
+                            >
+                              <Plus size={16} />
+                              <span>Tambah Template</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Category Filter Pills */}
+                        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+                          {[
+                            { id: 'all', label: 'Semua Kategori' },
+                            { id: 'general', label: 'Umum & Greeting' },
+                            { id: 'billing', label: 'Keuangan' },
+                            { id: 'technical', label: 'Teknis' },
+                            { id: 'closing', label: 'Penutupan' },
+                            { id: 'account', label: 'Akun & Keamanan' }
+                          ].map(cat => (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                setTemplateCategoryFilter(cat.id);
+                                setTemplatePage(1);
+                              }}
+                              style={{
+                                padding: '0.4rem 0.85rem',
+                                borderRadius: '999px',
+                                fontSize: '0.74rem',
+                                fontWeight: templateCategoryFilter === cat.id ? 800 : 600,
+                                backgroundColor: templateCategoryFilter === cat.id ? '#8b5cf6' : 'var(--bg-deep)',
+                                color: templateCategoryFilter === cat.id ? '#ffffff' : 'var(--text-muted)',
+                                border: `1px solid ${templateCategoryFilter === cat.id ? '#8b5cf6' : 'var(--border-light)'}`,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.15s ease'
                               }}
                             >
                               {cat.label}
                             </button>
                           ))}
                         </div>
-
-                        <textarea
-                          rows={6}
-                          value={googleSettings[selectedRekberCategory] || ''}
-                          onChange={e => setGoogleSettings(prev => ({ ...prev, [selectedRekberCategory]: e.target.value }))}
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem 0.85rem',
-                            borderRadius: '0.55rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.82rem',
-                            boxSizing: 'border-box',
-                            lineHeight: 1.5
-                          }}
-                        />
-
-                        {/* Variables tag guide */}
-                        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Tag Dinamis:</span>
-                          {['{store_title}', '{item_name}', '{item_price}', '{rekber_website_domain}', '{rekber_wa_number}'].map(tag => (
-                            <span
-                              key={tag}
-                              onClick={() => {
-                                setGoogleSettings(prev => ({
-                                  ...prev,
-                                  [selectedRekberCategory]: `${prev[selectedRekberCategory] || ''} ${tag}`
-                                }));
-                              }}
-                              style={{
-                                padding: '0.15rem 0.45rem',
-                                borderRadius: '4px',
-                                backgroundColor: 'var(--bg-deep)',
-                                border: '1px solid var(--border-light)',
-                                fontSize: '0.68rem',
-                                fontFamily: 'monospace',
-                                color: 'var(--primary)',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                        <button
-                          type="submit"
-                          disabled={isSavingSettings}
-                          style={{
-                            padding: '0.65rem 1.75rem',
-                            borderRadius: '0.55rem',
-                            border: 'none',
-                            backgroundColor: '#10b981',
-                            color: '#ffffff',
-                            fontWeight: 800,
-                            fontSize: '0.85rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {isSavingSettings ? 'Menyimpan...' : 'Simpan Konfigurasi Rekber'}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-
-                {/* 2. Whitelist Safe Domains */}
-                {masterSubTab === 'domains' && (
-                  <AdminSafeDomainsManagement
-                    token={token}
-                    themeMode={themeMode}
-                  />
-                )}
-
-                {/* 3. Canned Templates CS */}
-                {masterSubTab === 'templates' && (
-                  <div style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
-                    <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                        <div style={{ display: 'flex', gap: '0.35rem' }}>
-                          {(['all', 'general', 'order', 'animal', 'technical', 'billing'] as const).map(cat => (
-                            <button
-                              key={cat}
-                              type="button"
-                              onClick={() => setTemplateFilter(cat)}
-                              style={{
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '999px',
-                                border: `1px solid ${templateFilter === cat ? '#8b5cf6' : 'var(--border-light)'}`,
-                                backgroundColor: templateFilter === cat ? 'rgba(139, 92, 246, 0.12)' : 'transparent',
-                                color: templateFilter === cat ? '#8b5cf6' : 'var(--text-muted)',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {cat.toUpperCase()}
-                            </button>
-                          ))}
+                      {/* Template Cards Grid */}
+                      {loadingTemplates ? (
+                        <div style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <Loader2 size={28} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#8b5cf6' }} />
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Memuat daftar template CS...</span>
                         </div>
-
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      ) : cannedTemplates.length === 0 ? (
+                        <div style={{
+                          padding: '3rem 1.5rem',
+                          textAlign: 'center',
+                          backgroundColor: 'var(--bg-card)',
+                          borderRadius: '1rem',
+                          border: '1px dashed var(--border-light)',
+                          color: 'var(--text-muted)'
+                        }}>
+                          <Zap size={36} style={{ margin: '0 auto 0.5rem', display: 'block', opacity: 0.3 }} />
+                          <strong style={{ fontSize: '0.95rem', display: 'block', marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                            Tidak Ada Template Ditemukan
+                          </strong>
+                          <p style={{ fontSize: '0.8rem', margin: '0 0 1rem', color: 'var(--text-muted)' }}>
+                            Belum ada template pada kategori atau kata kunci pencarian ini.
+                          </p>
                           <button
                             type="button"
-                            onClick={handleResetTemplateDefaults}
+                            onClick={handleOpenCreateTemplate}
                             style={{
-                              padding: '0.45rem 0.85rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'transparent',
-                              color: 'var(--text-muted)',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Reset Default
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowAddTemplateModal(true)}
-                            style={{
-                              padding: '0.45rem 1rem',
-                              borderRadius: '0.5rem',
-                              border: 'none',
+                              padding: '0.55rem 1.15rem',
+                              borderRadius: '0.65rem',
                               backgroundColor: '#8b5cf6',
-                              color: '#ffffff',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
+                              border: 'none',
+                              color: '#fff',
+                              fontSize: '0.8rem',
+                              fontWeight: 800,
                               cursor: 'pointer'
                             }}
                           >
-                            + Tambah Template
+                            + Tambah Template Baru
                           </button>
                         </div>
-                      </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1rem' }}>
+                          {cannedTemplates.map(tmpl => {
+                            const catColors: Record<string, { bg: string; text: string; label: string }> = {
+                              general: { bg: 'rgba(56, 189, 248, 0.15)', text: '#0284c7', label: 'Umum' },
+                              billing: { bg: 'rgba(16, 185, 129, 0.15)', text: '#059669', label: 'Keuangan' },
+                              technical: { bg: 'rgba(245, 158, 11, 0.15)', text: '#d97706', label: 'Teknis' },
+                              closing: { bg: 'rgba(168, 85, 247, 0.15)', text: '#9333ea', label: 'Penutupan' },
+                              account: { bg: 'rgba(244, 63, 94, 0.15)', text: '#e11d48', label: 'Akun' }
+                            };
+                            const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#64748b', label: tmpl.category || 'Umum' };
+                            const isCopied = copiedTemplateId === tmpl.id;
 
-                      {/* Template List */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '0.85rem' }}>
-                        {cannedTemplates
-                          .filter(t => templateFilter === 'all' || t.category === templateFilter)
-                          .map(t => (
-                            <div
-                              key={t.id}
+                            return (
+                              <div
+                                key={tmpl.id}
+                                style={{
+                                  backgroundColor: 'var(--bg-card)',
+                                  border: `1px solid ${tmpl.is_active !== false ? 'var(--border-light)' : 'rgba(148, 163, 184, 0.2)'}`,
+                                  borderRadius: '1rem',
+                                  padding: '1.15rem',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.75rem',
+                                  opacity: tmpl.is_active !== false ? 1 : 0.65,
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0, flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                      <span style={{
+                                        fontSize: '0.66rem',
+                                        fontWeight: 800,
+                                        padding: '0.12rem 0.5rem',
+                                        borderRadius: '999px',
+                                        backgroundColor: catInfo.bg,
+                                        color: catInfo.text
+                                      }}>
+                                        {catInfo.label}
+                                      </span>
+
+                                      {(tmpl.shortcut || tmpl.shortcut_code) && (
+                                        <span style={{
+                                          fontSize: '0.66rem',
+                                          fontWeight: 800,
+                                          padding: '0.12rem 0.45rem',
+                                          borderRadius: '0.35rem',
+                                          backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                                          color: '#8b5cf6'
+                                        }}>
+                                          /{tmpl.shortcut || tmpl.shortcut_code}
+                                        </span>
+                                      )}
+
+                                      <span style={{
+                                        fontSize: '0.62rem',
+                                        fontWeight: 700,
+                                        padding: '0.1rem 0.4rem',
+                                        borderRadius: '0.35rem',
+                                        backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                        color: tmpl.is_active !== false ? '#10b981' : '#94a3b8'
+                                      }}>
+                                        {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
+                                      </span>
+                                    </div>
+
+                                    <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)', fontWeight: 800, marginTop: '0.15rem' }}>
+                                      {tmpl.title}
+                                    </strong>
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyTemplate(tmpl)}
+                                      style={{
+                                        padding: '0.4rem',
+                                        borderRadius: '0.45rem',
+                                        backgroundColor: 'var(--bg-deep)',
+                                        border: '1px solid var(--border-light)',
+                                        color: isCopied ? '#10b981' : 'var(--text-muted)',
+                                        cursor: 'pointer',
+                                        minWidth: '32px',
+                                        minHeight: '32px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title="Salin Isi Template"
+                                    >
+                                      {isCopied ? <CheckCheck size={14} /> : <Copy size={14} />}
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleTemplateActive(tmpl)}
+                                      style={{
+                                        padding: '0.4rem',
+                                        borderRadius: '0.45rem',
+                                        backgroundColor: 'var(--bg-deep)',
+                                        border: '1px solid var(--border-light)',
+                                        color: tmpl.is_active !== false ? '#10b981' : 'var(--text-muted)',
+                                        cursor: 'pointer',
+                                        minWidth: '32px',
+                                        minHeight: '32px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={tmpl.is_active !== false ? 'Nonaktifkan' : 'Aktifkan'}
+                                    >
+                                      {tmpl.is_active !== false ? <Check size={14} /> : <X size={14} />}
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditTemplate(tmpl)}
+                                      style={{
+                                        padding: '0.4rem',
+                                        borderRadius: '0.45rem',
+                                        backgroundColor: 'var(--bg-deep)',
+                                        border: '1px solid var(--border-light)',
+                                        color: '#3b82f6',
+                                        cursor: 'pointer',
+                                        minWidth: '32px',
+                                        minHeight: '32px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title="Edit Template"
+                                    >
+                                      <Sliders size={14} />
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
+                                      style={{
+                                        padding: '0.4rem',
+                                        borderRadius: '0.45rem',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                                        color: '#ef4444',
+                                        cursor: 'pointer',
+                                        minWidth: '32px',
+                                        minHeight: '32px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title="Hapus Template"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Template Message Content Box */}
+                                <div style={{
+                                  padding: '0.75rem 0.85rem',
+                                  borderRadius: '0.65rem',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)',
+                                  fontSize: '0.8rem',
+                                  color: 'var(--text-secondary)',
+                                  lineHeight: 1.5,
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                  maxHeight: '120px',
+                                  overflowY: 'auto'
+                                }}>
+                                  {tmpl.content}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Server-Side Pagination Bar */}
+                      {templatePagination.total_pages > 1 && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '1rem 1.25rem',
+                          borderRadius: '1rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          flexWrap: 'wrap',
+                          gap: '0.75rem'
+                        }}>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            {(() => {
+                              const totalCount = Number(templatePagination.total ?? cannedTemplates.length);
+                              const startIdx = totalCount > 0 ? ((templatePage - 1) * templateLimit) + 1 : 0;
+                              const endIdx = Math.min(templatePage * templateLimit, totalCount);
+                              return (
+                                <span>
+                                  Menampilkan <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{startIdx} - {endIdx}</strong> dari <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{totalCount}</strong> template
+                                </span>
+                              );
+                            })()}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <button
+                              type="button"
+                              disabled={templatePage <= 1 || loadingTemplates}
+                              onClick={() => {
+                                setTemplatePage(p => Math.max(1, p - 1));
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
                               style={{
-                                padding: '1rem',
-                                borderRadius: '0.75rem',
-                                backgroundColor: 'var(--bg-card)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.45rem 0.95rem',
+                                borderRadius: '0.55rem',
                                 border: '1px solid var(--border-light)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.5rem'
+                                backgroundColor: 'var(--bg-deep)',
+                                color: templatePage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: templatePage <= 1 ? 'not-allowed' : 'pointer',
+                                opacity: templatePage <= 1 ? 0.45 : 1,
+                                minHeight: '38px'
                               }}
                             >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#8b5cf6' }}>
-                                  [{t.category?.toUpperCase() || 'UMUM'}] {t.shortcut_code && `(${t.shortcut_code})`}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteTemplate(t.id)}
-                                  style={{
-                                    border: 'none',
-                                    background: 'none',
-                                    color: '#ef4444',
-                                    cursor: 'pointer',
-                                    padding: '0.2rem'
-                                  }}
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                              <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{t.title}</div>
-                              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
-                                {t.content}
-                              </div>
+                              <ChevronLeft size={15} />
+                              <span>Sebelumnya</span>
+                            </button>
+
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              minWidth: '60px',
+                              padding: '0.45rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                              border: '1px solid rgba(139, 92, 246, 0.25)',
+                              color: '#8b5cf6',
+                              fontSize: '0.8rem',
+                              fontWeight: 800,
+                              minHeight: '38px'
+                            }}>
+                              <span>{templatePage}</span>
+                              <span style={{ opacity: 0.5, margin: '0 0.25rem' }}>/</span>
+                              <span>{templatePagination.total_pages}</span>
                             </div>
-                          ))}
-                      </div>
+
+                            <button
+                              type="button"
+                              disabled={templatePage >= templatePagination.total_pages || loadingTemplates}
+                              onClick={() => {
+                                setTemplatePage(p => Math.min(templatePagination.total_pages, p + 1));
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.45rem 0.95rem',
+                                borderRadius: '0.55rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-deep)',
+                                color: templatePage >= templatePagination.total_pages ? 'var(--text-muted)' : 'var(--text-primary)',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: templatePage >= templatePagination.total_pages ? 'not-allowed' : 'pointer',
+                                opacity: templatePage >= templatePagination.total_pages ? 0.45 : 1,
+                                minHeight: '38px'
+                              }}
+                            >
+                              <span>Berikutnya</span>
+                              <ChevronRight size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -9848,6 +10885,311 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE / EDIT CS TEMPLATE FORM MODAL (CENTERED DIALOG TABLET) */}
+      {showTemplateFormModal && (
+        <div
+          onClick={() => setShowTemplateFormModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '560px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1.25rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.35)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.15rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  color: '#8b5cf6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Zap size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {editingTemplate ? 'Edit Template Balasan CS' : 'Tambah Template Balasan CS'}
+                  </h3>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    Konfigurasi pesan standar balasan cepat staf CS platform
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowTemplateFormModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '0.35rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderRadius: '0.45rem'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Form Body */}
+            <form onSubmit={handleSaveTemplate} style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>
+                    Judul Template <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    {templateForm.title.length}/60
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  maxLength={60}
+                  value={templateForm.title}
+                  onChange={e => setTemplateForm({ ...templateForm, title: e.target.value })}
+                  placeholder="Contoh: Salam & Permintaan Screenshot Bukti"
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.82rem',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                    Shortcut Cepat
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#8b5cf6', fontWeight: 800, fontSize: '0.85rem' }}>
+                      /
+                    </span>
+                    <input
+                      type="text"
+                      value={templateForm.shortcut}
+                      onChange={e => setTemplateForm({ ...templateForm, shortcut: e.target.value.replace(/^\//, '').toLowerCase() })}
+                      placeholder="salam"
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem 0.65rem 1.6rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.82rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                    Kategori Template
+                  </label>
+                  <select
+                    value={templateForm.category}
+                    onChange={e => setTemplateForm({ ...templateForm, category: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.82rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="general">Umum &amp; Greeting</option>
+                    <option value="billing">Keuangan &amp; Billing</option>
+                    <option value="technical">Kendala Teknis</option>
+                    <option value="closing">Penutupan Tiket</option>
+                    <option value="account">Akun &amp; Keamanan</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)' }}>
+                    Isi Template Pesan <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    Klik tag di bawah untuk menyisipkan variabel:
+                  </span>
+                </div>
+
+                {/* Variable Tag Inserters */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                  {[
+                    { tag: '{{merchant_name}}', label: 'Merchant' },
+                    { tag: '{{store_name}}', label: 'Toko' },
+                    { tag: '{{ticket_number}}', label: 'No Tiket' },
+                    { tag: '{{agent_name}}', label: 'Staf CS' }
+                  ].map(v => (
+                    <button
+                      key={v.tag}
+                      type="button"
+                      onClick={() => setTemplateForm(prev => ({ ...prev, content: prev.content + v.tag }))}
+                      style={{
+                        padding: '0.25rem 0.55rem',
+                        borderRadius: '0.4rem',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                        border: '1px dashed rgba(139, 92, 246, 0.35)',
+                        color: '#8b5cf6',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      + {v.tag}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  value={templateForm.content}
+                  onChange={e => setTemplateForm({ ...templateForm, content: e.target.value })}
+                  placeholder="Tulis draf pesan template di sini..."
+                  rows={5}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.82rem',
+                    lineHeight: 1.5,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+
+              {/* Active Toggle Checkbox */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.75rem 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)'
+              }}>
+                <div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Status Aktif Template
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    Template akan muncul di daftar pilihan staf saat merespons tiket bantuan
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={templateForm.is_active}
+                  onChange={e => setTemplateForm({ ...templateForm, is_active: e.target.checked })}
+                  style={{ width: '18px', height: '18px', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateFormModal(false)}
+                  style={{
+                    padding: '0.6rem 1.15rem',
+                    borderRadius: '0.65rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    minHeight: '42px'
+                  }}
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingTemplate}
+                  style={{
+                    padding: '0.6rem 1.35rem',
+                    borderRadius: '0.65rem',
+                    border: 'none',
+                    backgroundColor: '#8b5cf6',
+                    color: '#ffffff',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: savingTemplate ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)',
+                    minHeight: '42px'
+                  }}
+                >
+                  {savingTemplate ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                  <span>{savingTemplate ? 'Menyimpan...' : (editingTemplate ? 'Perbarui Template' : 'Simpan Template')}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
