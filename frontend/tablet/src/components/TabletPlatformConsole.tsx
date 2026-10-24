@@ -76,7 +76,8 @@ import {
   ShoppingBag,
   PhoneCall,
   Link as LinkIcon,
-  Upload
+  Upload,
+  Server
 } from 'lucide-react';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
@@ -2020,49 +2021,66 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [selectedAuditLogId, setSelectedAuditLogId] = useState<number | null>(null);
   const [auditSearch, setAuditSearch] = useState('');
-  const [auditFilter, setAuditFilter] = useState<'all' | 'auth' | 'store' | 'order' | 'ticket' | 'system'>('all');
+  const [debouncedAuditSearch, setDebouncedAuditSearch] = useState('');
+  const [auditCategoryFilter, setAuditCategoryFilter] = useState<string>('all');
+  const [auditRoleFilter, setAuditRoleFilter] = useState<string>('all');
+  const [auditPage, setAuditPage] = useState<number>(1);
+  const [auditLimit, setAuditLimit] = useState<number>(15);
+  const [auditTotal, setAuditTotal] = useState<number>(0);
+  const [isLoadingAudit, setIsLoadingAudit] = useState<boolean>(false);
+  const [copiedAuditPayload, setCopiedAuditPayload] = useState<boolean>(false);
 
-  const fetchAuditLogs = useCallback(async () => {
+  // Debounce audit search input (350ms)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedAuditSearch(auditSearch.trim());
+      setAuditPage(1);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [auditSearch]);
+
+  const fetchAuditLogs = useCallback(async (pageToFetch: number = auditPage) => {
     if (!token) return;
+    setIsLoadingAudit(true);
     try {
-      const res = await authFetch('/api/admin/audit-logs?limit=50', {
+      const params = new URLSearchParams({
+        page: String(pageToFetch),
+        limit: String(auditLimit),
+      });
+      if (auditCategoryFilter !== 'all') params.set('category', auditCategoryFilter);
+      if (auditRoleFilter !== 'all') params.set('role', auditRoleFilter);
+      if (debouncedAuditSearch) params.set('q', debouncedAuditSearch);
+
+      const res = await authFetch(`/api/admin/audit-logs?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const j = await res.json();
-        setAuditLogs(j.data || []);
+        const data = Array.isArray(j.data) ? j.data : [];
+        setAuditLogs(data);
+        setAuditTotal(typeof j.total === 'number' ? j.total : data.length);
+        setAuditPage(pageToFetch);
+        if (data.length > 0) {
+          setSelectedAuditLogId(prevId => {
+            const exists = data.some((item: any) => (item.id || item.created_at) === prevId);
+            return exists ? prevId : (data[0].id || data[0].created_at);
+          });
+        } else {
+          setSelectedAuditLogId(null);
+        }
       }
     } catch {
       // Fail silently
+    } finally {
+      setIsLoadingAudit(false);
     }
-  }, [token, authFetch]);
+  }, [token, authFetch, auditLimit, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch, auditPage]);
 
   useEffect(() => {
     if (activeView === 'audit') {
-      fetchAuditLogs();
+      fetchAuditLogs(auditPage);
     }
-  }, [activeView, fetchAuditLogs]);
-
-  const filteredAuditLogs = useMemo(() => {
-    return auditLogs.filter(log => {
-      const action = (log.action || '').toLowerCase();
-      const matchFilter =
-        auditFilter === 'all' ||
-        (auditFilter === 'auth' && (action.includes('login') || action.includes('token') || action.includes('staff'))) ||
-        (auditFilter === 'store' && action.includes('store')) ||
-        (auditFilter === 'order' && (action.includes('order') || action.includes('subscription'))) ||
-        (auditFilter === 'ticket' && (action.includes('ticket') || action.includes('support'))) ||
-        (auditFilter === 'system' && (action.includes('system') || action.includes('setting') || action.includes('bot')));
-
-      const matchSearch =
-        !auditSearch ||
-        action.includes(auditSearch.toLowerCase()) ||
-        (log.actor_email || log.actor || '').toLowerCase().includes(auditSearch.toLowerCase()) ||
-        (log.description || '').toLowerCase().includes(auditSearch.toLowerCase());
-
-      return matchFilter && matchSearch;
-    });
-  }, [auditLogs, auditFilter, auditSearch]);
+  }, [activeView, auditPage, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch, fetchAuditLogs]);
 
   const selectedAuditLog = useMemo(() => {
     return auditLogs.find(l => (l.id || l.created_at) === selectedAuditLogId) || null;
@@ -10538,23 +10556,55 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           {activeView === 'audit' && (
             <TabletMasterDetailView
               title="Forensik Audit Trail"
-              subtitle={`${filteredAuditLogs.length} rekaman audit`}
+              subtitle={`${auditTotal || auditLogs.length} rekaman audit`}
               selectedId={selectedAuditLogId}
               onClearSelection={() => setSelectedAuditLogId(null)}
               hideHeaderTitle={true}
               masterPane={
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {/* Top Search & Filter Bar */}
+                  <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.5rem', backgroundColor: 'var(--bg-card)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <History size={16} color="var(--primary)" />
+                        <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          Jejak Audit Sistem
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isLoadingAudit}
+                        onClick={() => fetchAuditLogs(1)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          padding: '0.3rem 0.6rem',
+                          borderRadius: '0.5rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <RefreshCw size={12} className={isLoadingAudit ? 'animate-spin' : ''} color="var(--primary)" />
+                        <span>Segarkan</span>
+                      </button>
+                    </div>
+
+                    {/* Search Input with Clear Button */}
                     <div style={{ position: 'relative' }}>
                       <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)' }} />
                       <input
                         type="text"
                         value={auditSearch}
                         onChange={e => setAuditSearch(e.target.value)}
-                        placeholder="Cari aksi atau email aktor..."
+                        placeholder="Cari aksi, deskripsi, aktor..."
                         style={{
                           width: '100%',
-                          padding: '0.45rem 0.65rem 0.45rem 2rem',
+                          padding: '0.45rem 2rem 0.45rem 2rem',
                           borderRadius: '0.5rem',
                           border: '1px solid var(--border-light)',
                           backgroundColor: 'var(--bg-deep)',
@@ -10564,41 +10614,144 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           outline: 'none'
                         }}
                       />
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto' }}>
-                      {(['all', 'auth', 'store', 'order', 'ticket', 'system'] as const).map(flt => (
+                      {auditSearch && (
                         <button
-                          key={flt}
                           type="button"
-                          onClick={() => setAuditFilter(flt)}
+                          onClick={() => setAuditSearch('')}
                           style={{
-                            padding: '0.25rem 0.55rem',
-                            borderRadius: '999px',
-                            border: `1px solid ${auditFilter === flt ? 'var(--primary)' : 'var(--border-light)'}`,
-                            backgroundColor: auditFilter === flt ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
-                            color: auditFilter === flt ? 'var(--primary)' : 'var(--text-muted)',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
+                            position: 'absolute',
+                            right: '0.5rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
                             cursor: 'pointer',
-                            whiteSpace: 'nowrap'
+                            display: 'flex',
+                            alignItems: 'center'
                           }}
                         >
-                          {flt.toUpperCase()}
+                          <X size={13} />
                         </button>
-                      ))}
+                      )}
+                    </div>
+
+                    {/* Category Filter Horizontal Pills */}
+                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+                      {[
+                        { id: 'all', label: 'SEMUA', icon: History },
+                        { id: 'security', label: 'KEAMANAN', icon: Shield },
+                        { id: 'catalog', label: 'KATALOG', icon: ShoppingBag },
+                        { id: 'store', label: 'TOKO', icon: StoreIcon },
+                        { id: 'billing', label: 'FINANSIAL', icon: CreditCard },
+                        { id: 'moderation', label: 'MODERASI', icon: AlertTriangle },
+                        { id: 'system', label: 'SISTEM', icon: Server }
+                      ].map(cat => {
+                        const isCatActive = auditCategoryFilter === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              setAuditCategoryFilter(cat.id);
+                              setAuditPage(1);
+                            }}
+                            style={{
+                              padding: '0.25rem 0.55rem',
+                              borderRadius: '999px',
+                              border: `1px solid ${isCatActive ? 'var(--primary)' : 'var(--border-light)'}`,
+                              backgroundColor: isCatActive ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
+                              color: isCatActive ? 'var(--primary)' : 'var(--text-muted)',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {cat.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Role Filter Pills */}
+                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto' }}>
+                      {[
+                        { id: 'all', label: 'Semua Aktor' },
+                        { id: 'superadmin', label: 'Superadmin' },
+                        { id: 'merchant', label: 'Merchant' },
+                        { id: 'system', label: 'Sistem' }
+                      ].map(r => {
+                        const isRoleActive = auditRoleFilter === r.id;
+                        return (
+                          <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => {
+                              setAuditRoleFilter(r.id);
+                              setAuditPage(1);
+                            }}
+                            style={{
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '0.4rem',
+                              border: `1px solid ${isRoleActive ? 'var(--primary)' : 'var(--border-light)'}`,
+                              backgroundColor: isRoleActive ? 'rgba(59, 130, 246, 0.18)' : 'transparent',
+                              color: isRoleActive ? 'var(--primary)' : 'var(--text-muted)',
+                              fontSize: '0.65rem',
+                              fontWeight: isRoleActive ? 800 : 500,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {r.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
+                  {/* Master List Records */}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {filteredAuditLogs.length === 0 ? (
+                    {isLoadingAudit && auditLogs.length === 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {[1, 2, 3, 4].map(n => (
+                          <div
+                            key={n}
+                            style={{
+                              padding: '0.85rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border-light)',
+                              opacity: 0.5
+                            }}
+                          >
+                            <div style={{ height: '12px', width: '45%', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '4px', marginBottom: '0.35rem' }} />
+                            <div style={{ height: '10px', width: '80%', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : auditLogs.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                         <History size={36} color="var(--text-muted)" style={{ marginBottom: '0.5rem' }} />
-                        <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Tidak ada rekaman audit</div>
+                        <div style={{ fontSize: '0.86rem', fontWeight: 700 }}>Tidak ada rekaman audit</div>
+                        <div style={{ fontSize: '0.72rem', marginTop: '0.25rem' }}>
+                          Tidak ditemukan log aktivitas yang sesuai dengan filter kueri saat ini.
+                        </div>
                       </div>
                     ) : (
-                      filteredAuditLogs.map((log, idx) => {
-                        const logId = log.id || idx;
+                      auditLogs.map((log, idx) => {
+                        const logId = log.id || log.created_at || idx;
                         const isSelected = selectedAuditLogId === logId;
+                        const cat = (log.category || '').toLowerCase();
+                        let catColor = '#64748b';
+                        let catBg = 'rgba(100, 116, 139, 0.15)';
+                        if (cat === 'security') { catColor = '#f59e0b'; catBg = 'rgba(245, 158, 11, 0.15)'; }
+                        else if (cat === 'catalog') { catColor = '#10b981'; catBg = 'rgba(16, 185, 129, 0.15)'; }
+                        else if (cat === 'store') { catColor = '#3b82f6'; catBg = 'rgba(59, 130, 246, 0.15)'; }
+                        else if (cat === 'billing') { catColor = '#8b5cf6'; catBg = 'rgba(139, 92, 246, 0.15)'; }
+                        else if (cat === 'moderation') { catColor = '#ef4444'; catBg = 'rgba(239, 68, 68, 0.15)'; }
+                        else if (cat === 'system') { catColor = '#06b6d4'; catBg = 'rgba(6, 182, 212, 0.15)'; }
+
                         return (
                           <div
                             key={logId}
@@ -10611,84 +10764,203 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               cursor: 'pointer',
                               display: 'flex',
                               flexDirection: 'column',
-                              gap: '0.25rem'
+                              gap: '0.3rem',
+                              transition: 'all 0.15s ease'
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)' }}>
-                                {log.action || 'ACTION'}
-                              </span>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID') : '-'}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 800,
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '4px',
+                                  backgroundColor: catBg,
+                                  color: catColor
+                                }}>
+                                  {log.category || 'AKTIVITAS'}
+                                </span>
+                                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>
+                                  {log.action || 'ACTION'}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
                               </span>
                             </div>
-                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                              {log.description || log.target || 'Tindakan sistem'}
+                            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                              {log.description || log.entity_title || 'Tindakan sistem'}
                             </div>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                              Oleh: {log.actor_email || log.actor || 'System'}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                              <span>Oleh: <strong style={{ color: 'var(--text-secondary)' }}>{log.actor_name || log.actor_email || 'System'}</strong></span>
+                              <span style={{
+                                padding: '0.05rem 0.35rem',
+                                borderRadius: '4px',
+                                fontSize: '0.6rem',
+                                fontWeight: 700,
+                                backgroundColor: log.actor_role === 'superadmin' ? 'rgba(239,68,68,0.12)' : 'rgba(59,130,246,0.12)',
+                                color: log.actor_role === 'superadmin' ? '#ef4444' : '#3b82f6'
+                              }}>
+                                {log.actor_role || 'staf'}
+                              </span>
                             </div>
                           </div>
                         );
                       })
                     )}
                   </div>
+
+                  {/* Isolated Tablet Master Pagination Bar */}
+                  <TabletSegmentedPagination
+                    currentPage={auditPage}
+                    totalPages={Math.max(1, Math.ceil(auditTotal / auditLimit))}
+                    totalRecords={auditTotal}
+                    pageSize={auditLimit}
+                    onPageChange={(p) => setAuditPage(p)}
+                    isLoading={isLoadingAudit}
+                  />
                 </div>
               }
               detailPane={
                 selectedAuditLog ? (
-                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
+                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
+                    {/* Header Banner */}
                     <div style={{
-                      padding: '1.25rem',
+                      padding: '1.15rem',
                       borderRadius: '1rem',
                       backgroundColor: 'var(--bg-deep)',
                       border: '1px solid var(--border-light)'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)' }}>
-                          [{selectedAuditLog.action}]
-                        </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>
+                            [{selectedAuditLog.action || 'system.log'}]
+                          </span>
+                          <span style={{
+                            fontSize: '0.66rem',
+                            fontWeight: 800,
+                            padding: '0.1rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                            color: 'var(--primary)'
+                          }}>
+                            ID #{selectedAuditLog.id}
+                          </span>
+                        </div>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                          {selectedAuditLog.created_at ? new Date(selectedAuditLog.created_at).toLocaleString('id-ID') : '-'}
+                          {selectedAuditLog.created_at ? new Date(selectedAuditLog.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' }) : '-'}
                         </span>
                       </div>
 
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                        {selectedAuditLog.description || selectedAuditLog.target}
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0.5rem 0 0.75rem 0', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                        {selectedAuditLog.description || selectedAuditLog.target || 'Tindakan operasional sistem'}
                       </h3>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', fontSize: '0.8rem', marginTop: '1rem' }}>
-                        <div>
-                          <div style={{ color: 'var(--text-muted)' }}>Aktor Pengguna</div>
-                          <div style={{ fontWeight: 800 }}>{selectedAuditLog.actor_email || selectedAuditLog.actor || 'System'}</div>
+                      {/* 2-Column Actor & Network Details */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', fontSize: '0.78rem', marginTop: '0.75rem' }}>
+                        <div style={{ padding: '0.75rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.68rem', marginBottom: '0.2rem' }}>Aktor Pengguna</div>
+                          <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{selectedAuditLog.actor_name || selectedAuditLog.actor_email || 'System'}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{selectedAuditLog.actor_email || '-'}</div>
+                          <div style={{ marginTop: '0.35rem' }}>
+                            <span style={{
+                              padding: '0.1rem 0.4rem',
+                              borderRadius: '4px',
+                              fontSize: '0.62rem',
+                              fontWeight: 800,
+                              backgroundColor: selectedAuditLog.actor_role === 'superadmin' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                              color: selectedAuditLog.actor_role === 'superadmin' ? '#ef4444' : '#3b82f6'
+                            }}>
+                              Role: {selectedAuditLog.actor_role || 'staf'}
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ color: 'var(--text-muted)' }}>Alamat IP</div>
-                          <div style={{ fontWeight: 800, fontFamily: 'monospace' }}>{selectedAuditLog.ip_address || selectedAuditLog.ip || '127.0.0.1'}</div>
+
+                        <div style={{ padding: '0.75rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.68rem', marginBottom: '0.2rem' }}>Alamat IP & Jaringan</div>
+                          <div style={{ fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                            {selectedAuditLog.ip_address || '127.0.0.1'}
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                            {selectedAuditLog.user_agent ? 'Browser Client Active' : 'Internal Process'}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Raw Payload JSON */}
-                      {selectedAuditLog.payload && (
-                        <div style={{ marginTop: '1.25rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 800 }}>
-                              Payload Data Forensik:
+                      {/* Target Entity Snapshot (if present) */}
+                      {(selectedAuditLog.entity_type || selectedAuditLog.entity_title || selectedAuditLog.entity_id) && (
+                        <div style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.68rem', marginBottom: '0.3rem' }}>
+                            Entitas Sasaran (Target)
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '6px',
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                              color: '#10b981'
+                            }}>
+                              {selectedAuditLog.entity_type || 'Entity'}
+                            </span>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {selectedAuditLog.entity_title || `ID #${selectedAuditLog.entity_id}`}
+                            </span>
+                            {selectedAuditLog.entity_id && (
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                (ID: {selectedAuditLog.entity_id})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Client User Agent (if present) */}
+                      {selectedAuditLog.user_agent && (
+                        <div style={{ marginTop: '0.75rem' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.25rem' }}>
+                            Client User-Agent:
+                          </div>
+                          <div style={{
+                            padding: '0.6rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-card)',
+                            border: '1px solid var(--border-light)',
+                            fontSize: '0.7rem',
+                            color: 'var(--text-secondary)',
+                            fontFamily: 'monospace',
+                            wordBreak: 'break-all'
+                          }}>
+                            {selectedAuditLog.user_agent}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Raw Payload / Changes JSON */}
+                      {(selectedAuditLog.changes || selectedAuditLog.payload) && (
+                        <div style={{ marginTop: '1rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              Payload Data Forensik / Diff:
                             </div>
                             <button
                               type="button"
                               onClick={() => {
-                                const text = typeof selectedAuditLog.payload === 'string'
-                                  ? selectedAuditLog.payload
-                                  : JSON.stringify(selectedAuditLog.payload, null, 2);
+                                const raw = selectedAuditLog.changes || selectedAuditLog.payload;
+                                const text = typeof raw === 'string'
+                                  ? raw
+                                  : JSON.stringify(raw, null, 2);
                                 navigator.clipboard.writeText(text);
+                                setCopiedAuditPayload(true);
                                 showToast('Payload audit disalin ke clipboard');
+                                setTimeout(() => setCopiedAuditPayload(false), 2000);
                               }}
                               style={{
                                 background: 'none',
                                 border: 'none',
                                 color: 'var(--primary)',
-                                fontSize: '0.75rem',
+                                fontSize: '0.74rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 display: 'flex',
@@ -10696,30 +10968,50 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 gap: '0.3rem'
                               }}
                             >
-                              <Copy size={13} />
-                              <span>Salin JSON</span>
+                              {copiedAuditPayload ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
+                              <span>{copiedAuditPayload ? 'Tersalin' : 'Salin JSON'}</span>
                             </button>
                           </div>
                           <pre style={{
                             margin: 0,
                             padding: '0.85rem',
-                            borderRadius: '0.5rem',
+                            borderRadius: '0.65rem',
                             backgroundColor: 'var(--bg-card)',
                             border: '1px solid var(--border-light)',
-                            fontSize: '0.75rem',
-                            color: 'var(--text-primary)',
+                            fontSize: '0.74rem',
+                            color: '#38bdf8',
                             overflowX: 'auto',
-                            fontFamily: 'monospace'
+                            fontFamily: 'monospace',
+                            maxHeight: '280px'
                           }}>
-                            {typeof selectedAuditLog.payload === 'string'
-                              ? selectedAuditLog.payload
-                              : JSON.stringify(selectedAuditLog.payload, null, 2)}
+                            {typeof (selectedAuditLog.changes || selectedAuditLog.payload) === 'string'
+                              ? (selectedAuditLog.changes || selectedAuditLog.payload)
+                              : JSON.stringify(selectedAuditLog.changes || selectedAuditLog.payload, null, 2)}
                           </pre>
                         </div>
                       )}
                     </div>
                   </div>
-                ) : null
+                ) : (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    padding: '2rem',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)'
+                  }}>
+                    <History size={48} color="var(--text-muted)" style={{ marginBottom: '0.85rem', opacity: 0.6 }} />
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Belum Ada Rekaman Dipilih
+                    </div>
+                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.3rem', maxWidth: '320px' }}>
+                      Pilih salah satu entri audit di panel sebelah kiri untuk memeriksa rincian forensik, identitas aktor, IP, dan payload data.
+                    </div>
+                  </div>
+                )
               }
             />
           )}

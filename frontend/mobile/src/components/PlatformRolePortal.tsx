@@ -74,6 +74,7 @@ import {
   Volume2,
   VolumeX,
   ArrowUp,
+  ArrowDown,
   Database,
   Package,
   Utensils,
@@ -85,7 +86,8 @@ import {
   PhoneCall,
   Link as LinkIcon,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Server
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -1317,6 +1319,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [isTriggeringBot, setIsTriggeringBot] = useState<string | null>(null);
   const [isTestingSandbox, setIsTestingSandbox] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditTotal, setAuditTotal] = useState<number>(0);
+  const [auditPage, setAuditPage] = useState<number>(1);
+  const [auditHasMore, setAuditHasMore] = useState<boolean>(false);
+  const [auditCategoryFilter, setAuditCategoryFilter] = useState<string>('all');
+  const [auditRoleFilter, setAuditRoleFilter] = useState<string>('all');
+  const [auditSearchInput, setAuditSearchInput] = useState<string>('');
+  const [debouncedAuditSearch, setDebouncedAuditSearch] = useState<string>('');
+  const [isLoadingAudit, setIsLoadingAudit] = useState<boolean>(false);
+  const [isLoadingMoreAudit, setIsLoadingMoreAudit] = useState<boolean>(false);
+  const [selectedAuditLog, setSelectedAuditLog] = useState<any | null>(null);
+  const [showAuditDetailSheet, setShowAuditDetailSheet] = useState<boolean>(false);
+  const [copiedAuditPayload, setCopiedAuditPayload] = useState<boolean>(false);
 
   // State: Google AdSense & Analytics Settings
   const [monetizationTab, setMonetizationTab] = useState<'adsense' | 'analytics'>('adsense');
@@ -2369,19 +2383,79 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           }
         }
       }
-      if (canAccessAudit) {
-        const auditRes = await fetch('/api/admin/audit-logs?limit=20', { headers: { Authorization: `Bearer ${token}` } });
-        if (auditRes.ok) {
-          const aData = await auditRes.json();
-          setAuditLogs(Array.isArray(aData.data) ? aData.data : []);
-        }
-      }
     } catch {
       showToast('Gagal memuat sebagian data', 'error');
     } finally {
       setLoading(false);
     }
   };
+
+  // Debounce search input for Audit Trail (350ms)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedAuditSearch(auditSearchInput.trim());
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [auditSearchInput]);
+
+  // Server-side Fetch Audit Logs with progressive load-more support
+  const fetchAuditLogs = useCallback(async (pageToFetch: number = 1, append: boolean = false) => {
+    if (!token || !canAccessAudit) return;
+    if (append) {
+      setIsLoadingMoreAudit(true);
+    } else {
+      setIsLoadingAudit(true);
+    }
+    try {
+      const params = new URLSearchParams({
+        page: String(pageToFetch),
+        limit: '15',
+      });
+      if (auditCategoryFilter !== 'all') params.set('category', auditCategoryFilter);
+      if (auditRoleFilter !== 'all') params.set('role', auditRoleFilter);
+      if (debouncedAuditSearch) params.set('q', debouncedAuditSearch);
+
+      const res = await fetch(`/api/admin/audit-logs?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const j = await res.json();
+        const dataList = Array.isArray(j.data) ? j.data : [];
+        if (append) {
+          setAuditLogs(prev => {
+            const existingIds = new Set(prev.map(item => item.id || item.created_at));
+            const newItems = dataList.filter((item: any) => !existingIds.has(item.id || item.created_at));
+            return [...prev, ...newItems];
+          });
+        } else {
+          setAuditLogs(dataList);
+        }
+        setAuditPage(pageToFetch);
+        setAuditTotal(typeof j.total === 'number' ? j.total : dataList.length);
+        setAuditHasMore(Boolean(j.has_more));
+      } else {
+        showToast('Gagal memuat log audit sistem', 'error');
+      }
+    } catch {
+      showToast('Terjadi kesalahan jaringan saat memuat log audit', 'error');
+    } finally {
+      setIsLoadingAudit(false);
+      setIsLoadingMoreAudit(false);
+    }
+  }, [token, canAccessAudit, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch]);
+
+  // Lazy-load audit logs only when activeView === 'audit' or query filters change
+  useEffect(() => {
+    if (activeView === 'audit' && canAccessAudit) {
+      fetchAuditLogs(1, false);
+    }
+  }, [activeView, canAccessAudit, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch, fetchAuditLogs]);
+
+  useModalBackHandler({
+    isOpen: showAuditDetailSheet,
+    onClose: () => setShowAuditDetailSheet(false),
+    modalId: 'mobile_audit_detail'
+  });
 
   const fetchAutomationData = async (botFilter = automationLogsBotFilter, statusFilter = automationLogsStatusFilter, search = automationLogsSearch) => {
     if (!token || !canAccessAutomation) return;
@@ -11721,49 +11795,707 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* 4. MODULE 8: AUDIT TRAIL LOGS                                             */}
       {/* ========================================================================= */}
       {activeView === 'audit' && canAccessAudit && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-          <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
-            System Audit Trail ({auditLogs.length})
-          </h4>
-
-          {auditLogs.length === 0 ? (
-            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <Activity size={36} color="#94a3b8" style={{ margin: '0 auto 0.65rem' }} />
-              <p style={{ margin: 0, color: theme.textSecondary, fontSize: '0.76rem' }}>Belum ada log audit keamanan tercatat.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {/* Audit Header Bar & Live Refresh */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.2rem' }}>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
+                System-Wide Audit Trail
+              </h4>
+              <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.7rem', color: theme.textSecondary }}>
+                Jejak forensik & kepatuhan seluruh tindakan administratif
+              </p>
             </div>
-          ) : (
-            auditLogs.map((log) => (
-              <div
-                key={log.id}
+            <button
+              type="button"
+              disabled={isLoadingAudit}
+              onClick={() => fetchAuditLogs(1, false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.45rem 0.75rem',
+                borderRadius: '0.65rem',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: theme.surface,
+                color: theme.textPrimary,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                opacity: isLoadingAudit ? 0.6 : 1,
+                boxShadow: theme.cardShadow
+              }}
+            >
+              <RefreshCw size={13} className={isLoadingAudit ? 'animate-spin' : ''} color="#3b82f6" />
+              <span>Segarkan</span>
+            </button>
+          </div>
+
+          {/* Search Bar Input */}
+          <div style={{ position: 'relative' }}>
+            <Search size={15} color={theme.textMuted} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              value={auditSearchInput}
+              onChange={(e) => setAuditSearchInput(e.target.value)}
+              placeholder="Cari aksi, deskripsi, atau email aktor..."
+              style={{
+                width: '100%',
+                padding: '0.55rem 2.2rem 0.55rem 2.25rem',
+                borderRadius: '0.75rem',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: theme.surface,
+                color: theme.textPrimary,
+                fontSize: '0.78rem',
+                boxSizing: 'border-box',
+                outline: 'none',
+                boxShadow: theme.cardShadow
+              }}
+            />
+            {auditSearchInput && (
+              <button
+                type="button"
+                onClick={() => setAuditSearchInput('')}
                 style={{
-                  padding: '0.95rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.surface,
-                  border: `1px solid ${theme.border}`,
-                  boxShadow: theme.cardShadow,
+                  position: 'absolute',
+                  right: '0.65rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  padding: '0.2rem',
+                  cursor: 'pointer',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.4rem'
+                  alignItems: 'center',
+                  color: theme.textMuted
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 800, color: theme.textPrimary }}>
-                    {log.action || 'Aktivitas Sistem'}
-                  </span>
-                  <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                    {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
-                  </span>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Horizontal Scrollable Category Filter Pills */}
+          <div style={{
+            display: 'flex',
+            gap: '0.35rem',
+            overflowX: 'auto',
+            paddingBottom: '0.25rem',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }}>
+            {[
+              { id: 'all', label: 'Semua Kategori', icon: History },
+              { id: 'security', label: 'Keamanan', icon: Shield },
+              { id: 'catalog', label: 'Katalog', icon: ShoppingBag },
+              { id: 'store', label: 'Toko', icon: Store },
+              { id: 'billing', label: 'Finansial', icon: CreditCard },
+              { id: 'moderation', label: 'Moderasi', icon: AlertTriangle },
+              { id: 'system', label: 'Sistem', icon: Server }
+            ].map((cat) => {
+              const isActive = auditCategoryFilter === cat.id;
+              const IconComp = cat.icon;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setAuditCategoryFilter(cat.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '999px',
+                    border: `1.5px solid ${isActive ? '#3b82f6' : theme.border}`,
+                    backgroundColor: isActive ? (isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)') : theme.surface,
+                    color: isActive ? '#3b82f6' : theme.textSecondary,
+                    fontSize: '0.72rem',
+                    fontWeight: isActive ? 800 : 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <IconComp size={13} color={isActive ? '#3b82f6' : theme.textMuted} />
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Role Filter Pills */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            overflowX: 'auto',
+            paddingBottom: '0.15rem'
+          }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: theme.textMuted, marginRight: '0.2rem', whiteSpace: 'nowrap' }}>
+              Aktor:
+            </span>
+            {[
+              { id: 'all', label: 'Semua Aktor' },
+              { id: 'superadmin', label: 'Superadmin' },
+              { id: 'merchant', label: 'Merchant' },
+              { id: 'system', label: 'Sistem Otomatis' }
+            ].map((r) => {
+              const isActive = auditRoleFilter === r.id;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setAuditRoleFilter(r.id)}
+                  style={{
+                    padding: '0.25rem 0.6rem',
+                    borderRadius: '0.5rem',
+                    border: `1px solid ${isActive ? (isDark ? '#60a5fa' : '#3b82f6') : theme.border}`,
+                    backgroundColor: isActive ? (isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.12)') : 'transparent',
+                    color: isActive ? (isDark ? '#93c5fd' : '#2563eb') : theme.textMuted,
+                    fontSize: '0.68rem',
+                    fontWeight: isActive ? 800 : 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Audit Card List Stream */}
+          {isLoadingAudit && auditLogs.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', padding: '1rem 0' }}>
+              {[1, 2, 3].map((n) => (
+                <div
+                  key={n}
+                  style={{
+                    padding: '1rem',
+                    borderRadius: '0.95rem',
+                    backgroundColor: theme.surface,
+                    border: `1px solid ${theme.border}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    opacity: 0.6
+                  }}
+                >
+                  <div style={{ height: '14px', width: '40%', backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderRadius: '4px' }} />
+                  <div style={{ height: '12px', width: '85%', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderRadius: '4px' }} />
+                  <div style={{ height: '12px', width: '60%', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', borderRadius: '4px' }} />
                 </div>
-                <div style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
-                  Aktor: <strong style={{ color: theme.textPrimary }}>{log.user_email || 'Sistem'}</strong> ({log.role || 'Superadmin'})
-                </div>
-                {log.details && (
-                  <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textMuted, fontStyle: 'italic' }}>
-                    {log.details}
-                  </p>
+              ))}
+            </div>
+          ) : auditLogs.length === 0 ? (
+            <div style={{ padding: '3rem 1.5rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+              <History size={38} color="#94a3b8" style={{ margin: '0 auto 0.75rem' }} />
+              <div style={{ fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary, marginBottom: '0.25rem' }}>
+                Tidak ada rekaman audit
+              </div>
+              <p style={{ margin: 0, color: theme.textSecondary, fontSize: '0.74rem', lineHeight: 1.4 }}>
+                {debouncedAuditSearch || auditCategoryFilter !== 'all' || auditRoleFilter !== 'all'
+                  ? 'Tidak ada log aktivitas yang sesuai dengan kriteria filter saat ini.'
+                  : 'Belum ada log audit keamanan atau aktivitas staf yang tercatat.'}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {auditLogs.map((log) => {
+                const cat = (log.category || '').toLowerCase();
+                let catColor = '#64748b';
+                let catBg = isDark ? 'rgba(100, 116, 139, 0.15)' : '#f1f5f9';
+                let catIcon = Activity;
+                let catLabel = 'Aktivitas';
+
+                if (cat === 'security') {
+                  catColor = '#f59e0b';
+                  catBg = isDark ? 'rgba(245, 158, 11, 0.18)' : '#fef3c7';
+                  catIcon = Shield;
+                  catLabel = 'Keamanan';
+                } else if (cat === 'catalog') {
+                  catColor = '#10b981';
+                  catBg = isDark ? 'rgba(16, 185, 129, 0.18)' : '#d1fae5';
+                  catIcon = ShoppingBag;
+                  catLabel = 'Katalog';
+                } else if (cat === 'store') {
+                  catColor = '#3b82f6';
+                  catBg = isDark ? 'rgba(59, 130, 246, 0.18)' : '#dbeafe';
+                  catIcon = Store;
+                  catLabel = 'Toko';
+                } else if (cat === 'billing') {
+                  catColor = '#8b5cf6';
+                  catBg = isDark ? 'rgba(139, 92, 246, 0.18)' : '#ede9fe';
+                  catIcon = CreditCard;
+                  catLabel = 'Finansial';
+                } else if (cat === 'moderation') {
+                  catColor = '#ef4444';
+                  catBg = isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2';
+                  catIcon = AlertTriangle;
+                  catLabel = 'Moderasi';
+                } else if (cat === 'system') {
+                  catColor = '#06b6d4';
+                  catBg = isDark ? 'rgba(6, 182, 212, 0.18)' : '#cffafe';
+                  catIcon = Server;
+                  catLabel = 'Sistem';
+                }
+                const CatIconComp = catIcon;
+
+                return (
+                  <div
+                    key={log.id || log.created_at}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setSelectedAuditLog(log);
+                      setShowAuditDetailSheet(true);
+                    }}
+                    style={{
+                      padding: '0.95rem',
+                      borderRadius: '1rem',
+                      backgroundColor: theme.surface,
+                      border: `1px solid ${theme.border}`,
+                      boxShadow: theme.cardShadow,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem',
+                      cursor: 'pointer',
+                      transition: 'transform 0.15s ease, border-color 0.15s ease'
+                    }}
+                  >
+                    {/* Card Header: Category Badge, Action, Timestamp */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '999px',
+                          fontSize: '0.66rem',
+                          fontWeight: 800,
+                          backgroundColor: catBg,
+                          color: catColor
+                        }}>
+                          <CatIconComp size={11} color={catColor} />
+                          <span>{catLabel}</span>
+                        </span>
+                        <span style={{
+                          fontSize: '0.74rem',
+                          fontWeight: 800,
+                          color: '#3b82f6',
+                          fontFamily: 'monospace'
+                        }}>
+                          {log.action || 'system.activity'}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.66rem', color: theme.textMuted, whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+                        {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </span>
+                    </div>
+
+                    {/* Card Body: Description */}
+                    <div style={{ fontSize: '0.76rem', color: theme.textPrimary, lineHeight: 1.45, fontWeight: 500 }}>
+                      {log.description || log.entity_title || 'Tindakan operasional sistem'}
+                    </div>
+
+                    {/* Entity Snapshot (if present) */}
+                    {(log.entity_title || log.entity_type) && (
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                        fontSize: '0.68rem',
+                        color: theme.textSecondary,
+                        width: 'fit-content'
+                      }}>
+                        <span style={{ fontWeight: 700, color: theme.textMuted }}>Target:</span>
+                        <span style={{ fontWeight: 600 }}>{log.entity_title || log.entity_type}</span>
+                        {log.entity_id ? <span style={{ color: theme.textMuted }}>#{log.entity_id}</span> : null}
+                      </div>
+                    )}
+
+                    {/* Card Footer: Actor, Role, IP */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: '0.2rem',
+                      paddingTop: '0.45rem',
+                      borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
+                      fontSize: '0.68rem',
+                      color: theme.textMuted
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, overflow: 'hidden' }}>
+                        <User size={12} color={theme.textMuted} />
+                        <span style={{ fontWeight: 700, color: theme.textSecondary, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                          {log.actor_name || log.actor_email || log.user_email || 'Sistem'}
+                        </span>
+                        <span style={{
+                          padding: '0.05rem 0.35rem',
+                          borderRadius: '4px',
+                          fontSize: '0.6rem',
+                          fontWeight: 800,
+                          backgroundColor: log.actor_role === 'superadmin' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                          color: log.actor_role === 'superadmin' ? '#ef4444' : '#3b82f6'
+                        }}>
+                          {log.actor_role || 'staf'}
+                        </span>
+                      </div>
+                      {log.ip_address && (
+                        <span style={{ fontFamily: 'monospace', fontSize: '0.64rem', color: theme.textMuted }}>
+                          {log.ip_address}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Progressive Load More Action Bar */}
+              <div style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem' }}>
+                <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                  Menampilkan {auditLogs.length} dari {auditTotal || auditLogs.length} rekaman audit
+                </span>
+                {auditHasMore ? (
+                  <button
+                    type="button"
+                    disabled={isLoadingMoreAudit}
+                    onClick={() => fetchAuditLogs(auditPage + 1, true)}
+                    style={{
+                      width: '100%',
+                      padding: '0.7rem 1rem',
+                      borderRadius: '0.85rem',
+                      border: `1.5px solid ${theme.border}`,
+                      backgroundColor: theme.surface,
+                      color: '#3b82f6',
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.45rem',
+                      boxShadow: theme.cardShadow
+                    }}
+                  >
+                    {isLoadingMoreAudit ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" color="#3b82f6" />
+                        <span>Memuat Rekaman Berikutnya...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDown size={15} color="#3b82f6" />
+                        <span>Muat 15 Log Berikutnya</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div style={{
+                    padding: '0.4rem 0.85rem',
+                    borderRadius: '999px',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                    color: theme.textMuted,
+                    fontSize: '0.68rem',
+                    fontWeight: 600
+                  }}>
+                    Seluruh rekaman audit telah dimuat
+                  </div>
                 )}
               </div>
-            ))
+            </div>
+          )}
+
+          {/* SLIDE-UP FORENSIC BOTTOM SHEET (DETAIL INSPECTOR) */}
+          {showAuditDetailSheet && selectedAuditLog && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                backdropFilter: 'blur(4px)',
+                zIndex: 99999,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                animation: 'fadeIn 0.2s ease-out'
+              }}
+              onClick={() => setShowAuditDetailSheet(false)}
+            >
+              <div
+                style={{
+                  backgroundColor: theme.surface,
+                  borderTopLeftRadius: '1.35rem',
+                  borderTopRightRadius: '1.35rem',
+                  border: `1px solid ${theme.border}`,
+                  borderBottom: 'none',
+                  maxHeight: '88vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  boxShadow: '0 -10px 40px rgba(0,0,0,0.4)',
+                  animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Drag Handle Bar (Touch Action Isolation) */}
+                <div
+                  style={{
+                    padding: '0.65rem 0 0.35rem',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    touchAction: 'none'
+                  }}
+                >
+                  <div style={{ width: '40px', height: '4px', borderRadius: '999px', backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' }} />
+                </div>
+
+                {/* Sheet Header */}
+                <div style={{
+                  padding: '0.65rem 1.15rem 0.85rem',
+                  borderBottom: `1px solid ${theme.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem'
+                }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: '0.85rem',
+                        fontWeight: 800,
+                        color: '#3b82f6',
+                        fontFamily: 'monospace'
+                      }}>
+                        [{selectedAuditLog.action || 'system.log'}]
+                      </span>
+                      <span style={{
+                        fontSize: '0.64rem',
+                        fontWeight: 800,
+                        padding: '0.1rem 0.45rem',
+                        borderRadius: '999px',
+                        backgroundColor: isDark ? 'rgba(59,130,246,0.18)' : '#dbeafe',
+                        color: '#3b82f6'
+                      }}>
+                        ID #{selectedAuditLog.id}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: theme.textMuted, marginTop: '0.15rem', fontFamily: 'monospace' }}>
+                      {selectedAuditLog.created_at ? new Date(selectedAuditLog.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' }) : '-'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sheet Body (Scrollable Container) */}
+                <div style={{
+                  padding: '1.15rem',
+                  overflowY: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  overscrollBehavior: 'contain',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
+                }}>
+                  {/* Section 1: Narrative Description */}
+                  <div style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                    border: `1px solid ${theme.border}`
+                  }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: theme.textMuted, marginBottom: '0.25rem' }}>
+                      Deskripsi Rekaman:
+                    </div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: theme.textPrimary, lineHeight: 1.5 }}>
+                      {selectedAuditLog.description || selectedAuditLog.target || 'Tindakan operasional sistem'}
+                    </div>
+                  </div>
+
+                  {/* Section 2: Actor & Network Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem' }}>
+                    <div style={{
+                      padding: '0.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                      border: `1px solid ${theme.border}`
+                    }}>
+                      <div style={{ fontSize: '0.64rem', color: theme.textMuted, fontWeight: 700 }}>Aktor Pelaksana</div>
+                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: theme.textPrimary, marginTop: '0.2rem' }}>
+                        {selectedAuditLog.actor_name || selectedAuditLog.actor_email || 'Sistem'}
+                      </div>
+                      <div style={{ fontSize: '0.66rem', color: theme.textSecondary, textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                        {selectedAuditLog.actor_email || '-'}
+                      </div>
+                      <div style={{ marginTop: '0.3rem' }}>
+                        <span style={{
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '4px',
+                          fontSize: '0.6rem',
+                          fontWeight: 800,
+                          backgroundColor: selectedAuditLog.actor_role === 'superadmin' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                          color: selectedAuditLog.actor_role === 'superadmin' ? '#ef4444' : '#3b82f6'
+                        }}>
+                          {selectedAuditLog.actor_role || 'staf'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      padding: '0.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                      border: `1px solid ${theme.border}`
+                    }}>
+                      <div style={{ fontSize: '0.64rem', color: theme.textMuted, fontWeight: 700 }}>Alamat IP & Jaringan</div>
+                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: theme.textPrimary, fontFamily: 'monospace', marginTop: '0.2rem' }}>
+                        {selectedAuditLog.ip_address || '127.0.0.1'}
+                      </div>
+                      <div style={{ fontSize: '0.62rem', color: theme.textMuted, marginTop: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {selectedAuditLog.user_agent ? 'Browser Client' : 'Internal Service'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Entity Snapshot */}
+                  {(selectedAuditLog.entity_type || selectedAuditLog.entity_title || selectedAuditLog.entity_id) && (
+                    <div style={{
+                      padding: '0.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                      border: `1px solid ${theme.border}`
+                    }}>
+                      <div style={{ fontSize: '0.64rem', color: theme.textMuted, fontWeight: 700, marginBottom: '0.35rem' }}>
+                        Entitas Sasaran (Target)
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '6px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5',
+                          color: '#10b981'
+                        }}>
+                          {selectedAuditLog.entity_type || 'Entity'}
+                        </span>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary }}>
+                          {selectedAuditLog.entity_title || `ID #${selectedAuditLog.entity_id}`}
+                        </span>
+                        {selectedAuditLog.entity_id && (
+                          <span style={{ fontSize: '0.68rem', color: theme.textMuted, fontFamily: 'monospace' }}>
+                            (ID: {selectedAuditLog.entity_id})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 4: User Agent (if present) */}
+                  {selectedAuditLog.user_agent && (
+                    <div>
+                      <div style={{ fontSize: '0.66rem', color: theme.textMuted, fontWeight: 700, marginBottom: '0.25rem' }}>
+                        Client User-Agent:
+                      </div>
+                      <div style={{
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#f8fafc',
+                        border: `1px solid ${theme.border}`,
+                        fontSize: '0.66rem',
+                        color: theme.textSecondary,
+                        fontFamily: 'monospace',
+                        wordBreak: 'break-all'
+                      }}>
+                        {selectedAuditLog.user_agent}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 5: Payload / Changes Data Forensik */}
+                  {(selectedAuditLog.changes || selectedAuditLog.payload) && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: theme.textPrimary }}>
+                          Data Perubahan / Payload Forensik:
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const raw = selectedAuditLog.changes || selectedAuditLog.payload;
+                            const text = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+                            navigator.clipboard.writeText(text);
+                            setCopiedAuditPayload(true);
+                            showToast('Payload audit disalin ke clipboard');
+                            setTimeout(() => setCopiedAuditPayload(false), 2000);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#3b82f6',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}
+                        >
+                          {copiedAuditPayload ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                          <span>{copiedAuditPayload ? 'Tersalin' : 'Salin JSON'}</span>
+                        </button>
+                      </div>
+                      <pre style={{
+                        margin: 0,
+                        padding: '0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : '#0f172a',
+                        color: '#38bdf8',
+                        border: `1px solid ${theme.border}`,
+                        fontSize: '0.7rem',
+                        fontFamily: 'monospace',
+                        overflowX: 'auto',
+                        maxHeight: '220px'
+                      }}>
+                        {typeof (selectedAuditLog.changes || selectedAuditLog.payload) === 'string'
+                          ? (selectedAuditLog.changes || selectedAuditLog.payload)
+                          : JSON.stringify(selectedAuditLog.changes || selectedAuditLog.payload, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sheet Footer: Dismiss Button */}
+                <div style={{
+                  padding: '0.85rem 1.15rem',
+                  borderTop: `1px solid ${theme.border}`,
+                  backgroundColor: theme.surface
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAuditDetailSheet(false)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: '0.85rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                      color: theme.textPrimary,
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Tutup Detail Forensik
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}

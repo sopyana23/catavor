@@ -87,7 +87,8 @@ import {
   PhoneCall,
   Link as LinkIcon,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Server
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { PlatformAdminShell } from './PlatformAdminShell';
@@ -1256,6 +1257,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [isTriggeringBot, setIsTriggeringBot] = useState<string | null>(null);
   const [isTestingSandbox, setIsTestingSandbox] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditTotal, setAuditTotal] = useState<number>(0);
+  const [auditPage, setAuditPage] = useState<number>(1);
+  const [auditLimit, setAuditLimit] = useState<number>(15);
+  const [auditCategoryFilter, setAuditCategoryFilter] = useState<string>('all');
+  const [auditRoleFilter, setAuditRoleFilter] = useState<string>('all');
+  const [auditSearchInput, setAuditSearchInput] = useState<string>('');
+  const [debouncedAuditSearch, setDebouncedAuditSearch] = useState<string>('');
+  const [isLoadingAudit, setIsLoadingAudit] = useState<boolean>(false);
+  const [selectedAuditLog, setSelectedAuditLog] = useState<any | null>(null);
+  const [showAuditDetailModal, setShowAuditDetailModal] = useState<boolean>(false);
+  const [copiedAuditPayload, setCopiedAuditPayload] = useState<boolean>(false);
+  const [quickJumpPageInput, setQuickJumpPageInput] = useState<string>('');
 
   // State: Google AdSense & Analytics Settings
   const [monetizationTab, setMonetizationTab] = useState<'adsense' | 'analytics'>('adsense');
@@ -2282,19 +2295,60 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           }
         }
       }
-      if (canAccessAudit) {
-        const auditRes = await fetch('/api/admin/audit-logs?limit=20', { headers: { Authorization: `Bearer ${token}` } });
-        if (auditRes.ok) {
-          const aData = await auditRes.json();
-          setAuditLogs(Array.isArray(aData.data) ? aData.data : []);
-        }
-      }
     } catch {
       showToast('Gagal memuat sebagian data', 'error');
     } finally {
       setLoading(false);
     }
   };
+
+  // Debounce search input for Desktop Audit Trail (350ms)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedAuditSearch(auditSearchInput.trim());
+      setAuditPage(1);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [auditSearchInput]);
+
+  // Server-side Fetch Audit Logs for Desktop
+  const fetchAuditLogs = useCallback(async (pageToFetch: number = auditPage) => {
+    if (!token || !canAccessAudit) return;
+    setIsLoadingAudit(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pageToFetch),
+        limit: String(auditLimit),
+      });
+      if (auditCategoryFilter !== 'all') params.set('category', auditCategoryFilter);
+      if (auditRoleFilter !== 'all') params.set('role', auditRoleFilter);
+      if (debouncedAuditSearch) params.set('q', debouncedAuditSearch);
+
+      const res = await fetch(`/api/admin/audit-logs?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const j = await res.json();
+        const dataList = Array.isArray(j.data) ? j.data : [];
+        setAuditLogs(dataList);
+        setAuditPage(pageToFetch);
+        setAuditTotal(typeof j.total === 'number' ? j.total : dataList.length);
+      } else {
+        showToast('Gagal memuat log audit sistem', 'error');
+      }
+    } catch {
+      showToast('Terjadi kesalahan jaringan saat memuat log audit', 'error');
+    } finally {
+      setIsLoadingAudit(false);
+    }
+  }, [token, canAccessAudit, auditLimit, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch, auditPage]);
+
+  // Lazy-load audit logs only when activeView === 'audit' or query filters change
+  useEffect(() => {
+    if (activeView === 'audit' && canAccessAudit) {
+      fetchAuditLogs(auditPage);
+    }
+  }, [activeView, canAccessAudit, auditPage, auditLimit, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch, fetchAuditLogs]);
 
   const fetchAutomationData = async (botFilter = automationLogsBotFilter, statusFilter = automationLogsStatusFilter, search = automationLogsSearch) => {
     if (!token || !canAccessAutomation) return;
@@ -3927,7 +3981,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             iconBg: 'rgba(56, 189, 248, 0.15)',
             iconColor: '#38bdf8',
             onClick: () => {
-              loadData();
+              fetchAuditLogs(1);
               showToast('Log audit berhasil diperbarui', 'success');
             }
           }
@@ -12321,46 +12375,1053 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* 4. MODULE 8: AUDIT TRAIL LOGS                                             */}
       {/* ========================================================================= */}
       {activeView === 'audit' && canAccessAudit && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-
-          {auditLogs.length === 0 ? (
-            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <Activity size={36} color="#94a3b8" style={{ margin: '0 auto 0.65rem' }} />
-              <p style={{ margin: 0, color: theme.textSecondary, fontSize: '0.76rem' }}>Belum ada log audit keamanan tercatat.</p>
+        <div style={{ maxWidth: '1440px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Executive Quick Metrics Bar */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '1rem'
+          }}>
+            <div style={{
+              padding: '1.1rem 1.25rem',
+              borderRadius: '1rem',
+              backgroundColor: theme.card,
+              border: `1px solid ${theme.border}`,
+              boxShadow: theme.cardShadow,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '0.85rem',
+                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.16)' : 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#3b82f6',
+                flexShrink: 0
+              }}>
+                <History size={22} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Total Rekaman Audit
+                </div>
+                <div style={{ fontSize: '1.45rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
+                  {auditTotal.toLocaleString('id-ID')}
+                </div>
+              </div>
             </div>
-          ) : (
-            auditLogs.map((log) => (
-              <div
-                key={log.id}
+
+            <div style={{
+              padding: '1.1rem 1.25rem',
+              borderRadius: '1rem',
+              backgroundColor: theme.card,
+              border: `1px solid ${theme.border}`,
+              boxShadow: theme.cardShadow,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '0.85rem',
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f59e0b',
+                flexShrink: 0
+              }}>
+                <Shield size={22} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Keamanan & Akses
+                </div>
+                <div style={{ fontSize: '1.45rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
+                  Autentikasi & Staf
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              padding: '1.1rem 1.25rem',
+              borderRadius: '1rem',
+              backgroundColor: theme.card,
+              border: `1px solid ${theme.border}`,
+              boxShadow: theme.cardShadow,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '0.85rem',
+                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#10b981',
+                flexShrink: 0
+              }}>
+                <Store size={22} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Mutasi Katalog & Toko
+                </div>
+                <div style={{ fontSize: '1.45rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
+                  Operasional
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              padding: '1.1rem 1.25rem',
+              borderRadius: '1rem',
+              backgroundColor: theme.card,
+              border: `1px solid ${theme.border}`,
+              boxShadow: theme.cardShadow,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '0.85rem',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ef4444',
+                flexShrink: 0
+              }}>
+                <AlertTriangle size={22} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Kepatuhan Hukum
+                </div>
+                <div style={{ fontSize: '1.45rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
+                  PP 71 / 2019
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Integrated Filter Toolbar */}
+          <div style={{
+            padding: '1rem 1.25rem',
+            borderRadius: '1rem',
+            backgroundColor: theme.card,
+            border: `1px solid ${theme.border}`,
+            boxShadow: theme.cardShadow,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.85rem'
+          }}>
+            {/* Search Input */}
+            <div style={{ position: 'relative', minWidth: '320px', flex: 1 }}>
+              <Search size={16} color={theme.textMuted} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                value={auditSearchInput}
+                onChange={(e) => setAuditSearchInput(e.target.value)}
+                placeholder="Cari aksi (cth: auth.login), deskripsi, email aktor, atau entitas..."
                 style={{
-                  padding: '0.95rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.surface,
+                  width: '100%',
+                  padding: '0.6rem 2.25rem 0.6rem 2.45rem',
+                  borderRadius: '0.65rem',
                   border: `1px solid ${theme.border}`,
-                  boxShadow: theme.cardShadow,
+                  backgroundColor: theme.surface,
+                  color: theme.textPrimary,
+                  fontSize: '0.82rem',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+              />
+              {auditSearchInput && (
+                <button
+                  type="button"
+                  onClick={() => setAuditSearchInput('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.65rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: theme.textMuted,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+
+            {/* Select Filter Dropdowns */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+              {/* Category Select */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textMuted }}>Kategori:</span>
+                <select
+                  value={auditCategoryFilter}
+                  onChange={(e) => {
+                    setAuditCategoryFilter(e.target.value);
+                    setAuditPage(1);
+                  }}
+                  style={{
+                    padding: '0.55rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.surface,
+                    color: theme.textPrimary,
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="all">Semua Kategori</option>
+                  <option value="security">Keamanan & Akses</option>
+                  <option value="catalog">Katalog & Produk</option>
+                  <option value="store">Toko & Merchant</option>
+                  <option value="billing">Finansial & Billing</option>
+                  <option value="moderation">Moderasi & Laporan</option>
+                  <option value="system">Sistem & Otomasi</option>
+                </select>
+              </div>
+
+              {/* Role Select */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textMuted }}>Aktor:</span>
+                <select
+                  value={auditRoleFilter}
+                  onChange={(e) => {
+                    setAuditRoleFilter(e.target.value);
+                    setAuditPage(1);
+                  }}
+                  style={{
+                    padding: '0.55rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.surface,
+                    color: theme.textPrimary,
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="all">Semua Aktor</option>
+                  <option value="superadmin">Superadmin</option>
+                  <option value="merchant">Merchant</option>
+                  <option value="system">Sistem Otomatis</option>
+                </select>
+              </div>
+
+              {/* Refresh Button */}
+              <button
+                type="button"
+                disabled={isLoadingAudit}
+                onClick={() => fetchAuditLogs(1)}
+                style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.4rem'
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.55rem 0.95rem',
+                  borderRadius: '0.65rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.surface,
+                  color: theme.textPrimary,
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  opacity: isLoadingAudit ? 0.6 : 1
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 800, color: theme.textPrimary }}>
-                    {log.action || 'Aktivitas Sistem'}
-                  </span>
-                  <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                    {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
-                  </span>
+                <RefreshCw size={14} className={isLoadingAudit ? 'animate-spin' : ''} color="#3b82f6" />
+                <span>Segarkan</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Enterprise Comprehensive Data Table */}
+          <div style={{
+            borderRadius: '1rem',
+            backgroundColor: theme.card,
+            border: `1px solid ${theme.border}`,
+            boxShadow: theme.cardShadow,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+                <thead>
+                  <tr style={{
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+                    borderBottom: `1px solid ${theme.border}`,
+                    color: theme.textSecondary,
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}>
+                    <th style={{ padding: '0.85rem 1.15rem', width: '170px' }}>Waktu & Tanggal</th>
+                    <th style={{ padding: '0.85rem 1rem', width: '180px' }}>Kode Aksi</th>
+                    <th style={{ padding: '0.85rem 1rem', width: '130px' }}>Kategori</th>
+                    <th style={{ padding: '0.85rem 1rem', minWidth: '220px' }}>Aktor Pelaksana</th>
+                    <th style={{ padding: '0.85rem 1rem', minWidth: '220px' }}>Deskripsi & Target</th>
+                    <th style={{ padding: '0.85rem 1rem', width: '140px' }}>Alamat IP</th>
+                    <th style={{ padding: '0.85rem 1.15rem', width: '110px', textAlign: 'center' }}>Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoadingAudit && auditLogs.length === 0 ? (
+                    [1, 2, 3, 4, 5].map((n) => (
+                      <tr key={n} style={{ borderBottom: `1px solid ${theme.border}`, opacity: 0.5 }}>
+                        <td colSpan={7} style={{ padding: '1rem 1.15rem' }}>
+                          <div style={{ height: '16px', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', borderRadius: '4px' }} />
+                        </td>
+                      </tr>
+                    ))
+                  ) : auditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '4rem 1.5rem', textAlign: 'center' }}>
+                        <History size={42} color="#94a3b8" style={{ margin: '0 auto 0.75rem' }} />
+                        <div style={{ fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+                          Tidak ada rekaman audit ditemukan
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: theme.textSecondary, marginTop: '0.35rem' }}>
+                          Ubah kata kunci pencarian atau sesuaikan filter kategori untuk melihat rekaman lainnya.
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    auditLogs.map((log) => {
+                      const cat = (log.category || '').toLowerCase();
+                      let catColor = '#64748b';
+                      let catBg = isDark ? 'rgba(100, 116, 139, 0.15)' : '#f1f5f9';
+                      let catIcon = Activity;
+                      let catLabel = 'Aktivitas';
+
+                      if (cat === 'security') {
+                        catColor = '#f59e0b';
+                        catBg = isDark ? 'rgba(245, 158, 11, 0.18)' : '#fef3c7';
+                        catIcon = Shield;
+                        catLabel = 'Keamanan';
+                      } else if (cat === 'catalog') {
+                        catColor = '#10b981';
+                        catBg = isDark ? 'rgba(16, 185, 129, 0.18)' : '#d1fae5';
+                        catIcon = ShoppingBag;
+                        catLabel = 'Katalog';
+                      } else if (cat === 'store') {
+                        catColor = '#3b82f6';
+                        catBg = isDark ? 'rgba(59, 130, 246, 0.18)' : '#dbeafe';
+                        catIcon = Store;
+                        catLabel = 'Toko';
+                      } else if (cat === 'billing') {
+                        catColor = '#8b5cf6';
+                        catBg = isDark ? 'rgba(139, 92, 246, 0.18)' : '#ede9fe';
+                        catIcon = CreditCard;
+                        catLabel = 'Finansial';
+                      } else if (cat === 'moderation') {
+                        catColor = '#ef4444';
+                        catBg = isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2';
+                        catIcon = AlertTriangle;
+                        catLabel = 'Moderasi';
+                      } else if (cat === 'system') {
+                        catColor = '#06b6d4';
+                        catBg = isDark ? 'rgba(6, 182, 212, 0.18)' : '#cffafe';
+                        catIcon = Server;
+                        catLabel = 'Sistem';
+                      }
+                      const CatIconComp = catIcon;
+
+                      return (
+                        <tr
+                          key={log.id || log.created_at}
+                          style={{
+                            borderBottom: `1px solid ${theme.border}`,
+                            transition: 'background-color 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.015)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          {/* Waktu & Tanggal */}
+                          <td style={{ padding: '0.85rem 1.15rem', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontWeight: 700, color: theme.textPrimary, fontFamily: 'monospace', fontSize: '0.78rem' }}>
+                              {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                              {log.created_at ? new Date(log.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                            </div>
+                          </td>
+
+                          {/* Kode Aksi */}
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <span style={{
+                              fontWeight: 800,
+                              color: '#3b82f6',
+                              fontFamily: 'monospace',
+                              fontSize: '0.76rem',
+                              backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)',
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '6px',
+                              display: 'inline-block'
+                            }}>
+                              {log.action || 'system.log'}
+                            </span>
+                          </td>
+
+                          {/* Kategori */}
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              padding: '0.2rem 0.55rem',
+                              borderRadius: '999px',
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              backgroundColor: catBg,
+                              color: catColor
+                            }}>
+                              <CatIconComp size={12} color={catColor} />
+                              <span>{catLabel}</span>
+                            </span>
+                          </td>
+
+                          {/* Aktor Pelaksana */}
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <div style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '50%',
+                                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                <User size={14} color={theme.textSecondary} />
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 800, color: theme.textPrimary, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {log.actor_name || log.actor_email || 'Sistem'}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: theme.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {log.actor_email || '-'}
+                                </div>
+                              </div>
+                              <span style={{
+                                padding: '0.1rem 0.4rem',
+                                borderRadius: '4px',
+                                fontSize: '0.62rem',
+                                fontWeight: 800,
+                                backgroundColor: log.actor_role === 'superadmin' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                color: log.actor_role === 'superadmin' ? '#ef4444' : '#3b82f6',
+                                marginLeft: 'auto',
+                                flexShrink: 0
+                              }}>
+                                {log.actor_role || 'staf'}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Deskripsi & Target */}
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <div style={{ color: theme.textPrimary, fontWeight: 500, lineHeight: 1.4, fontSize: '0.8rem' }}>
+                              {log.description || log.entity_title || 'Tindakan sistem'}
+                            </div>
+                            {(log.entity_title || log.entity_type) && (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', color: theme.textMuted, marginTop: '0.2rem' }}>
+                                <span style={{ fontWeight: 700 }}>Target:</span>
+                                <span style={{ color: theme.textSecondary, fontWeight: 600 }}>{log.entity_title || log.entity_type}</span>
+                                {log.entity_id ? <span>(ID: #{log.entity_id})</span> : null}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Alamat IP */}
+                          <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontSize: '0.74rem', color: theme.textSecondary }}>
+                            {log.ip_address || '127.0.0.1'}
+                          </td>
+
+                          {/* Aksi: Tombol Detail */}
+                          <td style={{ padding: '0.85rem 1.15rem', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedAuditLog(log);
+                                setShowAuditDetailModal(true);
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '0.55rem',
+                                border: `1px solid ${theme.border}`,
+                                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                                color: '#3b82f6',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';
+                                e.currentTarget.style.borderColor = '#3b82f6';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc';
+                                e.currentTarget.style.borderColor = theme.border;
+                              }}
+                            >
+                              <Eye size={13} color="#3b82f6" />
+                              <span>Inspeksi</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Enterprise Pagination Bar */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.85rem 1.25rem',
+              borderTop: `1px solid ${theme.border}`,
+              backgroundColor: isDark ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.01)',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}>
+              {/* Rows Per Page Selector & Counter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: theme.textSecondary }}>
+                  <span>Tampilkan:</span>
+                  <select
+                    value={auditLimit}
+                    onChange={(e) => {
+                      const newLim = Number(e.target.value);
+                      setAuditLimit(newLim);
+                      setAuditPage(1);
+                    }}
+                    style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: theme.surface,
+                      color: theme.textPrimary,
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value={15}>15 baris</option>
+                    <option value={25}>25 baris</option>
+                    <option value={50}>50 baris</option>
+                    <option value={100}>100 baris</option>
+                  </select>
                 </div>
-                <div style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
-                  Aktor: <strong style={{ color: theme.textPrimary }}>{log.user_email || 'Sistem'}</strong> ({log.role || 'Superadmin'})
-                </div>
-                {log.details && (
-                  <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textMuted, fontStyle: 'italic' }}>
-                    {log.details}
-                  </p>
-                )}
+
+                <span style={{ fontSize: '0.78rem', color: theme.textMuted }}>
+                  Menampilkan <strong style={{ color: theme.textPrimary }}>{auditLogs.length ? (auditPage - 1) * auditLimit + 1 : 0}</strong> –{' '}
+                  <strong style={{ color: theme.textPrimary }}>{Math.min(auditPage * auditLimit, auditTotal)}</strong> dari{' '}
+                  <strong style={{ color: theme.textPrimary }}>{auditTotal}</strong> rekaman data
+                </span>
               </div>
-            ))
+
+              {/* Numbered Page Buttons & Quick Jump */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {/* First Page */}
+                <button
+                  type="button"
+                  disabled={auditPage <= 1 || isLoadingAudit}
+                  onClick={() => setAuditPage(1)}
+                  style={{
+                    padding: '0.35rem 0.55rem',
+                    borderRadius: '0.5rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: 'transparent',
+                    color: theme.textPrimary,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: auditPage <= 1 ? 'not-allowed' : 'pointer',
+                    opacity: auditPage <= 1 ? 0.35 : 1
+                  }}
+                  title="Halaman Pertama"
+                >
+                  <ChevronsLeft size={16} />
+                </button>
+
+                {/* Prev Page */}
+                <button
+                  type="button"
+                  disabled={auditPage <= 1 || isLoadingAudit}
+                  onClick={() => setAuditPage(auditPage - 1)}
+                  style={{
+                    padding: '0.35rem 0.55rem',
+                    borderRadius: '0.5rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: 'transparent',
+                    color: theme.textPrimary,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: auditPage <= 1 ? 'not-allowed' : 'pointer',
+                    opacity: auditPage <= 1 ? 0.35 : 1
+                  }}
+                  title="Halaman Sebelumnya"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                {/* Page Number Indicators */}
+                {(() => {
+                  const totalPages = Math.max(1, Math.ceil(auditTotal / auditLimit));
+                  const pages: (number | string)[] = [];
+                  if (totalPages <= 7) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (auditPage > 3) pages.push('...');
+                    const start = Math.max(2, auditPage - 1);
+                    const end = Math.min(totalPages - 1, auditPage + 1);
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    if (auditPage < totalPages - 2) pages.push('...');
+                    pages.push(totalPages);
+                  }
+
+                  return pages.map((p, idx) => {
+                    if (typeof p === 'string') {
+                      return (
+                        <span key={`el-${idx}`} style={{ padding: '0 0.25rem', color: theme.textMuted, fontSize: '0.78rem' }}>
+                          ...
+                        </span>
+                      );
+                    }
+                    const isCur = p === auditPage;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setAuditPage(p)}
+                        style={{
+                          minWidth: '32px',
+                          height: '32px',
+                          borderRadius: '0.5rem',
+                          border: `1px solid ${isCur ? '#3b82f6' : theme.border}`,
+                          backgroundColor: isCur ? '#3b82f6' : 'transparent',
+                          color: isCur ? '#ffffff' : theme.textPrimary,
+                          fontSize: '0.76rem',
+                          fontWeight: isCur ? 800 : 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {p}
+                      </button>
+                    );
+                  });
+                })()}
+
+                {/* Next Page */}
+                <button
+                  type="button"
+                  disabled={auditPage >= Math.ceil(auditTotal / auditLimit) || isLoadingAudit}
+                  onClick={() => setAuditPage(auditPage + 1)}
+                  style={{
+                    padding: '0.35rem 0.55rem',
+                    borderRadius: '0.5rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: 'transparent',
+                    color: theme.textPrimary,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: auditPage >= Math.ceil(auditTotal / auditLimit) ? 'not-allowed' : 'pointer',
+                    opacity: auditPage >= Math.ceil(auditTotal / auditLimit) ? 0.35 : 1
+                  }}
+                  title="Halaman Selanjutnya"
+                >
+                  <ChevronRight size={16} />
+                </button>
+
+                {/* Last Page */}
+                <button
+                  type="button"
+                  disabled={auditPage >= Math.ceil(auditTotal / auditLimit) || isLoadingAudit}
+                  onClick={() => setAuditPage(Math.max(1, Math.ceil(auditTotal / auditLimit)))}
+                  style={{
+                    padding: '0.35rem 0.55rem',
+                    borderRadius: '0.5rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: 'transparent',
+                    color: theme.textPrimary,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: auditPage >= Math.ceil(auditTotal / auditLimit) ? 'not-allowed' : 'pointer',
+                    opacity: auditPage >= Math.ceil(auditTotal / auditLimit) ? 0.35 : 1
+                  }}
+                  title="Halaman Terakhir"
+                >
+                  <ChevronsRight size={16} />
+                </button>
+
+                {/* Quick Jump Input */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.45rem' }}>
+                  <span style={{ fontSize: '0.74rem', color: theme.textMuted }}>Lompat:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(1, Math.ceil(auditTotal / auditLimit))}
+                    value={quickJumpPageInput}
+                    onChange={(e) => setQuickJumpPageInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const targetP = parseInt(quickJumpPageInput, 10);
+                        const maxP = Math.max(1, Math.ceil(auditTotal / auditLimit));
+                        if (!isNaN(targetP) && targetP >= 1 && targetP <= maxP) {
+                          setAuditPage(targetP);
+                          setQuickJumpPageInput('');
+                        }
+                      }
+                    }}
+                    placeholder="Hal"
+                    style={{
+                      width: '44px',
+                      padding: '0.25rem 0.4rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: theme.surface,
+                      color: theme.textPrimary,
+                      fontSize: '0.76rem',
+                      textAlign: 'center',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CENTERED FORENSIC MODAL INSPECTOR */}
+          {showAuditDetailModal && selectedAuditLog && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                backdropFilter: 'blur(4px)',
+                zIndex: 99999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1.5rem',
+                animation: 'fadeIn 0.2s ease-out'
+              }}
+              onClick={() => setShowAuditDetailModal(false)}
+            >
+              <div
+                style={{
+                  backgroundColor: theme.surface,
+                  borderRadius: '1.15rem',
+                  border: `1px solid ${theme.border}`,
+                  maxWidth: '820px',
+                  width: '100%',
+                  maxHeight: '88vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.45)',
+                  animation: 'scaleIn 0.22s ease-out'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div style={{
+                  padding: '1.15rem 1.5rem',
+                  borderBottom: `1px solid ${theme.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: '1rem',
+                      fontWeight: 800,
+                      color: '#3b82f6',
+                      fontFamily: 'monospace'
+                    }}>
+                      [{selectedAuditLog.action || 'system.log'}]
+                    </span>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '999px',
+                      backgroundColor: isDark ? 'rgba(59,130,246,0.18)' : '#dbeafe',
+                      color: '#3b82f6'
+                    }}>
+                      Log #{selectedAuditLog.id}
+                    </span>
+                    <span style={{ fontSize: '0.76rem', color: theme.textMuted, fontFamily: 'monospace' }}>
+                      {selectedAuditLog.created_at ? new Date(selectedAuditLog.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' }) : '-'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAuditDetailModal(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: theme.textMuted,
+                      cursor: 'pointer',
+                      padding: '0.35rem',
+                      borderRadius: '0.5rem',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div style={{
+                  padding: '1.35rem 1.5rem',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
+                }}>
+                  {/* Narrative Description Card */}
+                  <div style={{
+                    padding: '1rem 1.15rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                    border: `1px solid ${theme.border}`
+                  }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: theme.textMuted, marginBottom: '0.3rem' }}>
+                      Deskripsi Rekaman Aktivitas:
+                    </div>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 600, color: theme.textPrimary, lineHeight: 1.5 }}>
+                      {selectedAuditLog.description || selectedAuditLog.target || 'Tindakan operasional sistem'}
+                    </div>
+                  </div>
+
+                  {/* 2-Column Grid: Actor & Network */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                    <div style={{
+                      padding: '1rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                      border: `1px solid ${theme.border}`
+                    }}>
+                      <div style={{ fontSize: '0.72rem', color: theme.textMuted, fontWeight: 700, marginBottom: '0.25rem' }}>
+                        Aktor Pengguna (Pelaksana)
+                      </div>
+                      <div style={{ fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary }}>
+                        {selectedAuditLog.actor_name || selectedAuditLog.actor_email || 'Sistem'}
+                      </div>
+                      <div style={{ fontSize: '0.76rem', color: theme.textSecondary, marginTop: '0.1rem' }}>
+                        {selectedAuditLog.actor_email || '-'}
+                      </div>
+                      <div style={{ marginTop: '0.45rem' }}>
+                        <span style={{
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '4px',
+                          fontSize: '0.66rem',
+                          fontWeight: 800,
+                          backgroundColor: selectedAuditLog.actor_role === 'superadmin' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                          color: selectedAuditLog.actor_role === 'superadmin' ? '#ef4444' : '#3b82f6'
+                        }}>
+                          Role: {selectedAuditLog.actor_role || 'staf'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      padding: '1rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                      border: `1px solid ${theme.border}`
+                    }}>
+                      <div style={{ fontSize: '0.72rem', color: theme.textMuted, fontWeight: 700, marginBottom: '0.25rem' }}>
+                        Alamat IP & Jaringan
+                      </div>
+                      <div style={{ fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary, fontFamily: 'monospace' }}>
+                        {selectedAuditLog.ip_address || '127.0.0.1'}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: theme.textMuted, marginTop: '0.35rem' }}>
+                        {selectedAuditLog.user_agent ? 'Browser Client' : 'Internal Service'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Target Entity Snapshot */}
+                  {(selectedAuditLog.entity_type || selectedAuditLog.entity_title || selectedAuditLog.entity_id) && (
+                    <div style={{
+                      padding: '0.9rem 1.15rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                      border: `1px solid ${theme.border}`
+                    }}>
+                      <div style={{ fontSize: '0.72rem', color: theme.textMuted, fontWeight: 700, marginBottom: '0.35rem' }}>
+                        Entitas Sasaran (Target)
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                        <span style={{
+                          padding: '0.2rem 0.6rem',
+                          borderRadius: '6px',
+                          fontSize: '0.74rem',
+                          fontWeight: 800,
+                          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5',
+                          color: '#10b981'
+                        }}>
+                          {selectedAuditLog.entity_type || 'Entity'}
+                        </span>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: theme.textPrimary }}>
+                          {selectedAuditLog.entity_title || `ID #${selectedAuditLog.entity_id}`}
+                        </span>
+                        {selectedAuditLog.entity_id && (
+                          <span style={{ fontSize: '0.76rem', color: theme.textMuted, fontFamily: 'monospace' }}>
+                            (ID: {selectedAuditLog.entity_id})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Client User Agent */}
+                  {selectedAuditLog.user_agent && (
+                    <div>
+                      <div style={{ fontSize: '0.72rem', color: theme.textMuted, fontWeight: 700, marginBottom: '0.3rem' }}>
+                        Client User-Agent:
+                      </div>
+                      <div style={{
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.6rem',
+                        backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#f8fafc',
+                        border: `1px solid ${theme.border}`,
+                        fontSize: '0.72rem',
+                        color: theme.textSecondary,
+                        fontFamily: 'monospace',
+                        wordBreak: 'break-all'
+                      }}>
+                        {selectedAuditLog.user_agent}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Raw Payload / Changes Data Forensik */}
+                  {(selectedAuditLog.changes || selectedAuditLog.payload) && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
+                          Data Perubahan / Payload Forensik:
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const raw = selectedAuditLog.changes || selectedAuditLog.payload;
+                            const text = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+                            navigator.clipboard.writeText(text);
+                            setCopiedAuditPayload(true);
+                            showToast('Payload audit disalin ke clipboard');
+                            setTimeout(() => setCopiedAuditPayload(false), 2000);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#3b82f6',
+                            fontSize: '0.76rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}
+                        >
+                          {copiedAuditPayload ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                          <span>{copiedAuditPayload ? 'Tersalin' : 'Salin JSON'}</span>
+                        </button>
+                      </div>
+                      <pre style={{
+                        margin: 0,
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : '#0f172a',
+                        color: '#38bdf8',
+                        border: `1px solid ${theme.border}`,
+                        fontSize: '0.76rem',
+                        fontFamily: 'monospace',
+                        overflowX: 'auto',
+                        maxHeight: '260px'
+                      }}>
+                        {typeof (selectedAuditLog.changes || selectedAuditLog.payload) === 'string'
+                          ? (selectedAuditLog.changes || selectedAuditLog.payload)
+                          : JSON.stringify(selectedAuditLog.changes || selectedAuditLog.payload, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div style={{
+                  padding: '1rem 1.5rem',
+                  borderTop: `1px solid ${theme.border}`,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.01)',
+                  display: 'flex',
+                  justifyContent: 'flex-end'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAuditDetailModal(false)}
+                    style={{
+                      padding: '0.6rem 1.25rem',
+                      borderRadius: '0.65rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                      color: theme.textPrimary,
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}
