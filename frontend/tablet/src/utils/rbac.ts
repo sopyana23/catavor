@@ -8,6 +8,7 @@ export interface UserRBACInfo {
   permissions?: string[];
   is_password_changed?: boolean;
   has_custom_password?: boolean;
+  store_slug?: string;
 }
 
 export interface PlatformRole {

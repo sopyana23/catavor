@@ -5,7 +5,9 @@ import {
   Store,
   ShieldCheck,
   ShieldAlert,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  Home
 } from 'lucide-react';
 import { TabletPublicLanding } from './components/TabletPublicLanding';
 import { TabletStoreCatalog } from './components/TabletStoreCatalog';
@@ -503,24 +505,31 @@ export const App: React.FC = () => {
 
     // 2B. Authenticated but NON-PLATFORM STAFF (Merchant logged in attempting /admin access)
     if (token && !isPlatformAdmin(currentUser)) {
+      const merchantSlug = currentUser?.store_slug || localStorage.getItem('catavor_active_slug') || '';
       return (
         <div style={{
           minHeight: '100vh',
+          width: '100%',
+          backgroundColor: '#0b0f19',
+          color: '#f8fafc',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: 'var(--bg-deep)',
-          color: 'var(--text-primary)',
-          padding: '2rem'
+          padding: '2rem 1.5rem',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             width: '100%',
             maxWidth: '520px',
-            backgroundColor: 'var(--bg-card)',
-            borderRadius: '1.25rem',
-            border: '1px solid var(--border-light)',
-            padding: '2.5rem',
-            boxShadow: 'var(--shadow-premium)',
+            background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.95) 100%)',
+            border: '1px solid rgba(148, 163, 184, 0.18)',
+            borderRadius: '1.5rem',
+            padding: '2.5rem 2.25rem',
+            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(16px)',
+            boxSizing: 'border-box',
             textAlign: 'center'
           }}>
             <div style={{
@@ -540,7 +549,7 @@ export const App: React.FC = () => {
             <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
               Akses Dibatasi — Staf Platform
             </h1>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: '0 0 1.5rem 0', lineHeight: 1.6 }}>
+            <p style={{ fontSize: '0.9rem', color: '#94a3b8', margin: '0 0 1.5rem 0', lineHeight: 1.6 }}>
               Akun Anda saat ini (<strong>{currentUser?.email || 'Merchant'}</strong>) terdaftar sebagai merchant/penjual, bukan staf pengelola platform Catavor.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -551,7 +560,7 @@ export const App: React.FC = () => {
                   minHeight: '48px',
                   padding: '0.75rem 1.25rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary)',
+                  backgroundColor: '#2563eb',
                   color: '#ffffff',
                   border: 'none',
                   fontWeight: 700,
@@ -568,9 +577,9 @@ export const App: React.FC = () => {
                   minHeight: '44px',
                   padding: '0.75rem 1.25rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'var(--bg-deep)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'rgba(30, 41, 59, 0.8)',
+                  color: '#f8fafc',
+                  border: '1px solid rgba(148, 163, 184, 0.25)',
                   fontWeight: 600,
                   fontSize: '0.9rem',
                   cursor: 'pointer'
@@ -584,14 +593,19 @@ export const App: React.FC = () => {
                 style={{
                   minHeight: '38px',
                   background: 'transparent',
-                  color: 'var(--text-muted)',
+                  color: '#94a3b8',
                   border: 'none',
                   fontSize: '0.85rem',
                   cursor: 'pointer',
-                  marginTop: '0.25rem'
+                  marginTop: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem'
                 }}
               >
-                &larr; Kembali ke Halaman Utama
+                <Home size={16} />
+                <span>Kembali ke Halaman Utama</span>
               </button>
             </div>
           </div>
@@ -603,201 +617,186 @@ export const App: React.FC = () => {
     return (
       <div style={{
         minHeight: '100vh',
+        width: '100%',
+        backgroundColor: '#0b0f19',
+        color: '#f8fafc',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'var(--bg-deep)',
-        color: 'var(--text-primary)',
-        padding: '2rem'
+        padding: '2rem 1.5rem',
+        boxSizing: 'border-box'
       }}>
         <div style={{
           width: '100%',
           maxWidth: '460px',
-          backgroundColor: 'var(--bg-card)',
-          borderRadius: '1.25rem',
-          border: '1px solid var(--border-light)',
-          padding: '2.5rem',
-          boxShadow: 'var(--shadow-premium)'
+          background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.95) 100%)',
+          border: '1px solid rgba(148, 163, 184, 0.18)',
+          borderRadius: '1.5rem',
+          padding: '2.5rem 2.25rem',
+          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(16px)',
+          boxSizing: 'border-box'
         }}>
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
             <div style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '1rem',
-              backgroundColor: 'rgba(59, 130, 246, 0.15)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              color: '#3b82f6',
+              width: '60px',
+              height: '60px',
+              borderRadius: '1.15rem',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '1rem'
+              color: '#ffffff',
+              boxShadow: '0 10px 25px rgba(37, 99, 235, 0.35)',
+              marginBottom: '1.25rem'
             }}>
-              <ShieldCheck size={28} />
+              <ShieldCheck size={32} />
             </div>
-            <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-              Masuk Konsol Pengelola Platform
+            <div>
+              <span style={{
+                display: 'inline-block',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '999px',
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                color: '#60a5fa',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                marginBottom: '0.75rem'
+              }}>
+                Portal Staf Pengelola
+              </span>
+            </div>
+            <h1 style={{ fontSize: '1.55rem', fontWeight: 900, color: '#f8fafc', margin: 0 }}>
+              Catavor Enterprise
             </h1>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
-              Portal otentikasi resmi staf kepatuhan, CS, keuangan, dan eksekutif platform
+            <p style={{ color: '#94a3b8', fontSize: '0.82rem', marginTop: '0.4rem', lineHeight: 1.5 }}>
+              Konsol operasional terpusat, RBAC, dan tata kelola ekosistem Catavor
             </p>
           </div>
 
           {loginError && (
             <div style={{
-              padding: '0.75rem 1rem',
-              borderRadius: '0.5rem',
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              background: 'rgba(239, 68, 68, 0.15)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#ef4444',
-              fontSize: '0.85rem',
-              marginBottom: '1.25rem',
+              color: '#fca5a5',
+              padding: '0.85rem 1rem',
+              borderRadius: '0.75rem',
+              fontSize: '0.82rem',
+              marginBottom: '1.5rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.5rem'
+              gap: '0.65rem'
             }}>
-              <AlertCircle size={16} />
-              {loginError}
+              <AlertCircle size={18} style={{ flexShrink: 0 }} />
+              <span>{loginError}</span>
             </div>
           )}
 
           <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-            <button
-              type="button"
-              onClick={handleGoogleSSO}
-              disabled={loginLoading}
-              style={{
-                minHeight: '48px',
-                padding: '0.75rem 1rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'var(--bg-deep)',
-                border: '1px solid var(--border-light)',
-                color: 'var(--text-primary)',
-                fontSize: '0.92rem',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.75rem',
-                cursor: loginLoading ? 'not-allowed' : 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-              </svg>
-              Masuk Staf dengan Akun Google
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0.25rem 0' }}>
-              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>atau email staf &amp; sandi</span>
-              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
-            </div>
-
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                Email Resmi Staf
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '0.4rem' }}>
+                Email Akun Pengelola
               </label>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                padding: '0.75rem 1rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'var(--bg-deep)',
-                border: '1px solid var(--border-light)'
-              }}>
-                <Mail size={18} color="var(--text-muted)" />
-                <input
-                  type="email"
-                  required
-                  placeholder="admin@catavor.id"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.92rem',
-                    outline: 'none'
-                  }}
-                />
-              </div>
+              <input
+                type="email"
+                required
+                placeholder="staf@catavor.com"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  border: '1px solid rgba(148, 163, 184, 0.25)',
+                  color: '#ffffff',
+                  fontSize: '0.9rem',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+              />
             </div>
-
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '0.4rem' }}>
                 Kata Sandi
               </label>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                padding: '0.75rem 1rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'var(--bg-deep)',
-                border: '1px solid var(--border-light)'
-              }}>
-                <Lock size={18} color="var(--text-muted)" />
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.92rem',
-                    outline: 'none'
-                  }}
-                />
-              </div>
+              <input
+                type="password"
+                required
+                placeholder="••••••••"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  border: '1px solid rgba(148, 163, 184, 0.25)',
+                  color: '#ffffff',
+                  fontSize: '0.9rem',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+              />
             </div>
 
             <button
               type="submit"
               disabled={loginLoading}
               style={{
-                minHeight: '48px',
-                padding: '0.75rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'var(--primary)',
+                width: '100%',
+                marginTop: '0.65rem',
+                padding: '0.9rem',
+                borderRadius: '0.75rem',
+                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                 color: '#ffffff',
                 border: 'none',
-                fontWeight: 700,
-                fontSize: '0.95rem',
+                fontWeight: 800,
+                fontSize: '0.92rem',
+                cursor: loginLoading ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.5rem',
-                cursor: loginLoading ? 'not-allowed' : 'pointer',
-                marginTop: '0.5rem'
+                gap: '0.65rem',
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+                transition: 'all 0.2s ease'
               }}
             >
-              {loginLoading ? 'Memverifikasi...' : 'Masuk ke Konsol Pengelola'}
+              {loginLoading ? <Sparkles size={18} /> : <Lock size={18} />}
+              <span>{loginLoading ? 'Mengautentikasi...' : 'Masuk Konsol Pengelola'}</span>
             </button>
 
             <button
               type="button"
-              onClick={() => navigateTo('/')}
+              onClick={() => {
+                setLoginError(null);
+                navigateTo('/');
+              }}
               style={{
-                minHeight: '40px',
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: '0.75rem',
                 background: 'transparent',
-                color: 'var(--text-muted)',
-                border: 'none',
-                fontSize: '0.85rem',
-                cursor: 'pointer'
+                color: '#94a3b8',
+                border: '1px solid rgba(148, 163, 184, 0.15)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginTop: '0.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem'
               }}
             >
-              &larr; Kembali ke Halaman Utama
+              <Home size={16} />
+              <span>Kembali ke Halaman Utama</span>
             </button>
           </form>
         </div>
