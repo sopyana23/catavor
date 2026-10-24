@@ -710,7 +710,10 @@ export function isTokenExpired(token: string | null): boolean {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return true;
-    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    let payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payloadBase64.length % 4 !== 0) {
+      payloadBase64 += '=';
+    }
     const jsonPayload = decodeURIComponent(
       atob(payloadBase64)
         .split('')
@@ -723,7 +726,8 @@ export function isTokenExpired(token: string | null): boolean {
     // Expired if exp timestamp is less than current time + 5s buffer
     return parsed.exp < (currentTime + 5);
   } catch {
-    return true;
+    // Defensive engineering: Do not falsely mark token expired on decoding error; let /api/auth/verify decide
+    return false;
   }
 }
 
@@ -11235,14 +11239,24 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       } else if (event.type === 'LOGIN_SUCCESS') {
         const storedToken = localStorage.getItem('catavor_token') || event.token;
-        if (storedToken && storedToken !== token) {
+        if (storedToken) {
           setToken(storedToken);
           const rawUser = localStorage.getItem('catavor_user');
+          let parsedUser: any = null;
           if (rawUser) {
             try {
-              const u = JSON.parse(rawUser);
-              setAdminUser(u);
+              parsedUser = JSON.parse(rawUser);
+              setAdminUser(parsedUser);
             } catch {}
+          }
+          const currentPath = window.location.pathname.toLowerCase();
+          const isPlatformPath = currentPath === '/admin' || currentPath.startsWith('/admin') || currentPath === '/platform' || currentPath === '/ops';
+          if (isPlatformPath && isPlatformAdmin(parsedUser || adminUser)) {
+            const currentTab = new URLSearchParams(window.location.search).get('tab');
+            if (!currentTab || currentTab === 'login') {
+              window.history.pushState({}, '', '/admin?tab=dashboard');
+            }
+            showToast('Sesi pengelola disinkronkan dari tab lain.', 'info');
           }
         }
       } else if (event.type === 'STORE_CHANGED') {
@@ -12983,6 +12997,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setLoginForm({ email: '', password: '' })
         
         if (isPlatformAdmin(data.user)) {
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
           window.location.href = '/admin?tab=dashboard';
           return;
         }

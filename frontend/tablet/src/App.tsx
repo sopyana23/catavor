@@ -13,6 +13,7 @@ import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
 import { type UserRBACInfo, isPlatformAdmin } from './utils/rbac';
 import { isTokenExpired } from './utils/auth';
+import { broadcastAuthEvent, subscribeAuthSync } from './utils/authSync';
 import { initGoogleAdSense } from './utils/googleAdSense';
 import { initGoogleAnalytics } from './utils/googleAnalytics';
 
@@ -182,6 +183,7 @@ export const App: React.FC = () => {
   const handleLogout = (customRedirectUrl?: string) => {
     const isStaff = isPlatformAdmin(currentUser);
     const targetLoginUrl = customRedirectUrl || (isStaff || isPlatformAdminPath ? '/admin' : '/login');
+    broadcastAuthEvent({ type: 'LOGOUT' });
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
     localStorage.removeItem('catavor_active_slug');
@@ -190,6 +192,37 @@ export const App: React.FC = () => {
     setLoginError(null);
     navigateTo(targetLoginUrl);
   };
+
+  // Industry Best Practice: Cross-Tab Session & Store Synchronization
+  useEffect(() => {
+    const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'LOGOUT') {
+        if (token) {
+          handleUnauthorized('Sesi akun telah keluar dari tab lain.');
+        }
+      } else if (event.type === 'LOGIN_SUCCESS') {
+        const storedToken = localStorage.getItem('catavor_token') || event.token;
+        if (storedToken) {
+          setToken(storedToken);
+          const rawUser = localStorage.getItem('catavor_user');
+          let parsedUser: any = null;
+          if (rawUser) {
+            try {
+              parsedUser = JSON.parse(rawUser);
+              setCurrentUser(parsedUser);
+            } catch {}
+          }
+          if (isPlatformAdminPath && isPlatformAdmin(parsedUser || currentUser)) {
+            const currentTab = new URLSearchParams(window.location.search).get('tab');
+            if (!currentTab || currentTab === 'login') {
+              navigateTo('/admin?tab=dashboard');
+            }
+          }
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [token, isPlatformAdminPath, currentUser]);
 
   const handleThemeChange = useCallback((newTheme: string) => {
     setStoreTheme(prev => (prev === newTheme ? prev : newTheme));
@@ -220,6 +253,7 @@ export const App: React.FC = () => {
         }
         setLoginEmail('');
         setLoginPassword('');
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: json.user?.id, token: json.token });
         if (isPlatformAdmin(json.user)) {
           navigateTo('/admin?tab=dashboard');
         } else {

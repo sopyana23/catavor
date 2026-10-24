@@ -12,7 +12,10 @@ export function isTokenExpired(token: string | null): boolean {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return true;
-    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    let payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payloadBase64.length % 4 !== 0) {
+      payloadBase64 += '=';
+    }
     const jsonPayload = decodeURIComponent(
       atob(payloadBase64)
         .split('')
@@ -25,7 +28,8 @@ export function isTokenExpired(token: string | null): boolean {
     // Expired if exp timestamp is less than current time + 5s buffer
     return parsed.exp < (currentTime + 5);
   } catch {
-    return true;
+    // Defensive engineering: Do not falsely mark token expired on decoding error; let /api/auth/verify decide
+    return false;
   }
 }
 

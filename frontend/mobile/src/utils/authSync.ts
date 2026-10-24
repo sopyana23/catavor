@@ -99,6 +99,11 @@ export function broadcastAuthEvent(event: AuthSyncEvent): void {
       senderTabId: TAB_ID,
     };
     ch?.postMessage(payload);
+
+    // Secondary sync: Write to a designated localStorage key to trigger native window 'storage' event across all tabs/windows
+    try {
+      localStorage.setItem('catavor_auth_sync_ping', JSON.stringify({ ...payload, _ts: Date.now() }));
+    } catch {}
   } catch (err) {
     console.warn('[AuthSync] BroadcastChannel postMessage error:', err);
   }
@@ -114,6 +119,25 @@ export function subscribeAuthSync(callback: AuthSyncCallback): () => void {
   // Storage event listener as fallback / secondary sync for cross-tab mutations
   const handleStorage = (e: StorageEvent) => {
     if (!e.key) return;
+
+    if (e.key === 'catavor_auth_sync_ping' && e.newValue) {
+      try {
+        const payload: AuthSyncEvent = JSON.parse(e.newValue);
+        if (payload.senderTabId && payload.senderTabId === TAB_ID) return;
+        if (payload.type === 'LOGOUT') {
+          if (Date.now() - lastRemoteLogoutTime < 1500) return;
+          lastRemoteLogoutTime = Date.now();
+        }
+        listeners.forEach((cb) => {
+          try {
+            cb(payload);
+          } catch (err) {
+            console.error('[AuthSync] Callback error:', err);
+          }
+        });
+      } catch {}
+      return;
+    }
 
     if (e.key === 'catavor_token') {
       if (!e.newValue && e.oldValue) {
