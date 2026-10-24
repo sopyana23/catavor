@@ -56,11 +56,15 @@ export const App: React.FC = () => {
 
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
-    const resolvedTheme = storeTheme || 'navy';
+    // Platform pages (public landing, login, register, platform admin) always use the platform default theme ('navy')
+    const isPlatformPage = currentPath === '/' || currentPath === '/login' || currentPath === '/register' || currentPath.startsWith('/admin');
+    const resolvedTheme = isPlatformPage ? 'navy' : (storeTheme || 'navy');
     document.documentElement.setAttribute('data-theme', resolvedTheme);
     document.body.setAttribute('data-theme', resolvedTheme);
-    localStorage.setItem('catavor_theme', resolvedTheme);
-  }, [storeTheme]);
+    if (!isPlatformPage) {
+      localStorage.setItem('catavor_theme', resolvedTheme);
+    }
+  }, [storeTheme, currentPath]);
 
   // Dynamic Google AdSense & GA4 Runtime Initialization
   useEffect(() => {
@@ -828,13 +832,14 @@ export const App: React.FC = () => {
                 width: '56px',
                 height: '56px',
                 borderRadius: '1rem',
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                color: '#10b981',
+                backgroundColor: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                color: '#2563eb',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '1rem'
+                marginBottom: '1rem',
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)'
               }}>
                 <Store size={28} />
               </div>
@@ -971,13 +976,15 @@ export const App: React.FC = () => {
                   minHeight: '48px',
                   padding: '0.75rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary)',
+                  backgroundColor: '#2563eb',
                   color: '#ffffff',
                   border: 'none',
                   fontWeight: 700,
                   fontSize: '0.95rem',
                   cursor: loginLoading ? 'not-allowed' : 'pointer',
-                  marginTop: '0.5rem'
+                  marginTop: '0.5rem',
+                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 {loginLoading ? 'Memproses...' : 'Masuk ke Konsol Toko'}
@@ -1051,21 +1058,22 @@ export const App: React.FC = () => {
               width: '56px',
               height: '56px',
               borderRadius: '1rem',
-              backgroundColor: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              color: '#10b981',
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              color: '#2563eb',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '1rem'
+              marginBottom: '1rem',
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)'
             }}>
-              <Lock size={28} />
+              <Store size={28} />
             </div>
             <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-              Masuk Konsol Tablet
+              Masuk Dashboard Toko
             </h1>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
-              Kelola katalog toko Anda atau akses konsol operasional
+              Kelola katalog produk, pesanan WhatsApp, dan profil usaha Anda
             </p>
           </div>
 
@@ -1194,16 +1202,18 @@ export const App: React.FC = () => {
                 minHeight: '48px',
                 padding: '0.75rem',
                 borderRadius: '0.65rem',
-                backgroundColor: 'var(--primary)',
+                backgroundColor: '#2563eb',
                 color: '#ffffff',
                 border: 'none',
                 fontWeight: 700,
                 fontSize: '0.95rem',
                 cursor: loginLoading ? 'not-allowed' : 'pointer',
-                marginTop: '0.5rem'
+                marginTop: '0.5rem',
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+                transition: 'all 0.15s ease'
               }}
             >
-              {loginLoading ? 'Memproses...' : 'Masuk ke Konsol'}
+              {loginLoading ? 'Memproses...' : 'Masuk ke Dashboard'}
             </button>
 
             <button

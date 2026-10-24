@@ -383,27 +383,28 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         {/* Brand */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <div style={{
-            width: isMiniTablet ? '38px' : '40px',
-            height: isMiniTablet ? '38px' : '40px',
-            borderRadius: '0.65rem',
-            backgroundColor: 'rgba(30, 58, 138, 0.12)',
-            border: '1px solid var(--border-light)',
+            width: isMiniTablet ? '36px' : '40px',
+            height: isMiniTablet ? '36px' : '40px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--primary)',
-            fontWeight: 900,
-            fontSize: isMiniTablet ? '1.15rem' : '1.2rem'
+            color: '#ffffff',
+            boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)'
           }}>
-            C
+            <StoreIcon size={isMiniTablet ? 18 : 20} />
           </div>
           <div>
-            <div style={{ fontSize: isMiniTablet ? '1.15rem' : '1.2rem', fontWeight: 900, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            <div style={{ fontSize: isMiniTablet ? '1.15rem' : '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               Catavor
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.12rem 0.45rem', borderRadius: '999px' }}>
+                COMMERCE
+              </span>
             </div>
             {!isMiniTablet && (
-              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                Platform Ekosistem Katalog Digital
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Platform Katalog Digital &amp; Biolink Usaha
               </div>
             )}
           </div>
@@ -421,7 +422,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               flexShrink: 0,
               borderRadius: '0.65rem',
               border: showFloatingMenu ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
-              backgroundColor: showFloatingMenu ? 'rgba(30, 58, 138, 0.08)' : 'var(--bg-deep)',
+              backgroundColor: showFloatingMenu ? '#eff6ff' : 'var(--bg-deep)',
               color: showFloatingMenu ? 'var(--primary)' : 'var(--text-primary)',
               cursor: 'pointer',
               display: 'flex',
@@ -474,7 +475,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                boxShadow: 'var(--shadow-premium)'
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
               }}
             >
               <LogIn size={15} />
@@ -513,11 +514,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 gap: '0.4rem',
                 padding: '0.3rem 0.75rem',
                 borderRadius: '999px',
-                backgroundColor: 'rgba(30, 58, 138, 0.08)',
-                color: 'var(--primary)',
+                backgroundColor: '#eff6ff',
+                color: '#1d4ed8',
                 fontSize: '0.78rem',
                 fontWeight: 800,
-                border: '1px solid var(--border-light)'
+                border: '1px solid #bfdbfe'
               }}>
                 <Compass size={14} />
                 <span>JELAJAHI</span>
@@ -634,12 +635,12 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           gap: '0.5rem',
           padding: isMiniTablet ? '0.35rem 0.95rem' : '0.4rem 1.05rem',
           borderRadius: '999px',
-          backgroundColor: 'rgba(30, 58, 138, 0.08)',
-          color: 'var(--primary)',
+          backgroundColor: '#eff6ff',
+          color: '#1d4ed8',
           fontSize: isMiniTablet ? '0.76rem' : '0.84rem',
           fontWeight: 800,
           marginBottom: '1rem',
-          border: '1px solid var(--border-light)'
+          border: '1px solid #bfdbfe'
         }}>
           <Sparkles size={isMiniTablet ? 14 : 16} />
           <span>Platform Katalog Digital &amp; Biolink Usaha Mandiri</span>
@@ -777,7 +778,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.55rem',
-              boxShadow: 'var(--shadow-premium)',
+              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
               width: isNarrow ? '100%' : 'auto'
             }}
           >
@@ -1498,13 +1499,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 width: '40px',
                 height: '40px',
                 borderRadius: '0.75rem',
-                backgroundColor: 'rgba(30, 58, 138, 0.08)',
-                color: 'var(--primary)',
+                backgroundColor: '#eff6ff',
+                color: '#1d4ed8',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                border: '1px solid var(--border-light)'
+                border: '1px solid #bfdbfe'
               }}>
                 <Scale size={20} />
               </div>
@@ -1554,7 +1555,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           <div style={{
             backgroundColor: 'var(--bg-card)',
             borderRadius: '1.15rem',
-            border: '1.5px solid rgba(30, 58, 138, 0.25)',
+            border: '1.5px solid #bfdbfe',
             padding: isMiniTablet ? '1.25rem 1.15rem' : '1.45rem 1.35rem',
             display: 'flex',
             flexDirection: 'column',
@@ -1754,8 +1755,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           <div style={{
             padding: '0.85rem 1.15rem',
             borderRadius: '0.75rem',
-            backgroundColor: 'rgba(30, 58, 138, 0.06)',
-            border: '1px solid var(--border-light)',
+            backgroundColor: '#eff6ff',
+            border: '1px solid #bfdbfe',
             display: 'flex',
             alignItems: 'flex-start',
             gap: '0.85rem'
@@ -2180,7 +2181,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   border: isOpen ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
                   overflow: 'hidden',
                   transition: 'all 0.15s ease',
-                  boxShadow: isOpen ? '0 4px 15px rgba(30, 58, 138, 0.08)' : 'none'
+                  boxShadow: isOpen ? '0 4px 15px rgba(37, 99, 235, 0.12)' : 'none'
                 }}
               >
                 <div

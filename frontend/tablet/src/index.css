@@ -12,11 +12,11 @@
   --bg-deep: #f8fafc;
   --bg-card: #ffffff;
   --bg-card-hover: #f1f5f9;
-  --border-light: rgba(30, 58, 138, 0.14);
-  --border-hover: rgba(30, 58, 138, 0.32);
-  --primary: #1e3a8a;
-  --primary-glow: rgba(30, 58, 138, 0.20);
-  --primary-hover: #172554;
+  --border-light: #e2e8f0;
+  --border-hover: #cbd5e1;
+  --primary: #2563eb;
+  --primary-glow: rgba(37, 99, 235, 0.25);
+  --primary-hover: #1d4ed8;
   --secondary: #93c5fd;
   --accent-blue: #3b82f6;
   --accent-purple: #6366f1;
@@ -26,7 +26,8 @@
   --text-secondary: #334155;
   --text-muted: #64748b;
   --header-bg: #ffffff;
-  --card-bg-gradient: linear-gradient(135deg, #ffffff 0%, #f0f5fa 100%);
+  --card-bg-gradient: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  --hero-title-gradient: linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #2563eb 100%);
   --shadow-premium: 0 10px 30px rgba(0, 0, 0, 0.06);
   --tablet-rail-width: 74px;
 }
