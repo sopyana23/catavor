@@ -992,7 +992,8 @@ func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
 
 	// Filter by search term
 	if search != "" {
-		searchLike := "%" + strings.ToLower(search) + "%"
+		escapedSearch := escapeLikePattern(strings.ToLower(search))
+		searchLike := "%" + escapedSearch + "%"
 		query = query.Where("(LOWER(name) LIKE ? OR LOWER(class) LIKE ? OR LOWER(scientific_name) LIKE ?)", searchLike, searchLike, searchLike)
 	}
 

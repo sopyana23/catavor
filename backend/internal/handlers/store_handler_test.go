@@ -239,6 +239,21 @@ func TestStoreShowStore_SQLite(t *testing.T) {
 		}
 	})
 
+	t.Run("dormancy_warning_masking", func(t *testing.T) {
+		s := seedStore(t, db, 15, "toko-warning", "Toko Warning")
+		db.Model(s).Update("dormancy_status", "warning_1")
+
+		// Public visitor (no auth): warning_1 masked to active
+		code, body := storeReq(t, app, "GET", "/stores/toko-warning", "", nil)
+		if code != 200 {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		data, _ := body["data"].(map[string]any)
+		if data["dormancy_status"] != "active" {
+			t.Errorf("public visitor should see 'active', got %v", data["dormancy_status"])
+		}
+	})
+
 	t.Run("dormancy_banned_404", func(t *testing.T) {
 		s := seedStore(t, db, 10, "toko-purged", "Toko Purged")
 		db.Model(&models.Store{}).Where("id = ?", s.ID).Update("dormancy_status", "banned")
@@ -715,3 +730,54 @@ func itoa(u uint) string {
 	}
 	return string(b[i:])
 }
+
+// TestDestructiveContractCompatibility menjamin bahwa payload dari berbagai form-factor
+// (desktop, tablet, mobile) yang mengirim format legacy atau baru tetap berhasil diparsing.
+func TestDestructiveContractCompatibility(t *testing.T) {
+	// 1. DeleteStoreRequest: format confirm_slug vs slug alias
+	payloadWithConfirmSlug := `{"confirm_slug":"tokoku","password":"rahasia123"}`
+	var req1 DeleteStoreRequest
+	if err := json.Unmarshal([]byte(payloadWithConfirmSlug), &req1); err != nil {
+		t.Fatalf("unmarshal req1 failed: %v", err)
+	}
+	if req1.ConfirmSlug != "tokoku" {
+		t.Errorf("expected ConfirmSlug 'tokoku', got %q", req1.ConfirmSlug)
+	}
+
+	payloadWithSlugAlias := `{"slug":"tokoku","password":"rahasia123"}`
+	var req2 DeleteStoreRequest
+	if err := json.Unmarshal([]byte(payloadWithSlugAlias), &req2); err != nil {
+		t.Fatalf("unmarshal req2 failed: %v", err)
+	}
+	cleanSlug := strings.ToLower(strings.TrimSpace(req2.ConfirmSlug))
+	if cleanSlug == "" {
+		cleanSlug = strings.ToLower(strings.TrimSpace(req2.Slug))
+	}
+	if cleanSlug != "tokoku" {
+		t.Errorf("expected cleanSlug 'tokoku' from slug alias, got %q", cleanSlug)
+	}
+
+	// 2. DeleteAccountRequest: format confirm_phrase vs confirmation alias
+	payloadWithConfirmPhrase := `{"confirm_phrase":"HAPUS AKUN SAYA","password":"rahasia123"}`
+	var accReq1 DeleteAccountRequest
+	if err := json.Unmarshal([]byte(payloadWithConfirmPhrase), &accReq1); err != nil {
+		t.Fatalf("unmarshal accReq1 failed: %v", err)
+	}
+	if accReq1.ConfirmPhrase != "HAPUS AKUN SAYA" {
+		t.Errorf("expected ConfirmPhrase 'HAPUS AKUN SAYA', got %q", accReq1.ConfirmPhrase)
+	}
+
+	payloadWithConfirmationAlias := `{"confirmation":"HAPUS AKUN SAYA","password":"rahasia123"}`
+	var accReq2 DeleteAccountRequest
+	if err := json.Unmarshal([]byte(payloadWithConfirmationAlias), &accReq2); err != nil {
+		t.Fatalf("unmarshal accReq2 failed: %v", err)
+	}
+	phrase := strings.TrimSpace(accReq2.ConfirmPhrase)
+	if phrase == "" {
+		phrase = strings.TrimSpace(accReq2.Confirmation)
+	}
+	if phrase != "HAPUS AKUN SAYA" {
+		t.Errorf("expected phrase 'HAPUS AKUN SAYA' from confirmation alias, got %q", phrase)
+	}
+}
+

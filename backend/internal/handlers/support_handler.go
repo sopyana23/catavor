@@ -176,7 +176,8 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 			if cleanW == "" {
 				continue
 			}
-			term := "%" + strings.ToLower(cleanW) + "%"
+			escapedW := escapeLikePattern(strings.ToLower(cleanW))
+			term := "%" + escapedW + "%"
 			baseQuery = baseQuery.Where(
 				"(LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(category) LIKE ? OR EXISTS (SELECT 1 FROM support_messages sm WHERE sm.ticket_id = support_tickets.id AND LOWER(sm.message) LIKE ?))",
 				term, term, term, term,
@@ -832,7 +833,8 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 			if cleanW == "" {
 				continue
 			}
-			term := "%" + strings.ToLower(cleanW) + "%"
+			escapedW := escapeLikePattern(strings.ToLower(cleanW))
+			term := "%" + escapedW + "%"
 			query = query.Where(
 				"(LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(category) LIKE ? OR LOWER(priority) LIKE ? OR LOWER(status) LIKE ? OR user_id IN (SELECT id FROM users WHERE LOWER(name) LIKE ? OR LOWER(email) LIKE ?) OR store_id IN (SELECT id FROM stores WHERE LOWER(store_title) LIKE ? OR LOWER(slug) LIKE ?) OR EXISTS (SELECT 1 FROM support_messages sm WHERE sm.ticket_id = support_tickets.id AND LOWER(sm.message) LIKE ?))",
 				term, term, term, term, term, term, term, term, term, term,

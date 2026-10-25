@@ -138,7 +138,8 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 	}
 
 	if search := strings.TrimSpace(c.Query("search")); search != "" {
-		searchTerm := "%" + strings.ToLower(search) + "%"
+		escaped := escapeLikePattern(search)
+		searchTerm := "%" + strings.ToLower(escaped) + "%"
 		query = query.Where("LOWER(products.name) LIKE ? OR LOWER(products.description) LIKE ? OR LOWER(products.class) LIKE ?", searchTerm, searchTerm, searchTerm)
 	}
 
@@ -397,8 +398,14 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 		delete(req.Attributes, "diet")
 	}
 
-	// Auto-associate Category relation if category_id not explicitly sent
-	var categoryID *uint = req.CategoryID
+	// Auto-associate Category relation if category_id not explicitly sent or validate store ownership
+	var categoryID *uint
+	if req.CategoryID != nil {
+		var cat models.Category
+		if err := h.db.Where("id = ? AND store_id = ?", *req.CategoryID, store.ID).First(&cat).Error; err == nil {
+			categoryID = &cat.ID
+		}
+	}
 	className := security.SanitizePlainText(req.Class, 100)
 	if categoryID == nil && className != "" {
 		var cat models.Category
@@ -632,6 +639,8 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			"message": "Format data produk tidak valid.",
 		})
 	}
+	var rawFields map[string]json.RawMessage
+	_ = json.Unmarshal(c.Body(), &rawFields)
 
 	// Anti-Cheat & Activation Guard
 	targetActive := product.IsActive
@@ -682,7 +691,10 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		className := security.SanitizePlainText(req.Class, 100)
 		product.Class = className
 		if req.CategoryID != nil {
-			product.CategoryID = req.CategoryID
+			var cat models.Category
+			if err := h.db.Where("id = ? AND store_id = ?", *req.CategoryID, store.ID).First(&cat).Error; err == nil {
+				product.CategoryID = &cat.ID
+			}
 		} else {
 			var cat models.Category
 			if err := h.db.Where("store_id = ? AND LOWER(name) = ?", store.ID, strings.ToLower(className)).First(&cat).Error; err == nil {
@@ -706,7 +718,10 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			}
 		}
 	} else if req.CategoryID != nil {
-		product.CategoryID = req.CategoryID
+		var cat models.Category
+		if err := h.db.Where("id = ? AND store_id = ?", *req.CategoryID, store.ID).First(&cat).Error; err == nil {
+			product.CategoryID = &cat.ID
+		}
 	}
 
 	if effectiveType == "fauna" {
@@ -744,18 +759,26 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	if req.ConservationStatus != "" {
 		product.ConservationStatus = security.SanitizePlainText(req.ConservationStatus, 100)
 	}
-	if req.Price >= 0 {
-		product.Price = req.Price
+	if _, hasPrice := rawFields["price"]; hasPrice {
+		if req.Price >= 0 {
+			product.Price = req.Price
+		}
 	}
-	if req.MinOrder > 0 {
-		product.MinOrder = req.MinOrder
+	if _, hasMinOrder := rawFields["min_order"]; hasMinOrder {
+		if req.MinOrder > 0 {
+			product.MinOrder = req.MinOrder
+		}
 	}
-	product.MaxOrder = req.MaxOrder
-	if req.VideoURL != "" {
+	if _, hasMaxOrder := rawFields["max_order"]; hasMaxOrder {
+		product.MaxOrder = req.MaxOrder
+	}
+	if _, hasVideo := rawFields["video_url"]; hasVideo {
 		product.VideoURL = security.SanitizeVideoURL(req.VideoURL)
 	}
-	if req.IsShippingAvailable != nil {
-		product.IsShippingAvailable = *req.IsShippingAvailable
+	if _, hasShipping := rawFields["is_shipping_available"]; hasShipping {
+		if req.IsShippingAvailable != nil {
+			product.IsShippingAvailable = *req.IsShippingAvailable
+		}
 	}
 	if req.Description != "" {
 		product.Description = security.SanitizeRichText(req.Description, 5000)
@@ -768,8 +791,16 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		product.DetailedInfo = datatypes.JSON(b)
 	}
 	if req.Attributes != nil {
+		// Defensive merge: preserve existing product attributes not explicitly modified in partial payload
+		mergedAttrs := make(map[string]interface{})
+		if len(product.Attributes) > 0 {
+			_ = json.Unmarshal(product.Attributes, &mergedAttrs)
+		}
+		for k, v := range req.Attributes {
+			mergedAttrs[k] = v
+		}
 		// Same contract as Store: unknown keys for this type are dropped.
-		b, _ := json.Marshal(models.FilterProductAttributes(product.ProductType, req.Attributes))
+		b, _ := json.Marshal(models.FilterProductAttributes(product.ProductType, mergedAttrs))
 		product.Attributes = datatypes.JSON(b)
 	}
 

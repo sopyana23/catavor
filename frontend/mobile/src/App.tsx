@@ -1616,6 +1616,10 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
       property_location: 'BSD City, Tangerang Selatan',
       facilities: 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
       halal_status: 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+      portion_size: '',
+      prep_time: '',
+      storage_temp: 'Suhu Ruang',
+      expired_info: '',
       sunlight: 'Partial Sun (Teduh Terang)',
       watering: 'Sedang (2-3 Hari Sekali)',
       planting_medium: 'Tanah Subur & Kompos',
@@ -9815,6 +9819,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useModalBackHandler({ isOpen: showAdminFilterSheet, onClose: () => setShowAdminFilterSheet(false), modalId: 'admin-filter-sheet' });
   useModalBackHandler({ isOpen: showProductTypeSelector, onClose: () => setShowProductTypeSelector(false), modalId: 'product-type-selector' });
   useModalBackHandler({ isOpen: Boolean(reportModalData), onClose: () => setReportModalData(null), modalId: 'report-modal' });
+  useModalBackHandler({ isOpen: showRekberExplainerModal, onClose: () => setShowRekberExplainerModal(false), modalId: 'rekber-explainer' });
+  useModalBackHandler({ isOpen: Boolean(crudDropdownPicker), onClose: () => setCrudDropdownPicker(null), modalId: 'crud-dropdown-picker' });
 
   // Mobile Discard Confirmation Sheet State
   const [showDiscardConfirmSheet, setShowDiscardConfirmSheet] = useState<boolean>(false);
@@ -9872,6 +9878,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
           class: item.class,
           price: item.price,
           description: item.description,
+          min_order: item.min_order,
+          max_order: item.max_order,
+          is_shipping_available: item.is_shipping_available,
           is_active: newActive
         })
       });
@@ -10534,11 +10543,44 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   }, [showCrudSheet])
 
+  // Nilai terbaru untuk listener popstate yang dipasang sekali (deps []). Tanpa ref,
+  // guard di bawah akan membaca state basi dari render pertama.
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const isFormDirtyRef = useRef(isFormDirty);
+  isFormDirtyRef.current = isFormDirty;
+  const showDiscardRef = useRef(showDiscardConfirmSheet);
+  showDiscardRef.current = showDiscardConfirmSheet;
+  const formActiveUrlRef = useRef<string>('');
+
+  // Simpan URL saat form produk aktif, agar guard back dapat memulihkan alamat yang
+  // sesuai dengan tampilan (mencegah URL desync ketika back dicegah).
+  useEffect(() => {
+    if (view === 'fauna-editor') {
+      formActiveUrlRef.current = window.location.href;
+    }
+  }, [view]);
+
   // Unified Browser Back/Forward PopState Event Listener for Mobile Navigation
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       // 0. If this popstate was triggered by closing a modal/drawer, do NOT reset page routes!
       if (window.__catavor_is_modal_popping || (event.state && event.state.__catavor_modal)) {
+        return;
+      }
+
+      // 0b. Guard (AGENTS.md §2): form produk terbuka dan masih ada isian belum disimpan.
+      // Back tidak boleh membuang input diam-diam. Selama form kotor, logika rute di bawah
+      // TIDAK dijalankan agar tampilan tidak berubah di bawah sheet konfirmasi.
+      if (viewRef.current === 'fauna-editor' && isFormDirtyRef.current()) {
+        if (!showDiscardRef.current) {
+          setShowDiscardConfirmSheet(true);
+          // Pulihkan URL form agar alamat tetap sesuai dengan tampilan (anti desync).
+          const formUrl = formActiveUrlRef.current;
+          if (formUrl && window.location.href !== formUrl) {
+            window.history.pushState({}, '', formUrl);
+          }
+        }
         return;
       }
 
@@ -13738,6 +13780,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       product_type: itemType,
       is_active: (item as any).is_active !== false,
       attributes: {
+        ...(item.attributes || {}),
         condition: (item.attributes?.condition as any) || 'Baru',
         weight: item.attributes?.weight ?? 100,
         brand: item.attributes?.brand || '',
@@ -13763,6 +13806,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         property_location: item.attributes?.property_location || 'BSD City, Tangerang Selatan',
         facilities: item.attributes?.facilities || 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
         halal_status: item.attributes?.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+        portion_size: item.attributes?.portion_size || '',
+        prep_time: item.attributes?.prep_time || '',
+        storage_temp: item.attributes?.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (item.attributes?.storage_temp || 'Suhu Ruang'),
+        expired_info: item.attributes?.expired_info || '',
         sunlight: item.attributes?.sunlight || 'Partial Sun (Teduh Terang)',
         watering: item.attributes?.watering || 'Sedang (2-3 Hari Sekali)',
         planting_medium: item.attributes?.planting_medium || 'Tanah Subur & Kompos',
@@ -20280,6 +20327,87 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         placeholder="Contoh: Pedas Sedang, Ekstra Pedas / 500gr"
                         value={crudForm.attributes.variant || ''}
                         onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, variant: e.target.value } })}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.35rem' }}>Porsi / Takaran Saji (Opsional)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: 1 Porsi (1-2 Orang) / 500 Gram"
+                        value={crudForm.attributes.portion_size || ''}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.35rem' }}>Estimasi Waktu Penyajian (Opsional)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: 10-15 Menit (Siap Saji)"
+                        value={crudForm.attributes.prep_time || ''}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, prep_time: e.target.value } })}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.35rem' }}>Suhu / Metode Penyimpanan</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCrudDropdownPicker({
+                            title: 'Pilih Suhu / Metode Penyimpanan',
+                            icon: Utensils,
+                            options: [
+                              { value: 'Suhu Ruang', label: 'Suhu Ruang (Kering & Sejuk)', desc: 'Simpan pada suhu ruangan sejuk & kering (20-25°C)' },
+                              { value: 'Chiller (2°C - 8°C)', label: 'Dingin (Kulkas / Chiller 2-8°C)', desc: 'Wajib simpan di kulkas pendingin agar tetap segar' },
+                              { value: 'Freezer (-18°C)', label: 'Beku (Freezer -18°C)', desc: 'Simpan dalam freezer beku untuk masa simpan tahan lama' },
+                              { value: 'Hangat', label: 'Hangat (Warmer / Siap Santap)', desc: 'Jaga suhu hangat atau segera santap saat tiba' }
+                            ],
+                            selectedValue: crudForm.attributes.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (crudForm.attributes.storage_temp || 'Suhu Ruang'),
+                            onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, storage_temp: val } }))
+                          });
+                        }}
+                        className="form-input"
+                        style={{
+                          height: '42px',
+                          padding: '0 0.85rem',
+                          fontSize: '0.85rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)'
+                        }}
+                      >
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                          {crudForm.attributes.storage_temp === 'Suhu Ruang (Kering & Sejuk)'
+                            ? 'Suhu Ruang (Kering & Sejuk)'
+                            : (crudForm.attributes.storage_temp === 'Chiller (2°C - 8°C)'
+                              ? 'Dingin (Kulkas / Chiller 2-8°C)'
+                              : (crudForm.attributes.storage_temp === 'Freezer (-18°C)'
+                                ? 'Beku (Freezer -18°C)'
+                                : (crudForm.attributes.storage_temp === 'Hangat'
+                                  ? 'Hangat (Warmer / Siap Santap)'
+                                  : (crudForm.attributes.storage_temp || 'Suhu Ruang (Kering & Sejuk)'))))}
+                        </span>
+                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                      </button>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.35rem' }}>Masa Simpan / Kadaluwarsa (Opsional)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: 24 Jam di Suhu Ruang / 1 Bulan di Freezer"
+                        value={crudForm.attributes.expired_info || ''}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
                       />
                     </div>
                   </div>

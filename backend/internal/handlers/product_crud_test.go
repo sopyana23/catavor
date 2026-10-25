@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
@@ -250,6 +251,53 @@ func TestProductUpdate_SQLite(t *testing.T) {
 		})
 		if r.Status != 400 {
 			t.Fatalf("status = %d, want 400; body=%s", r.Status, r.Raw)
+		}
+	})
+
+	t.Run("partial_update_attributes_preservation", func(t *testing.T) {
+		db := newTestDB(t)
+		u, st := merchantFixtures(t, db)
+		initialAttrs := []byte(`{"halal_status":"Halal","portion_size":"1 Porsi","prep_time":"15 Menit","storage_temp":"Suhu Ruang","expired_info":"3 Hari"}`)
+		p := &models.Product{
+			StoreID:     st.ID,
+			Name:        "Rendang Padang",
+			Price:       50000,
+			IsActive:    true,
+			ProductType: "food",
+			Attributes:  initialAttrs,
+		}
+		mustCreate(t, db, p)
+
+		// Simulasikan update parsial hanya halal_status dan price (seperti dari mobile)
+		r := call(t, merchantApp(db, st, u), "PUT", "/products/"+strconv.FormatUint(uint64(p.ID), 10), map[string]any{
+			"price": 55000,
+			"attributes": map[string]any{
+				"halal_status": "Bersertifikat Halal Resmi (BPJPH / MUI)",
+			},
+		})
+		if r.Status != 200 {
+			t.Fatalf("status = %d, want 200; body=%s", r.Status, r.Raw)
+		}
+
+		var updated models.Product
+		db.First(&updated, p.ID)
+		if updated.Price != 55000 {
+			t.Errorf("expected price 55000, got %v", updated.Price)
+		}
+
+		var attrs map[string]any
+		_ = json.Unmarshal(updated.Attributes, &attrs)
+		if attrs["halal_status"] != "Bersertifikat Halal Resmi (BPJPH / MUI)" {
+			t.Errorf("halal_status not updated: %v", attrs["halal_status"])
+		}
+		if attrs["portion_size"] != "1 Porsi" {
+			t.Errorf("portion_size was lost in partial update: %v", attrs["portion_size"])
+		}
+		if attrs["storage_temp"] != "Suhu Ruang" {
+			t.Errorf("storage_temp was lost in partial update: %v", attrs["storage_temp"])
+		}
+		if attrs["expired_info"] != "3 Hari" {
+			t.Errorf("expired_info was lost in partial update: %v", attrs["expired_info"])
 		}
 	})
 }

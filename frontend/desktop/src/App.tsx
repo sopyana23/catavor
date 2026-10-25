@@ -1299,6 +1299,10 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
       property_location: 'BSD City, Tangerang Selatan',
       facilities: 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
       halal_status: 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+      portion_size: '',
+      prep_time: '',
+      storage_temp: 'Suhu Ruang',
+      expired_info: '',
       sunlight: 'Partial Sun (Teduh Terang)',
       watering: 'Sedang (2-3 Hari Sekali)',
       planting_medium: 'Tanah Subur & Kompos',
@@ -9580,7 +9584,17 @@ Terima kasih atas perhatian dan kerja samanya.`;
     modalId: 'desktop-archive-confirmation-modal'
   })
 
+  // Enterprise Product Delete Confirmation Modal State
+  const [itemToDelete, setItemToDelete] = useState<Fauna | null>(null)
+  const [isDeletingItem, setIsDeletingItem] = useState<boolean>(false)
 
+  useModalBackHandler({
+    isOpen: Boolean(itemToDelete),
+    onClose: () => {
+      if (!isDeletingItem) setItemToDelete(null);
+    },
+    modalId: 'desktop-product-delete-confirmation-modal'
+  })
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
@@ -13477,6 +13491,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
         property_location: item.attributes?.property_location ?? 'BSD City, Tangerang Selatan',
         facilities: item.attributes?.facilities ?? 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
         halal_status: item.attributes?.halal_status ?? 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+        portion_size: item.attributes?.portion_size ?? '',
+        prep_time: item.attributes?.prep_time ?? '',
+        storage_temp: item.attributes?.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (item.attributes?.storage_temp || 'Suhu Ruang'),
+        expired_info: item.attributes?.expired_info ?? '',
         sunlight: item.attributes?.sunlight ?? 'Partial Sun (Teduh Terang)',
         watering: item.attributes?.watering ?? 'Sedang (2-3 Hari Sekali)',
         planting_medium: item.attributes?.planting_medium ?? 'Campuran Tanah, Sekam & Kompos',
@@ -13963,44 +13981,47 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
 
 
-  // Handle Fauna/Product Delete
-  const handleFaunaDelete = async (id: number): Promise<boolean> => {
+  // Execute Fauna/Product Delete from Centered Confirmation Modal
+  const handleExecuteProductDelete = async () => {
+    if (!itemToDelete) return;
     if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
       showToast('Operasional katalog sedang dibekukan sementara. Penghapusan item dinonaktifkan.', 'error');
-      return false;
+      setItemToDelete(null);
+      return;
     }
-    if (!window.confirm('Apakah Anda yakin ingin menghapus postingan item ini?')) return false
 
+    setIsDeletingItem(true);
     try {
-      const res = await fetch(`${API_BASE}/products/${id}`, {
+      const res = await fetch(`${API_BASE}/products/${itemToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       if (res.ok && data.success) {
-        loadData()
-        fetchMyQuota()
-        showToast('Data item berhasil dihapus!')
+        showToast('Data item berhasil dihapus permanen!');
+        setItemToDelete(null);
+        handleCloseDetail();
+        loadData();
+        fetchMyQuota();
         if (view === 'admin') {
-          sessionStorage.setItem('catavor_desktop_view', 'admin')
-          sessionStorage.setItem('catavor_desktop_admin_tab', adminTab || 'items')
+          sessionStorage.setItem('catavor_desktop_view', 'admin');
+          sessionStorage.setItem('catavor_desktop_admin_tab', adminTab || 'items');
         }
         setTimeout(() => {
-          window.location.reload()
-        }, 500)
-        return true
+          window.location.reload();
+        }, 500);
       } else {
         if (res.status === 401) {
-          handleUnauthorized()
+          handleUnauthorized();
         } else {
-          showToast(data.message || 'Gagal menghapus data item.', 'error')
+          showToast(data.message || 'Gagal menghapus data item.', 'error');
         }
-        return false
       }
     } catch (err) {
-      console.error(err)
-      showToast('Koneksi terputus. Gagal menghapus data item.', 'error')
-      return false
+      console.error(err);
+      showToast('Koneksi terputus. Gagal menghapus data item.', 'error');
+    } finally {
+      setIsDeletingItem(false);
     }
   }
 
@@ -17832,13 +17853,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <button
                           type="button"
                           disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                          onClick={async () => {
+                          onClick={() => {
                             setShowDetailActionDropdown(false);
                             if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
-                            const deleted = await handleFaunaDelete(selectedFauna.id);
-                            if (deleted) {
-                              handleCloseDetail();
-                            }
+                            setItemToDelete(selectedFauna);
                           }}
                           style={{
                             display: 'flex',
@@ -18939,12 +18957,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   <button 
                     type="button" 
                     disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                    onClick={async () => {
+                    onClick={() => {
                       if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
-                      const deleted = await handleFaunaDelete(selectedFauna.id);
-                      if (deleted) {
-                        handleCloseDetail();
-                      }
+                      setItemToDelete(selectedFauna);
                     }}
                     style={{
                       height: '42px',
@@ -29260,9 +29275,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     apiBase={API_BASE}
                     token={token}
                     onBack={() => {
-                      setAdminTab('items');
                       const slug = getStoreSlug();
-                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      smartBack(() => {
+                        setAdminTab('items');
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      });
                     }}
                   />
                 </div>
@@ -29275,9 +29292,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     token={token || ''}
                     currentUserEmail={adminUser?.email}
                     onClose={() => {
-                      setAdminTab('items');
                       const slug = getStoreSlug();
-                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      smartBack(() => {
+                        setAdminTab('items');
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      });
                     }}
                   />
                 </div>
@@ -29295,9 +29314,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       if (slug) window.history.pushState({}, '', `/${slug}/admin/${tab}`);
                     }}
                     onClose={() => {
-                      setAdminTab('items');
                       const slug = getStoreSlug();
-                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      smartBack(() => {
+                        setAdminTab('items');
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      });
                     }}
                   />
                 </div>
@@ -29460,6 +29481,113 @@ Terima kasih atas perhatian dan kerja samanya.`;
           </div>
         );
       })()}
+
+      {/* ENTERPRISE PRODUCT DELETE CONFIRMATION MODAL */}
+      {itemToDelete && (
+        <div className="modal-overlay" onClick={() => !isDeletingItem && setItemToDelete(null)} style={{ zIndex: 9999 }}>
+          <div 
+            className="glass-panel animate-scale-up" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '460px', 
+              width: '90%', 
+              padding: '1.75rem', 
+              borderRadius: '1rem', 
+              border: '1px solid rgba(239, 68, 68, 0.3)', 
+              backgroundColor: 'var(--bg-card)', 
+              position: 'relative', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)' 
+            }}
+          >
+            <button 
+              type="button" 
+              className="modal-close-btn" 
+              disabled={isDeletingItem}
+              onClick={() => setItemToDelete(null)}
+              style={{ position: 'absolute', top: '1rem', right: '1rem' }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.1rem' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                color: '#ef4444'
+              }}>
+                <Trash2 size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Hapus Item Permanen
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                  Konfirmasi tindakan destruktif katalog
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.05)',
+              border: '1px solid rgba(239, 68, 68, 0.15)',
+              borderRadius: '0.65rem',
+              padding: '0.85rem 1rem',
+              marginBottom: '1.25rem',
+              fontSize: '0.84rem',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.5
+            }}>
+              Apakah Anda yakin ingin menghapus postingan <strong style={{ color: 'var(--text-primary)' }}>"{itemToDelete.name}"</strong>? Seluruh foto dan data terkait akan dihapus secara permanen dari server. Tindakan ini tidak dapat dibatalkan.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                disabled={isDeletingItem}
+                onClick={() => setItemToDelete(null)}
+                style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }}
+              >
+                Batal
+              </button>
+              <button 
+                type="button" 
+                className="btn-primary"
+                disabled={isDeletingItem}
+                style={{ 
+                  padding: '0.45rem 1.15rem', 
+                  fontSize: '0.82rem',
+                  backgroundColor: '#ef4444',
+                  borderColor: '#ef4444',
+                  boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+                onClick={handleExecuteProductDelete}
+              >
+                {isDeletingItem ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Menghapus...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    <span>Ya, Hapus Permanen</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CUSTOM CONFIRMATION DIALOG FOR MASTER OPTION DELETION */}
       {deleteMasterModalData && (
@@ -30573,13 +30701,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   </div>
                 )}
 
-                {/* 6. KULINER & MAKANAN (SEPERTI SCREENSHOT USER) */}
+                {/* 6. KULINER & MAKANAN */}
                 {crudForm.product_type === 'food' && (
                   <div style={{ background: 'rgba(220, 38, 38, 0.05)', border: '1px solid rgba(220, 38, 38, 0.2)', padding: '1.25rem', borderRadius: '0.85rem' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
                       Atribut Spesifik Kuliner &amp; Makanan
                     </span>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Sertifikasi / Status Halal *</label>
                         <DesktopCustomSelect
@@ -30602,6 +30730,59 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           placeholder="Contoh: Pedas Sedang, Ekstra Pedas / 500gr"
                           value={crudForm.attributes.variant || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, variant: e.target.value } })}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Porsi / Takaran Saji</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 1 Porsi (1-2 Orang) / 500 Gram"
+                          value={crudForm.attributes.portion_size || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Estimasi Waktu Penyajian</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 10-15 Menit (Siap Saji)"
+                          value={crudForm.attributes.prep_time || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, prep_time: e.target.value } })}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Suhu / Metode Penyimpanan</label>
+                        <DesktopCustomSelect
+                          value={crudForm.attributes.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (crudForm.attributes.storage_temp || 'Suhu Ruang')}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: val } })}
+                          options={[
+                            { value: 'Suhu Ruang', label: 'Suhu Ruang (Kering & Sejuk)' },
+                            { value: 'Chiller (2°C - 8°C)', label: 'Dingin (Kulkas / Chiller 2-8°C)' },
+                            { value: 'Freezer (-18°C)', label: 'Beku (Freezer -18°C)' },
+                            { value: 'Hangat', label: 'Hangat (Warmer / Siap Santap)' }
+                          ]}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Masa Simpan / Kadaluwarsa</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 24 Jam di Suhu Ruang / 1 Bulan di Freezer"
+                          value={crudForm.attributes.expired_info || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
                           style={{ height: '42px' }}
                         />
                       </div>

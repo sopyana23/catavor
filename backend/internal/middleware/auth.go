@@ -410,11 +410,13 @@ func StoreOwnerRequired() fiber.Handler {
 				}
 			}
 
-			// Platform Admins (Superadmin, Support, Staff) have authorized oversight over any store
+			// Platform Admins: Superadmin has global oversight; other platform staff only have read-only inspection access via GET/HEAD
 			if matchedStore == nil && isPlatformAdminUser {
-				var dbStore models.Store
-				if err := database.DB.Where("LOWER(slug) = ?", strings.ToLower(targetSlug)).First(&dbStore).Error; err == nil {
-					matchedStore = &dbStore
+				if user.IsSuperadmin() || c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead {
+					var dbStore models.Store
+					if err := database.DB.Where("LOWER(slug) = ?", strings.ToLower(targetSlug)).First(&dbStore).Error; err == nil {
+						matchedStore = &dbStore
+					}
 				}
 			}
 
@@ -500,9 +502,9 @@ func OperationalStoreRequired() fiber.Handler {
 		}
 
 		user, _ := c.Locals("user").(*models.User)
-		isStaff := user.IsPlatformStaff()
+		isStaff := user != nil && user.IsPlatformStaff()
 
-		if isStaff {
+		if isStaff && (user.IsSuperadmin() || c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead) {
 			return c.Next()
 		}
 

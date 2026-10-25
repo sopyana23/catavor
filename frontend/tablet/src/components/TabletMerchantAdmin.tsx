@@ -1318,7 +1318,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         lifespan: prod.detailed_info?.lifespan || prod.lifespan || prod.attributes?.lifespan || rawAttrs.lifespan || '',
         native_region: prod.detailed_info?.native_region || prod.native_region || prod.attributes?.native_region || rawAttrs.native_region || '',
         weight: prod.detailed_info?.weight || prod.weight || prod.attributes?.weight || rawAttrs.weight || (editProdType === 'physical' ? 100 : ''),
-        ...rawAttrs
+        ...rawAttrs,
+        storage_temp: rawAttrs.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (rawAttrs.storage_temp === 'Hangat / Siap Santap' ? 'Hangat' : (rawAttrs.storage_temp || 'Suhu Ruang'))
       }
     });
   };
@@ -1344,7 +1345,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
       if (typeId === 'food') {
         if (!defaultAttrs.halal_status) defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
-        if (!defaultAttrs.storage_temp) defaultAttrs.storage_temp = 'Suhu Ruang (Kering & Sejuk)';
+        if (!defaultAttrs.storage_temp) defaultAttrs.storage_temp = 'Suhu Ruang';
       }
       if (typeId === 'digital') {
         if (!defaultAttrs.file_format) defaultAttrs.file_format = 'PDF';
@@ -4684,6 +4685,58 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           />
                         </div>
                       )}
+
+                      {/* Stok & Satuan (Physical, Food, Digital, Plant, Fauna) */}
+                      {productForm.product_type !== 'service' && productForm.product_type !== 'property' && (
+                        <>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                              Jumlah Stok Tersedia
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={productForm.stock}
+                              onChange={(e) => setProductForm({ ...productForm, stock: Math.max(0, parseInt(e.target.value) || 0) })}
+                              placeholder="Contoh: 10"
+                              style={{
+                                width: '100%',
+                                minHeight: '42px',
+                                padding: '0.55rem 0.85rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.88rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                              Satuan Penjualan
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.unit}
+                              onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
+                              placeholder="Contoh: Pcs / Ekor / Porsi / Pot"
+                              style={{
+                                width: '100%',
+                                minHeight: '42px',
+                                padding: '0.55rem 0.85rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.88rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* Status Ketersediaan Kontekstual (Universal untuk Seluruh 7 Tipe Katalog) */}
@@ -4808,6 +4861,61 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               value={productForm.attributes.variant || ''}
                               onChange={(e) => updateProductAttribute('variant', e.target.value)}
                               placeholder="Contoh: Pedas Sedang, Ekstra Pedas / 500gr"
+                              style={tabletInputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Porsi / Takaran Saji
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.portion_size || ''}
+                              onChange={(e) => updateProductAttribute('portion_size', e.target.value)}
+                              placeholder="Contoh: 1 Porsi / 2-3 Orang / 500ml"
+                              style={tabletInputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Waktu Penyajian / Pre-Order
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.prep_time || ''}
+                              onChange={(e) => updateProductAttribute('prep_time', e.target.value)}
+                              placeholder="Contoh: 15-20 Menit / PO 1 Hari"
+                              style={tabletInputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Suhu / Cara Penyimpanan
+                            </label>
+                            <TabletCustomSelect
+                              value={productForm.attributes.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (productForm.attributes.storage_temp === 'Hangat / Siap Santap' ? 'Hangat' : (productForm.attributes.storage_temp || 'Suhu Ruang'))}
+                              onChange={(val) => updateProductAttribute('storage_temp', val)}
+                              options={[
+                                { value: 'Suhu Ruang', label: 'Suhu Ruang (Kering & Sejuk)' },
+                                { value: 'Chiller (2°C - 8°C)', label: 'Dingin (Kulkas / Chiller 2-8°C)' },
+                                { value: 'Freezer (-18°C)', label: 'Beku (Freezer -18°C)' },
+                                { value: 'Hangat', label: 'Hangat (Warmer / Siap Santap)' }
+                              ]}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Masa Simpan / Daya Tahan
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.expired_info || ''}
+                              onChange={(e) => updateProductAttribute('expired_info', e.target.value)}
+                              placeholder="Contoh: 3 Hari Suhu Ruang / 1 Bulan Freezer"
                               style={tabletInputStyle}
                             />
                           </div>

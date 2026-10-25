@@ -230,7 +230,7 @@ func main() {
 	// 40 POST berturut-turut dari satu IP menaikkan helpful_count 0 -> 40.
 	api.Post("/help/articles/:id/helpful", middleware.PublicSubmissionRateLimiter(), supportHandler.VoteHelpful)
 
-	api.Get("/settings", settingHandler.Index)
+	api.Get("/settings", settingHandler.PublicIndex)
 	api.Get("/policies", settingHandler.GetPolicies)
 	api.Post("/policies/agree", middleware.PublicSubmissionRateLimiter(), settingHandler.RecordAgreement)
 	api.Get("/articles", articleHandler.Index)
@@ -480,6 +480,8 @@ func main() {
 		adminApi.Post("/rbac/staff", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
 		adminApi.Post("/rbac/staff/assign", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
 		adminApi.Post("/rbac/staff/revoke", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.RevokeStaff)
+		adminApi.Post("/rbac/staff/:id/revoke", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.RevokeStaff)
+		adminApi.Delete("/rbac/staff/:id", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.RevokeStaff)
 
 		// Compliance & Trust / Safety (Satwa & Laporan)
 		adminApi.Get("/reports", middleware.RequirePermission(cfg, "compliance:reports:manage"), reportHandler.Index)
