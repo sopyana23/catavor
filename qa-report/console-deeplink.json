@@ -1,0 +1,1154 @@
+{
+  "login": 200,
+  "inventory": {
+    "desktop": {
+      "url": "http://localhost:8000/admin?view=desktop",
+      "headings": [
+        "Ringkasan Platform"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    "tablet": {
+      "url": "http://localhost:8000/admin?view=tablet",
+      "headings": [
+        "Ringkasan Eksekutif Platform"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Ringkasan Eksekutif Platform Segarkan Super Admin Status Operasional Prima: Seluruh laporan kepatuhan, tiket bantuan CS"
+    },
+    "mobile": {
+      "url": "http://localhost:8000/admin?view=mobile",
+      "headings": [
+        "Catavor Executive"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Ringkasan",
+        "Laporan",
+        "Helpdesk",
+        "Keuangan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "Catavor Executive Super Admin e2e-admin@catavor.test TOKO 1 ORDER 0 LAPORAN 0 TIKET 0 Perlu Tindakan Administrator Semua antrean operasional telah ditangani Ter"
+    }
+  },
+  "results": [
+    {
+      "device": "desktop",
+      "alias": "dashboard",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=dashboard&view=desktop",
+      "headings": [
+        "Ringkasan Platform"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "rbac",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=rbac&view=desktop",
+      "headings": [
+        "Staf & Role RBAC"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "staff",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=staff&view=desktop",
+      "headings": [
+        "Staf & Role RBAC"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "roles",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=roles&view=desktop",
+      "headings": [
+        "Staf & Role RBAC"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "stores",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=stores&view=desktop",
+      "headings": [
+        "Tata Kelola Merchant & Dormansi"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "reports",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=reports&view=desktop",
+      "headings": [
+        "Kepatuhan & Laporan Masyarakat"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "support",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=support&view=desktop",
+      "headings": [
+        "Pusat Bantuan & Helpdesk"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "helpdesk",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=helpdesk&view=desktop",
+      "headings": [
+        "Pusat Bantuan & Helpdesk"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "finance",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=finance&view=desktop",
+      "headings": [
+        "Keuangan & Billing Langganan"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "monetization",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=monetization&view=desktop",
+      "headings": [
+        "Monetisasi & Integrasi Google"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "broadcast",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=broadcast&view=desktop",
+      "headings": [
+        "Siaran Broadcast Notifikasi"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Buat Siaran",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "automation",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=automation&view=desktop",
+      "headings": [
+        "Mesin Otomatisasi & Cron Bot"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "bot",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=bot&view=desktop",
+      "headings": [
+        "Mesin Otomatisasi & Cron Bot"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "master_data",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=master_data&view=desktop",
+      "headings": [
+        "Master Data, Domain & Rekber"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "master-data",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=master-data&view=desktop",
+      "headings": [
+        "Master Data, Domain & Rekber"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "domains",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=domains&view=desktop",
+      "headings": [
+        "Master Data, Domain & Rekber"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "audit",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=audit&view=desktop",
+      "headings": [
+        "System-Wide Audit Trail"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "safe_domains",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=safe_domains&view=desktop",
+      "headings": [
+        "Master Data, Domain & Rekber"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "desktop",
+      "alias": "tidak-ada-modul-ini",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=tidak-ada-modul-ini&view=desktop",
+      "headings": [
+        "Ringkasan Platform"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Dashboard",
+        "Staf & RBAC",
+        "Direktori Merchant",
+        "Kepatuhan & Laporan",
+        "Tiket Bantuan",
+        "Keuangan & Billing",
+        "Siaran Broadcast",
+        "Mesin Otomatisasi",
+        "Monetisasi & Ads",
+        "Master Data & Rekber",
+        "Audit Trail Sistem",
+        "Mode Terang",
+        "Keluar Portal",
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "CATAVOR PLATFORM CONSOLE E E2E Admin e2e-admin@catavor.test SUPER ADMIN Online UTAMA Dashboard Staf & RBAC Direktori Merchant OPERASIONAL Kepatuhan & Laporan Ti"
+    },
+    {
+      "device": "tablet",
+      "alias": "dashboard",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=dashboard&view=tablet",
+      "headings": [
+        "Ringkasan Eksekutif Platform"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Ringkasan Eksekutif Platform Segarkan Super Admin Status Operasional Prima: Seluruh laporan kepatuhan, tiket bantuan CS"
+    },
+    {
+      "device": "tablet",
+      "alias": "rbac",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=rbac&view=tablet",
+      "headings": [
+        "Staf & Role RBAC"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Staf & Role RBAC Segarkan Super Admin Daftar Staf Matriks Izin Buat Role Tugaskan E E2E Admin e2e-admin@catavor.test Su"
+    },
+    {
+      "device": "tablet",
+      "alias": "staff",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=staff&view=tablet",
+      "headings": [
+        "Staf & Role RBAC"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Staf & Role RBAC Segarkan Super Admin Daftar Staf Matriks Izin Buat Role Tugaskan E E2E Admin e2e-admin@catavor.test Su"
+    },
+    {
+      "device": "tablet",
+      "alias": "roles",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=roles&view=tablet",
+      "headings": [
+        "Staf & Role RBAC"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Staf & Role RBAC Segarkan Super Admin Daftar Staf Matriks Izin Buat Role Tugaskan E E2E Admin e2e-admin@catavor.test Su"
+    },
+    {
+      "device": "tablet",
+      "alias": "stores",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=stores&view=tablet",
+      "headings": [
+        "Tata Kelola Profil Merchant"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Tata Kelola Profil Merchant Segarkan Super Admin Profil Merchant Aktif (5) Pelanggaran & Banned (0) Tabel Kartu Filter "
+    },
+    {
+      "device": "tablet",
+      "alias": "reports",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=reports&view=tablet",
+      "headings": [
+        "Kepatuhan & Laporan Masyarakat"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Kepatuhan & Laporan Masyarakat Segarkan Super Admin Menunggu 0 Investigasi 0 Sanksi Aktif 0 Banned 0 Semua 0 Menunggu 0"
+    },
+    {
+      "device": "tablet",
+      "alias": "support",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=support&view=tablet",
+      "headings": [
+        "Pusat Bantuan & Helpdesk CS"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Pusat Bantuan & Helpdesk CS Segarkan Super Admin Semua 0 Perlu Respon 0 Diproses 0 Tunggu Merchant 0 Urgent 0 Selesai 0"
+    },
+    {
+      "device": "tablet",
+      "alias": "helpdesk",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=helpdesk&view=tablet",
+      "headings": [
+        "Pusat Bantuan & Helpdesk CS"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Pusat Bantuan & Helpdesk CS Segarkan Super Admin Semua 0 Perlu Respon 0 Diproses 0 Tunggu Merchant 0 Urgent 0 Selesai 0"
+    },
+    {
+      "device": "tablet",
+      "alias": "finance",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=finance&view=tablet",
+      "headings": [
+        "Keuangan & Verifikasi Billing"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Keuangan & Verifikasi Billing Segarkan Super Admin Semua Verifikasi Menunggu Bayar Lunas Ditolak Tidak ada transaksi bi"
+    },
+    {
+      "device": "tablet",
+      "alias": "monetization",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=monetization&view=tablet",
+      "headings": [
+        "Monetisasi & Integrasi Google"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Monetisasi & Integrasi Google Segarkan Super Admin Google AdSense Google Analytics 4 (GA4) Google AdSense Monetization "
+    },
+    {
+      "device": "tablet",
+      "alias": "broadcast",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=broadcast&view=tablet",
+      "headings": [
+        "Siaran Broadcast Pengumuman"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Siaran Broadcast Pengumuman Segarkan Super Admin Daftar & Riwayat Siaran 1 Buat Siaran Baru Segarkan TOTAL SIARAN 1 SIA"
+    },
+    {
+      "device": "tablet",
+      "alias": "automation",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=automation&view=tablet",
+      "headings": [
+        "Mesin Otomatisasi & Bot Worker"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Mesin Otomatisasi & Bot Worker Segarkan Super Admin Ringkasan 11 Bot Platform 11 Riwayat & Audit 85 Sandbox Uji Coba Se"
+    },
+    {
+      "device": "tablet",
+      "alias": "bot",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=bot&view=tablet",
+      "headings": [
+        "Mesin Otomatisasi & Bot Worker"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Mesin Otomatisasi & Bot Worker Segarkan Super Admin Ringkasan 11 Bot Platform 11 Riwayat & Audit 85 Sandbox Uji Coba Se"
+    },
+    {
+      "device": "tablet",
+      "alias": "master_data",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=master_data&view=tablet",
+      "headings": [
+        "Master Data & Proteksi Rekber"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Master Data & Proteksi Rekber Segarkan Super Admin Proteksi Rekber Syariah Aktif Whitelist Domain Aman Template Balasan"
+    },
+    {
+      "device": "tablet",
+      "alias": "master-data",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=master-data&view=tablet",
+      "headings": [
+        "Master Data & Proteksi Rekber"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Master Data & Proteksi Rekber Segarkan Super Admin Proteksi Rekber Syariah Aktif Whitelist Domain Aman Template Balasan"
+    },
+    {
+      "device": "tablet",
+      "alias": "domains",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=domains&view=tablet",
+      "headings": [
+        "Master Data & Proteksi Rekber"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Master Data & Proteksi Rekber Segarkan Super Admin Proteksi Rekber Syariah Aktif Whitelist Domain Aman Template Balasan"
+    },
+    {
+      "device": "tablet",
+      "alias": "audit",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=audit&view=tablet",
+      "headings": [
+        "System-Wide Audit Trail"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin System-Wide Audit Trail Segarkan Super Admin Jejak Audit Sistem Segarkan SEMUA KEAMANAN KATALOG TOKO FINANSIAL MODERASI"
+    },
+    {
+      "device": "tablet",
+      "alias": "safe_domains",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=safe_domains&view=tablet",
+      "headings": [
+        "Master Data & Proteksi Rekber"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Master Data & Proteksi Rekber Segarkan Super Admin Proteksi Rekber Syariah Aktif Whitelist Domain Aman Template Balasan"
+    },
+    {
+      "device": "tablet",
+      "alias": "tidak-ada-modul-ini",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=tidak-ada-modul-ini&view=tablet",
+      "headings": [
+        "Ringkasan Eksekutif Platform"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Segarkan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "C Tablet Executive Console • Super Admin Ringkasan Eksekutif Platform Segarkan Super Admin Status Operasional Prima: Seluruh laporan kepatuhan, tiket bantuan CS"
+    },
+    {
+      "device": "mobile",
+      "alias": "dashboard",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=dashboard&view=mobile",
+      "headings": [
+        "Catavor Executive"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Ringkasan",
+        "Laporan",
+        "Helpdesk",
+        "Keuangan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "Catavor Executive Super Admin e2e-admin@catavor.test TOKO 1 ORDER 0 LAPORAN 0 TIKET 0 Perlu Tindakan Administrator Semua antrean operasional telah ditangani Ter"
+    },
+    {
+      "device": "mobile",
+      "alias": "rbac",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=rbac&view=mobile",
+      "headings": [
+        "Staf & RBAC"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Staf & RBAC Matriks & Izin Staf Daftar Staf Matriks Izin Buat Role Tugaskan E E2E Admin e2e-admin@catavor.test Super Admin ID #29 • Staf Platform Ubah Role Cabu"
+    },
+    {
+      "device": "mobile",
+      "alias": "staff",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=staff&view=mobile",
+      "headings": [
+        "Staf & RBAC"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Staf & RBAC Matriks & Izin Staf Daftar Staf Matriks Izin Buat Role Tugaskan E E2E Admin e2e-admin@catavor.test Super Admin ID #29 • Staf Platform Ubah Role Cabu"
+    },
+    {
+      "device": "mobile",
+      "alias": "roles",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=roles&view=mobile",
+      "headings": [
+        "Staf & RBAC"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Staf & RBAC Matriks & Izin Staf Daftar Staf Matriks Izin Buat Role Tugaskan E E2E Admin e2e-admin@catavor.test Super Admin ID #29 • Staf Platform Ubah Role Cabu"
+    },
+    {
+      "device": "mobile",
+      "alias": "stores",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=stores&view=mobile",
+      "headings": [
+        "Tata Kelola Toko"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Tata Kelola Toko 1 Toko Terdaftar Profil Aktif 5 Banned / Suspend 0 Aktif (5) Pelanggaran (0) Filter Detail Katalog tes FREE /tes Pemilik: Dzikri Muhammad Sopya"
+    },
+    {
+      "device": "mobile",
+      "alias": "reports",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=reports&view=mobile",
+      "headings": [
+        "Laporan Masuk"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Ringkasan",
+        "Laporan",
+        "Helpdesk",
+        "Keuangan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "Laporan Masuk 0 Laporan Pending Menunggu 0 Investigasi 0 Sanksi Aktif 0 Banned 0 Semua 0 Menunggu 0 Investigasi 0 Revisi Masuk 0 Ditindak 0 Banned 0 Ditolak 0 S"
+    },
+    {
+      "device": "mobile",
+      "alias": "support",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=support&view=mobile",
+      "headings": [
+        "Helpdesk Tiket"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Ringkasan",
+        "Laporan",
+        "Helpdesk",
+        "Keuangan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "Helpdesk Tiket 0 Total Tiket Semua 0 Perlu Respon 0 Diproses 0 Tunggu Merchant 0 Urgent 0 Selesai 0 Semua Kategori Semua Prioritas SLA Lewat Tidak Ada Tiket Tid"
+    },
+    {
+      "device": "mobile",
+      "alias": "helpdesk",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=helpdesk&view=mobile",
+      "headings": [
+        "Helpdesk Tiket"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Ringkasan",
+        "Laporan",
+        "Helpdesk",
+        "Keuangan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "Helpdesk Tiket 0 Total Tiket Semua 0 Perlu Respon 0 Diproses 0 Tunggu Merchant 0 Urgent 0 Selesai 0 Semua Kategori Semua Prioritas SLA Lewat Tidak Ada Tiket Tid"
+    },
+    {
+      "device": "mobile",
+      "alias": "finance",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=finance&view=mobile",
+      "headings": [
+        "Keuangan & Order"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Ringkasan",
+        "Laporan",
+        "Helpdesk",
+        "Keuangan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "Keuangan & Order 0 Order Pending Semua Pending Aktif Ditolak Tidak Ada Pesanan Paket Semua transaksi paket langganan telah terverifikasi. Ringkasan Laporan Help"
+    },
+    {
+      "device": "mobile",
+      "alias": "monetization",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=monetization&view=mobile",
+      "headings": [
+        "Monetisasi & Iklan"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Monetisasi & Iklan Google AdSense & GA4 Google AdSense Google Analytics Google AdSense Monetization (Plan B): Iklan hanya akan disuntikkan pada katalog toko Ver"
+    },
+    {
+      "device": "mobile",
+      "alias": "broadcast",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=broadcast&view=mobile",
+      "headings": [
+        "Siaran Broadcast"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Siaran Broadcast 1 Siaran Aktif Siaran Pengumuman Kirim pengumuman massal & notifikasi merchant 1 Total Siaran Semua Riwayat 1 Siaran Aktif Tayang Realtime 0 Ta"
+    },
+    {
+      "device": "mobile",
+      "alias": "automation",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=automation&view=mobile",
+      "headings": [
+        "Mesin Otomatisasi"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Mesin Otomatisasi 11 Bot & Background Workers Ringkasan 11 Bot Platform 11 Riwayat & Audit 85 Sandbox Uji Coba Status Mesin: 9 Worker Aktif & Terjadwal (24/7 Da"
+    },
+    {
+      "device": "mobile",
+      "alias": "bot",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=bot&view=mobile",
+      "headings": [
+        "Mesin Otomatisasi"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Mesin Otomatisasi 11 Bot & Background Workers Ringkasan 11 Bot Platform 11 Riwayat & Audit 85 Sandbox Uji Coba Status Mesin: 9 Worker Aktif & Terjadwal (24/7 Da"
+    },
+    {
+      "device": "mobile",
+      "alias": "master_data",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=master_data&view=mobile",
+      "headings": [
+        "Data Master Platform"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Data Master Platform Pusat Data Master Platform Pilihan Master Pilih entitas data acuan atau konfigurasi master di bawah ini untuk dikelola. Master Domain Aman "
+    },
+    {
+      "device": "mobile",
+      "alias": "master-data",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=master-data&view=mobile",
+      "headings": [
+        "Data Master Platform"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Data Master Platform Pusat Data Master Platform Pilihan Master Pilih entitas data acuan atau konfigurasi master di bawah ini untuk dikelola. Master Domain Aman "
+    },
+    {
+      "device": "mobile",
+      "alias": "domains",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=domains&view=mobile",
+      "headings": [
+        "Master Domain Aman"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Master Domain Aman Whitelist URL Master Whitelist Domain Aman Konfigurasi domain resmi & mitra yang dibuka instan tanpa peringatan perantara TOTAL DOMAIN 3 STAT"
+    },
+    {
+      "device": "mobile",
+      "alias": "audit",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=audit&view=mobile",
+      "headings": [
+        "Audit Trail"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Audit Trail 15 Log Aktivitas System-Wide Audit Trail Jejak forensik & kepatuhan seluruh tindakan administratif Segarkan Semua Kategori Keamanan Katalog Toko Fin"
+    },
+    {
+      "device": "mobile",
+      "alias": "safe_domains",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=safe_domains&view=mobile",
+      "headings": [
+        "Master Domain Aman"
+      ],
+      "activeNav": [],
+      "moduleLabels": [],
+      "hasLoginForm": false,
+      "bodyStart": "Master Domain Aman Whitelist URL Master Whitelist Domain Aman Konfigurasi domain resmi & mitra yang dibuka instan tanpa peringatan perantara TOTAL DOMAIN 3 STAT"
+    },
+    {
+      "device": "mobile",
+      "alias": "tidak-ada-modul-ini",
+      "ok": true,
+      "url": "http://localhost:8000/admin?tab=tidak-ada-modul-ini&view=mobile",
+      "headings": [
+        "Catavor Executive"
+      ],
+      "activeNav": [],
+      "moduleLabels": [
+        "Ringkasan",
+        "Laporan",
+        "Helpdesk",
+        "Keuangan"
+      ],
+      "hasLoginForm": false,
+      "bodyStart": "Catavor Executive Super Admin e2e-admin@catavor.test TOKO 1 ORDER 0 LAPORAN 0 TIKET 0 Perlu Tindakan Administrator Semua antrean operasional telah ditangani Ter"
+    }
+  ]
+}

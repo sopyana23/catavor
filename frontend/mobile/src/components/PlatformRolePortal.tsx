@@ -385,18 +385,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (broadcastId) return 'broadcast';
       if (reportParam) return 'reports';
 
-      if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'automation', 'audit', 'master_data', 'safe_domains'].includes(tabParam)) {
-        if (tabParam === 'safe_domains') return 'master_data';
-        return tabParam as ActiveView;
-      }
-      if (['overview', 'home'].includes(tabParam)) return 'dashboard';
-      if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) return 'support';
-      if (['compliance', 'laporan'].includes(tabParam)) return 'reports';
-      if (['keuangan', 'billing', 'orders'].includes(tabParam)) return 'finance';
-      if (['iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
-      if (['siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
-      if (['bot', 'bots', 'otomatisasi', 'automation', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
-      if (['domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'master_data', 'master-data', 'templates', 'canned'].includes(tabParam)) return 'master_data';
+      if (['dashboard', 'overview', 'home'].includes(tabParam)) return 'dashboard';
+      if (['rbac', 'staff', 'roles', 'users'].includes(tabParam)) return 'rbac';
+      if (['stores', 'merchants', 'toko'].includes(tabParam)) return 'stores';
+      if (['reports', 'compliance', 'laporan'].includes(tabParam)) return 'reports';
+      if (['support', 'help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) return 'support';
+      if (['finance', 'keuangan', 'billing', 'orders'].includes(tabParam)) return 'finance';
+      if (['monetization', 'iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
+      if (['broadcast', 'siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
+      if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
+      if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) return 'master_data';
+      if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) return 'audit';
     } catch {
       // fallback
     }
@@ -2132,7 +2131,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             playSupportChime();
             const incomingTitle = totalNewIncoming === 1 ? '1 pesan masuk' : `${totalNewIncoming} pesan masuk`;
             sendSupportNotification(
-              `💬 ${incomingTitle}: ${incomingTicketNum}`,
+              `${incomingTitle}: ${incomingTicketNum}`,
               `${incomingSender}: ${incomingSnippet}`
             );
           }
@@ -2260,7 +2259,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               const ticketNum = ticket.ticket_number || `#TCK-${ticket.id}`;
               const merchantName = ticket.user?.name || ticket.store?.name || 'Merchant';
               sendSupportNotification(
-                `🎫 Tiket Bantuan Baru: ${ticketNum}`,
+                `Tiket Bantuan Baru: ${ticketNum}`,
                 `${merchantName}: ${ticket.subject || 'Kendala baru memerlukan tindakan CS'}`
               );
 
@@ -2278,7 +2277,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               const sender = ticket.sender_name || 'Merchant';
               const snippet = ticket.message?.message || '';
               sendSupportNotification(
-                `💬 Balasan Baru: ${ticketNum}`,
+                `Balasan Baru: ${ticketNum}`,
                 `${sender}: ${snippet}`
               );
 
@@ -2558,20 +2557,28 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         } else if (broadcastId) {
           setActiveView('broadcast');
         } else if (tabParam) {
-          if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'automation', 'audit', 'master_data', 'safe_domains'].includes(tabParam)) {
-            setActiveView(tabParam === 'safe_domains' ? 'master_data' : (tabParam as ActiveView));
-          } else if (['overview', 'home'].includes(tabParam)) {
+          if (['dashboard', 'overview', 'home'].includes(tabParam)) {
             setActiveView('dashboard');
-          } else if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
-            setActiveView('support');
-          } else if (['compliance', 'laporan'].includes(tabParam)) {
+          } else if (['rbac', 'staff', 'roles', 'users'].includes(tabParam)) {
+            setActiveView('rbac');
+          } else if (['stores', 'merchants', 'toko'].includes(tabParam)) {
+            setActiveView('stores');
+          } else if (['reports', 'compliance', 'laporan'].includes(tabParam)) {
             setActiveView('reports');
-          } else if (['keuangan', 'billing', 'orders'].includes(tabParam)) {
+          } else if (['support', 'help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
+            setActiveView('support');
+          } else if (['finance', 'keuangan', 'billing', 'orders'].includes(tabParam)) {
             setActiveView('finance');
-          } else if (['iklan', 'ads', 'google'].includes(tabParam)) {
+          } else if (['monetization', 'iklan', 'ads', 'google'].includes(tabParam)) {
             setActiveView('monetization');
-          } else if (['siaran', 'notifikasi'].includes(tabParam)) {
+          } else if (['broadcast', 'siaran', 'notifikasi'].includes(tabParam)) {
             setActiveView('broadcast');
+          } else if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) {
+            setActiveView('automation');
+          } else if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) {
+            setActiveView('master_data');
+          } else if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) {
+            setActiveView('audit');
           }
         }
 
@@ -4294,7 +4301,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               {/* Identity Stack */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
-                  <h2 style={{
+                  <h1 style={{
                     fontSize: '0.9rem',
                     fontWeight: 800,
                     margin: 0,
@@ -4304,7 +4311,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     flexShrink: 0
                   }}>
                     Catavor Executive
-                  </h2>
+                  </h1>
                   <span style={{
                     padding: '0.05rem 0.35rem',
                     borderRadius: '999px',
@@ -4512,7 +4519,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
             {/* Center: Module Title & Status (Clean, No Entity Icon) */}
             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, paddingLeft: '0.15rem' }}>
-              <h3 style={{
+              <h2 style={{
                 fontSize: '0.92rem',
                 fontWeight: 800,
                 margin: 0,
@@ -4537,7 +4544,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             : (activeView === 'master_data' && masterSubView === 'rekber')
                               ? 'Mitra Rekber Syariah'
                               : (currentItem?.title || 'Panel Modul')}
-              </h3>
+              </h2>
               {(() => {
                 const subText = activeView === 'reports' && moderationModalReport
                   ? (moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`)
@@ -5505,7 +5512,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                     <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <AlertTriangle size={14} />
-                      <span>🔥 {reportActiveEvidence.length} Laporan Lain untuk Entitas Ini</span>
+                      <span>{reportActiveEvidence.length} Laporan Lain untuk Entitas Ini</span>
                     </div>
                     <span style={{ fontSize: '0.64rem', padding: '0.1rem 0.4rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', fontWeight: 800 }}>
                       KASUS JAMAK
@@ -5563,7 +5570,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 }}>
                   <div style={{ fontSize: '0.74rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <Clock size={14} />
-                    <span>📜 Rekam Jejak Peninjauan Terdahulu ({reportPriorHistory.length})</span>
+                    <span>Rekam Jejak Peninjauan Terdahulu ({reportPriorHistory.length})</span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
                     Entitas ini pernah dilaporkan dan diselesaikan sebelumnya:
@@ -6151,7 +6158,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
               { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
               { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating').length },
-              { id: 're_review', label: '📥 Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
+              { id: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
               { id: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => r.status === 'action_taken' && r.action_taken !== 'catalog_banned').length },
               { id: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
               { id: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
@@ -6298,9 +6305,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   pending: { label: 'Menunggu Review', bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', border: 'rgba(245, 158, 11, 0.35)' },
                   investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
-                  re_review: { label: '📥 Revisi Masuk', bg: 'rgba(16, 185, 129, 0.18)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.45)' },
+                  re_review: { label: 'Revisi Masuk', bg: 'rgba(16, 185, 129, 0.18)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.45)' },
                   action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },
-                  banned: { label: '🚫 Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
+                  banned: { label: 'Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
                   dismissed: { label: 'Laporan Ditolak', bg: isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(100, 116, 139, 0.1)', text: isDark ? '#94a3b8' : '#64748b', border: 'rgba(148, 163, 184, 0.25)' },
                   resolved: { label: 'Selesai', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' }
                 };
@@ -6478,7 +6485,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             alignItems: 'center',
                             gap: '0.25rem'
                           }}>
-                            <span>{r.action_taken === 'catalog_banned' ? '🚫' : '⚡'} {actionLabel}</span>
+                            <span>{actionLabel}</span>
                           </span>
                         )}
                       </div>
@@ -6646,7 +6653,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 <AlertTriangle size={17} style={{ flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <span>
-                    👀 <strong>{activePresences.filter((p: any) => p.user_id !== currentUser?.id).map((p: any) => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
+                    <strong>{activePresences.filter((p: any) => p.user_id !== currentUser?.id).map((p: any) => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
                     {activePresences.filter((p: any) => p.user_id !== currentUser?.id).some((p: any) => p.is_typing) ? ' dan sedang mengetik balasan...' : '.'}
                   </span>
                 </div>
@@ -6853,7 +6860,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <Clock size={12} /> Target Respon Pertama:
                   </span>
                   <span>
-                    {selectedTicket.sla_breached ? '⚠️ Melewati SLA' : (selectedTicket.first_response_at ? '✓ Terpenuhi Tepat Waktu' : 'Sedang Berjalan')}
+                    {selectedTicket.sla_breached ? 'Melewati SLA' : (selectedTicket.first_response_at ? '✓ Terpenuhi Tepat Waktu' : 'Sedang Berjalan')}
                   </span>
                 </div>
               )}
@@ -10128,7 +10135,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               gap: '0.25rem'
                             }}
                           >
-                            {rec.type === 'store' ? '🏬' : '👤'} {rec.name}
+                            {rec.name}
                           </span>
                         ))}
                       </div>
@@ -10217,13 +10224,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 if (actionType === 'navigate') {
                   const getMenuLabel = (tab: string) => {
                     switch (tab) {
-                      case 'settings': return '⚙️ Pengaturan Profil & Tampilan Toko (settings)';
-                      case 'items': return '📦 Manajemen Inventaris & Produk (items)';
-                      case 'subscription': return '👑 Paket Langganan & Billing (subscription)';
-                      case 'help': return '💬 Pusat Bantuan & Tiket (help)';
-                      case 'share': return '🔗 Bagikan Katalog & QR Toko (share)';
-                      case 'analytics': return '📊 Dashboard Analitik Toko (analytics)';
-                      default: return tab ? `🧭 Menu ${tab}` : 'Pengaturan Toko';
+                      case 'settings': return 'Pengaturan Profil & Tampilan Toko (settings)';
+                      case 'items': return 'Manajemen Inventaris & Produk (items)';
+                      case 'subscription': return 'Paket Langganan & Billing (subscription)';
+                      case 'help': return 'Pusat Bantuan & Tiket (help)';
+                      case 'share': return 'Bagikan Katalog & QR Toko (share)';
+                      case 'analytics': return 'Dashboard Analitik Toko (analytics)';
+                      default: return tab ? `Menu ${tab}` : 'Pengaturan Toko';
                     }
                   };
 
@@ -10254,7 +10261,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }}>
                         <span>{selectedBroadcastDetail.action_label || 'Buka Menu Terkait →'}</span>
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, opacity: 0.9 }}>
-                          🧭 Navigasi Menu
+                          Navigasi Menu
                         </span>
                       </div>
                       <span style={{ fontSize: '0.72rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
@@ -10292,7 +10299,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }}>
                         <span>{selectedBroadcastDetail.action_label || 'Buka Tautan Luar →'}</span>
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, opacity: 0.9 }}>
-                          🌐 Tautan Luar
+                          Tautan Luar
                         </span>
                       </div>
                       <span style={{ fontSize: '0.72rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
@@ -10625,11 +10632,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           color: isTargetAll ? '#10b981' : (isTargetTier ? '#6366f1' : '#ec4899'),
                           fontWeight: 800
                         }}>
-                          {isTargetAll && '🌐 SEMUA'}
-                          {b.target_type === 'tier_free' && '🏷️ FREE TIER'}
-                          {b.target_type === 'tier_pro' && '⭐ PRO TIER'}
-                          {b.target_type === 'single_store' && `🏬 ${b.target_name || 'TOKO'}`}
-                          {b.target_type === 'single_user' && `👤 ${b.target_name || 'USER'}`}
+                          {isTargetAll && 'SEMUA'}
+                          {b.target_type === 'tier_free' && 'FREE TIER'}
+                          {b.target_type === 'tier_pro' && 'PRO TIER'}
+                          {b.target_type === 'single_store' && (b.target_name || 'TOKO')}
+                          {b.target_type === 'single_user' && (b.target_name || 'USER')}
                         </span>
                       </div>
 
@@ -10895,7 +10902,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       {automationStatus?.total_workers || 11} Bot
                     </div>
                     <div style={{ fontSize: '0.6rem', color: '#10b981', marginTop: '0.1rem' }}>
-                      🟢 {automationStatus?.healthy_workers || 11} Sehat / Normal
+                      <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10b981', marginRight: '0.25rem' }} />
+                      {automationStatus?.healthy_workers || 11} Sehat / Normal
                     </div>
                   </div>
 
@@ -10934,7 +10942,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       24 / 7
                     </div>
                     <div style={{ fontSize: '0.6rem', color: '#10b981', marginTop: '0.1rem' }}>
-                      🟢 Realtime Loop Active
+                      <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10b981', marginRight: '0.25rem' }} />
+                      Realtime Loop Active
                     </div>
                   </div>
                 </div>
@@ -11365,7 +11374,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       fontSize: '0.66rem',
                       color: theme.textMuted
                     }}>
-                      <span>Status: <strong style={{ color: '#10b981' }}>🟢 Aktif (Normal)</strong></span>
+                      <span>Status: <strong style={{ color: '#10b981' }}><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10b981', marginRight: '0.25rem' }} />Aktif (Normal)</strong></span>
                       <button
                         type="button"
                         onClick={() => {
@@ -11654,7 +11663,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   color: theme.textSecondary,
                   lineHeight: 1.45
                 }}>
-                  💡 <strong>Petunjuk:</strong> Modul sandbox memungkinkan Superadmin untuk menguji jalur transmisi SSE, validasi logic siklus toko/promo, dan memastikan antrean bot berjalan tanpa bottleneck.
+                  <strong>Petunjuk:</strong> Modul sandbox memungkinkan Superadmin untuk menguji jalur transmisi SSE, validasi logic siklus toko/promo, dan memastikan antrean bot berjalan tanpa bottleneck.
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', marginTop: '0.35rem' }}>
@@ -16196,7 +16205,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(2, 132, 199, 0.2)'}`
                 }}>
                   <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', display: 'block', marginBottom: '0.2rem' }}>
-                    🔍 Pratinjau Teks (Variabel Terisi):
+                    Pratinjau Teks (Variabel Terisi):
                   </span>
                   <p style={{
                     margin: 0,

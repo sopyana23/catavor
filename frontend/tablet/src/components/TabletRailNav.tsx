@@ -132,8 +132,10 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
                 onClick={() => setIsExpanded(false)}
                 title="Ciutkan Menu"
                 style={{
-                  width: '32px',
-                  height: '32px',
+                  width: '44px',
+                  height: '44px',
+                  minWidth: '44px',
+                  minHeight: '44px',
                   borderRadius: '0.5rem',
                   border: '1px solid var(--border-light)',
                   backgroundColor: 'transparent',
@@ -154,8 +156,10 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
               onClick={() => setIsExpanded(true)}
               title="Perluas Menu Navigasi"
               style={{
-                width: '42px',
-                height: '42px',
+                width: '44px',
+                height: '44px',
+                minWidth: '44px',
+                minHeight: '44px',
                 borderRadius: '0.65rem',
                 backgroundColor: 'rgba(16, 185, 129, 0.15)',
                 border: '1px solid rgba(16, 185, 129, 0.3)',
@@ -268,7 +272,8 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
             title={isDark ? 'Beralih ke Terang' : 'Beralih ke Gelap'}
             style={{
               width: '100%',
-              height: '42px',
+              height: '44px',
+              minHeight: '44px',
               display: 'flex',
               alignItems: 'center',
               gap: '0.75rem',
@@ -292,7 +297,8 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
           title="Keluar Akun"
           style={{
             width: '100%',
-            height: '42px',
+            height: '44px',
+            minHeight: '44px',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',

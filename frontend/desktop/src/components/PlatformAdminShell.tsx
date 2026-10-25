@@ -49,6 +49,7 @@ export interface PlatformAdminShellProps {
   onLogout?: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  headerAction?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -76,6 +77,7 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
   onLogout,
   onRefresh,
   isRefreshing = false,
+  headerAction,
   children
 }) => {
   const [windowWidth, setWindowWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
@@ -795,6 +797,9 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
 
           {/* Right: Refresh action & Quick Role Pill (Clean, without truncated ellipsis info) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: isTightHeader ? '0.5rem' : '0.65rem', flexShrink: 0 }}>
+            {/* Contextual Action Button (e.g. Buat Siaran on Desktop) */}
+            {headerAction}
+
             {/* Quick Refresh Data Button */}
             {onRefresh && (
               <button

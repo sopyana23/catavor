@@ -388,18 +388,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (ticketParam) return 'support';
       if (broadcastId) return 'broadcast';
 
-      if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'automation', 'audit', 'safe_domains', 'master_data'].includes(tabParam)) {
-        if (tabParam === 'safe_domains') return 'master_data';
-        return tabParam as ActiveView;
-      }
-      if (['overview', 'home'].includes(tabParam)) return 'dashboard';
-      if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) return 'support';
-      if (['compliance', 'laporan'].includes(tabParam)) return 'reports';
-      if (['keuangan', 'billing', 'orders'].includes(tabParam)) return 'finance';
-      if (['iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
-      if (['siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
-      if (['bot', 'bots', 'otomatisasi', 'automation', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
-      if (['domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'master_data', 'master-data', 'templates', 'canned'].includes(tabParam)) return 'master_data';
+      if (['dashboard', 'overview', 'home'].includes(tabParam)) return 'dashboard';
+      if (['rbac', 'staff', 'roles', 'users'].includes(tabParam)) return 'rbac';
+      if (['stores', 'merchants', 'toko'].includes(tabParam)) return 'stores';
+      if (['reports', 'compliance', 'laporan'].includes(tabParam)) return 'reports';
+      if (['support', 'help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) return 'support';
+      if (['finance', 'keuangan', 'billing', 'orders'].includes(tabParam)) return 'finance';
+      if (['monetization', 'iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
+      if (['broadcast', 'siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
+      if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
+      if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) return 'master_data';
+      if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) return 'audit';
     } catch {
       // fallback
     }
@@ -2451,20 +2450,28 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         } else if (broadcastId) {
           setActiveView('broadcast');
         } else if (tabParam) {
-          if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'audit', 'safe_domains'].includes(tabParam)) {
-            setActiveView(tabParam as ActiveView);
-          } else if (['overview', 'home'].includes(tabParam)) {
+          if (['dashboard', 'overview', 'home'].includes(tabParam)) {
             setActiveView('dashboard');
-          } else if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
-            setActiveView('support');
-          } else if (['compliance', 'laporan'].includes(tabParam)) {
+          } else if (['rbac', 'staff', 'roles', 'users'].includes(tabParam)) {
+            setActiveView('rbac');
+          } else if (['stores', 'merchants', 'toko'].includes(tabParam)) {
+            setActiveView('stores');
+          } else if (['reports', 'compliance', 'laporan'].includes(tabParam)) {
             setActiveView('reports');
-          } else if (['keuangan', 'billing', 'orders'].includes(tabParam)) {
+          } else if (['support', 'help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
+            setActiveView('support');
+          } else if (['finance', 'keuangan', 'billing', 'orders'].includes(tabParam)) {
             setActiveView('finance');
-          } else if (['iklan', 'ads', 'google'].includes(tabParam)) {
+          } else if (['monetization', 'iklan', 'ads', 'google'].includes(tabParam)) {
             setActiveView('monetization');
-          } else if (['siaran', 'notifikasi'].includes(tabParam)) {
+          } else if (['broadcast', 'siaran', 'notifikasi'].includes(tabParam)) {
             setActiveView('broadcast');
+          } else if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) {
+            setActiveView('automation');
+          } else if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) {
+            setActiveView('master_data');
+          } else if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) {
+            setActiveView('audit');
           }
         }
 
@@ -4057,6 +4064,96 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         showToast('Data platform berhasil diperbarui', 'success');
       }}
       isRefreshing={loading}
+      headerAction={
+        activeView === 'broadcast' && canAccessBroadcast ? (
+          broadcastSubView === 'list' ? (
+            <button
+              type="button"
+              onClick={handleOpenCreateBroadcast}
+              id="btn-header-tambah-broadcast"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.95rem',
+                height: '36px',
+                borderRadius: '0.65rem',
+                border: 'none',
+                backgroundColor: '#f59e0b',
+                color: '#000000',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                transition: 'all 0.15s ease',
+                flexShrink: 0
+              }}
+              title="Buat Siaran Baru"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#d97706';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#f59e0b';
+              }}
+            >
+              <Plus size={16} strokeWidth={2.5} />
+              <span>Buat Siaran</span>
+            </button>
+          ) : broadcastSubView === 'create' ? (
+            <button
+              type="button"
+              onClick={handleCloseCreateBroadcast}
+              id="btn-header-kembali-broadcast"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.85rem',
+                height: '36px',
+                borderRadius: '0.65rem',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
+                color: theme.textSecondary,
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                flexShrink: 0
+              }}
+              title="Kembali ke Riwayat Siaran"
+            >
+              <ChevronLeft size={16} />
+              <span>Kembali ke Riwayat</span>
+            </button>
+          ) : broadcastSubView === 'detail' ? (
+            <button
+              type="button"
+              onClick={handleCloseBroadcastDetail}
+              id="btn-header-kembali-broadcast-detail"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.85rem',
+                height: '36px',
+                borderRadius: '0.65rem',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
+                color: theme.textSecondary,
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                flexShrink: 0
+              }}
+              title="Kembali ke Riwayat Siaran"
+            >
+              <ChevronLeft size={16} />
+              <span>Kembali ke Riwayat</span>
+            </button>
+          ) : null
+        ) : undefined
+      }
     >
       <div
         className={`catavor-platform-portal ${isDark ? 'portal-dark' : 'portal-light'}`}

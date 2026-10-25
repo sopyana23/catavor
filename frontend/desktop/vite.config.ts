@@ -8,10 +8,9 @@ export default defineConfig({
   base: '/desktop/',
   build: {
     outDir: '../../public/desktop',
-    // Kosongkan outDir tiap build. Sebelumnya `false`, sehingga bundel lama
-    // menumpuk (5 JS desktop / 3 mobile, hanya 1 yang dirujuk index.html) --
-    // repo membengkak dan aset usang ikut ter-deploy. Aman: file statis di
-    // frontend/desktop/public/ ikut disalin ulang tiap build.
+    // Kosongkan outDir tiap build agar bundel lama tidak menumpuk
+    // dan aset usang tidak ikut ter-deploy. Aman: berkas statis di
+    // frontend/desktop/public/ disalin ulang secara utuh tiap build.
     emptyOutDir: true
   }
 })

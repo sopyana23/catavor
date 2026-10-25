@@ -56,8 +56,8 @@ export const TabletSegmentedPagination: React.FC<TabletSegmentedPaginationProps>
           onClick={() => onPageChange(1)}
           title="Halaman Pertama"
           style={{
-            minWidth: '40px',
-            minHeight: '40px',
+            minWidth: '44px',
+            minHeight: '44px',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -143,8 +143,8 @@ export const TabletSegmentedPagination: React.FC<TabletSegmentedPaginationProps>
           onClick={() => onPageChange(totalPages)}
           title="Halaman Terakhir"
           style={{
-            minWidth: '40px',
-            minHeight: '40px',
+            minWidth: '44px',
+            minHeight: '44px',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',

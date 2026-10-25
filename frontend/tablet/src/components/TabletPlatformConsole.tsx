@@ -207,15 +207,42 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const isDark = themeMode === 'dark';
 
   // Navigation View State synced with URL (?tab=...)
-  const validTabs = ['dashboard', 'stores', 'reports', 'support', 'finance', 'staff', 'broadcast', 'automation', 'monetization', 'master-data', 'audit'];
+  const normalizeTabletTab = useCallback((raw: string | null): string => {
+    if (!raw) return 'dashboard';
+    const t = raw.toLowerCase().trim();
+    if (['dashboard', 'overview', 'home'].includes(t)) return 'dashboard';
+    if (['staff', 'rbac', 'roles', 'users'].includes(t)) return 'staff';
+    if (['stores', 'merchants', 'toko'].includes(t)) return 'stores';
+    if (['reports', 'compliance', 'laporan'].includes(t)) return 'reports';
+    if (['support', 'helpdesk', 'help', 'bantuan', 'tickets', 'chat'].includes(t)) return 'support';
+    if (['finance', 'keuangan', 'billing', 'orders'].includes(t)) return 'finance';
+    if (['broadcast', 'siaran', 'notifikasi'].includes(t)) return 'broadcast';
+    if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(t)) return 'automation';
+    if (['monetization', 'iklan', 'ads', 'google'].includes(t)) return 'monetization';
+    if (['master-data', 'master_data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(t)) return 'master-data';
+    if (['audit', 'logs', 'activity', 'jejak'].includes(t)) return 'audit';
+    return 'dashboard';
+  }, []);
+
   const [activeView, setActiveView] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab');
-      if (tab && validTabs.includes(tab)) return tab;
+      const tab = params.get('tab') || params.get('view') || params.get('division');
+      if (tab) return normalizeTabletTab(tab);
     }
     return 'dashboard';
   });
+
+  // Synchronize on browser history popstate (Back/Forward navigation)
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab') || params.get('view') || params.get('division');
+      setActiveView(normalizeTabletTab(tab));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [normalizeTabletTab]);
 
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -225,12 +252,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     setTimeout(() => setToast(null), 3500);
   }, []);
 
-  // Switch View & sync URL
+  // Switch View & sync canonical URL (?tab=...)
   const handleSwitchView = (newView: string) => {
-    setActiveView(newView);
+    const target = normalizeTabletTab(newView);
+    setActiveView(target);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
-      url.searchParams.set('tab', newView);
+      // Canonical tab name across ecosystem: 'rbac' for staff, 'master_data' for master-data
+      const canonicalTab = target === 'staff' ? 'rbac' : (target === 'master-data' ? 'master_data' : target);
+      url.searchParams.set('tab', canonicalTab);
       window.history.pushState({}, '', url.toString());
     }
   };
@@ -1702,7 +1732,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     setMasterSubTab(sub);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
-      url.searchParams.set('tab', 'master-data');
+      url.searchParams.set('tab', 'master_data');
       url.searchParams.set('sub', sub);
       window.history.pushState({}, '', url.toString());
     }
@@ -2871,7 +2901,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '0.35rem',
+                minHeight: '44px',
+                minWidth: '44px',
                 padding: '0.45rem 0.85rem',
                 borderRadius: '0.6rem',
                 border: '1px solid var(--border-light)',
@@ -3365,54 +3398,81 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     </div>
 
                     {/* Filter Status Chips */}
-                    <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
-                      {[
-                        { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
-                        { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
-                        { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
-                        { id: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
-                        { id: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
-                        { id: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
-                        { id: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
-                        { id: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length },
-                      ].map(f => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => setReportsFilter(f.id as any)}
-                          style={{
-                            padding: '0.28rem 0.6rem',
-                            borderRadius: '999px',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            backgroundColor: reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : 'var(--primary)') : 'var(--bg-deep)',
-                            color: reportsFilter === f.id ? '#ffffff' : 'var(--text-muted)',
-                            border: `1px solid ${reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : 'var(--primary)') : 'var(--border-light)'}`,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <span>{f.label}</span>
-                          <span style={{
-                            fontSize: '0.6rem',
-                            padding: '0.05rem 0.35rem',
-                            borderRadius: '999px',
-                            backgroundColor: reportsFilter === f.id ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.06)',
-                            color: reportsFilter === f.id ? '#ffffff' : 'var(--text-secondary)'
-                          }}>
-                            {f.count}
-                          </span>
-                        </button>
-                      ))}
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <div style={{
+                        display: 'flex',
+                        gap: '0.35rem',
+                        overflowX: 'auto',
+                        paddingBottom: '0.25rem',
+                        scrollbarWidth: 'thin',
+                        WebkitOverflowScrolling: 'touch'
+                      }}>
+                        {[
+                          { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
+                          { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
+                          { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
+                          { id: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
+                          { id: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
+                          { id: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
+                          { id: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
+                          { id: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length },
+                        ].map(f => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => setReportsFilter(f.id as any)}
+                            style={{
+                              minHeight: '44px',
+                              minWidth: '44px',
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '999px',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              backgroundColor: reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : 'var(--primary)') : 'var(--bg-deep)',
+                              color: reportsFilter === f.id ? '#ffffff' : 'var(--text-muted)',
+                              border: `1px solid ${reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : 'var(--primary)') : 'var(--border-light)'}`,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.25rem',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span>{f.label}</span>
+                            <span style={{
+                              fontSize: '0.6rem',
+                              padding: '0.05rem 0.35rem',
+                              borderRadius: '999px',
+                              backgroundColor: reportsFilter === f.id ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.06)',
+                              color: reportsFilter === f.id ? '#ffffff' : 'var(--text-secondary)'
+                            }}>
+                              {f.count}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      {/* Smooth Right Edge Fade Indicator */}
+                      <div
+                        aria-hidden="true"
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 0,
+                          bottom: '0.25rem',
+                          width: '28px',
+                          background: 'linear-gradient(to right, transparent, var(--bg-card))',
+                          pointerEvents: 'none',
+                          opacity: 0.95
+                        }}
+                      />
                     </div>
 
                     {/* Target Filter Segmented Buttons */}
-                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)' }}>Target:</span>
+                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', overflowX: 'auto', paddingBottom: '0.15rem', scrollbarWidth: 'thin' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0 }}>Target:</span>
                       {[
                         { id: 'all', label: 'Semua Target' },
                         { id: 'item', label: 'Hanya Item' },
@@ -3423,14 +3483,21 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           type="button"
                           onClick={() => setReportsTargetFilter(tf.id as any)}
                           style={{
-                            padding: '0.2rem 0.55rem',
-                            borderRadius: '0.45rem',
-                            fontSize: '0.66rem',
+                            minHeight: '44px',
+                            minWidth: '44px',
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.68rem',
                             fontWeight: 600,
                             backgroundColor: reportsTargetFilter === tf.id ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
                             color: reportsTargetFilter === tf.id ? 'var(--primary)' : 'var(--text-muted)',
                             border: `1px solid ${reportsTargetFilter === tf.id ? 'var(--primary)' : 'var(--border-light)'}`,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0
                           }}
                         >
                           {tf.label}
@@ -4421,184 +4488,233 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     </div>
 
                     {/* 6 Unified Triage Tabs Pills (Single Source of Truth) */}
-                    <div style={{
-                      display: 'flex',
-                      gap: '0.35rem',
-                      overflowX: 'auto',
-                      paddingBottom: '0.2rem',
-                      scrollbarWidth: 'none'
-                    }}>
-                      {[
-                        { id: 'all', label: 'Semua', count: ticketsMetrics?.total ?? ticketsPagination.total_items ?? tickets.length, color: 'var(--primary)', isPriority: false },
-                        { id: 'action_required', label: 'Perlu Respon', count: ticketsMetrics?.action_required ?? 0, color: 'var(--primary)', isPriority: false },
-                        { id: 'in_progress', label: 'Diproses', count: ticketsMetrics?.in_progress ?? 0, color: '#f59e0b', isPriority: false },
-                        { id: 'waiting_user', label: 'Tunggu Merchant', count: ticketsMetrics?.waiting_user ?? 0, color: '#a855f7', isPriority: false },
-                        { id: 'urgent', label: 'Urgent', count: ticketsMetrics?.urgent ?? 0, color: '#ef4444', isPriority: true },
-                        { id: 'resolved', label: 'Selesai', count: ticketsMetrics?.resolved ?? 0, color: '#10b981', isPriority: false }
-                      ].map(tab => {
-                        const isActive = tab.isPriority
-                          ? ticketPriorityFilter === 'urgent'
-                          : (supportFilter === tab.id && ticketPriorityFilter !== 'urgent');
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <div style={{
+                        display: 'flex',
+                        gap: '0.35rem',
+                        overflowX: 'auto',
+                        paddingBottom: '0.25rem',
+                        scrollbarWidth: 'thin',
+                        WebkitOverflowScrolling: 'touch'
+                      }}>
+                        {[
+                          { id: 'all', label: 'Semua', count: ticketsMetrics?.total ?? ticketsPagination.total_items ?? tickets.length, color: 'var(--primary)', isPriority: false },
+                          { id: 'action_required', label: 'Perlu Respon', count: ticketsMetrics?.action_required ?? 0, color: 'var(--primary)', isPriority: false },
+                          { id: 'in_progress', label: 'Diproses', count: ticketsMetrics?.in_progress ?? 0, color: '#f59e0b', isPriority: false },
+                          { id: 'waiting_user', label: 'Tunggu Merchant', count: ticketsMetrics?.waiting_user ?? 0, color: '#a855f7', isPriority: false },
+                          { id: 'urgent', label: 'Urgent', count: ticketsMetrics?.urgent ?? 0, color: '#ef4444', isPriority: true },
+                          { id: 'resolved', label: 'Selesai', count: ticketsMetrics?.resolved ?? 0, color: '#10b981', isPriority: false }
+                        ].map(tab => {
+                          const isActive = tab.isPriority
+                            ? ticketPriorityFilter === 'urgent'
+                            : (supportFilter === tab.id && ticketPriorityFilter !== 'urgent');
 
-                        return (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => {
-                              if (tab.isPriority) {
-                                setTicketPriorityFilter(ticketPriorityFilter === 'urgent' ? 'all' : 'urgent');
-                                setSupportFilter('all');
-                              } else {
-                                setSupportFilter(tab.id as any);
-                                setTicketPriorityFilter('all');
-                              }
-                            }}
-                            style={{
-                              padding: '0.35rem 0.65rem',
-                              borderRadius: '999px',
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              backgroundColor: isActive ? tab.color : 'transparent',
-                              color: isActive ? '#ffffff' : 'var(--text-muted)',
-                              border: `1px solid ${isActive ? tab.color : 'var(--border-light)'}`,
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <span>{tab.label}</span>
-                            <span style={{
-                              fontSize: '0.62rem',
-                              padding: '0.05rem 0.35rem',
-                              borderRadius: '999px',
-                              backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-deep)',
-                              color: isActive ? '#ffffff' : 'var(--text-muted)'
-                            }}>
-                              {tab.count}
-                            </span>
-                          </button>
-                        );
-                      })}
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => {
+                                if (tab.isPriority) {
+                                  setTicketPriorityFilter(ticketPriorityFilter === 'urgent' ? 'all' : 'urgent');
+                                  setSupportFilter('all');
+                                } else {
+                                  setSupportFilter(tab.id as any);
+                                  setTicketPriorityFilter('all');
+                                }
+                              }}
+                              style={{
+                                minHeight: '44px',
+                                minWidth: '44px',
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '999px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                backgroundColor: isActive ? tab.color : 'transparent',
+                                color: isActive ? '#ffffff' : 'var(--text-muted)',
+                                border: `1px solid ${isActive ? tab.color : 'var(--border-light)'}`,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <span>{tab.label}</span>
+                              <span style={{
+                                fontSize: '0.62rem',
+                                padding: '0.05rem 0.35rem',
+                                borderRadius: '999px',
+                                backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-deep)',
+                                color: isActive ? '#ffffff' : 'var(--text-muted)'
+                              }}>
+                                {tab.count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* Smooth Right Edge Fade Indicator */}
+                      <div
+                        aria-hidden="true"
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 0,
+                          bottom: '0.25rem',
+                          width: '28px',
+                          background: 'linear-gradient(to right, transparent, var(--bg-card))',
+                          pointerEvents: 'none',
+                          opacity: 0.95
+                        }}
+                      />
                     </div>
 
                     {/* Operational Secondary Filter Pills */}
-                    <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', alignItems: 'center', scrollbarWidth: 'none' }}>
-                      {/* Category Dropdown */}
-                      <TabletCustomSelect
-                        value={ticketCategoryFilter}
-                        onChange={(val) => setTicketCategoryFilter(val)}
-                        options={TICKET_CATEGORY_OPTIONS}
-                        variant="compact"
-                        triggerStyle={{
-                          minHeight: '34px',
-                          fontSize: '0.72rem',
-                          padding: '0.25rem 0.55rem'
-                        }}
-                        menuWidth={240}
-                        ariaLabel="Filter Kategori Tiket"
-                      />
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', alignItems: 'center', scrollbarWidth: 'thin', paddingBottom: '0.2rem', WebkitOverflowScrolling: 'touch' }}>
+                        {/* Category Dropdown */}
+                        <TabletCustomSelect
+                          value={ticketCategoryFilter}
+                          onChange={(val) => setTicketCategoryFilter(val)}
+                          options={TICKET_CATEGORY_OPTIONS}
+                          variant="compact"
+                          style={{ flexShrink: 0 }}
+                          triggerStyle={{
+                            minHeight: '44px',
+                            fontSize: '0.72rem',
+                            padding: '0.25rem 0.55rem'
+                          }}
+                          menuWidth={240}
+                          ariaLabel="Filter Kategori Tiket"
+                        />
 
-                      {/* Priority Dropdown */}
-                      <TabletCustomSelect
-                        value={ticketPriorityFilter}
-                        onChange={(val) => setTicketPriorityFilter(val)}
-                        options={TICKET_PRIORITY_FILTER_OPTIONS}
-                        variant="compact"
-                        triggerStyle={{
-                          minHeight: '34px',
-                          fontSize: '0.72rem',
-                          padding: '0.25rem 0.55rem',
-                          color: ticketPriorityFilter === 'urgent' ? '#ef4444' : undefined
-                        }}
-                        menuWidth={200}
-                        ariaLabel="Filter Prioritas Tiket"
-                      />
+                        {/* Priority Dropdown */}
+                        <TabletCustomSelect
+                          value={ticketPriorityFilter}
+                          onChange={(val) => setTicketPriorityFilter(val)}
+                          options={TICKET_PRIORITY_FILTER_OPTIONS}
+                          variant="compact"
+                          style={{ flexShrink: 0 }}
+                          triggerStyle={{
+                            minHeight: '44px',
+                            fontSize: '0.72rem',
+                            padding: '0.25rem 0.55rem',
+                            color: ticketPriorityFilter === 'urgent' ? '#ef4444' : undefined
+                          }}
+                          menuWidth={200}
+                          ariaLabel="Filter Prioritas Tiket"
+                        />
 
-                      {/* SLA Filter Toggle */}
-                      <button
-                        type="button"
-                        onClick={() => setTicketSlaFilter(prev => prev === 'breached' ? 'all' : 'breached')}
-                        style={{
-                          minHeight: '34px',
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '0.5rem',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          backgroundColor: ticketSlaFilter === 'breached' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
-                          color: ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--text-muted)',
-                          border: `1px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--border-light)'}`,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        <Clock size={12} />
-                        <span>SLA Lewat</span>
-                      </button>
-
-                      {/* Time range for resolved */}
-                      {supportFilter === 'resolved' && (
-                        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-                          {(['30d', '90d', 'all'] as const).map(tr => (
-                            <button
-                              key={tr}
-                              type="button"
-                              onClick={() => setResolvedTimeRangeFilter(tr)}
-                              style={{
-                                minHeight: '34px',
-                                padding: '0.25rem 0.5rem',
-                                borderRadius: '0.5rem',
-                                fontSize: '0.68rem',
-                                fontWeight: 700,
-                                backgroundColor: resolvedTimeRangeFilter === tr ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                                color: resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--text-muted)',
-                                border: `1px solid ${resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--border-light)'}`,
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {tr === '30d' ? '30 Hari' : tr === '90d' ? '90 Hari' : 'Semua'}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Reset Filter Button */}
-                      {(ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || supportSearch.trim()) && (
+                        {/* SLA Filter Toggle */}
                         <button
                           type="button"
-                          onClick={() => {
-                            setTicketCategoryFilter('all');
-                            setTicketPriorityFilter('all');
-                            setTicketSlaFilter('all');
-                            setSupportSearch('');
-                          }}
+                          onClick={() => setTicketSlaFilter(prev => prev === 'breached' ? 'all' : 'breached')}
                           style={{
-                            minHeight: '34px',
-                            padding: '0.25rem 0.55rem',
+                            minHeight: '44px',
+                            minWidth: '44px',
+                            padding: '0.25rem 0.65rem',
                             borderRadius: '0.5rem',
-                            fontSize: '0.7rem',
+                            fontSize: '0.72rem',
                             fontWeight: 700,
-                            backgroundColor: 'var(--bg-deep)',
-                            color: 'var(--text-muted)',
-                            border: '1px solid var(--border-light)',
+                            backgroundColor: ticketSlaFilter === 'breached' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                            color: ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--text-muted)',
+                            border: `1px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--border-light)'}`,
                             cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.25rem',
-                            whiteSpace: 'nowrap'
+                            justifyContent: 'center',
+                            gap: '0.3rem',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0
                           }}
                         >
-                          <X size={12} />
-                          <span>Reset</span>
+                          <Clock size={12} />
+                          <span>SLA Lewat</span>
                         </button>
-                      )}
+
+                        {/* Time range for resolved */}
+                        {supportFilter === 'resolved' && (
+                          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexShrink: 0 }}>
+                            {(['30d', '90d', 'all'] as const).map(tr => (
+                              <button
+                                key={tr}
+                                type="button"
+                                onClick={() => setResolvedTimeRangeFilter(tr)}
+                                style={{
+                                  minHeight: '44px',
+                                  minWidth: '44px',
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: '0.5rem',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  backgroundColor: resolvedTimeRangeFilter === tr ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                  color: resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--text-muted)',
+                                  border: `1px solid ${resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--border-light)'}`,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0
+                                }}
+                              >
+                                {tr === '30d' ? '30 Hari' : tr === '90d' ? '90 Hari' : 'Semua'}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Reset Filter Button */}
+                        {(ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || supportSearch.trim()) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTicketCategoryFilter('all');
+                              setTicketPriorityFilter('all');
+                              setTicketSlaFilter('all');
+                              setSupportSearch('');
+                            }}
+                            style={{
+                              minHeight: '44px',
+                              minWidth: '44px',
+                              padding: '0.25rem 0.55rem',
+                              borderRadius: '0.5rem',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              backgroundColor: 'var(--bg-deep)',
+                              color: 'var(--text-muted)',
+                              border: '1px solid var(--border-light)',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.25rem',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}
+                          >
+                            <X size={12} />
+                            <span>Reset</span>
+                          </button>
+                        )}
+                      </div>
+                      {/* Smooth Right Edge Fade Indicator */}
+                      <div
+                        aria-hidden="true"
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 0,
+                          bottom: '0.2rem',
+                          width: '28px',
+                          background: 'linear-gradient(to right, transparent, var(--bg-card))',
+                          pointerEvents: 'none',
+                          opacity: 0.95
+                        }}
+                      />
                     </div>
                   </div>
 
@@ -4938,7 +5054,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           options={TICKET_STATUS_OPTIONS}
                           variant="compact"
                           triggerStyle={{
-                            minHeight: '34px',
+                            minHeight: '44px',
                             minWidth: '135px',
                             fontSize: '0.75rem',
                             padding: '0.25rem 0.6rem'
@@ -4954,7 +5070,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           options={TICKET_PRIORITY_OPTIONS}
                           variant="compact"
                           triggerStyle={{
-                            minHeight: '34px',
+                            minHeight: '44px',
                             minWidth: '125px',
                             fontSize: '0.75rem',
                             padding: '0.25rem 0.6rem',
@@ -5739,27 +5855,57 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               masterPane={
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {/* Status Filter */}
-                  <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: '0.35rem', overflowX: 'auto' }}>
-                    {(['all', 'pending_verification', 'pending_payment', 'paid', 'rejected'] as const).map(tab => (
-                      <button
-                        key={tab}
-                        type="button"
-                        onClick={() => setFinanceFilter(tab)}
-                        style={{
-                          padding: '0.35rem 0.65rem',
-                          borderRadius: '999px',
-                          border: `1px solid ${financeFilter === tab ? '#10b981' : 'var(--border-light)'}`,
-                          backgroundColor: financeFilter === tab ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
-                          color: financeFilter === tab ? '#10b981' : 'var(--text-muted)',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {tab === 'all' ? 'Semua' : tab === 'pending_verification' ? 'Verifikasi' : tab === 'paid' ? 'Lunas' : tab.toUpperCase()}
-                      </button>
-                    ))}
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <div style={{
+                      padding: '0.75rem',
+                      borderBottom: '1px solid var(--border-light)',
+                      display: 'flex',
+                      gap: '0.35rem',
+                      overflowX: 'auto',
+                      scrollbarWidth: 'thin',
+                      WebkitOverflowScrolling: 'touch'
+                    }}>
+                      {(['all', 'pending_verification', 'pending_payment', 'paid', 'rejected'] as const).map(tab => (
+                        <button
+                          key={tab}
+                          type="button"
+                          onClick={() => setFinanceFilter(tab)}
+                          style={{
+                            minHeight: '44px',
+                            minWidth: '44px',
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '999px',
+                            border: `1px solid ${financeFilter === tab ? '#10b981' : 'var(--border-light)'}`,
+                            backgroundColor: financeFilter === tab ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                            color: financeFilter === tab ? '#10b981' : 'var(--text-muted)',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          {tab === 'all' ? 'Semua' : tab === 'pending_verification' ? 'Verifikasi' : tab === 'pending_payment' ? 'Menunggu Bayar' : tab === 'paid' ? 'Lunas' : tab === 'rejected' ? 'Ditolak' : tab}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Smooth Right Edge Fade Indicator */}
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: 0,
+                        bottom: '1px',
+                        width: '28px',
+                        background: 'linear-gradient(to right, transparent, var(--bg-card))',
+                        pointerEvents: 'none',
+                        opacity: 0.95
+                      }}
+                    />
                   </div>
 
                   <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -6271,6 +6417,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               type="button"
                               onClick={() => setBroadcastStatusFilter(st.id as any)}
                               style={{
+                                minHeight: '44px',
+                                minWidth: '44px',
                                 padding: '0.4rem 0.85rem',
                                 borderRadius: '0.5rem',
                                 border: 'none',
@@ -6279,7 +6427,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 fontSize: '0.78rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
-                                transition: 'all 0.15s ease'
+                                transition: 'all 0.15s ease',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
                               }}
                             >
                               {st.label}
@@ -7762,7 +7915,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 gap: '0.75rem',
                 flexWrap: 'wrap'
               }}>
-                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.1rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.2rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
                   {[
                     { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
                     { id: 'bots', label: `${automationStatus?.total_workers || 11} Bot Platform`, icon: Bot, badge: String(automationStatus?.total_workers || 11) },
@@ -7795,7 +7948,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           fontWeight: isActive ? 800 : 600,
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
                         }}
                       >
                         <Icon size={16} />
@@ -8337,7 +8491,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         onClick={() => fetchAutomation()}
                         disabled={isFetchingAutomation}
                         style={{
-                          minHeight: '38px',
+                          minHeight: '44px',
+                          minWidth: '44px',
                           padding: '0.35rem 0.85rem',
                           borderRadius: '0.55rem',
                           backgroundColor: 'var(--bg-card)',
@@ -8346,8 +8501,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           fontSize: '0.76rem',
                           fontWeight: 700,
                           cursor: isFetchingAutomation ? 'not-allowed' : 'pointer',
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
                           gap: '0.35rem'
                         }}
                       >
@@ -8357,7 +8513,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     </div>
 
                     {/* Filter Chips by Bot */}
-                    <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+                    <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
                       {[
                         { id: 'all', label: 'Semua Bot' },
                         { id: 'ticket_retention_worker', label: 'Retensi PDP Tiket' },
@@ -8378,7 +8534,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             fetchAutomation(chip.id, automationLogsStatusFilter, automationLogsSearch);
                           }}
                           style={{
-                            minHeight: '40px',
+                            minHeight: '44px',
+                            minWidth: '44px',
                             padding: '0.35rem 0.85rem',
                             borderRadius: '0.65rem',
                             fontSize: '0.76rem',
@@ -8387,7 +8544,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             backgroundColor: automationLogsBotFilter === chip.id ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-card)',
                             color: automationLogsBotFilter === chip.id ? 'var(--primary)' : 'var(--text-muted)',
                             cursor: 'pointer',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                           }}
                         >
                           {chip.label}
@@ -9864,7 +10025,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           </div>
 
                           {/* 6 Category Tabs */}
-                          <div style={{ display: 'flex', gap: '0.4rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', overflowX: 'auto' }}>
+                          <div style={{ display: 'flex', gap: '0.4rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', overflowX: 'auto', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
                             {[
                               { key: 'physical', label: 'Barang Fisik', icon: <Package size={14} /> },
                               { key: 'food', label: 'Kuliner', icon: <Utensils size={14} /> },
@@ -9889,10 +10050,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   fontWeight: rekberActiveTemplateTab === tab.key ? 800 : 600,
                                   cursor: 'pointer',
                                   whiteSpace: 'nowrap',
+                                  flexShrink: 0,
                                   display: 'inline-flex',
                                   alignItems: 'center',
+                                  justifyContent: 'center',
                                   gap: '0.4rem',
-                                  minHeight: '38px'
+                                  minHeight: '44px',
+                                  minWidth: '44px'
                                 }}
                               >
                                 <span>{tab.icon}</span>
@@ -10151,9 +10315,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 fontSize: '0.78rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
-                                minHeight: '42px',
+                                minHeight: '44px',
+                                minWidth: '44px',
                                 display: 'inline-flex',
                                 alignItems: 'center',
+                                justifyContent: 'center',
                                 gap: '0.35rem'
                               }}
                             >
@@ -10173,9 +10339,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 fontSize: '0.82rem',
                                 fontWeight: 800,
                                 cursor: 'pointer',
-                                minHeight: '42px',
+                                minHeight: '44px',
+                                minWidth: '44px',
                                 display: 'inline-flex',
                                 alignItems: 'center',
+                                justifyContent: 'center',
                                 gap: '0.4rem',
                                 boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)'
                               }}
@@ -10187,7 +10355,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         </div>
 
                         {/* Category Filter Pills */}
-                        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
                           {[
                             { id: 'all', label: 'Semua Kategori' },
                             { id: 'general', label: 'Umum & Greeting' },
@@ -10204,6 +10372,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 setTemplatePage(1);
                               }}
                               style={{
+                                minHeight: '44px',
+                                minWidth: '44px',
                                 padding: '0.4rem 0.85rem',
                                 borderRadius: '999px',
                                 fontSize: '0.74rem',
@@ -10213,6 +10383,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 border: `1px solid ${templateCategoryFilter === cat.id ? '#8b5cf6' : 'var(--border-light)'}`,
                                 cursor: 'pointer',
                                 whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                                 transition: 'all 0.15s ease'
                               }}
                             >
@@ -10345,8 +10519,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                         border: '1px solid var(--border-light)',
                                         color: isCopied ? '#10b981' : 'var(--text-muted)',
                                         cursor: 'pointer',
-                                        minWidth: '32px',
-                                        minHeight: '32px',
+                                        minWidth: '44px',
+                                        minHeight: '44px',
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         justifyContent: 'center'
@@ -10366,8 +10540,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                         border: '1px solid var(--border-light)',
                                         color: tmpl.is_active !== false ? '#10b981' : 'var(--text-muted)',
                                         cursor: 'pointer',
-                                        minWidth: '32px',
-                                        minHeight: '32px',
+                                        minWidth: '44px',
+                                        minHeight: '44px',
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         justifyContent: 'center'
@@ -10387,8 +10561,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                         border: '1px solid var(--border-light)',
                                         color: '#3b82f6',
                                         cursor: 'pointer',
-                                        minWidth: '32px',
-                                        minHeight: '32px',
+                                        minWidth: '44px',
+                                        minHeight: '44px',
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         justifyContent: 'center'
@@ -10408,8 +10582,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                         border: '1px solid rgba(239, 68, 68, 0.25)',
                                         color: '#ef4444',
                                         cursor: 'pointer',
-                                        minWidth: '32px',
-                                        minHeight: '32px',
+                                        minWidth: '44px',
+                                        minHeight: '44px',
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         justifyContent: 'center'
@@ -10490,7 +10664,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 fontWeight: 700,
                                 cursor: templatePage <= 1 ? 'not-allowed' : 'pointer',
                                 opacity: templatePage <= 1 ? 0.45 : 1,
-                                minHeight: '38px'
+                                minHeight: '44px',
+                                minWidth: '44px'
                               }}
                             >
                               <ChevronLeft size={15} />
@@ -10509,7 +10684,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               color: '#8b5cf6',
                               fontSize: '0.8rem',
                               fontWeight: 800,
-                              minHeight: '38px'
+                              minHeight: '44px'
                             }}>
                               <span>{templatePage}</span>
                               <span style={{ opacity: 0.5, margin: '0 0.25rem' }}>/</span>
@@ -10526,6 +10701,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
+                                justifyContent: 'center',
                                 gap: '0.35rem',
                                 padding: '0.45rem 0.95rem',
                                 borderRadius: '0.55rem',
@@ -10536,7 +10712,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 fontWeight: 700,
                                 cursor: templatePage >= templatePagination.total_pages ? 'not-allowed' : 'pointer',
                                 opacity: templatePage >= templatePagination.total_pages ? 0.45 : 1,
-                                minHeight: '38px'
+                                minHeight: '44px',
+                                minWidth: '44px'
                               }}
                             >
                               <span>Berikutnya</span>
@@ -10576,15 +10753,18 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         disabled={isLoadingAudit}
                         onClick={() => fetchAuditLogs(1)}
                         style={{
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
                           gap: '0.3rem',
-                          padding: '0.3rem 0.6rem',
+                          minHeight: '44px',
+                          minWidth: '44px',
+                          padding: '0.35rem 0.75rem',
                           borderRadius: '0.5rem',
                           border: '1px solid var(--border-light)',
                           backgroundColor: 'var(--bg-deep)',
                           color: 'var(--text-primary)',
-                          fontSize: '0.7rem',
+                          fontSize: '0.72rem',
                           fontWeight: 700,
                           cursor: 'pointer'
                         }}
@@ -10637,7 +10817,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     </div>
 
                     {/* Category Filter Horizontal Pills */}
-                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0.25rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
                       {[
                         { id: 'all', label: 'SEMUA', icon: History },
                         { id: 'security', label: 'KEAMANAN', icon: Shield },
@@ -10657,7 +10837,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               setAuditPage(1);
                             }}
                             style={{
-                              padding: '0.25rem 0.55rem',
+                              minHeight: '44px',
+                              minWidth: '44px',
+                              padding: '0.35rem 0.65rem',
                               borderRadius: '999px',
                               border: `1px solid ${isCatActive ? 'var(--primary)' : 'var(--border-light)'}`,
                               backgroundColor: isCatActive ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
@@ -10665,7 +10847,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               fontSize: '0.68rem',
                               fontWeight: 700,
                               cursor: 'pointer',
-                              whiteSpace: 'nowrap'
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
                             }}
                           >
                             {cat.label}
@@ -10675,7 +10861,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     </div>
 
                     {/* Role Filter Pills */}
-                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto' }}>
+                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0.15rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
                       {[
                         { id: 'all', label: 'Semua Aktor' },
                         { id: 'superadmin', label: 'Superadmin' },
@@ -10692,15 +10878,21 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               setAuditPage(1);
                             }}
                             style={{
-                              padding: '0.2rem 0.5rem',
-                              borderRadius: '0.4rem',
+                              minHeight: '44px',
+                              minWidth: '44px',
+                              padding: '0.35rem 0.6rem',
+                              borderRadius: '0.45rem',
                               border: `1px solid ${isRoleActive ? 'var(--primary)' : 'var(--border-light)'}`,
                               backgroundColor: isRoleActive ? 'rgba(59, 130, 246, 0.18)' : 'transparent',
                               color: isRoleActive ? 'var(--primary)' : 'var(--text-muted)',
                               fontSize: '0.65rem',
                               fontWeight: isRoleActive ? 800 : 500,
                               cursor: 'pointer',
-                              whiteSpace: 'nowrap'
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
                             }}
                           >
                             {r.label}
@@ -11452,7 +11644,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     fontSize: '0.8rem',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    minHeight: '42px'
+                    minHeight: '44px',
+                    minWidth: '44px'
                   }}
                 >
                   Batal
@@ -11472,9 +11665,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     cursor: savingTemplate ? 'not-allowed' : 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: '0.4rem',
                     boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)',
-                    minHeight: '42px'
+                    minHeight: '44px',
+                    minWidth: '44px'
                   }}
                 >
                   {savingTemplate ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}

@@ -270,7 +270,7 @@ export const TabletCustomSelect: React.FC<TabletCustomSelectProps> = ({
   const parsedMaxHeight = typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight;
 
   // Trigger min-height based on variant (Standard tablet minimum is 44px)
-  const defaultMinHeight = variant === 'compact' ? '38px' : '44px';
+  const defaultMinHeight = '44px';
 
   return (
     <div

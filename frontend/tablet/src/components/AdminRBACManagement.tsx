@@ -458,6 +458,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         <button
           onClick={() => setActiveTab('staff')}
           style={{
+            minHeight: '44px',
+            minWidth: '44px',
             padding: '0.6rem 0.4rem',
             borderRadius: '0.65rem',
             backgroundColor: activeTab === 'staff' ? '#f43f5e' : 'transparent',
@@ -466,7 +468,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             fontSize: '0.75rem',
             fontWeight: 800,
             cursor: 'pointer',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.3rem',
@@ -480,6 +482,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         <button
           onClick={() => setActiveTab('matrix')}
           style={{
+            minHeight: '44px',
+            minWidth: '44px',
             padding: '0.6rem 0.4rem',
             borderRadius: '0.65rem',
             backgroundColor: activeTab === 'matrix' ? '#f43f5e' : 'transparent',
@@ -488,7 +492,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             fontSize: '0.75rem',
             fontWeight: 800,
             cursor: 'pointer',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.3rem',
@@ -502,6 +506,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         <button
           onClick={() => setActiveTab('create_role')}
           style={{
+            minHeight: '44px',
+            minWidth: '44px',
             padding: '0.6rem 0.4rem',
             borderRadius: '0.65rem',
             backgroundColor: activeTab === 'create_role' ? '#f43f5e' : 'transparent',
@@ -510,7 +516,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             fontSize: '0.75rem',
             fontWeight: 800,
             cursor: 'pointer',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.3rem',
@@ -556,6 +562,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 setShowAssignModal(true);
               }}
               style={{
+                minHeight: '44px',
+                minWidth: '44px',
                 padding: '0.6rem 0.9rem',
                 borderRadius: '0.75rem',
                 backgroundColor: '#f43f5e',
@@ -564,8 +572,9 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 fontSize: '0.78rem',
                 fontWeight: 800,
                 cursor: 'pointer',
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '0.35rem',
                 whiteSpace: 'nowrap',
                 boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)'
@@ -666,6 +675,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                             setShowAssignModal(true);
                           }}
                           style={{
+                            minHeight: '44px',
+                            minWidth: '44px',
                             padding: '0.35rem 0.65rem',
                             borderRadius: '0.5rem',
                             backgroundColor: theme.cardAlt,
@@ -673,7 +684,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                             color: theme.textPrimary,
                             fontSize: '0.72rem',
                             fontWeight: 700,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                           }}
                         >
                           Ubah Role
@@ -681,6 +695,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                         <button
                           onClick={() => handleRevokeRole(staff.id, staff.email)}
                           style={{
+                            minHeight: '44px',
+                            minWidth: '44px',
                             padding: '0.35rem 0.65rem',
                             borderRadius: '0.5rem',
                             backgroundColor: 'rgba(239, 68, 68, 0.15)',
@@ -688,7 +704,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                             color: '#f87171',
                             fontSize: '0.72rem',
                             fontWeight: 700,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                           }}
                         >
                           Cabut

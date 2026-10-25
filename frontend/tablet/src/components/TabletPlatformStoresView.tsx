@@ -567,7 +567,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
               onClick={() => setViewMode('table')}
               title="Tampilan Tabel Data"
               style={{
-                minHeight: '38px',
+                minHeight: '44px',
                 padding: '0 0.85rem',
                 borderRadius: '0.5rem',
                 border: 'none',
@@ -590,7 +590,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
               onClick={() => setViewMode('grid')}
               title="Tampilan Kartu Grid"
               style={{
-                minHeight: '38px',
+                minHeight: '44px',
                 padding: '0 0.85rem',
                 borderRadius: '0.5rem',
                 border: 'none',
@@ -715,7 +715,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                 highlightColor="#10b981"
                 highlightBg="rgba(16, 185, 129, 0.10)"
                 triggerStyle={{
-                  minHeight: '42px',
+                  minHeight: '44px',
                   width: 'auto',
                   minWidth: '135px'
                 }}
@@ -735,7 +735,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                 highlightColor="#ef4444"
                 highlightBg="rgba(239, 68, 68, 0.10)"
                 triggerStyle={{
-                  minHeight: '42px',
+                  minHeight: '44px',
                   width: 'auto',
                   minWidth: '145px'
                 }}
@@ -756,7 +756,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
               highlightColor={subTab === 'active' ? '#10b981' : '#ef4444'}
               highlightBg={subTab === 'active' ? 'rgba(16, 185, 129, 0.10)' : 'rgba(239, 68, 68, 0.10)'}
               triggerStyle={{
-                minHeight: '42px',
+                minHeight: '44px',
                 width: 'auto',
                 minWidth: '128px'
               }}
@@ -776,7 +776,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
               highlightColor={subTab === 'active' ? '#10b981' : '#ef4444'}
               highlightBg={subTab === 'active' ? 'rgba(16, 185, 129, 0.10)' : 'rgba(239, 68, 68, 0.10)'}
               triggerStyle={{
-                minHeight: '42px',
+                minHeight: '44px',
                 width: 'auto',
                 minWidth: '155px'
               }}
@@ -791,7 +791,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                 onClick={clearAllFilters}
                 title="Atur ulang seluruh filter"
                 style={{
-                  minHeight: '42px',
+                  minHeight: '44px',
                   padding: '0 0.85rem',
                   borderRadius: '0.65rem',
                   border: `1px solid ${subTab === 'active' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
@@ -840,7 +840,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             <button
               onClick={clearAllFilters}
               style={{
-                minHeight: '36px',
+                minHeight: '44px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.35rem',
@@ -861,7 +861,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             {planFilter !== 'all' && (
               <span
                 style={{
-                  minHeight: '36px',
+                  minHeight: '44px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
@@ -888,7 +888,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             {planStatusFilter !== 'all' && (
               <span
                 style={{
-                  minHeight: '36px',
+                  minHeight: '44px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
@@ -915,7 +915,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             {dormancyLevelFilter !== 'all' && (
               <span
                 style={{
-                  minHeight: '36px',
+                  minHeight: '44px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
@@ -942,7 +942,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             {productFilter !== 'all' && (
               <span
                 style={{
-                  minHeight: '36px',
+                  minHeight: '44px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
@@ -969,7 +969,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             {customDomainFilter !== 'all' && (
               <span
                 style={{
-                  minHeight: '36px',
+                  minHeight: '44px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
@@ -996,7 +996,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             {violationTypeFilter !== 'all' && (
               <span
                 style={{
-                  minHeight: '36px',
+                  minHeight: '44px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
@@ -1022,7 +1022,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
             {sortFilter !== 'created_at_desc' && (
               <span
                 style={{
-                  minHeight: '36px',
+                  minHeight: '44px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
@@ -1365,7 +1365,9 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                                     alignItems: 'center',
                                     gap: '0.2rem',
                                     fontWeight: 600,
-                                    whiteSpace: 'nowrap'
+                                    whiteSpace: 'nowrap',
+                                    minHeight: '44px',
+                                    minWidth: '44px'
                                   }}
                                 >
                                   /{item.slug}
@@ -1806,7 +1808,9 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.25rem',
-                              fontWeight: 600
+                              fontWeight: 600,
+                              minHeight: '44px',
+                              minWidth: '44px'
                             }}
                           >
                             /{item.slug}
@@ -1994,8 +1998,8 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
               <button
                 onClick={() => setIsFilterSheetOpen(false)}
                 style={{
-                  minWidth: '40px',
-                  minHeight: '40px',
+                  minWidth: '44px',
+                  minHeight: '44px',
                   borderRadius: '0.55rem',
                   border: 'none',
                   backgroundColor: 'var(--bg-deep)',
@@ -2714,8 +2718,8 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
               <button
                 onClick={() => setSelectedStoreID(null)}
                 style={{
-                  minWidth: '40px',
-                  minHeight: '40px',
+                  minWidth: '44px',
+                  minHeight: '44px',
                   borderRadius: '0.55rem',
                   border: 'none',
                   backgroundColor: 'var(--bg-deep)',
@@ -2792,7 +2796,9 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                               alignItems: 'center',
                               gap: '0.25rem',
                               marginTop: '0.25rem',
-                              fontWeight: 600
+                              fontWeight: 600,
+                              minHeight: '44px',
+                              minWidth: '44px'
                             }}
                           >
                             /{s.slug}

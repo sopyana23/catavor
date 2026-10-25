@@ -2,12 +2,15 @@ Write-Host "==============================================" -ForegroundColor Cya
 Write-Host "Starting Catavor Server (Without DB Updates)" -ForegroundColor Cyan
 Write-Host "==============================================" -ForegroundColor Cyan
 
-$env:DB_AUTO_MIGRATE="false"
-$env:SKIP_DB_MIGRATE="true"
+if (-not $env:PORT) { $env:PORT = "8000" }
+$env:DB_AUTO_MIGRATE = "false"
+$env:SKIP_DB_MIGRATE = "true"
 $rootDir = Split-Path -Parent $PSScriptRoot
 Set-Location -Path $rootDir
 
-if (Test-Path ".\catavor-server.exe") {
+if (Test-Path ".\backend\catavor-server.exe") {
+    .\backend\catavor-server.exe
+} elseif (Test-Path ".\catavor-server.exe") {
     .\catavor-server.exe
 } else {
     Set-Location -Path (Join-Path $rootDir "backend")
