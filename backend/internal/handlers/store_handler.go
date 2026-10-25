@@ -37,11 +37,49 @@ func NewStoreHandler(db *gorm.DB, cfg ...*config.Config) *StoreHandler {
 	return h
 }
 
-func (h *StoreHandler) isMerchantRequester(c *fiber.Ctx, store *models.Store) bool {
+type PublicStoreDTO struct {
+	ID                      uint           `json:"id"`
+	Slug                    string         `json:"slug"`
+	StoreTitle              string         `json:"store_title"`
+	StoreSlogan             string         `json:"store_slogan"`
+	PromoBanner             string         `json:"promo_banner"`
+	WhatsappNumber          string         `json:"whatsapp_number"`
+	OfficialWebsite         string         `json:"official_website"`
+	StoreLogoURL            string         `json:"store_logo_url"`
+	StoreTheme              string         `json:"store_theme"`
+	AboutTitle              string         `json:"about_title"`
+	AboutSlogan             string         `json:"about_slogan"`
+	AboutDescription        string         `json:"about_description"`
+	AboutCards              datatypes.JSON `json:"about_cards"`
+	AboutLocation           string         `json:"about_location"`
+	AboutHours              string         `json:"about_hours"`
+	ShowHours               bool           `json:"show_hours"`
+	AboutDisclaimer         string         `json:"about_disclaimer"`
+	SocialLinks             datatypes.JSON `json:"social_links"`
+	CustomDomain            *string        `json:"custom_domain,omitempty"`
+	EnableWADirect          bool           `json:"enable_wa_direct"`
+	EnableWARekber          bool           `json:"enable_wa_rekber"`
+	MasterCategories        datatypes.JSON `json:"master_categories"`
+	MasterClasses           datatypes.JSON `json:"master_classes"`
+	MasterHabitats          datatypes.JSON `json:"master_habitats"`
+	MasterStatuses          datatypes.JSON `json:"master_statuses"`
+	MasterShippingCoverages datatypes.JSON `json:"master_shipping_coverages"`
+	Plan                    string         `json:"plan"`
+	DormancyStatus          string         `json:"dormancy_status"`
+	DormancySuspendedAt     *time.Time     `json:"dormancy_suspended_at,omitempty"`
+	CreatedAt               time.Time      `json:"created_at"`
+}
+
+func (h *StoreHandler) isMerchantRequester(c *fiber.Ctx, store *models.Store, preExtractedClaims ...*middleware.JWTClaims) bool {
 	if store == nil {
 		return false
 	}
-	claims := middleware.ExtractOptionalClaims(c, h.cfg)
+	var claims *middleware.JWTClaims
+	if len(preExtractedClaims) > 0 && preExtractedClaims[0] != nil {
+		claims = preExtractedClaims[0]
+	} else {
+		claims = middleware.ExtractOptionalClaims(c, h.cfg)
+	}
 	if claims == nil {
 		return false
 	}
@@ -204,8 +242,19 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 		})
 	}
 
+	// Cache is strictly for public visitors (never cache merchant/staff view to prevent unmasked warning status leaking
+	// to public cache or masked active status poisoning merchant dashboard).
+	//
+	// Catatan Asimetri Predikat Cache:
+	// - Predikat Baca (!isAuthRequester): Setiap request yang membawa token login dilewati dari pembacaan cache,
+	//   sehingga merchant/staf tidak pernah membaca varian masked dari cache publik.
+	// - Predikat Tulis (!isMerchant): Hanya merchant pemilik atau staf yang dilarang menulis cache (karena data mereka
+	//   mengandung status warning asli). Pembeli yang login menerima DTO masked (active) sehingga aman disimpan ke cache publik.
+	claims := middleware.ExtractOptionalClaims(c, h.cfg)
+	isAuthRequester := claims != nil && claims.UserID > 0
+
 	profileCacheKey := fmt.Sprintf("catavor:store:%s:profile", slug)
-	if database.IsRedisAvailable() && database.RedisClient != nil {
+	if !isAuthRequester && database.IsRedisAvailable() && database.RedisClient != nil {
 		if cachedVal, err := database.RedisClient.Get(context.Background(), profileCacheKey).Result(); err == nil && cachedVal != "" {
 			var cachedRes fiber.Map
 			if err := json.Unmarshal([]byte(cachedVal), &cachedRes); err == nil {
@@ -271,18 +320,61 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	// Touch store activity on public catalog view (throttled & only affects active stores before warning stage)
 	services.TouchStoreActivity(h.db, store.ID)
 
-	responsePayload := fiber.Map{
-		"success": true,
-		"data":    store,
+	isMerchant := h.isMerchantRequester(c, &store, claims)
+	publicDormancyStatus := store.DormancyStatus
+	if !isMerchant && (publicDormancyStatus == "warning_1" || publicDormancyStatus == "warning_2") {
+		publicDormancyStatus = "active"
 	}
 
-	if database.IsRedisAvailable() && database.RedisClient != nil {
+	publicStore := PublicStoreDTO{
+		ID:                      store.ID,
+		Slug:                    store.Slug,
+		StoreTitle:              store.StoreTitle,
+		StoreSlogan:             store.StoreSlogan,
+		PromoBanner:             store.PromoBanner,
+		WhatsappNumber:          store.WhatsappNumber,
+		OfficialWebsite:         store.OfficialWebsite,
+		StoreLogoURL:            store.StoreLogoURL,
+		StoreTheme:              store.StoreTheme,
+		AboutTitle:              store.AboutTitle,
+		AboutSlogan:             store.AboutSlogan,
+		AboutDescription:        store.AboutDescription,
+		AboutCards:              store.AboutCards,
+		AboutLocation:           store.AboutLocation,
+		AboutHours:              store.AboutHours,
+		ShowHours:               store.ShowHours,
+		AboutDisclaimer:         store.AboutDisclaimer,
+		SocialLinks:             store.SocialLinks,
+		CustomDomain:            store.CustomDomain,
+		EnableWADirect:          store.EnableWADirect,
+		EnableWARekber:          store.EnableWARekber,
+		MasterCategories:        store.MasterCategories,
+		MasterClasses:           store.MasterClasses,
+		MasterHabitats:          store.MasterHabitats,
+		MasterStatuses:          store.MasterStatuses,
+		MasterShippingCoverages: store.MasterShippingCoverages,
+		Plan:                    store.Plan,
+		DormancyStatus:          publicDormancyStatus,
+		DormancySuspendedAt:     store.DormancySuspendedAt,
+		CreatedAt:               store.CreatedAt,
+	}
+
+	responsePayload := fiber.Map{
+		"success": true,
+		"data":    publicStore,
+	}
+
+	if !isMerchant && database.IsRedisAvailable() && database.RedisClient != nil {
 		if bytes, err := json.Marshal(responsePayload); err == nil {
 			_ = database.RedisClient.Set(context.Background(), profileCacheKey, string(bytes), 300*time.Second).Err()
 		}
 	}
 
-	c.Set("X-Cache", "MISS")
+	if isMerchant {
+		c.Set("X-Cache", "BYPASS")
+	} else {
+		c.Set("X-Cache", "MISS")
+	}
 	return c.JSON(responsePayload)
 }
 
@@ -349,7 +441,8 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 
 	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
-		searchPattern := "%" + strings.ToLower(search) + "%"
+		escapedSearch := escapeLikePattern(strings.ToLower(search))
+		searchPattern := "%" + escapedSearch + "%"
 		query = query.Where("LOWER(name) LIKE ? OR LOWER(scientific_name) LIKE ? OR LOWER(description) LIKE ?", searchPattern, searchPattern, searchPattern)
 	}
 
@@ -586,7 +679,8 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 	}
 
 	if search != "" {
-		searchPattern := "%" + strings.ToLower(search) + "%"
+		escapedSearch := escapeLikePattern(strings.ToLower(search))
+		searchPattern := "%" + escapedSearch + "%"
 		query = query.Where("LOWER(name) LIKE ? OR LOWER(scientific_name) LIKE ? OR LOWER(description) LIKE ?", searchPattern, searchPattern, searchPattern)
 	}
 
@@ -780,6 +874,12 @@ func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	var archivedItems int64
 	h.db.Model(&models.Product{}).Where("store_id = ? AND is_active = false AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&archivedItems)
 
+	var outOfStockItems int64
+	h.db.Model(&models.Product{}).Where("store_id = ? AND stock = 0 AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&outOfStockItems)
+
+	var lowStockItems int64
+	h.db.Model(&models.Product{}).Where("store_id = ? AND stock > 0 AND stock <= 5 AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&lowStockItems)
+
 	// By Product Type
 	var typeRows []CountResult
 	newBaseQuery().Select("COALESCE(NULLIF(product_type, ''), 'physical') as key, COUNT(*) as count").Group("key").Scan(&typeRows)
@@ -803,13 +903,15 @@ func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	responsePayload := fiber.Map{
 		"success": true,
 		"data": fiber.Map{
-			"total_items":      totalItems,
-			"active_items":     activeItems,
-			"archived_items":   archivedItems,
-			"total_categories": len(byCategory),
-			"total_value":      totalValue,
-			"by_type":          byType,
-			"by_category":      byCategory,
+			"total_items":        totalItems,
+			"active_items":       activeItems,
+			"archived_items":     archivedItems,
+			"out_of_stock_items": outOfStockItems,
+			"low_stock_items":    lowStockItems,
+			"total_categories":   len(byCategory),
+			"total_value":        totalValue,
+			"by_type":            byType,
+			"by_category":        byCategory,
 		},
 		"cached_at": time.Now().Format(time.RFC3339),
 	}
@@ -1976,6 +2078,7 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 
 type DeleteStoreRequest struct {
 	ConfirmSlug string `json:"confirm_slug"`
+	Slug        string `json:"slug,omitempty"`
 	Password    string `json:"password"`
 }
 
@@ -2015,12 +2118,9 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		})
 	}
 
-	// Authorization Check: Must be the owner or platform admin
-	// ARSITEKTUR (N-25): satu sumber kebenaran. Daftar manual sebelumnya
-	// menyebut "platform_admin"/"admin" (tidak ada di DB maupun whitelist)
-	// dan TIDAK mengenali role sah seperti support/finance/compliance.
-	isStaff := user.IsPlatformStaff()
-	if store.UserID != user.ID && !isStaff {
+	// Authorization Check: Must be the owner or platform superadmin
+	isSuperadmin := user.IsSuperadmin()
+	if store.UserID != user.ID && !isSuperadmin {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Anda tidak memiliki wewenang untuk menghapus profil katalog ini.",
@@ -2035,8 +2135,11 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		})
 	}
 
-	// 1. Validate slug confirmation
+	// 1. Validate slug confirmation (support confirm_slug with fallback to slug)
 	cleanSlug := strings.ToLower(strings.TrimSpace(req.ConfirmSlug))
+	if cleanSlug == "" {
+		cleanSlug = strings.ToLower(strings.TrimSpace(req.Slug))
+	}
 	if cleanSlug != strings.ToLower(strings.TrimSpace(store.Slug)) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -2044,8 +2147,8 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		})
 	}
 
-	// 2. Validate password if user has password (skip for staff or Google users without password)
-	if !isStaff && user.HasCustomPassword && user.Password != "" {
+	// 2. Validate password for users with custom password
+	if user.HasCustomPassword && user.Password != "" {
 		if req.Password == "" || !user.CheckPassword(req.Password) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,

@@ -83,8 +83,8 @@ export function createAuthFetch(
       headers
     });
 
-    // 4. Reactive 401/403 session interception
-    if (res.status === 401 || res.status === 403) {
+    // 4. Reactive 401 Unauthorized session interception (403 Forbidden is a permission error, NOT session expiration)
+    if (res.status === 401) {
       let errorMsg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.';
       try {
         const clone = res.clone();

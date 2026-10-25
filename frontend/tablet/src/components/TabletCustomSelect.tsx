@@ -76,7 +76,7 @@ export const TabletCustomSelect: React.FC<TabletCustomSelectProps> = ({
   onClear,
   ariaLabel,
   variant = 'default',
-  interceptBack = true,
+  interceptBack = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

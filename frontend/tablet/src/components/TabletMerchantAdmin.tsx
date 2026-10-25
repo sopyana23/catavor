@@ -64,7 +64,20 @@ import {
   Compass,
   Sun,
   Droplets,
-  RotateCcw
+  RotateCcw,
+  Edit3,
+  X,
+  Info,
+  CheckCheck,
+  ArrowRight,
+  Scale,
+  MessageSquare,
+  AlertTriangle,
+  UserX,
+  CheckCircle2,
+  Mail,
+  ArrowLeft,
+  FolderMinus
 } from 'lucide-react';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
@@ -72,9 +85,47 @@ import { TabletAnalyticsView } from './TabletAnalyticsView';
 import { TabletSubscriptionModal, type StoreQuotaData } from './TabletSubscriptionModal';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
+import { TabletDangerZoneView } from './TabletDangerZoneView';
+import { TabletProductFilterSheet, type TabletProductFilterValues } from './TabletProductFilterSheet';
+import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
+import { TabletCustomSelect } from './TabletCustomSelect';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { useModalBackHandler } from '../utils/navigation';
 import { createAuthFetch, isTokenExpired } from '../utils/auth';
+import { safeOpenUrl } from '../utils/urlSecurity';
+import { normalizeNotification, parseModerationCase, extractTicketFromNotif } from '../utils/notificationHelpers';
+import {
+  getItemTypeFormConfig,
+  getAvailabilityStatusOptions,
+  formatRupiahInput,
+  parseRupiahInput,
+  parseWAContacts,
+  formatPhoneNumber,
+  type ItemTypeConfig
+} from '../utils/catalogConfig';
+import { VideoPreviewInput } from './VideoEmbed';
+
+export type ItemCategoryType = 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property' | 'plant';
+
+export const DEFAULT_MASTER_CATEGORIES: Record<ItemCategoryType, string[]> = {
+  physical: ['Pakaian & Fashion', 'Aksesoris & Gadget', 'Elektronik & Komputer', 'Perlengkapan Rumah', 'Kerajinan & Kriya', 'Koleksi & Hobi', 'Lainnya'],
+  food: ['Makanan Utama (Main Course)', 'Dessert & Manisan', 'Minuman & Olahan Kopi', 'Camilan & Kudapan (Appetizer)', 'Bakery, Roti & Pastry', 'Makanan Beku (Frozen)', 'Paket Hemat & Bundling', 'Lainnya'],
+  service: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance', 'Lainnya'],
+  digital: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software', 'Lainnya'],
+  fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil', 'Kucing & Anjing', 'Invertebrata & Serangga', 'Lainnya'],
+  property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya'],
+  plant: ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni', 'Tanaman Herbal & Rempah', 'Aquascape & Tanaman Air', 'Lainnya']
+};
+
+export const MASTER_CATEGORY_DEFINITIONS: Array<{ id: ItemCategoryType; label: string; desc: string; icon: React.ComponentType<{ size?: number | string; color?: string; style?: React.CSSProperties }>; color: string }> = [
+  { id: 'physical', label: 'Barang Fisik', desc: 'Produk ritel fisik, pakaian, fashion, elektronik, kerajinan, dan perlengkapan umum', icon: Package, color: '#2563eb' },
+  { id: 'food', label: 'Menu Kuliner (F&B)', desc: 'Makanan siap santap, minuman segar, camilan, bakery, frozen food, dan katering', icon: Utensils, color: '#ea580c' },
+  { id: 'digital', label: 'Item Digital', desc: 'E-book, template dokumen, source code, video materi, dan lisensi software', icon: FileCode, color: '#7c3aed' },
+  { id: 'service', label: 'Jasa & Layanan', desc: 'Jasa konsultasi, perbaikan/servis, desain kreatif, kursus, dan pengerjaan ahli', icon: Wrench, color: '#d97706' },
+  { id: 'plant', label: 'Tanaman & Bibit', desc: 'Tanaman hias, bunga anggrek, bibit buah, kaktus, sukulen, bonsai, dan media tanam', icon: Sprout, color: '#059669' },
+  { id: 'fauna', label: 'Satwa Peliharaan', desc: 'Satwa peliharaan, ikan hias, reptil, amfibi, burung, mamalia, dan serangga hidup', icon: PawPrint, color: '#e11d48' },
+  { id: 'property', label: 'Properti & Aset', desc: 'Rumah tinggal, apartemen, tanah kavling, ruko, ruang usaha, dan villa', icon: Building2, color: '#0891b2' }
+];
 
 export interface CatalogTypeOption {
   id: string;
@@ -176,6 +227,19 @@ export const CATALOG_TYPE_OPTIONS: CatalogTypeOption[] = [
   }
 ];
 
+export const tabletInputStyle: React.CSSProperties = {
+  width: '100%',
+  minHeight: '42px',
+  padding: '0.55rem 0.85rem',
+  borderRadius: '0.5rem',
+  backgroundColor: 'var(--bg-card)',
+  border: '1px solid var(--border-light)',
+  color: 'var(--text-primary)',
+  fontSize: '0.85rem',
+  outline: 'none',
+  boxSizing: 'border-box'
+};
+
 export type TabletMerchantTab =
   | 'items'
   | 'categories'
@@ -202,13 +266,26 @@ export interface TabletMerchantAdminProps {
 export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   token,
   currentUser,
-  storeSlug,
+  storeSlug: initialStoreSlug,
   onLogout,
   onUnauthorized,
   onViewPublicCatalog,
   onThemeChange
 }) => {
-  // Centralized authenticated fetch with automatic 401/403 session eviction (matching admin pengelola standard)
+  // Resolve actual store slug defensively to avoid sending invalid fallback 'my-store' to backend
+  const storeSlug = useMemo(() => {
+    if (initialStoreSlug && initialStoreSlug !== 'my-store') return initialStoreSlug;
+    return (
+      (currentUser as any)?.store_slug ||
+      (currentUser as any)?.active_store?.slug ||
+      (currentUser as any)?.stores?.[0]?.slug ||
+      (typeof localStorage !== 'undefined' ? localStorage.getItem('catavor_active_slug') : '') ||
+      initialStoreSlug ||
+      ''
+    );
+  }, [initialStoreSlug, currentUser]);
+
+  // Centralized authenticated fetch with automatic 401 session eviction (matching admin pengelola standard)
   const fetch = useMemo(() => {
     return createAuthFetch({
       getToken: () => token,
@@ -250,7 +327,56 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   }, [onThemeChange]);
   const appliedThemeRef = useRef<string>('');
 
-  const [activeTab, setActiveTab] = useState<TabletMerchantTab>('items');
+  const [activeTab, setActiveTabState] = useState<TabletMerchantTab>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') as TabletMerchantTab;
+      const validTabs: TabletMerchantTab[] = [
+        'items', 'categories', 'analytics', 'subscription', 'settings',
+        'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
+      ];
+      if (tabParam && validTabs.includes(tabParam)) {
+        return tabParam;
+      }
+    }
+    return 'items';
+  });
+
+  const setActiveTab = useCallback((tab: TabletMerchantTab) => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      url.searchParams.delete('action');
+      url.searchParams.delete('type');
+      url.searchParams.delete('catalog_type');
+      if (tab !== 'profile') {
+        url.searchParams.delete('sub');
+      }
+      window.history.pushState({ tab }, '', url.toString());
+    }
+  }, []);
+
+  const [profileSubTab, setProfileSubTabState] = useState<'info' | 'devices' | 'audit_logs' | 'danger'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const sub = params.get('sub');
+      if (sub === 'devices' || sub === 'security') return 'devices';
+      if (sub === 'audit_logs' || sub === 'logs') return 'audit_logs';
+      if (sub === 'danger') return 'danger';
+    }
+    return 'info';
+  });
+
+  const setProfileSubTab = useCallback((sub: 'info' | 'devices' | 'audit_logs' | 'danger') => {
+    setProfileSubTabState(sub);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'profile');
+      url.searchParams.set('sub', sub);
+      window.history.pushState({ tab: 'profile', sub }, '', url.toString());
+    }
+  }, []);
   const [isNavExpanded, setIsNavExpanded] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -336,6 +462,29 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     is_paused: false
   });
 
+  // Master Categories State (Two-Tier Architecture matching Mobile & Desktop)
+  const [masterCategories, setMasterCategories] = useState<Record<ItemCategoryType, string[]>>(DEFAULT_MASTER_CATEGORIES);
+  const [masterCategoryContextTab, setMasterCategoryContextTab] = useState<ItemCategoryType>('physical');
+  const [newCustomCategoryInput, setNewCustomCategoryInput] = useState<string>('');
+  const [renameMasterModalData, setRenameMasterModalData] = useState<{
+    field: 'class';
+    fieldLabel?: string;
+    oldValue: string;
+    newValue: string;
+    productType: ItemCategoryType;
+  } | null>(null);
+  const [deleteMasterModalData, setDeleteMasterModalData] = useState<{
+    field: 'class';
+    value: string;
+    replacementOptions: string[];
+    selectedReplacement: string;
+    productType: ItemCategoryType;
+  } | null>(null);
+
+  // Product Form inline custom category input state
+  const [showCustomClassInput, setShowCustomClassInput] = useState<boolean>(false);
+  const [customClass, setCustomClass] = useState<string>('');
+
   const availableThemes = [
     { id: 'navy', name: 'Royal Navy', color: '#1e3a8a', desc: 'Klasik, elegan & profesional (Light Mode)' },
     { id: 'emerald', name: 'Midnight Emerald', color: '#10b981', desc: 'Nuansa hijau alami modern' },
@@ -372,6 +521,18 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           show_hours: data.show_hours !== undefined ? data.show_hours : true,
           is_paused: Boolean(data.is_suspended || data.is_dormant)
         });
+        if (data.master_categories) {
+          setMasterCategories(prev => {
+            const merged: Record<ItemCategoryType, string[]> = { ...DEFAULT_MASTER_CATEGORIES };
+            (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[]).forEach(type => {
+              const storeList = data.master_categories[type];
+              if (Array.isArray(storeList) && storeList.length > 0) {
+                merged[type] = Array.from(new Set([...(DEFAULT_MASTER_CATEGORIES[type] || []), ...storeList]));
+              }
+            });
+            return merged;
+          });
+        }
         if (newTheme && newTheme !== appliedThemeRef.current) {
           appliedThemeRef.current = newTheme;
           if (onThemeChangeRef.current) {
@@ -476,7 +637,40 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     categoriesRef.current = categories;
   }, [categories]);
   const [products, setProducts] = useState<any[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<number | 'new' | null>(() => {
+  const productsRef = useRef<any[]>(products);
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
+  // Helper to retrieve category options for a specific product type (Two-Tier Master Data)
+  const getCategoryOptionsForType = useCallback((productType: string = 'physical'): string[] => {
+    const pType = (productType || 'physical') as ItemCategoryType;
+    const fromMaster = masterCategories[pType] || [];
+    const fromDefaults = DEFAULT_MASTER_CATEGORIES[pType] || [];
+
+    // Collect defaults from other product types so cross-industry defaults don't leak into this type
+    const otherDefaults = new Set<string>();
+    (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[]).forEach(otherType => {
+      if (otherType !== pType) {
+        (DEFAULT_MASTER_CATEGORIES[otherType] || []).forEach(c => otherDefaults.add(c));
+      }
+    });
+
+    const customUsed = (productsRef.current || [])
+      .filter(p => (p.product_type || 'physical') === pType && p.class)
+      .map(p => p.class)
+      .filter(c => !otherDefaults.has(c));
+
+    const merged = Array.from(new Set([...fromDefaults, ...fromMaster, ...customUsed])).filter(Boolean);
+    return merged.length > 0 ? merged : ['Lainnya'];
+  }, [masterCategories]);
+
+  const getDefaultCategoryForType = useCallback((productType: string = 'physical'): string => {
+    const options = getCategoryOptionsForType(productType);
+    return options[0] || 'Lainnya';
+  }, [getCategoryOptionsForType]);
+
+  const [selectedProductId, setSelectedProductId] = useState<number | string | null>(() => {
     if (typeof window !== 'undefined') {
       const isNarrow = window.innerWidth < 880;
       const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
@@ -509,29 +703,171 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Back Interceptor for Tablet Mini Sub-views (Rule 1 & Rule 2)
-  useModalBackHandler({
-    isOpen: isNarrowScreen && selectedProductId !== null,
-    onClose: () => {
-      setSelectedProductId(null);
-      setIsSelectingProductType(false);
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('action');
-        url.searchParams.delete('type');
-        url.searchParams.delete('catalog_type');
-        window.history.pushState({}, '', url.toString());
-      } catch {}
-    },
-    modalId: 'tablet_item_detail'
-  });
+  // Narrow screen and single-pane back interceptions are managed natively by TabletMasterDetailView
 
   const [productSearch, setProductSearch] = useState<string>('');
   const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
+  const [productTypeFilter, setProductTypeFilter] = useState<string>('all');
+  const [productSortFilter, setProductSortFilter] = useState<string>('newest');
+  const [productStockFilter, setProductStockFilter] = useState<'all' | 'in_stock' | 'low' | 'out' | 'out_of_stock'>('all');
+  const [isProductFilterOpen, setIsProductFilterOpen] = useState<boolean>(false);
   const [productPage, setProductPage] = useState<number>(1);
   const [productTotalPages, setProductTotalPages] = useState<number>(1);
   const [productTotalRecords, setProductTotalRecords] = useState<number>(0);
+  const [catalogMetrics, setCatalogMetrics] = useState<{
+    total_items?: number;
+    active_items?: number;
+    archived_items?: number;
+    out_of_stock_items?: number;
+    low_stock_items?: number;
+    total_categories?: number;
+    total_value?: number;
+    by_type?: Record<string, number>;
+    by_category?: Record<string, number>;
+  } | null>(null);
+  const [hasEverLoadedProducts, setHasEverLoadedProducts] = useState<boolean>(false);
+
+  // Active filter count for badge indicator
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (productStatusFilter !== 'all') count++;
+    if (productCategoryFilter !== 'all') count++;
+    if (productTypeFilter !== 'all') count++;
+    if (productSortFilter !== 'newest') count++;
+    if (productStockFilter !== 'all') count++;
+    return count;
+  }, [productStatusFilter, productCategoryFilter, productTypeFilter, productSortFilter, productStockFilter]);
+
+  // When catalog has 0 items ever, hide filter bar, metrics, and pagination per user requirement
+  const isCatalogCompletelyEmpty = useMemo(() => {
+    if (!hasEverLoadedProducts) return false;
+    if (catalogMetrics && typeof catalogMetrics.total_items === 'number') {
+      return catalogMetrics.total_items === 0;
+    }
+    return (
+      productTotalRecords === 0 &&
+      !productSearch.trim() &&
+      activeFilterCount === 0
+    );
+  }, [hasEverLoadedProducts, catalogMetrics, productTotalRecords, productSearch, activeFilterCount]);
+
+  // Distinct catalog types present in the store's inventory
+  const availableCatalogTypes = useMemo(() => {
+    // 1. Check catalogMetrics.by_type
+    if (catalogMetrics?.by_type) {
+      const typesFromMetrics = Object.keys(catalogMetrics.by_type).filter(
+        k => (catalogMetrics.by_type?.[k] || 0) > 0
+      );
+      if (typesFromMetrics.length > 0) return typesFromMetrics;
+    }
+    // 2. Fallback to products array
+    const typesFromProducts = products
+      .map(p => p.product_type || 'physical')
+      .filter(Boolean);
+    return Array.from(new Set(typesFromProducts));
+  }, [catalogMetrics, products]);
+
+  // Hybrid store flag: true only if there are 2 or more distinct catalog types in the items
+  const isHybridStore = availableCatalogTypes.length > 1;
+
+  // Auto-reset productTypeFilter to 'all' if store only has 1 catalog type
+  useEffect(() => {
+    if (!isHybridStore && productTypeFilter !== 'all') {
+      setProductTypeFilter('all');
+    }
+  }, [isHybridStore, productTypeFilter]);
+
+  const handleApplyProductFilters = useCallback((filters: TabletProductFilterValues) => {
+    setProductStatusFilter(filters.status);
+    setProductSortFilter(filters.sort);
+    setProductTypeFilter(filters.productType);
+    setProductCategoryFilter(filters.categoryId);
+    setProductStockFilter(filters.stockStatus);
+    setProductPage(1);
+  }, []);
+
+  const handleResetAllFilters = useCallback(() => {
+    setProductSearch('');
+    setProductStatusFilter('all');
+    setProductCategoryFilter('all');
+    setProductTypeFilter('all');
+    setProductSortFilter('newest');
+    setProductStockFilter('all');
+    setProductPage(1);
+  }, []);
+
+  // Tag mode switcher for horizontal scrollable filter bar: Format Katalog vs Kategori
+  const [filterTagMode, setFilterTagMode] = useState<'types' | 'categories'>('types');
+
+  // Effective tag mode: defaults to filterTagMode ('types')
+  const effectiveFilterTagMode = filterTagMode;
+
+  // Format Katalog tag items with Lucide vector icons, badges, and distinct theme colors
+  // Only populated if isHybridStore is true (more than 1 catalog type exists)
+  const catalogTypeTagItems: FilterTagItem[] = useMemo(() => {
+    if (!isHybridStore) return [];
+
+    const availableOptions = CATALOG_TYPE_OPTIONS.filter(opt =>
+      availableCatalogTypes.includes(opt.id)
+    );
+
+    return [
+      {
+        id: 'all',
+        label: 'Semua Format',
+        count: catalogMetrics?.total_items ?? productTotalRecords
+      },
+      ...availableOptions.map((opt) => ({
+        id: opt.id,
+        label: opt.name,
+        icon: opt.icon,
+        color: opt.color,
+        bgColor: opt.bgColor,
+        borderColor: opt.borderColor,
+        count: catalogMetrics?.by_type?.[opt.id]
+      }))
+    ];
+  }, [isHybridStore, availableCatalogTypes, catalogMetrics?.total_items, catalogMetrics?.by_type, productTotalRecords]);
+
+  // Category tag items for the horizontal scrollable track (combines relational categories & master classes)
+  const categoryTagItems: FilterTagItem[] = useMemo(() => {
+    const list: FilterTagItem[] = [
+      {
+        id: 'all',
+        label: 'Semua Kategori'
+      }
+    ];
+
+    const seen = new Set<string>();
+    categories.forEach((cat) => {
+      if (cat.name && !seen.has(cat.name.toLowerCase())) {
+        seen.add(cat.name.toLowerCase());
+        list.push({
+          id: String(cat.id),
+          label: cat.name,
+          icon: Tag
+        });
+      }
+    });
+
+    products.forEach((p) => {
+      if (p.class && !seen.has(p.class.toLowerCase())) {
+        seen.add(p.class.toLowerCase());
+        list.push({
+          id: p.class,
+          label: p.class,
+          icon: Tag
+        });
+      }
+    });
+
+    return list;
+  }, [categories, products]);
+
+  const [productPhotos, setProductPhotos] = useState<string[]>(['']);
+  const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false);
+  const [uploadingPhotoIndex, setUploadingPhotoIndex] = useState<number | null>(null);
 
   const [productForm, setProductForm] = useState({
     id: 0,
@@ -539,7 +875,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     price: 0,
     stock: 1,
     category_id: '',
+    class: '',
     product_type: '',
+    conservation_status: 'Tersedia',
     scientific_name: '',
     unit: 'Pcs',
     description: '',
@@ -549,10 +887,111 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     is_shipping_available: true,
     min_order: 1,
     max_order: '' as string | number,
+    shipping_terms: '',
+    warranty_info: '',
+    shipping_coverage: 'Bisa Kirim se-Indonesia',
+    purchase_links: [] as Array<{ platform: string; url: string }>,
+    enable_wa_rekber: true,
+    enable_wa_direct: true,
+    whatsapp_contact_id: 'default',
     gallery_images: [] as string[],
-    variants: [] as Array<{ variant_name: string; sku: string; price_override?: number; stock_qty: number }>,
     attributes: {} as Record<string, any>
   });
+
+  const storeWAContacts = useMemo(() => {
+    return parseWAContacts(storeSettings.whatsapp_number);
+  }, [storeSettings.whatsapp_number]);
+
+  const storefrontWA = useMemo(() => {
+    return storeWAContacts.find(c => c.is_default || c.use_for_storefront) || storeWAContacts[0] || null;
+  }, [storeWAContacts]);
+
+  const handleUpdateProductPhoto = (index: number, val: string) => {
+    setProductPhotos(prev => {
+      const next = [...prev];
+      next[index] = val;
+      return next;
+    });
+  };
+
+  const handleAddPhotoRow = () => {
+    if (productPhotos.length < 10) {
+      setProductPhotos(prev => [...prev, '']);
+    }
+  };
+
+  const handleRemovePhotoRow = (index: number) => {
+    setProductPhotos(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length > 0 ? next : [''];
+    });
+  };
+
+  const handleUploadPhotoAtIndex = async (index: number, file: File) => {
+    setUploadingPhotoIndex(index);
+    try {
+      const url = await handleUploadImage(file, 'products');
+      if (url) {
+        handleUpdateProductPhoto(index, url);
+      }
+    } finally {
+      setUploadingPhotoIndex(null);
+    }
+  };
+
+  const handleBatchPhotoUpload = async (files: FileList) => {
+    if (!files || files.length === 0) return;
+    setIsBatchUploading(true);
+    try {
+      const currentValid = productPhotos.filter(p => p && p.trim() !== '');
+      const remainingSlots = 10 - currentValid.length;
+      if (remainingSlots <= 0) {
+        showToast('Maksimal 10 foto produk telah tercapai', 'error');
+        return;
+      }
+      const filesToUpload = Array.from(files).slice(0, remainingSlots);
+      const uploadedUrls: string[] = [];
+
+      for (const file of filesToUpload) {
+        const url = await handleUploadImage(file, 'products');
+        if (url) uploadedUrls.push(url);
+      }
+
+      if (uploadedUrls.length > 0) {
+        setProductPhotos(() => {
+          const combined = [...currentValid, ...uploadedUrls].slice(0, 10);
+          return combined.length > 0 ? combined : [''];
+        });
+        showToast(`${uploadedUrls.length} foto berhasil diunggah!`);
+      }
+    } catch {
+      showToast('Sebagian foto gagal diunggah', 'error');
+    } finally {
+      setIsBatchUploading(false);
+    }
+  };
+
+  const handleAddPurchaseLink = () => {
+    setProductForm(prev => ({
+      ...prev,
+      purchase_links: [...prev.purchase_links, { platform: '', url: '' }]
+    }));
+  };
+
+  const handleUpdatePurchaseLink = (index: number, field: 'platform' | 'url', val: string) => {
+    setProductForm(prev => {
+      const next = [...prev.purchase_links];
+      next[index] = { ...next[index], [field]: val };
+      return { ...prev, purchase_links: next };
+    });
+  };
+
+  const handleRemovePurchaseLink = (index: number) => {
+    setProductForm(prev => ({
+      ...prev,
+      purchase_links: prev.purchase_links.filter((_, i) => i !== index)
+    }));
+  };
 
   const mainImageInputRef = useRef<HTMLInputElement | null>(null);
   const galleryImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -561,31 +1000,72 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const handleStartNewProduct = useCallback((presetType?: string) => {
     setSelectedProductId('new');
+    setShowCustomClassInput(false);
+    setCustomClass('');
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const targetType = presetType || params?.get('type') || params?.get('catalog_type') || '';
     const isValidType = CATALOG_TYPE_OPTIONS.some(t => t.id === targetType);
     const chosenType = isValidType ? targetType : '';
     const typeDef = chosenType ? CATALOG_TYPE_OPTIONS.find(t => t.id === chosenType) : undefined;
+    const initialClass = chosenType ? getDefaultCategoryForType(chosenType) : '';
 
     const defaultAttrs: Record<string, any> = {};
-    if (chosenType === 'physical') defaultAttrs.condition = 'Baru';
-    if (chosenType === 'food') defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
-    if (chosenType === 'digital') defaultAttrs.license_type = 'Lisensi Personal';
-    if (chosenType === 'service') defaultAttrs.service_location = 'Datang ke Toko / Workshop';
+    if (chosenType === 'physical') {
+      defaultAttrs.condition = 'Baru';
+      defaultAttrs.weight = 100;
+      defaultAttrs.brand = '';
+      defaultAttrs.variant = '';
+    }
+    if (chosenType === 'food') {
+      defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
+      defaultAttrs.variant = '';
+    }
+    if (chosenType === 'digital') {
+      defaultAttrs.file_format = 'PDF';
+      defaultAttrs.file_size = '10 MB';
+      defaultAttrs.license_type = 'Lisensi Personal';
+    }
+    if (chosenType === 'service') {
+      defaultAttrs.duration = '1 Sesi / 1 Jam';
+      defaultAttrs.service_location = 'Datang ke Toko';
+      defaultAttrs.service_area = 'Jabodetabek';
+    }
     if (chosenType === 'plant') {
-      defaultAttrs.sunlight = 'Partial Sun (Teduh Terang / Naungan Paranet)';
+      defaultAttrs.scientific_name = '';
+      defaultAttrs.sunlight = 'Partial Sun (Teduh Terang)';
       defaultAttrs.watering = 'Sedang (2-3 Hari Sekali)';
-      defaultAttrs.protection_status = 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)';
+      defaultAttrs.planting_medium = 'Tanah Subur & Kompos';
+      defaultAttrs.plant_size = 'Tinggi 25-35 cm';
+      defaultAttrs.protection_status = 'Non-Dilindungi (Aman Diperjualbelikan)';
+      defaultAttrs.delivery_condition = 'Kirim Bersama Pot & Media Tanam';
+      defaultAttrs.conservation_status = 'Ready Stock';
     }
     if (chosenType === 'fauna') {
-      defaultAttrs.conservation_status = 'Tersedia (Ready Stock)';
+      defaultAttrs.scientific_name = '';
+      defaultAttrs.habitat = 'General';
+      defaultAttrs.diet = '';
+      defaultAttrs.native_region = '';
+      defaultAttrs.lifespan = '';
+      defaultAttrs.weight = '';
+      defaultAttrs.conservation_status = 'Tersedia';
     }
     if (chosenType === 'property') {
-      defaultAttrs.transaction_type = 'Dijual (Jual Putus)';
+      defaultAttrs.transaction_type = 'Dijual';
       defaultAttrs.certificate = 'SHM (Sertifikat Hak Milik)';
+      defaultAttrs.land_area = '120';
+      defaultAttrs.building_area = '90';
+      defaultAttrs.bedrooms = 3;
+      defaultAttrs.bathrooms = 2;
+      defaultAttrs.floors = '2 Lantai';
+      defaultAttrs.carport = '1 Mobil';
+      defaultAttrs.electricity = '2200 VA';
+      defaultAttrs.water_source = 'PDAM & Sumur Bor';
       defaultAttrs.furnishing = 'Semi-Furnished';
       defaultAttrs.facing = 'Timur';
+      defaultAttrs.property_location = 'BSD City, Tangerang Selatan';
     }
+
+    defaultAttrs.conservation_status = getAvailabilityStatusOptions((chosenType || 'physical') as ItemCategoryType)[0].value;
 
     try {
       const url = new URL(window.location.href);
@@ -600,13 +1080,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       window.history.pushState({}, '', url.toString());
     } catch {}
 
+    const typeConfig = getItemTypeFormConfig((chosenType || 'physical') as ItemCategoryType);
+    setProductPhotos(['']);
     setProductForm({
       id: 0,
       name: '',
       price: 0,
       stock: 1,
       category_id: categoriesRef.current.length > 0 ? String(categoriesRef.current[0].id) : '',
+      class: initialClass,
       product_type: chosenType,
+      conservation_status: getAvailabilityStatusOptions((chosenType || 'physical') as ItemCategoryType)[0].value,
       scientific_name: '',
       unit: typeDef?.defaultUnit || 'Pcs',
       description: '',
@@ -616,24 +1100,35 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       is_shipping_available: true,
       min_order: 1,
       max_order: '',
+      shipping_terms: '',
+      warranty_info: '',
+      shipping_coverage: typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+      purchase_links: [],
+      enable_wa_rekber: chosenType !== 'property',
+      enable_wa_direct: true,
+      whatsapp_contact_id: 'default',
       gallery_images: [],
-      variants: [],
       attributes: defaultAttrs
     });
 
     setIsSelectingProductType(!isValidType);
-  }, []);
+  }, [getDefaultCategoryForType]);
 
   const handleCancelToProductTypeSelection = useCallback(() => {
     setSelectedProductId('new');
     setIsSelectingProductType(true);
+    setShowCustomClassInput(false);
+    setCustomClass('');
+    setProductPhotos(['']);
     setProductForm({
       id: 0,
       name: '',
       price: 0,
       stock: 1,
       category_id: categoriesRef.current.length > 0 ? String(categoriesRef.current[0].id) : '',
+      class: '',
       product_type: '',
+      conservation_status: 'Tersedia',
       scientific_name: '',
       unit: 'Pcs',
       description: '',
@@ -643,8 +1138,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       is_shipping_available: true,
       min_order: 1,
       max_order: '',
+      shipping_terms: '',
+      warranty_info: '',
+      shipping_coverage: 'Bisa Kirim se-Indonesia',
+      purchase_links: [],
+      enable_wa_rekber: true,
+      enable_wa_direct: true,
+      whatsapp_contact_id: 'default',
       gallery_images: [],
-      variants: [],
       attributes: {}
     });
     try {
@@ -657,7 +1158,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     } catch {}
   }, []);
 
-  const fetchProducts = useCallback(async (page: number, search: string = '', status: string = 'all', catId: string = 'all') => {
+  const fetchProducts = useCallback(async (
+    page: number,
+    search: string = '',
+    status: string = 'all',
+    catId: string = 'all',
+    pType: string = 'all',
+    sort: string = 'newest',
+    stock: string = 'all'
+  ) => {
     setLoading(true);
     try {
       const query = new URLSearchParams({
@@ -668,6 +1177,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       });
       if (catId && catId !== 'all') {
         query.set('category_id', catId);
+      }
+      if (pType && pType !== 'all') {
+        query.set('product_type', pType);
+      }
+      if (sort && sort !== 'newest') {
+        query.set('sort', sort);
+      }
+      if (stock && stock !== 'all') {
+        query.set('stock', stock);
       }
 
       const endpoint = storeSlug
@@ -692,26 +1210,33 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setProductPage(page);
         setProductTotalPages(totalPages);
         setProductTotalRecords(totalItems);
-
-        const isUrlActionNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('action') === 'new';
-        if (isUrlActionNew) {
-          handleStartNewProduct();
-        } else if (!isNarrowScreen) {
-          setSelectedProductId(prev => {
-            if (prev === null) {
-              handleStartNewProduct();
-              return 'new';
-            }
-            return prev;
-          });
-        }
+        setHasEverLoadedProducts(true);
       }
     } catch {
       // safe fallback
     } finally {
       setLoading(false);
     }
-  }, [token, storeSlug, isNarrowScreen, handleStartNewProduct]);
+  }, [token, storeSlug, fetch]);
+
+  const fetchCatalogMetrics = useCallback(async () => {
+    if (!storeSlug) return;
+    try {
+      const res = await fetch(`/api/u/${encodeURIComponent(storeSlug)}/catalog-metrics?view=merchant`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': storeSlug,
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setCatalogMetrics(json.data);
+        }
+      }
+    } catch {}
+  }, [storeSlug, token]);
 
   const handleSelectProduct = (prod: any) => {
     setSelectedProductId(prod.id);
@@ -723,13 +1248,27 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       url.searchParams.delete('catalog_type');
       window.history.pushState({}, '', url.toString());
     } catch {}
-    const gallery = (prod.images || []).map((img: any) => img.image_url || img);
-    const variants = (prod.variants || []).map((v: any) => ({
-      variant_name: v.variant_name || '',
-      sku: v.sku || '',
-      price_override: v.price_override,
-      stock_qty: v.stock_qty || 0
-    }));
+
+    let loadedPhotos: string[] = [];
+    if (prod.detailed_info?.images && Array.isArray(prod.detailed_info.images) && prod.detailed_info.images.length > 0) {
+      loadedPhotos = prod.detailed_info.images.filter(Boolean);
+    } else {
+      const gImages = (prod.images || []).map((img: any) => img.image_url || img).filter(Boolean);
+      loadedPhotos = Array.from(new Set([prod.image_url, ...gImages].filter(Boolean)));
+    }
+    if (loadedPhotos.length === 0) loadedPhotos = [''];
+    setProductPhotos(loadedPhotos);
+
+    let loadedPurchaseLinks: Array<{ platform: string; url: string }> = [];
+    if (prod.detailed_info?.purchase_links && Array.isArray(prod.detailed_info.purchase_links)) {
+      loadedPurchaseLinks = prod.detailed_info.purchase_links;
+    } else {
+      if (prod.detailed_info?.shopee_url) loadedPurchaseLinks.push({ platform: 'Shopee', url: prod.detailed_info.shopee_url });
+      if (prod.detailed_info?.tokopedia_url) loadedPurchaseLinks.push({ platform: 'Tokopedia', url: prod.detailed_info.tokopedia_url });
+      if (prod.detailed_info?.lazada_url) loadedPurchaseLinks.push({ platform: 'Lazada', url: prod.detailed_info.lazada_url });
+      if (prod.detailed_info?.bukalapak_url) loadedPurchaseLinks.push({ platform: 'Bukalapak', url: prod.detailed_info.bukalapak_url });
+      if (prod.detailed_info?.custom_shop_url) loadedPurchaseLinks.push({ platform: prod.detailed_info.custom_shop_name || 'Marketplace', url: prod.detailed_info.custom_shop_url });
+    }
 
     let rawAttrs: Record<string, any> = {};
     if (prod.attributes) {
@@ -740,53 +1279,95 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
     }
 
+    const editProdType = prod.product_type || 'physical';
+    const typeConfig = getItemTypeFormConfig(editProdType as ItemCategoryType);
+    const resolvedClass = prod.class || prod.category_name || (categories.find(c => String(c.id) === String(prod.category_id))?.name) || getDefaultCategoryForType(editProdType);
+    setShowCustomClassInput(false);
+    setCustomClass('');
+
     setProductForm({
       id: prod.id,
       name: prod.name || '',
       price: prod.price || 0,
       stock: prod.stock !== undefined ? prod.stock : 1,
       category_id: prod.category_id || '',
-      product_type: prod.product_type || 'physical',
+      class: resolvedClass,
+      product_type: editProdType,
       scientific_name: prod.scientific_name || rawAttrs.scientific_name || '',
       unit: prod.unit || 'Pcs',
       description: prod.description || '',
-      image_url: prod.image_url || '',
+      image_url: loadedPhotos[0] || prod.image_url || '',
       video_url: prod.video_url || '',
       is_active: prod.is_active !== undefined ? prod.is_active : true,
       is_shipping_available: prod.is_shipping_available !== undefined ? prod.is_shipping_available : true,
       min_order: prod.min_order || 1,
       max_order: prod.max_order || '',
-      gallery_images: gallery,
-      variants: variants,
-      attributes: rawAttrs
+      shipping_terms: prod.detailed_info?.shipping_terms || '',
+      warranty_info: prod.detailed_info?.warranty_info || '',
+      shipping_coverage: prod.detailed_info?.shipping_coverage || (prod.is_shipping_available ? (typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia') : 'Ambil Sendiri di Toko (No Shipping)'),
+      purchase_links: loadedPurchaseLinks,
+      enable_wa_rekber: editProdType === 'property' ? false : (prod.detailed_info?.enable_wa_rekber !== undefined ? Boolean(prod.detailed_info.enable_wa_rekber) : true),
+      enable_wa_direct: prod.detailed_info?.enable_wa_direct !== undefined ? Boolean(prod.detailed_info.enable_wa_direct) : true,
+      whatsapp_contact_id: prod.detailed_info?.whatsapp_contact_id || 'default',
+      gallery_images: loadedPhotos.slice(1),
+      conservation_status: prod.conservation_status || prod.attributes?.conservation_status || rawAttrs.conservation_status || getAvailabilityStatusOptions(editProdType as ItemCategoryType)[0].value,
+      attributes: {
+        habitat: prod.habitat || prod.attributes?.habitat || rawAttrs.habitat || 'General',
+        diet: prod.diet || prod.attributes?.diet || rawAttrs.diet || '',
+        conservation_status: prod.conservation_status || prod.attributes?.conservation_status || rawAttrs.conservation_status || getAvailabilityStatusOptions(editProdType as ItemCategoryType)[0].value,
+        lifespan: prod.detailed_info?.lifespan || prod.lifespan || prod.attributes?.lifespan || rawAttrs.lifespan || '',
+        native_region: prod.detailed_info?.native_region || prod.native_region || prod.attributes?.native_region || rawAttrs.native_region || '',
+        weight: prod.detailed_info?.weight || prod.weight || prod.attributes?.weight || rawAttrs.weight || (editProdType === 'physical' ? 100 : ''),
+        ...rawAttrs,
+        storage_temp: rawAttrs.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (rawAttrs.storage_temp === 'Hangat / Siap Santap' ? 'Hangat' : (rawAttrs.storage_temp || 'Suhu Ruang'))
+      }
     });
   };
 
   const handleSelectProductType = (typeId: string) => {
     const typeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === typeId);
+    const typeConfig = getItemTypeFormConfig(typeId as ItemCategoryType);
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', 'items');
       url.searchParams.set('action', 'new');
       url.searchParams.set('type', typeId);
-      window.history.pushState({}, '', url.toString());
+      window.history.replaceState({ tab: 'items', action: 'new', type: typeId }, '', url.toString());
     } catch {}
     setProductForm(prev => {
       const defaultAttrs: Record<string, any> = { ...(prev.attributes || {}) };
-      if (typeId === 'physical' && !defaultAttrs.condition) defaultAttrs.condition = 'Baru';
-      if (typeId === 'food' && !defaultAttrs.halal_status) defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
-      if (typeId === 'digital' && !defaultAttrs.license_type) defaultAttrs.license_type = 'Lisensi Personal';
-      if (typeId === 'service' && !defaultAttrs.service_location) defaultAttrs.service_location = 'Datang ke Toko / Workshop';
+      const statusOpts = getAvailabilityStatusOptions(typeId as ItemCategoryType);
+      defaultAttrs.conservation_status = statusOpts[0].value;
+
+      if (typeId === 'physical') {
+        if (!defaultAttrs.condition) defaultAttrs.condition = 'Baru';
+        if (defaultAttrs.weight === undefined) defaultAttrs.weight = 100;
+      }
+      if (typeId === 'food') {
+        if (!defaultAttrs.halal_status) defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
+        if (!defaultAttrs.storage_temp) defaultAttrs.storage_temp = 'Suhu Ruang';
+      }
+      if (typeId === 'digital') {
+        if (!defaultAttrs.file_format) defaultAttrs.file_format = 'PDF';
+        if (!defaultAttrs.file_size) defaultAttrs.file_size = '10 MB';
+        if (!defaultAttrs.license_type) defaultAttrs.license_type = 'Lisensi Personal';
+      }
+      if (typeId === 'service') {
+        if (!defaultAttrs.duration) defaultAttrs.duration = '1 Sesi / 1 Jam';
+        if (!defaultAttrs.service_location) defaultAttrs.service_location = 'Datang ke Toko';
+        if (!defaultAttrs.service_area) defaultAttrs.service_area = 'Jabodetabek';
+      }
       if (typeId === 'plant') {
-        if (!defaultAttrs.sunlight) defaultAttrs.sunlight = 'Partial Sun (Teduh Terang / Naungan Paranet)';
+        if (!defaultAttrs.sunlight) defaultAttrs.sunlight = 'Partial Sun (Teduh Terang)';
         if (!defaultAttrs.watering) defaultAttrs.watering = 'Sedang (2-3 Hari Sekali)';
-        if (!defaultAttrs.protection_status) defaultAttrs.protection_status = 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)';
+        if (!defaultAttrs.protection_status) defaultAttrs.protection_status = 'Non-Dilindungi (Aman Diperjualbelikan)';
+        if (!defaultAttrs.delivery_condition) defaultAttrs.delivery_condition = 'Kirim Bersama Pot & Media Tanam';
       }
       if (typeId === 'fauna') {
-        if (!defaultAttrs.conservation_status) defaultAttrs.conservation_status = 'Tersedia (Ready Stock)';
+        if (!defaultAttrs.habitat) defaultAttrs.habitat = 'General';
       }
       if (typeId === 'property') {
-        if (!defaultAttrs.transaction_type) defaultAttrs.transaction_type = 'Dijual (Jual Putus)';
+        if (!defaultAttrs.transaction_type) defaultAttrs.transaction_type = 'Dijual';
         if (!defaultAttrs.certificate) defaultAttrs.certificate = 'SHM (Sertifikat Hak Milik)';
         if (!defaultAttrs.furnishing) defaultAttrs.furnishing = 'Semi-Furnished';
         if (!defaultAttrs.facing) defaultAttrs.facing = 'Timur';
@@ -795,15 +1376,121 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const isDefaultUnit = !prev.unit || prev.unit === 'Pcs' || CATALOG_TYPE_OPTIONS.some(o => o.defaultUnit === prev.unit);
       const shouldUpdateUnit = prev.id === 0 && isDefaultUnit;
 
+      const validCategories = getCategoryOptionsForType(typeId);
+      const isFromOtherTypeDefault = (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[])
+        .some(otherType => otherType !== typeId && DEFAULT_MASTER_CATEGORIES[otherType].includes(prev.class));
+      const nextClass = (prev.class && validCategories.includes(prev.class) && !isFromOtherTypeDefault)
+        ? prev.class
+        : (validCategories[0] || 'Lainnya');
+
       return {
         ...prev,
         product_type: typeId,
+        conservation_status: statusOpts[0].value,
+        class: nextClass,
         unit: shouldUpdateUnit ? (typeDef?.defaultUnit || 'Pcs') : prev.unit,
+        shipping_coverage: prev.shipping_coverage || typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+        enable_wa_rekber: typeId === 'property' ? false : (prev.enable_wa_rekber !== undefined ? prev.enable_wa_rekber : true),
         attributes: defaultAttrs
       };
     });
     setIsSelectingProductType(false);
   };
+
+  const handleBackToTypeSelection = useCallback(() => {
+    setIsSelectingProductType(true);
+    setProductForm(prev => ({ ...prev, product_type: '' }));
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('type');
+      url.searchParams.delete('catalog_type');
+      window.history.replaceState({ tab: 'items', action: 'new' }, '', url.toString());
+    } catch {}
+  }, []);
+
+  // Sub-workflow Back Interceptor 1 (Step 2 -> Step 1):
+  // When merchant is in Step 2 (Product Input Form) during new product creation,
+  // pressing hardware/browser Back or swipe gesture reverts back to Step 1 (Pilih Tipe Katalog)
+  useModalBackHandler({
+    isOpen: activeTab === 'items' && selectedProductId === 'new' && !isSelectingProductType && Boolean(productForm.product_type),
+    onClose: handleBackToTypeSelection,
+    modalId: 'tablet_new_item_form_step'
+  });
+
+  // Sub-workflow Back Interceptor 2 (Step 1 -> Cancel creation):
+  // When merchant is in Step 1 (Pilih Tipe) during new product creation,
+  // pressing hardware/browser Back cancels creation and restores previous view
+  useModalBackHandler({
+    isOpen: activeTab === 'items' && selectedProductId === 'new' && isSelectingProductType,
+    onClose: () => {
+      if (products.length > 0 && !isNarrowScreen) {
+        handleSelectProduct(products[0]);
+      } else {
+        setSelectedProductId(null);
+        setIsSelectingProductType(false);
+      }
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('action');
+        url.searchParams.delete('type');
+        url.searchParams.delete('catalog_type');
+        window.history.replaceState({ tab: 'items' }, '', url.toString());
+      } catch {}
+    },
+    modalId: 'tablet_new_item_type_step'
+  });
+
+  // Sub-workflow Back Interceptor for Rename Master Category Modal
+  useModalBackHandler({
+    isOpen: Boolean(renameMasterModalData),
+    onClose: () => setRenameMasterModalData(null),
+    modalId: 'tablet_rename_master_modal'
+  });
+
+  // Sub-workflow Back Interceptor for Delete & Reassign Master Category Modal
+  useModalBackHandler({
+    isOpen: Boolean(deleteMasterModalData),
+    onClose: () => setDeleteMasterModalData(null),
+    modalId: 'tablet_delete_master_modal'
+  });
+
+  // Comprehensive browser history listener (activeTab + sub-view query state)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') as TabletMerchantTab;
+      const validTabs: TabletMerchantTab[] = [
+        'items', 'categories', 'analytics', 'subscription', 'settings',
+        'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
+      ];
+      const activeT = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'items';
+      setActiveTabState(activeT);
+
+      if (activeT === 'items') {
+        const actionParam = params.get('action');
+        const typeParam = params.get('type') || params.get('catalog_type');
+        if (actionParam === 'new') {
+          setSelectedProductId('new');
+          if (typeParam) {
+            setIsSelectingProductType(false);
+            setProductForm(prev => ({ ...prev, product_type: typeParam }));
+          } else {
+            setIsSelectingProductType(true);
+            setProductForm(prev => ({ ...prev, product_type: '' }));
+          }
+        }
+      } else if (activeT === 'profile') {
+        const subParam = params.get('sub');
+        if (subParam === 'devices' || subParam === 'security') setProfileSubTabState('devices');
+        else if (subParam === 'audit_logs' || subParam === 'logs') setProfileSubTabState('audit_logs');
+        else if (subParam === 'danger') setProfileSubTabState('danger');
+        else setProfileSubTabState('info');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const updateProductAttribute = (field: string, value: any) => {
     setProductForm(prev => ({
@@ -826,35 +1513,105 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       setIsSelectingProductType(true);
       return;
     }
+    const validPhotos = productPhotos.map(p => p.trim()).filter(Boolean);
+    if (validPhotos.length === 0) {
+      showToast('Unggah minimal 1 foto produk (Foto Sampul Utama)', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const isNew = selectedProductId === 'new';
       const url = isNew ? '/api/products' : `/api/products/${productForm.id}`;
       const method = isNew ? 'POST' : 'PUT';
 
+      const effectiveClass = (showCustomClassInput ? customClass.trim() : productForm.class.trim()) || getDefaultCategoryForType(productForm.product_type);
+      
+      // Auto register custom category to backend master options if typed directly
+      if (showCustomClassInput && customClass.trim()) {
+        const pType = (productForm.product_type || 'physical') as ItemCategoryType;
+        const existingOpts = getCategoryOptionsForType(pType);
+        if (!existingOpts.includes(customClass.trim())) {
+          try {
+            fetch('/api/stores/add-master-option', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'X-Store-Slug': storeSlug,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                field: 'class',
+                value: customClass.trim(),
+                product_type: pType
+              })
+            }).then(() => {
+              setMasterCategories(prev => {
+                const cur = prev[pType] || [];
+                return {
+                  ...prev,
+                  [pType]: Array.from(new Set([...cur, customClass.trim()]))
+                };
+              });
+            }).catch(() => {});
+          } catch {}
+        }
+      }
+
+      const matchedCat = categories.find(c => c.name.toLowerCase() === effectiveClass.toLowerCase());
+      const cleanLinks = productForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== '');
+
+      const isFauna = productForm.product_type === 'fauna';
+      const isPlant = productForm.product_type === 'plant';
+      const isNoShipping = productForm.product_type === 'service' || productForm.product_type === 'digital' || productForm.product_type === 'property';
+      const effectiveAvailabilityStatus = productForm.conservation_status || productForm.attributes?.conservation_status || getAvailabilityStatusOptions((productForm.product_type || 'physical') as ItemCategoryType)[0].value;
+
       const payload = {
         name: productForm.name.trim(),
         price: Number(productForm.price),
-        stock: Number(productForm.stock),
-        category_id: productForm.category_id ? Number(productForm.category_id) : undefined,
+        stock: Number(productForm.stock) || 1,
+        class: effectiveClass,
+        category_id: productForm.category_id ? Number(productForm.category_id) : (matchedCat ? matchedCat.id : undefined),
         product_type: productForm.product_type,
-        scientific_name: productForm.scientific_name || (productForm.attributes?.scientific_name) || undefined,
-        unit: productForm.unit,
+        scientific_name: (isFauna || isPlant) ? (productForm.scientific_name || productForm.attributes?.scientific_name || undefined) : undefined,
+        habitat: isFauna ? (productForm.attributes?.habitat || undefined) : undefined,
+        diet: isFauna ? (productForm.attributes?.diet || undefined) : undefined,
+        conservation_status: effectiveAvailabilityStatus,
+        unit: productForm.unit || 'Pcs',
         description: productForm.description,
-        image_url: productForm.image_url,
-        video_url: productForm.video_url,
-        is_active: productForm.is_active,
-        is_shipping_available: productForm.is_shipping_available,
-        min_order: Number(productForm.min_order) || 1,
-        max_order: productForm.max_order !== '' ? Number(productForm.max_order) : null,
-        gallery_images: productForm.gallery_images,
-        variants: productForm.variants.map(v => ({
-          variant_name: v.variant_name,
-          sku: v.sku,
-          price_override: v.price_override !== undefined && v.price_override !== null && v.price_override > 0 ? Number(v.price_override) : null,
-          stock_qty: Number(v.stock_qty) || 0
-        })),
-        attributes: productForm.attributes || {}
+        image_url: validPhotos[0] || '',
+        video_url: productForm.video_url || null,
+        is_active: productForm.is_active !== false,
+        is_shipping_available: !isNoShipping,
+        min_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? 1 : (Number(productForm.min_order) || 1),
+        max_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? null : (productForm.max_order !== '' && productForm.max_order !== null ? Number(productForm.max_order) : null),
+        gallery_images: validPhotos,
+        attributes: {
+          ...(productForm.attributes || {}),
+          conservation_status: effectiveAvailabilityStatus,
+          ...(productForm.product_type === 'fauna' ? {
+            habitat: productForm.attributes?.habitat || 'General',
+            diet: productForm.attributes?.diet || ''
+          } : {}),
+          min_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? 1 : (Number(productForm.min_order) || 1),
+          max_order: (productForm.product_type === 'service' || productForm.product_type === 'property') ? null : (productForm.max_order !== '' ? Number(productForm.max_order) : null),
+          enable_wa_rekber: productForm.product_type === 'property' ? false : (productForm.enable_wa_rekber !== false),
+          enable_wa_direct: productForm.enable_wa_direct !== false,
+          whatsapp_contact_id: productForm.whatsapp_contact_id || 'default'
+        },
+        detailed_info: {
+          conservation_status: effectiveAvailabilityStatus,
+          native_region: productForm.attributes?.native_region || '',
+          lifespan: productForm.attributes?.lifespan || '',
+          weight: productForm.attributes?.weight || '',
+          shipping_terms: productForm.shipping_terms || '',
+          warranty_info: productForm.product_type === 'service' ? '' : (productForm.warranty_info || ''),
+          shipping_coverage: productForm.shipping_coverage || productForm.shipping_terms || 'Bisa Kirim se-Indonesia',
+          images: validPhotos,
+          purchase_links: cleanLinks,
+          enable_wa_rekber: productForm.product_type === 'property' ? false : (productForm.enable_wa_rekber !== false),
+          enable_wa_direct: productForm.enable_wa_direct !== false,
+          whatsapp_contact_id: productForm.whatsapp_contact_id || 'default'
+        }
       };
 
       const res = await fetch(url, {
@@ -870,7 +1627,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (res.ok) {
         const json = await res.json();
         showToast(isNew ? 'Produk berhasil ditambahkan!' : 'Perubahan produk berhasil disimpan!');
-        await fetchProducts(productPage, productSearch, productStatusFilter, productCategoryFilter);
+        await fetchProducts(
+          productPage,
+          productSearch,
+          productStatusFilter,
+          productCategoryFilter,
+          productTypeFilter,
+          productSortFilter,
+          productStockFilter
+        );
+        fetchCatalogMetrics();
         if (isNarrowScreen) {
           setSelectedProductId(null);
           setIsSelectingProductType(false);
@@ -909,7 +1675,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (res.ok) {
         showToast('Produk berhasil dihapus');
         setSelectedProductId(null);
-        await fetchProducts(1, productSearch, productStatusFilter, productCategoryFilter);
+        await fetchProducts(
+          1,
+          productSearch,
+          productStatusFilter,
+          productCategoryFilter,
+          productTypeFilter,
+          productSortFilter,
+          productStockFilter
+        );
+        fetchCatalogMetrics();
       } else {
         showToast('Gagal menghapus produk', 'error');
       }
@@ -918,32 +1693,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
-  // Add Product Variant Row
-  const handleAddVariant = () => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: [
-        ...prev.variants,
-        { variant_name: '', sku: '', price_override: undefined, stock_qty: 0 }
-      ]
-    }));
-  };
-
-  // Remove Product Variant Row
-  const handleRemoveVariant = (index: number) => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: prev.variants.filter((_, idx) => idx !== index)
-    }));
-  };
-
-  // Update Product Variant Field
-  const handleUpdateVariant = (index: number, field: string, value: any) => {
-    setProductForm(prev => ({
-      ...prev,
-      variants: prev.variants.map((v, idx) => idx === index ? { ...v, [field]: value } : v)
-    }));
-  };
 
   // Add Gallery Image URL
   const handleAddGalleryImage = (url: string) => {
@@ -963,11 +1712,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   };
 
   // =========================================================================
-  // 3. CATEGORIES STATE
+  // 3. MASTER CATEGORIES ACTIONS (Two-Tier Data Architecture)
   // =========================================================================
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'new' | null>(null);
-  const [categoryForm, setCategoryForm] = useState({ id: 0, name: '' });
-
   const fetchCategories = useCallback(async () => {
     try {
       const endpoint = storeSlug ? `/api/u/${storeSlug}/categories` : '/api/categories';
@@ -976,93 +1722,318 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const json = await res.json();
         const list = json.data || json.categories || [];
         setCategories(list);
-        if (list.length > 0 && !isNarrowScreen) {
-          setSelectedCategoryId(prev => {
-            if (prev === null) {
-              setCategoryForm({ id: list[0].id, name: list[0].name });
-              return list[0].id;
-            }
-            return prev;
-          });
-        }
       }
     } catch {
       // safe fallback
     }
-  }, [storeSlug, getHeaders, isNarrowScreen]);
+  }, [storeSlug, getHeaders]);
 
-  const handleSaveCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!categoryForm.name.trim()) return;
+  const handleAddMasterOption = async (
+    value: string,
+    productType: ItemCategoryType,
+    resetInput?: (val: string) => void
+  ) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      showToast('Nama kategori tidak boleh kosong.', 'error');
+      return false;
+    }
+
+    const isAlreadyDefault = (DEFAULT_MASTER_CATEGORIES[productType] || []).some(
+      c => c.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (isAlreadyDefault) {
+      showToast(`Kategori "${trimmed}" sudah tersedia sebagai standar bawaan sistem.`, 'error');
+      return false;
+    }
+
     setSaving(true);
     try {
-      const isNew = selectedCategoryId === 'new';
-      const url = isNew ? '/api/categories' : `/api/categories/${categoryForm.id}`;
-      const method = isNew ? 'POST' : 'PUT';
-      const res = await fetch(url, {
-        method,
-        headers: getHeaders(),
-        body: JSON.stringify({ name: categoryForm.name.trim() })
+      const res = await fetch('/api/stores/add-master-option', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': storeSlug,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          field: 'class',
+          value: trimmed,
+          product_type: productType
+        })
       });
-      if (res.ok) {
-        showToast(isNew ? 'Kategori berhasil dibuat' : 'Kategori berhasil diperbarui');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Kategori baru berhasil ditambahkan!');
+        if (resetInput) resetInput('');
+        setMasterCategories(prev => {
+          const cur = prev[productType] || [];
+          return {
+            ...prev,
+            [productType]: Array.from(new Set([...cur, trimmed]))
+          };
+        });
+        await fetchStoreProfile();
         await fetchCategories();
+        return true;
       } else {
-        showToast('Gagal menyimpan kategori', 'error');
+        showToast(data.message || 'Gagal menambahkan kategori baru.', 'error');
+        return false;
       }
     } catch {
-      showToast('Terjadi kesalahan jaringan', 'error');
+      showToast('Terjadi kesalahan koneksi saat menambah kategori baru.', 'error');
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteCategory = async (id: number) => {
-    if (!confirm('Yakin ingin menghapus kategori ini?')) return;
+  const handleRenameMasterOption = async (
+    oldValue: string,
+    newValue: string,
+    productType: ItemCategoryType
+  ) => {
+    if ((DEFAULT_MASTER_CATEGORIES[productType] || []).includes(oldValue)) {
+      showToast(`Kategori "${oldValue}" adalah standar bawaan sistem dan tidak dapat diubah namanya.`, 'error');
+      setRenameMasterModalData(null);
+      return;
+    }
+
+    const trimmed = newValue.trim();
+    if (!trimmed) {
+      showToast('Nama kategori tidak boleh kosong.', 'error');
+      return;
+    }
+    if (trimmed === oldValue) {
+      setRenameMasterModalData(null);
+      return;
+    }
+
+    const isAlreadyDefault = (DEFAULT_MASTER_CATEGORIES[productType] || []).some(
+      c => c.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (isAlreadyDefault) {
+      showToast(`Kategori "${trimmed}" sudah merupakan standar bawaan sistem.`, 'error');
+      return;
+    }
+
+    setSaving(true);
     try {
-      const res = await fetch(`/api/categories/${id}`, {
-        method: 'DELETE',
-        headers: getHeaders()
+      const res = await fetch('/api/stores/rename-master-option', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': storeSlug,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          field: 'class',
+          old_value: oldValue,
+          new_value: trimmed,
+          product_type: productType
+        })
       });
-      if (res.ok) {
-        showToast('Kategori berhasil dihapus');
-        setSelectedCategoryId(null);
-        await fetchCategories();
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Nama kategori berhasil diubah dan disinkronkan!');
+        setRenameMasterModalData(null);
+        setMasterCategories(prev => {
+          const cur = prev[productType] || [];
+          return {
+            ...prev,
+            [productType]: cur.map(c => c === oldValue ? trimmed : c)
+          };
+        });
+        await fetchStoreProfile();
+        await fetchProducts(
+          productPage,
+          productSearch,
+          productStatusFilter,
+          productCategoryFilter,
+          productTypeFilter,
+          productSortFilter,
+          productStockFilter
+        );
+      } else {
+        showToast(data.message || 'Gagal mengubah nama kategori.', 'error');
       }
     } catch {
-      showToast('Gagal menghapus kategori', 'error');
+      showToast('Terjadi kesalahan koneksi saat mengubah nama kategori.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOpenDeleteMasterOption = (value: string, productType: ItemCategoryType) => {
+    if ((DEFAULT_MASTER_CATEGORIES[productType] || []).includes(value)) {
+      showToast(`Kategori "${value}" adalah standar bawaan sistem dan tidak dapat dihapus.`, 'error');
+      return;
+    }
+
+    const options = getCategoryOptionsForType(productType);
+    const replacementOptions = options.filter(opt => opt !== value && opt !== '+ Tambah Baru...' && opt !== '__NEW__' && opt !== '__ADD_NEW__');
+
+    if (replacementOptions.length === 0) {
+      showToast('Tidak ada opsi kategori pengganti lain yang tersedia untuk menghapus kategori ini.', 'error');
+      return;
+    }
+
+    setDeleteMasterModalData({
+      field: 'class',
+      value,
+      replacementOptions,
+      selectedReplacement: replacementOptions[0],
+      productType
+    });
+  };
+
+  const handleConfirmDeleteMasterOption = async () => {
+    if (!deleteMasterModalData) return;
+    const { field, value, selectedReplacement, productType } = deleteMasterModalData;
+    setDeleteMasterModalData(null);
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/stores/delete-master-option', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': storeSlug,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          field,
+          value,
+          replacement_option: selectedReplacement,
+          product_type: productType
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Kategori berhasil dihapus dan item telah dialihkan!');
+        setMasterCategories(prev => {
+          const cur = prev[productType] || [];
+          return {
+            ...prev,
+            [productType]: cur.filter(c => c !== value)
+          };
+        });
+        await fetchStoreProfile();
+        await fetchProducts(
+          productPage,
+          productSearch,
+          productStatusFilter,
+          productCategoryFilter,
+          productTypeFilter,
+          productSortFilter,
+          productStockFilter
+        );
+      } else {
+        showToast(data.message || 'Gagal menghapus kategori.', 'error');
+      }
+    } catch {
+      showToast('Koneksi internet bermasalah. Gagal menghapus kategori.', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
   // =========================================================================
-  // 4. NOTIFICATIONS STATE
+  // 4. NOTIFICATIONS STATE & REALTIME HANDLERS (TABLET)
   // =========================================================================
   const [notifications, setNotifications] = useState<any[]>([]);
   const [notifUnreadCount, setNotifUnreadCount] = useState<number>(0);
+  const [notifReadCount, setNotifReadCount] = useState<number>(0);
+  const [notifSecurityCount, setNotifSecurityCount] = useState<number>(0);
+  const [notifSystemCount, setNotifSystemCount] = useState<number>(0);
+  const [notifTotal, setNotifTotal] = useState<number>(0);
+  const [notifPage, setNotifPage] = useState<number>(1);
+  const [notifLimit] = useState<number>(15);
+  const [notifLoading, setNotifLoading] = useState<boolean>(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'security' | 'system'>('all');
+  const [notifSearchQuery, setNotifSearchQuery] = useState<string>('');
+  const [notifDebouncedSearch, setNotifDebouncedSearch] = useState<string>('');
   const [selectedNotif, setSelectedNotif] = useState<any | null>(null);
 
-  const fetchNotifications = useCallback(async () => {
+  // Debounce search query (300ms) for server-side search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setNotifDebouncedSearch(notifSearchQuery.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [notifSearchQuery]);
+
+  const fetchNotifications = useCallback(async (
+    pageToFetch: number = 1,
+    categoryToUse: 'all' | 'unread' | 'security' | 'system' = notifFilter,
+    searchToUse: string = notifDebouncedSearch
+  ) => {
     try {
+      setNotifLoading(true);
       const query = new URLSearchParams({
-        page: '1',
-        limit: '25',
-        filter: notifFilter === 'unread' ? 'unread' : 'all',
-        category: notifFilter,
+        page: String(pageToFetch),
+        limit: '15',
+        filter: categoryToUse === 'unread' ? 'unread' : 'all',
+        category: categoryToUse,
         slug: storeSlug
       });
+      if (searchToUse.trim()) {
+        query.set('q', searchToUse.trim());
+      }
       const res = await fetch(`/api/notifications?${query.toString()}`, { headers: getHeaders() });
       if (res.ok) {
         const json = await res.json();
-        setNotifications(json.data || []);
+        const dataList = Array.isArray(json.data) ? json.data : [];
+        setNotifications(dataList);
+        setNotifPage(pageToFetch);
+        if (typeof json.total_all === 'number') {
+          setNotifTotal(json.total_all);
+        } else if (typeof json.total === 'number') {
+          setNotifTotal(json.total);
+        }
         if (typeof json.unread_count === 'number') {
           setNotifUnreadCount(json.unread_count);
         }
+        if (typeof json.read_count === 'number') {
+          setNotifReadCount(json.read_count);
+        } else if (typeof json.total_all === 'number' && typeof json.unread_count === 'number') {
+          setNotifReadCount(Math.max(0, json.total_all - json.unread_count));
+        }
+        if (typeof json.security_count === 'number') {
+          setNotifSecurityCount(json.security_count);
+        }
+        if (typeof json.system_count === 'number') {
+          setNotifSystemCount(json.system_count);
+        }
+        setSelectedNotif((prev: any) => {
+          if (!prev) return null;
+          const updated = dataList.find((n: any) => n.id === prev.id);
+          return updated || prev;
+        });
       }
     } catch {
       // safe fallback
+    } finally {
+      setNotifLoading(false);
     }
-  }, [notifFilter, storeSlug, getHeaders]);
+  }, [notifFilter, notifDebouncedSearch, storeSlug, getHeaders]);
+
+  // Sync debounced search to backend
+  const notifSearchInitialMount = useRef<boolean>(true);
+  useEffect(() => {
+    if (notifSearchInitialMount.current) {
+      notifSearchInitialMount.current = false;
+      return;
+    }
+    setNotifPage(1);
+    fetchNotifications(1, notifFilter, notifDebouncedSearch);
+  }, [notifDebouncedSearch]);
+
+  const handleNotifFilterChange = (f: 'all' | 'unread' | 'security' | 'system') => {
+    setNotifFilter(f);
+    setNotifPage(1);
+    fetchNotifications(1, f, notifDebouncedSearch);
+  };
 
   const handleMarkNotifRead = async (id: number | string) => {
     try {
@@ -1070,9 +2041,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const item = prev.find(n => n.id === id);
         if (item && !item.read) {
           setNotifUnreadCount(c => Math.max(0, c - 1));
+          setNotifReadCount(c => c + 1);
         }
         return prev.map(n => n.id === id ? { ...n, read: true } : n);
       });
+      setSelectedNotif((prev: any) => (prev && prev.id === id ? { ...prev, read: true } : prev));
       await fetch(`/api/notifications/${id}/read`, { method: 'POST', headers: getHeaders() });
     } catch {}
   };
@@ -1080,10 +2053,107 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const handleMarkAllNotifsRead = async () => {
     try {
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setSelectedNotif((prev: any) => (prev ? { ...prev, read: true } : null));
+      setNotifReadCount(prev => prev + notifUnreadCount);
       setNotifUnreadCount(0);
       showToast('Semua notifikasi ditandai telah dibaca');
       await fetch('/api/notifications/read-all', { method: 'POST', headers: getHeaders() });
     } catch {}
+  };
+
+  const handleClearReadNotifications = async () => {
+    try {
+      setNotifications(prev => prev.filter(n => !n.read));
+      if (selectedNotif && selectedNotif.read) {
+        setSelectedNotif(null);
+      }
+      showToast('Riwayat notifikasi terbaca telah dibersihkan');
+      await fetch('/api/notifications/clear-read', { method: 'POST', headers: getHeaders() });
+      fetchNotifications(1, notifFilter, notifDebouncedSearch);
+    } catch {}
+  };
+
+  const handleOpenFixItemFromNotif = async (item: any) => {
+    try {
+      handleMarkNotifRead(item.id);
+      const modCase = parseModerationCase(item);
+      let targetName = modCase.targetName;
+      if (!targetName && item.action_url) {
+        try {
+          const u = new URL(item.action_url.startsWith('http') ? item.action_url : `http://localhost/${item.action_url.replace(/^\//, '')}`);
+          targetName = u.searchParams.get('target_name') || '';
+        } catch {}
+      }
+
+      let matchedProd = products.find(p =>
+        (targetName && (p.name || '').toLowerCase().trim() === targetName.toLowerCase().trim()) ||
+        (item.action_url && item.action_url.includes(`id=${p.id}`))
+      );
+
+      if (!matchedProd && targetName) {
+        const res = await fetch(`/api/products?q=${encodeURIComponent(targetName)}&limit=5&slug=${storeSlug}`, {
+          headers: getHeaders()
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const items = Array.isArray(json.data) ? json.data : [];
+          matchedProd = items.find((p: any) => (p.name || '').toLowerCase().trim() === targetName.toLowerCase().trim()) || items[0];
+        }
+      }
+
+      setActiveTab('items');
+      if (matchedProd) {
+        handleSelectProduct(matchedProd);
+        showToast(`Membuka formulir perbaikan item "${matchedProd.name}"`);
+      } else {
+        if (targetName) setProductSearch(targetName);
+        showToast('Beralih ke inventaris produk. Silakan pilih item untuk diperbaiki.');
+      }
+    } catch {
+      setActiveTab('items');
+    }
+  };
+
+  const handleOpenAppealFromNotif = (item: any) => {
+    handleMarkNotifRead(item.id);
+    const modCase = parseModerationCase(item);
+    setActiveTab('help');
+    setSelectedTicketId('new');
+    setTicketForm({
+      subject: modCase.targetName ? `Banding Kepatuhan: ${modCase.targetName}` : 'Banding Kepatuhan Item Katalog',
+      category: 'report',
+      message: `Kepada Tim Kepatuhan Catavor,\n\nSaya mengajukan permohonan banding kepatuhan resmi atas evaluasi nomor laporan #${modCase.reportNumber || '-'}${modCase.targetName ? ` terkait item "${modCase.targetName}"` : ''}.\n\nAlasan & Klarifikasi:\n`,
+      priority: 'high'
+    });
+    showToast('Beralih ke formulir pengajuan banding kepatuhan');
+  };
+
+  const handleNavigateTicketFromNotif = (item: any) => {
+    handleMarkNotifRead(item.id);
+    const ticketRef = extractTicketFromNotif(item);
+    setActiveTab('help');
+    if (ticketRef) {
+      const matched = tickets.find(t => String(t.ticket_number || t.id) === ticketRef);
+      if (matched) {
+        setSelectedTicketId(matched.id);
+      } else {
+        setSelectedTicketId(null);
+      }
+    }
+  };
+
+  const handleNavigateSubTabFromNotif = (subTab: string, item: any) => {
+    handleMarkNotifRead(item.id);
+    const validTabs: TabletMerchantTab[] = [
+      'items', 'categories', 'analytics', 'subscription', 'settings',
+      'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
+    ];
+    let targetTab = subTab as TabletMerchantTab;
+    if (subTab === 'products') targetTab = 'items';
+    if (subTab === 'support') targetTab = 'help';
+    if (validTabs.includes(targetTab)) {
+      setActiveTab(targetTab);
+    }
   };
 
   // =========================================================================
@@ -1303,15 +2373,76 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 
+  // OTP Password Recovery States
+  const [profilePasswordMode, setProfilePasswordMode] = useState<'standard' | 'otp'>('standard');
+  const [profileOtpCode, setProfileOtpCode] = useState<string>('');
+  const [profileOtpLoading, setProfileOtpLoading] = useState<boolean>(false);
+  const [profileOtpSent, setProfileOtpSent] = useState<boolean>(false);
+  const [profileOtpCooldown, setProfileOtpCooldown] = useState<number>(0);
+  const [profileOtpSuccess, setProfileOtpSuccess] = useState<string | null>(null);
+  const [profileOtpError, setProfileOtpError] = useState<string | null>(null);
+
+  // Cooldown countdown effect
+  useEffect(() => {
+    if (profileOtpCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setProfileOtpCooldown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [profileOtpCooldown]);
+
+  const handleSendProfileBackupOTP = async () => {
+    const emailToUse = ((adminUser?.email || currentUser?.email) || '').trim().toLowerCase();
+    if (!emailToUse) {
+      setProfileOtpError('Alamat email akun tidak ditemukan.');
+      return;
+    }
+    setProfileOtpLoading(true);
+    setProfileOtpError(null);
+    setProfileOtpSuccess(null);
+    try {
+      const res = await fetch('/api/profile/request-password-otp', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ email: emailToUse })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProfileOtpSent(true);
+        setProfileOtpCooldown(60);
+        const msg = data.message || `Kode OTP berhasil dikirimkan ke ${emailToUse}. Periksa inbox atau spam email Anda.`;
+        setProfileOtpSuccess(msg);
+        showToast(msg, 'success');
+      } else {
+        const errMsg = data.message || 'Gagal mengirim kode OTP pemulihan.';
+        setProfileOtpError(errMsg);
+        showToast(errMsg, 'error');
+      }
+    } catch {
+      const netMsg = 'Gagal menghubungi server. Periksa koneksi internet Anda.';
+      setProfileOtpError(netMsg);
+      showToast(netMsg, 'error');
+    } finally {
+      setProfileOtpLoading(false);
+    }
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     const newPass = passwordForm.new_password.trim();
     const confirmPass = passwordForm.confirm_password.trim();
     const oldPass = passwordForm.old_password.trim();
 
-    if (hasCustomPassword && !oldPass) {
-      showToast('Kata sandi saat ini wajib diisi', 'error');
-      return;
+    if (hasCustomPassword) {
+      if (profilePasswordMode === 'standard' && !oldPass) {
+        showToast('Kata sandi saat ini wajib diisi', 'error');
+        return;
+      }
+      if (profilePasswordMode === 'otp' && (!profileOtpCode || profileOtpCode.trim().length !== 6)) {
+        setProfileOtpError('Kode verifikasi OTP harus berjumlah 6 digit angka');
+        showToast('Kode verifikasi OTP harus berjumlah 6 digit angka', 'error');
+        return;
+      }
     }
 
     if (newPass.length < 8) {
@@ -1338,22 +2469,31 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       showToast('Konfirmasi kata sandi tidak cocok', 'error');
       return;
     }
-    if (hasCustomPassword && oldPass && newPass === oldPass) {
+    if (hasCustomPassword && profilePasswordMode === 'standard' && oldPass && newPass === oldPass) {
       showToast('Kata sandi baru tidak boleh sama dengan kata sandi saat ini', 'error');
       return;
     }
 
     setSaving(true);
+    setProfileOtpError(null);
+    setProfileOtpSuccess(null);
     try {
+      const payload: any = {
+        name: profileName || adminUser?.name || currentUser?.name || 'Admin Toko',
+        password: newPass,
+        confirm_password: confirmPass
+      };
+      if (hasCustomPassword) {
+        if (profilePasswordMode === 'otp') {
+          payload.otp = profileOtpCode.trim();
+        } else {
+          payload.current_password = oldPass;
+        }
+      }
       const res = await fetch('/api/profile', {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({
-          name: currentUser?.name || 'Admin Toko',
-          current_password: hasCustomPassword ? oldPass : '',
-          password: newPass,
-          confirm_password: confirmPass
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -1365,6 +2505,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           const userObj = saved ? JSON.parse(saved) : {};
           const merged = { ...userObj, ...(data.user || {}), has_custom_password: true, is_password_changed: true };
           localStorage.setItem('catavor_user', JSON.stringify(merged));
+          setAdminUser(merged);
         } catch {
           // ignore
         }
@@ -1373,19 +2514,124 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setShowOldPassword(false);
         setShowNewPassword(false);
         setShowConfirmPassword(false);
-        const successMsg = hasCustomPassword
-          ? 'Kata sandi berhasil diperbarui!'
-          : 'Kata sandi cadangan akun berhasil disimpan!';
+        setProfileOtpCode('');
+        setProfileOtpSent(false);
+        setProfilePasswordMode('standard');
+        const successMsg = profilePasswordMode === 'otp'
+          ? 'Kata sandi berhasil diperbarui via verifikasi OTP email!'
+          : (hasCustomPassword ? 'Kata sandi berhasil diperbarui!' : 'Kata sandi cadangan akun berhasil disimpan!');
         showToast(successMsg, 'success');
       } else {
-        showToast(data.message || 'Gagal menyimpan kata sandi', 'error');
+        const errMsg = data.message || 'Gagal menyimpan kata sandi';
+        if (profilePasswordMode === 'otp') {
+          setProfileOtpError(errMsg);
+        }
+        showToast(errMsg, 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan sistem saat menghubungi server', 'error');
+      const netErr = 'Terjadi kesalahan sistem saat menghubungi server';
+      if (profilePasswordMode === 'otp') {
+        setProfileOtpError(netErr);
+      }
+      showToast(netErr, 'error');
     } finally {
       setSaving(false);
     }
   };
+
+  // User profile state and name updater
+  const [adminUser, setAdminUser] = useState<any>(currentUser);
+  useEffect(() => {
+    if (currentUser) setAdminUser(currentUser);
+  }, [currentUser]);
+
+  const [profileName, setProfileName] = useState<string>(() => currentUser?.name || '');
+  useEffect(() => {
+    if (currentUser?.name) setProfileName(currentUser.name);
+  }, [currentUser?.name]);
+
+  const [updatingProfileName, setUpdatingProfileName] = useState<boolean>(false);
+
+  const handleUpdateProfileName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = profileName.trim();
+    if (!trimmed) {
+      showToast('Nama lengkap pengelola wajib diisi', 'error');
+      return;
+    }
+    if (trimmed.length < 2) {
+      showToast('Nama lengkap minimal 2 karakter', 'error');
+      return;
+    }
+
+    setUpdatingProfileName(true);
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          name: trimmed
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const updated = { ...(adminUser || {}), name: trimmed, ...(data.user || {}) };
+        setAdminUser(updated);
+        try {
+          localStorage.setItem('catavor_user', JSON.stringify(updated));
+        } catch {}
+        showToast('Nama profil pengelola berhasil diperbarui!', 'success');
+      } else {
+        showToast(data.message || 'Gagal memperbarui nama profil', 'error');
+      }
+    } catch {
+      showToast('Terjadi kesalahan jaringan saat memperbarui profil', 'error');
+    } finally {
+      setUpdatingProfileName(false);
+    }
+  };
+
+  // User stores list for Danger Zone multi-store coordination
+  const [userStores, setUserStores] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem('catavor_stores');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleStoreDeleted = (deletedSlug: string, remainingStores: any[]) => {
+    setUserStores(remainingStores);
+    try {
+      localStorage.setItem('catavor_stores', JSON.stringify(remainingStores));
+    } catch {}
+    if (remainingStores && remainingStores.length > 0) {
+      window.location.href = `/${remainingStores[0].slug}/admin`;
+    } else {
+      onLogout();
+    }
+  };
+
+  const handleAccountDeleted = () => {
+    try {
+      localStorage.removeItem('catavor_token');
+      localStorage.removeItem('catavor_user');
+      localStorage.removeItem('catavor_stores');
+      localStorage.removeItem('catavor_active_slug');
+    } catch {}
+    onLogout();
+  };
+
+  const currentStoreObj = useMemo(() => {
+    const matched = userStores.find(s => s.slug?.toLowerCase() === storeSlug.toLowerCase());
+    if (matched) return matched;
+    return {
+      id: (storeSettings as any).id || (currentUser as any)?.store_id || 0,
+      slug: storeSlug,
+      store_title: storeSettings.name || storeSlug
+    };
+  }, [userStores, storeSlug, storeSettings, currentUser]);
 
   // 1. Initial Core Data Fetching (Run ONCE per store/token mount - Essential store profile, categories, products, notifications & tickets ping)
   const initialLoadedKeyRef = useRef<string>('');
@@ -1396,10 +2642,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
     fetchStoreProfile();
     fetchCategories();
-    fetchProducts(1, '', 'all', 'all');
+    fetchProducts(1, '', 'all', 'all', 'all', 'newest', 'all');
+    fetchCatalogMetrics();
     fetchTicketsPing();
     fetchNotifications();
-  }, [storeSlug, token, fetchStoreProfile, fetchCategories, fetchProducts, fetchTicketsPing, fetchNotifications]);
+  }, [storeSlug, token, fetchStoreProfile, fetchCategories, fetchProducts, fetchCatalogMetrics, fetchTicketsPing, fetchNotifications]);
 
   // 2. Debounced Search & Filter Effect for Products (Only triggers fetchProducts, never refetches profile/other tabs)
   const [debouncedProductSearch, setDebouncedProductSearch] = useState<string>(productSearch);
@@ -1410,14 +2657,34 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     return () => clearTimeout(timer);
   }, [productSearch]);
 
+  const fetchProductsRef = useRef(fetchProducts);
+  useEffect(() => {
+    fetchProductsRef.current = fetchProducts;
+  }, [fetchProducts]);
+
   const isInitialFilterMountRef = useRef<boolean>(true);
   useEffect(() => {
     if (isInitialFilterMountRef.current) {
       isInitialFilterMountRef.current = false;
       return;
     }
-    fetchProducts(1, debouncedProductSearch, productStatusFilter, productCategoryFilter);
-  }, [debouncedProductSearch, productStatusFilter, productCategoryFilter, fetchProducts]);
+    fetchProductsRef.current(
+      1,
+      debouncedProductSearch,
+      productStatusFilter,
+      productCategoryFilter,
+      productTypeFilter,
+      productSortFilter,
+      productStockFilter
+    );
+  }, [
+    debouncedProductSearch,
+    productStatusFilter,
+    productCategoryFilter,
+    productTypeFilter,
+    productSortFilter,
+    productStockFilter
+  ]);
 
   // 3. Lazy Tab Loading (Only fetch on-demand when switching to the relevant tab)
   const loadedTabsRef = useRef<Set<string>>(new Set(['items']));
@@ -1871,9 +3138,113 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 1: DAFTAR ITEM KATALOG (Master-Detail Split View)
             =================================================================== */}
         {activeTab === 'items' && (
-          <TabletMasterDetailView
+          isCatalogCompletelyEmpty && selectedProductId !== 'new' ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              width: '100%',
+              backgroundColor: 'var(--bg-deep)',
+              overflowY: 'auto'
+            }}>
+              {/* Clean Top Header Bar */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.5rem',
+                backgroundColor: 'var(--bg-card)',
+                borderBottom: '1px solid var(--border-light)',
+                flexShrink: 0
+              }}>
+                <div>
+                  <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Katalog Produk &amp; Inventaris
+                  </h2>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Kelola seluruh produk, harga, dan inventaris toko Anda
+                  </span>
+                </div>
+              </div>
+
+              {/* Full-Page Centered Executive Empty State */}
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '3rem 1.5rem',
+                textAlign: 'center'
+              }}>
+                <div style={{
+                  maxWidth: '460px',
+                  width: '100%',
+                  padding: '2.5rem 2rem',
+                  borderRadius: '1.25rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '1rem'
+                }}>
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '20px',
+                    backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--primary)',
+                    boxShadow: '0 0 20px rgba(30, 58, 138, 0.12)'
+                  }}>
+                    <Package size={32} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.45rem 0' }}>
+                      Belum Ada Item Terdaftar
+                    </h3>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                      Katalog toko Anda masih kosong. Mulai tambahkan barang fisik, makanan, jasa, tiket, atau file digital pertama Anda.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="btn-tambah-item-pertama"
+                    data-testid="btn-tambah-item-pertama"
+                    onClick={() => handleCancelToProductTypeSelection()}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.65rem 1.5rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: 'pointer',
+                      marginTop: '0.5rem',
+                      boxShadow: '0 2px 10px var(--primary-glow)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Plus size={18} />
+                    <span>Tambah Item Pertama</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <TabletMasterDetailView
             title="Katalog Produk & Inventaris"
-            subtitle={`${productTotalRecords} total item`}
+            subtitle={isCatalogCompletelyEmpty ? undefined : `${productTotalRecords} total item`}
             headerAction={
               selectedProductId === 'new' ? (
                 <button
@@ -1946,96 +3317,516 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             }}
             masterPane={
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                {/* Search & Category Filter */}
-                <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {/* Catalog Metrics Pills Summary - Hidden if catalog has no items */}
+                {!isCatalogCompletelyEmpty && (
                   <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.45rem 0.75rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-light)'
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '0.35rem',
+                    padding: '0.65rem 0.75rem 0.45rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    borderBottom: '1px solid var(--border-light)'
                   }}>
-                    <Search size={16} color="var(--text-muted)" />
-                    <input
-                      type="text"
-                      placeholder="Cari produk..."
-                      value={productSearch}
-                      onChange={(e) => {
-                        setProductSearch(e.target.value);
+                    <div
+                      onClick={() => {
+                        setProductStatusFilter('all');
+                        setProductStockFilter('all');
                         setProductPage(1);
                       }}
                       style={{
-                        flex: 1,
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.85rem',
-                        outline: 'none'
+                        padding: '0.35rem 0.45rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: productStatusFilter === 'all' && productStockFilter === 'all' ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
+                        border: productStatusFilter === 'all' && productStockFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        textAlign: 'center'
                       }}
-                    />
+                    >
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        {catalogMetrics?.total_items ?? productTotalRecords}
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setProductStatusFilter('active');
+                        setProductStockFilter('all');
+                        setProductPage(1);
+                      }}
+                      style={{
+                        padding: '0.35rem 0.45rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: productStatusFilter === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-card)',
+                        border: productStatusFilter === 'active' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 600 }}>Aktif</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>
+                        {catalogMetrics?.active_items ?? (products.filter(p => p.is_active !== false).length || '-')}
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setProductStockFilter('low');
+                        setProductPage(1);
+                      }}
+                      style={{
+                        padding: '0.35rem 0.45rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: productStockFilter === 'low' ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg-card)',
+                        border: productStockFilter === 'low' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600 }}>Menipis</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b' }}>
+                        {catalogMetrics?.low_stock_items ?? (products.filter(p => (p.stock ?? 1) > 0 && (p.stock ?? 1) <= 5).length || '-')}
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setProductStockFilter('out');
+                        setProductPage(1);
+                      }}
+                      style={{
+                        padding: '0.35rem 0.45rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: productStockFilter === 'out' ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-card)',
+                        border: productStockFilter === 'out' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 600 }}>Habis</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ef4444' }}>
+                        {catalogMetrics?.out_of_stock_items ?? (products.filter(p => (p.stock ?? 1) === 0).length || '-')}
+                      </div>
+                    </div>
                   </div>
+                )}
 
-                  {/* Status Pills & Category Dropdown */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', gap: '0.35rem' }}>
-                      {[
-                        { key: 'all', label: 'Semua' },
-                        { key: 'active', label: 'Aktif' },
-                        { key: 'archived', label: 'Arsip' }
-                      ].map(st => {
-                        const isSelected = productStatusFilter === st.key;
-                        return (
-                          <button
-                            key={st.key}
-                            type="button"
-                            onClick={() => {
-                              setProductStatusFilter(st.key as any);
-                              setProductPage(1);
-                            }}
-                            style={{
-                              minHeight: '34px',
-                              padding: '0.2rem 0.65rem',
+                {/* Search & Tablet Ergonomic Filter Header - Hidden if catalog has no items */}
+                {!isCatalogCompletelyEmpty && (
+                  <div style={{
+                    padding: '0.65rem 0.75rem 0.5rem',
+                    borderBottom: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.55rem',
+                    backgroundColor: 'var(--bg-deep)'
+                  }}>
+                    {/* Row 1: Search Input */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                    }}>
+                      <Search size={16} color="var(--text-muted)" />
+                      <input
+                        type="text"
+                        placeholder="Cari nama, SKU, deskripsi..."
+                        value={productSearch}
+                        onChange={(e) => {
+                          setProductSearch(e.target.value);
+                          setProductPage(1);
+                        }}
+                        style={{
+                          flex: 1,
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.84rem',
+                          outline: 'none'
+                        }}
+                      />
+                      {productSearch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProductSearch('');
+                            setProductPage(1);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: 'var(--text-muted)',
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Row 2: Status Tabs + Prominent Filter & Urutkan Button */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.45rem'
+                    }}>
+                      {/* Status Tabs: Semua / Aktif / Arsip */}
+                      <div style={{
+                        display: 'inline-flex',
+                        padding: '2px',
+                        borderRadius: '0.6rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)'
+                      }}>
+                        {[
+                          { key: 'all', label: 'Semua' },
+                          { key: 'active', label: 'Aktif' },
+                          { key: 'archived', label: 'Arsip' }
+                        ].map(st => {
+                          const isSelected = productStatusFilter === st.key;
+                          return (
+                            <button
+                              key={st.key}
+                              type="button"
+                              onClick={() => {
+                                setProductStatusFilter(st.key as any);
+                                setProductPage(1);
+                              }}
+                              style={{
+                                minHeight: '30px',
+                                padding: '0.2rem 0.65rem',
+                                borderRadius: '0.45rem',
+                                border: 'none',
+                                backgroundColor: isSelected ? 'var(--primary)' : 'transparent',
+                                color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                                fontSize: '0.74rem',
+                                fontWeight: isSelected ? 700 : 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {st.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Filter & Urutkan Button (Always prominent & accessible) */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <button
+                          type="button"
+                          id="btn-open-product-filter"
+                          data-testid="btn-open-product-filter"
+                          onClick={() => setIsProductFilterOpen(true)}
+                          title="Buka panel filter & urutkan lengkap"
+                          style={{
+                            minHeight: '34px',
+                            padding: '0.3rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            border: activeFilterCount > 0 ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                            backgroundColor: activeFilterCount > 0 ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
+                            color: activeFilterCount > 0 ? 'var(--primary)' : 'var(--text-primary)',
+                            fontSize: '0.76rem',
+                            fontWeight: activeFilterCount > 0 ? 800 : 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            transition: 'all 0.15s ease',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                          }}
+                        >
+                          <SlidersHorizontal size={14} />
+                          <span>Filter &amp; Urutkan</span>
+                          {activeFilterCount > 0 && (
+                            <span style={{
+                              backgroundColor: 'var(--primary)',
+                              color: '#fff',
                               borderRadius: '999px',
-                              border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                              color: isSelected ? 'var(--primary)' : 'var(--text-secondary)',
-                              fontSize: '0.78rem',
-                              fontWeight: isSelected ? 700 : 500,
+                              padding: '0 5px',
+                              fontSize: '0.65rem',
+                              fontWeight: 800,
+                              lineHeight: '16px'
+                            }}>
+                              {activeFilterCount}
+                            </span>
+                          )}
+                        </button>
+
+                        {activeFilterCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleResetAllFilters}
+                            title="Reset semua filter"
+                            aria-label="Reset semua filter"
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '0.5rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-card)',
+                              color: 'var(--text-muted)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               cursor: 'pointer'
                             }}
                           >
-                            {st.label}
+                            <RotateCcw size={14} />
                           </button>
-                        );
-                      })}
+                        )}
+                      </div>
                     </div>
 
-                    <select
-                      value={productCategoryFilter}
-                      onChange={(e) => {
-                        setProductCategoryFilter(e.target.value);
-                        setProductPage(1);
-                      }}
-                      style={{
-                        padding: '0.3rem 0.6rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.78rem',
-                        outline: 'none',
-                        maxWidth: '130px'
-                      }}
-                    >
-                      <option value="all">Semua Kategori</option>
-                      {categories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                    {/* Row 3: Horizontal Scrollable Tag/Badge Track (Only shown if catalog has multiple different types) */}
+                    {isHybridStore && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        {/* Tag Mode Switcher: Only displayed when both multiple catalog types exist AND categories exist */}
+                        {categories.length > 0 && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0 0.15rem',
+                            fontSize: '0.7rem',
+                            color: 'var(--text-muted)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ fontWeight: 600 }}>Tampilkan Tag:</span>
+                              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setFilterTagMode('types')}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '0.15rem 0.4rem',
+                                    borderRadius: '0.35rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: effectiveFilterTagMode === 'types' ? 700 : 500,
+                                    color: effectiveFilterTagMode === 'types' ? 'var(--primary)' : 'var(--text-muted)',
+                                    backgroundColor: effectiveFilterTagMode === 'types' ? 'rgba(30, 58, 138, 0.08)' : 'transparent',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.2rem'
+                                  }}
+                                >
+                                  <span>Tipe Format</span>
+                                  {productTypeFilter !== 'all' && (
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFilterTagMode('categories')}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '0.15rem 0.4rem',
+                                    borderRadius: '0.35rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: effectiveFilterTagMode === 'categories' ? 700 : 500,
+                                    color: effectiveFilterTagMode === 'categories' ? 'var(--primary)' : 'var(--text-muted)',
+                                    backgroundColor: effectiveFilterTagMode === 'categories' ? 'rgba(30, 58, 138, 0.08)' : 'transparent',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.2rem'
+                                  }}
+                                >
+                                  <span>Kategori ({categories.length})</span>
+                                  {productCategoryFilter !== 'all' && (
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            {effectiveFilterTagMode === 'types' && productTypeFilter !== 'all' && (
+                              <button
+                                type="button"
+                                onClick={() => { setProductTypeFilter('all'); setProductPage(1); }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: 'var(--primary)',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  padding: 0
+                                }}
+                              >
+                                Reset Tipe
+                              </button>
+                            )}
+                            {effectiveFilterTagMode === 'categories' && productCategoryFilter !== 'all' && (
+                              <button
+                                type="button"
+                                onClick={() => { setProductCategoryFilter('all'); setProductPage(1); }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: 'var(--primary)',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  padding: 0
+                                }}
+                              >
+                                Reset Kategori
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Scrollable Badges Track: displays catalogTypeTagItems if mode is types (or if categories.length === 0), else categoryTagItems */}
+                        <TabletScrollableFilterTags
+                          items={(effectiveFilterTagMode === 'types' || categories.length === 0) ? catalogTypeTagItems : categoryTagItems}
+                          selectedId={(effectiveFilterTagMode === 'types' || categories.length === 0) ? productTypeFilter : productCategoryFilter}
+                          onSelect={(id) => {
+                            if (effectiveFilterTagMode === 'types' || categories.length === 0) {
+                              setProductTypeFilter(id);
+                            } else {
+                              setProductCategoryFilter(id);
+                            }
+                            setProductPage(1);
+                          }}
+                          ariaLabel={(effectiveFilterTagMode === 'types' || categories.length === 0) ? 'Filter Tipe Format Katalog' : 'Filter Kategori Produk'}
+                          containerBg="var(--bg-deep)"
+                        />
+                      </div>
+                    )}
+
+                    {/* Row 4: Active Filter Summary Chips (Visible only when filters active) */}
+                    {activeFilterCount > 0 && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        flexWrap: 'wrap',
+                        paddingTop: '0.15rem'
+                      }}>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>Aktif:</span>
+                        
+                        {productTypeFilter !== 'all' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                            color: 'var(--primary)',
+                            fontSize: '0.68rem',
+                            fontWeight: 700
+                          }}>
+                            <span>{CATALOG_TYPE_OPTIONS.find(t => t.id === productTypeFilter)?.name || productTypeFilter}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setProductTypeFilter('all'); setProductPage(1); }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        )}
+
+                        {productCategoryFilter !== 'all' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                            color: 'var(--primary)',
+                            fontSize: '0.68rem',
+                            fontWeight: 700
+                          }}>
+                            <span>{categories.find(c => String(c.id) === productCategoryFilter)?.name || productCategoryFilter}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setProductCategoryFilter('all'); setProductPage(1); }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        )}
+
+                        {productStockFilter !== 'all' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                            color: '#d97706',
+                            fontSize: '0.68rem',
+                            fontWeight: 700
+                          }}>
+                            <span>{productStockFilter === 'in_stock' ? 'Tersedia' : productStockFilter === 'low' ? 'Menipis' : 'Habis'}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setProductStockFilter('all'); setProductPage(1); }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        )}
+
+                        {productSortFilter !== 'newest' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(100, 116, 139, 0.12)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.68rem',
+                            fontWeight: 700
+                          }}>
+                            <span>Urutan: {productSortFilter === 'oldest' ? 'Terlama' : productSortFilter.includes('asc') ? 'A-Z / Rendah' : 'Z-A / Tinggi'}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setProductSortFilter('newest'); setProductPage(1); }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={handleResetAllFilters}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.68rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: '0 0.2rem'
+                          }}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
 
                 {/* Items List */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
@@ -2043,9 +3834,85 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
                       Memuat daftar produk...
                     </div>
+                  ) : isCatalogCompletelyEmpty ? (
+                    /* Clean Empty State aligned with Mobile & Desktop */
+                    <div style={{
+                      padding: '3rem 1.5rem',
+                      textAlign: 'center',
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: '100%',
+                      minHeight: '260px'
+                    }}>
+                      <div style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '16px',
+                        backgroundColor: 'rgba(30, 58, 138, 0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: '1rem',
+                        color: 'var(--primary)'
+                      }}>
+                        <Package size={28} />
+                      </div>
+                      <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        Belum Ada Item Terdaftar
+                      </h3>
+                      <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '280px', lineHeight: 1.4 }}>
+                        Mulai tambahkan barang, menu, jasa, atau file digital pertama Anda.
+                      </p>
+                      <button
+                        type="button"
+                        id="btn-tambah-item-pertama"
+                        data-testid="btn-tambah-item-pertama"
+                        onClick={() => handleCancelToProductTypeSelection()}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.35rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px var(--primary-glow)'
+                        }}
+                      >
+                        <Plus size={16} />
+                        <span>Tambah Item Pertama</span>
+                      </button>
+                    </div>
                   ) : products.length === 0 ? (
-                    <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                      Belum ada produk dalam katalog ini
+                    <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                      <Search size={32} style={{ marginBottom: '0.5rem', color: 'var(--text-muted)', opacity: 0.5 }} />
+                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Item Tidak Ditemukan</div>
+                      <div style={{ fontSize: '0.8rem' }}>Tidak ada item yang sesuai dengan kata kunci atau filter yang Anda pilih.</div>
+                      <button
+                        type="button"
+                        onClick={handleResetAllFilters}
+                        style={{
+                          marginTop: '0.75rem',
+                          padding: '0.4rem 0.85rem',
+                          borderRadius: '0.5rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-card)',
+                          color: 'var(--primary)',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Reset Filter
+                      </button>
                     </div>
                   ) : (
                     products.map(prod => {
@@ -2126,8 +3993,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--primary)' }}>
                                 Rp {Number(prod.price || 0).toLocaleString('id-ID')}
                               </div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                Stok: {prod.stock ?? 1} {prod.unit || 'Pcs'}
+                              <div style={{
+                                fontSize: '0.74rem',
+                                fontWeight: 600,
+                                color: prod.conservation_status === 'Habis Terjual'
+                                  ? '#ef4444'
+                                  : prod.conservation_status === 'Pre-Order'
+                                  ? '#f59e0b'
+                                  : 'var(--text-muted)'
+                              }}>
+                                {prod.conservation_status || ((prod.stock ?? 1) === 0 ? 'Habis' : `Stok: ${prod.stock ?? 1}`)}
                               </div>
                             </div>
                           </div>
@@ -2137,20 +4012,34 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   )}
                 </div>
 
-                {/* Tablet Segmented Pager */}
-                <TabletSegmentedPagination
-                  currentPage={productPage}
-                  totalPages={productTotalPages}
-                  totalRecords={productTotalRecords}
-                  onPageChange={(p) => fetchProducts(p, productSearch, productStatusFilter, productCategoryFilter)}
-                  isLoading={loading}
-                />
+                {/* Tablet Segmented Pager - Hidden if no items or only 1 page */}
+                {!isCatalogCompletelyEmpty && productTotalPages > 1 && products.length > 0 && (
+                  <TabletSegmentedPagination
+                    currentPage={productPage}
+                    totalPages={productTotalPages}
+                    totalRecords={productTotalRecords}
+                    onPageChange={(p) =>
+                      fetchProducts(
+                        p,
+                        debouncedProductSearch,
+                        productStatusFilter,
+                        productCategoryFilter,
+                        productTypeFilter,
+                        productSortFilter,
+                        productStockFilter
+                      )
+                    }
+                    isLoading={loading}
+                  />
+                )}
               </div>
             }
             detailPane={
               (selectedProductId !== null || !isNarrowScreen) ? (() => {
                 const activeTypeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === productForm.product_type) || CATALOG_TYPE_OPTIONS[0];
                 const ActiveTypeIcon = activeTypeDef.icon;
+                const typeConfig = getItemTypeFormConfig((productForm.product_type || 'physical') as ItemCategoryType);
+                const validPhotoCount = productPhotos.filter(p => p && p.trim() !== '').length;
 
                 const shouldShowStep1 = isSelectingProductType || (selectedProductId === 'new' && !productForm.product_type) || (selectedProductId === null && !isNarrowScreen);
 
@@ -2410,15 +4299,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         type="button"
                         id="btn-ganti-tipe"
                         data-testid="btn-ganti-tipe"
-                        onClick={() => {
-                          setIsSelectingProductType(true);
-                          try {
-                            const url = new URL(window.location.href);
-                            url.searchParams.delete('type');
-                            url.searchParams.delete('catalog_type');
-                            window.history.pushState({}, '', url.toString());
-                          } catch {}
-                        }}
+                        onClick={handleBackToTypeSelection}
                         style={{
                           minHeight: '36px',
                           padding: '0.4rem 0.85rem',
@@ -2449,42 +4330,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       borderBottom: '1px solid var(--border-light)',
                       paddingBottom: '1rem',
                       flexWrap: 'wrap',
-                      gap: '0.5rem'
+                      gap: '0.75rem'
                     }}>
                       <div>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
-                          {selectedProductId === 'new' ? 'Tambah Produk Baru' : 'Edit Detail Produk'}
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                          {typeConfig.modalTitle(selectedProductId === 'new' ? 'create' : 'edit')}
                         </h3>
                         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                          Lengkapi foto, atribut spesifik, serta batas pemesanan produk
+                          {typeConfig.modalSubtitle}
                         </p>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        {/* Active Toggle Switch */}
-                        <button
-                          type="button"
-                          onClick={() => setProductForm(p => ({ ...p, is_active: !p.is_active }))}
-                          style={{
-                            minHeight: '38px',
-                            padding: '0.4rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: productForm.is_active ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                            color: productForm.is_active ? '#10b981' : '#ef4444',
-                            fontWeight: 700,
-                            fontSize: '0.82rem',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {productForm.is_active ? <Eye size={15} /> : <EyeOff size={15} />}
-                          {productForm.is_active ? 'Status: Aktif di Etalase' : 'Status: Diarsipkan'}
-                        </button>
-
-                        {selectedProductId !== 'new' && (
+                      {selectedProductId !== 'new' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <button
                             id="btn-hapus-produk"
                             data-testid="btn-hapus-produk"
@@ -2508,90 +4366,22 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             <Trash2 size={15} />
                             Hapus
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Basic Information Grid */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Nama Produk *
+                          {typeConfig.nameLabel}
                         </label>
                         <input
                           type="text"
                           required
                           value={productForm.name}
                           onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                          placeholder="Contoh: Kucing Persia Peaknose"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Harga Satuan Dasar (Rp) *
-                        </label>
-                        <input
-                          type="number"
-                          required
-                          min="0"
-                          value={productForm.price}
-                          onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
-                          placeholder="0"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Kategori Produk
-                        </label>
-                        <select
-                          value={productForm.category_id}
-                          onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        >
-                          <option value="">Pilih Kategori...</option>
-                          {categories.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Format Spesialisasi
-                        </label>
-                        <div
-                          onClick={() => setIsSelectingProductType(true)}
+                          placeholder={typeConfig.namePlaceholder}
                           style={{
                             width: '100%',
                             minHeight: '42px',
@@ -2599,150 +4389,379 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             borderRadius: '0.5rem',
                             backgroundColor: 'var(--bg-deep)',
                             border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            cursor: 'pointer'
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
                           }}
-                          title="Klik untuk mengubah tipe katalog"
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <ActiveTypeIcon size={16} color={activeTypeDef.color} />
-                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                              {activeTypeDef.name}
-                            </span>
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: activeTypeDef.color }}>
-                            Ubah
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                          {typeConfig.priceLabel}
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{
+                            position: 'absolute',
+                            left: '0.85rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontSize: '0.84rem',
+                            fontWeight: 700,
+                            color: 'var(--text-secondary)'
+                          }}>
+                            Rp
                           </span>
+                          <input
+                            type="text"
+                            required
+                            value={formatRupiahInput(productForm.price)}
+                            onChange={(e) => setProductForm({ ...productForm, price: parseRupiahInput(e.target.value) })}
+                            placeholder={typeConfig.pricePlaceholder}
+                            style={{
+                              width: '100%',
+                              minHeight: '42px',
+                              padding: '0.55rem 0.85rem 0.55rem 2.4rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.88rem',
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                          />
                         </div>
                       </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Jumlah Stok
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={productForm.stock}
-                          onChange={(e) => setProductForm({ ...productForm, stock: Number(e.target.value) })}
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
+                      <div style={{ gridColumn: showCustomClassInput ? '1 / -1' : 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                            {typeConfig.categoryLabel}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = !showCustomClassInput;
+                              setShowCustomClassInput(next);
+                              if (!next) setCustomClass('');
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: '0.2rem 0.4rem',
+                              color: 'var(--primary)',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {showCustomClassInput ? (
+                              <>
+                                <RotateCcw size={13} />
+                                <span>Pilih dari Daftar</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={13} strokeWidth={2.5} />
+                                <span>Buat Kategori Baru</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {showCustomClassInput ? (
+                          <div style={{
+                            padding: '1rem 1.15rem',
+                            borderRadius: '0.75rem',
                             backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
+                            border: '1.5px solid var(--primary)',
+                            boxShadow: '0 4px 14px var(--primary-glow)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.75rem',
+                            width: '100%',
+                            boxSizing: 'border-box'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                <Tag size={15} color="var(--primary)" />
+                                <span>Buat Kategori Kustom Baru ({activeTypeDef.name})</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowCustomClassInput(false);
+                                  setCustomClass('');
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  padding: '0.25rem 0.5rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  fontSize: '0.76rem',
+                                  fontWeight: 600
+                                }}
+                              >
+                                <X size={14} />
+                                <span>Batal</span>
+                              </button>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <input
+                                type="text"
+                                placeholder={`Ketik nama kategori baru untuk ${activeTypeDef.name}...`}
+                                value={customClass}
+                                onChange={(e) => {
+                                  setCustomClass(e.target.value);
+                                  setProductForm(p => ({ ...p, class: e.target.value }));
+                                }}
+                                autoFocus
+                                style={{
+                                  flex: '1 1 240px',
+                                  minWidth: '200px',
+                                  minHeight: '42px',
+                                  padding: '0.55rem 0.85rem',
+                                  borderRadius: '0.5rem',
+                                  backgroundColor: 'var(--bg-card)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.88rem',
+                                  outline: 'none',
+                                  boxSizing: 'border-box'
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (customClass.trim()) {
+                                      handleAddMasterOption(customClass.trim(), (productForm.product_type || 'physical') as ItemCategoryType, (val) => {
+                                        setProductForm(p => ({ ...p, class: customClass.trim() }));
+                                        setCustomClass(val);
+                                        setShowCustomClassInput(false);
+                                      });
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                disabled={!customClass.trim() || saving}
+                                onClick={async () => {
+                                  if (!customClass.trim()) return;
+                                  await handleAddMasterOption(customClass.trim(), (productForm.product_type || 'physical') as ItemCategoryType, (val) => {
+                                    setProductForm(p => ({ ...p, class: customClass.trim() }));
+                                    setCustomClass(val);
+                                    setShowCustomClassInput(false);
+                                  });
+                                }}
+                                style={{
+                                  flex: '0 0 auto',
+                                  minHeight: '42px',
+                                  padding: '0 1.25rem',
+                                  borderRadius: '0.5rem',
+                                  backgroundColor: 'var(--primary)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontWeight: 700,
+                                  fontSize: '0.82rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.45rem',
+                                  cursor: !customClass.trim() ? 'not-allowed' : 'pointer',
+                                  opacity: !customClass.trim() ? 0.6 : 1,
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                <Check size={14} strokeWidth={2.5} />
+                                <span>Simpan & Gunakan</span>
+                              </button>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                              <Sparkles size={12} color="var(--primary)" />
+                              <span>Kategori ini akan otomatis tersimpan ke daftar master toko dan dapat Anda gunakan kembali nanti.</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <TabletCustomSelect
+                            value={
+                              (productForm.class && getCategoryOptionsForType(productForm.product_type).includes(productForm.class))
+                                ? productForm.class
+                                : getDefaultCategoryForType(productForm.product_type)
+                            }
+                            onChange={(val) => {
+                              if (val === '__ADD_NEW__') {
+                                setShowCustomClassInput(true);
+                                setCustomClass('');
+                              } else {
+                                setProductForm(p => ({ ...p, class: val }));
+                              }
+                            }}
+                            options={[
+                              ...getCategoryOptionsForType(productForm.product_type).map(catName => {
+                                const isDefault = (DEFAULT_MASTER_CATEGORIES[productForm.product_type as ItemCategoryType] || []).includes(catName);
+                                return {
+                                  value: catName,
+                                  label: catName,
+                                  badge: isDefault ? 'Standar' : 'Kustom',
+                                  badgeBg: isDefault ? 'var(--bg-deep)' : 'rgba(30, 58, 138, 0.12)',
+                                  badgeColor: isDefault ? 'var(--text-muted)' : 'var(--primary)'
+                                };
+                              }),
+                              {
+                                value: '__ADD_NEW__',
+                                label: '+ Buat Kategori Baru (Ketik Sendiri)...',
+                                badge: 'Aksi',
+                                badgeBg: 'var(--primary-glow)',
+                                badgeColor: 'var(--primary)'
+                              }
+                            ]}
+                            placeholder={`Pilih ${typeConfig.categoryLabel.replace('*', '').trim()}...`}
+                            searchable={true}
+                            searchPlaceholder="Cari kategori..."
+                            triggerStyle={{ minHeight: '42px', fontSize: '0.88rem' }}
+                          />
+                        )}
                       </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Satuan Unit
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.unit}
-                          onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
-                          placeholder="Contoh: Pcs, Ekor, Kg, Paket"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Minimal Pemesanan
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={productForm.min_order}
-                          onChange={(e) => setProductForm({ ...productForm, min_order: Number(e.target.value) || 1 })}
-                          placeholder="1"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Maksimal Pemesanan (Opsional)
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={productForm.max_order}
-                          onChange={(e) => setProductForm({ ...productForm, max_order: e.target.value === '' ? '' : Number(e.target.value) })}
-                          placeholder="Tidak dibatasi"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
+
+                      {typeConfig.minOrderLabel && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                            {typeConfig.minOrderLabel}
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={productForm.min_order}
+                            onChange={(e) => setProductForm({ ...productForm, min_order: Number(e.target.value) || 1 })}
+                            placeholder={typeConfig.minOrderPlaceholder || '1'}
+                            style={{
+                              width: '100%',
+                              minHeight: '42px',
+                              padding: '0.55rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.88rem',
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {typeConfig.minOrderLabel && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                            {typeConfig.maxOrderLabel || 'Maksimal Pemesanan (Opsional)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={productForm.max_order}
+                            onChange={(e) => setProductForm({ ...productForm, max_order: e.target.value === '' ? '' : Number(e.target.value) })}
+                            placeholder={typeConfig.maxOrderPlaceholder || 'Tidak dibatasi'}
+                            style={{
+                              width: '100%',
+                              minHeight: '42px',
+                              padding: '0.55rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.88rem',
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Stok & Satuan (Physical, Food, Digital, Plant, Fauna) */}
+                      {productForm.product_type !== 'service' && productForm.product_type !== 'property' && (
+                        <>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                              Jumlah Stok Tersedia
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={productForm.stock}
+                              onChange={(e) => setProductForm({ ...productForm, stock: Math.max(0, parseInt(e.target.value) || 0) })}
+                              placeholder="Contoh: 10"
+                              style={{
+                                width: '100%',
+                                minHeight: '42px',
+                                padding: '0.55rem 0.85rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.88rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                              Satuan Penjualan
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.unit}
+                              onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
+                              placeholder="Contoh: Pcs / Ekor / Porsi / Pot"
+                              style={{
+                                width: '100%',
+                                minHeight: '42px',
+                                padding: '0.55rem 0.85rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.88rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
 
-                    {/* Shipping toggle */}
-                    <div style={{
-                      padding: '0.85rem 1rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}>
-                      <div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Dukungan Pengiriman / Kurir Ekspedisi</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Aktifkan jika item dapat dikirim via kurir ekspedisi</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setProductForm(p => ({ ...p, is_shipping_available: !p.is_shipping_available }))}
-                        style={{
-                          minHeight: '36px',
-                          padding: '0.35rem 0.85rem',
-                          borderRadius: '999px',
-                          border: 'none',
-                          backgroundColor: productForm.is_shipping_available ? 'var(--primary)' : 'var(--bg-card)',
-                          color: productForm.is_shipping_available ? '#ffffff' : 'var(--text-muted)',
-                          fontWeight: 700,
-                          fontSize: '0.8rem',
-                          cursor: 'pointer'
+                    {/* Status Ketersediaan Kontekstual (Universal untuk Seluruh 7 Tipe Katalog) */}
+                    <div>
+                      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
+                        <span>Status Ketersediaan &amp; Pemesanan *</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          {productForm.product_type === 'service' ? 'Ketersediaan Jadwal' : (productForm.product_type === 'property' ? 'Status Listing Unit' : (productForm.product_type === 'food' ? 'Ketersediaan Menu' : 'Status Stok'))}
+                        </span>
+                      </label>
+                      <TabletCustomSelect
+                        value={productForm.conservation_status || productForm.attributes?.conservation_status || getAvailabilityStatusOptions((productForm.product_type || 'physical') as ItemCategoryType)[0].value}
+                        onChange={(val) => {
+                          setProductForm(p => ({ ...p, conservation_status: val }));
+                          updateProductAttribute('conservation_status', val);
                         }}
-                      >
-                        {productForm.is_shipping_available ? 'Dapat Dikirim' : 'Ambil di Toko / Khusus'}
-                      </button>
+                        options={getAvailabilityStatusOptions((productForm.product_type || 'physical') as ItemCategoryType).map(opt => ({
+                          value: opt.value,
+                          label: opt.label,
+                          description: opt.desc
+                        }))}
+                      />
                     </div>
 
-                    {/* Dynamic Type-Specific Attributes Card */}
+                    {/* Dynamic Type-Specific Attributes */}
                     <div style={{
                       padding: '1.25rem',
                       borderRadius: '0.75rem',
@@ -2752,80 +4771,37 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       flexDirection: 'column',
                       gap: '1rem'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.5rem',
-                          backgroundColor: activeTypeDef.bgColor,
-                          border: `1px solid ${activeTypeDef.borderColor}`,
-                          color: activeTypeDef.color,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          <ActiveTypeIcon size={18} />
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Spesifikasi & Atribut: {activeTypeDef.name}
-                          </h4>
-                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                            {activeTypeDef.formHighlights}
-                          </span>
-                        </div>
-                      </div>
 
                       {/* 1. BARANG FISIK */}
                       {productForm.product_type === 'physical' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               Kondisi Barang *
                             </label>
-                            <select
+                            <TabletCustomSelect
                               value={productForm.attributes.condition || 'Baru'}
-                              onChange={(e) => updateProductAttribute('condition', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Baru">Baru (100% Baru & Tersegel)</option>
-                              <option value="Bekas">Bekas / Second (Pre-owned)</option>
-                              <option value="Refurbished">Refurbished (Rekondisi Resmi)</option>
-                            </select>
+                              onChange={(val) => updateProductAttribute('condition', val)}
+                              options={[
+                                { value: 'Baru', label: 'Baru', description: 'Produk dalam kondisi gres 100% baru & tersegel' },
+                                { value: 'Bekas', label: 'Bekas / Second', description: 'Produk pernah digunakan / pre-owned' },
+                                { value: 'Refurbished', label: 'Refurbished', description: 'Produk rekondisi resmi & siap pakai' }
+                              ]}
+                            />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Berat Pengiriman (Gram)
+                              Berat (Gram) *
                             </label>
                             <input
                               type="number"
                               min="0"
-                              value={productForm.attributes.weight || ''}
-                              onChange={(e) => updateProductAttribute('weight', Number(e.target.value) || 0)}
+                              value={productForm.attributes.weight ?? ''}
+                              onChange={(e) => updateProductAttribute('weight', parseInt(e.target.value) || 0)}
                               placeholder="Contoh: 500"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              required
+                              style={tabletInputStyle}
                             />
                           </div>
 
@@ -2838,40 +4814,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               value={productForm.attributes.brand || ''}
                               onChange={(e) => updateProductAttribute('brand', e.target.value)}
                               placeholder="Contoh: Nike / Asus / Custom"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Varian / Ukuran Ringkas (Opsional)
+                              Varian / Ukuran (Opsional)
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.variant || ''}
                               onChange={(e) => updateProductAttribute('variant', e.target.value)}
                               placeholder="Contoh: Hitam, Putih / S, M, L"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              style={tabletInputStyle}
                             />
                           </div>
                         </div>
@@ -2879,80 +4835,76 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
                       {/* 2. KULINER & F&B */}
                       {productForm.product_type === 'food' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
-                          <div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
+                          <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               Sertifikasi / Status Halal *
                             </label>
-                            <select
+                            <TabletCustomSelect
                               value={productForm.attributes.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)'}
-                              onChange={(e) => updateProductAttribute('halal_status', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Bersertifikat Halal Resmi (BPJPH / MUI)">Bersertifikat Halal Resmi (BPJPH / MUI)</option>
-                              <option value="Halal (Bahan Baku Halal & Thayyib)">Halal (Bahan Baku Halal & Thayyib)</option>
-                              <option value="Dalam Proses Sertifikasi Halal">Dalam Proses Sertifikasi Halal</option>
-                              <option value="Non-Halal">Non-Halal</option>
-                            </select>
+                              onChange={(val) => updateProductAttribute('halal_status', val)}
+                              options={[
+                                { value: 'Bersertifikat Halal Resmi (BPJPH / MUI)', label: 'Bersertifikat Halal Resmi (BPJPH / MUI)', description: 'Telah terverifikasi & terdaftar resmi di BPJPH/MUI' },
+                                { value: 'Halal (Bahan Baku Halal & Thayyib)', label: 'Halal (Bahan Baku Halal & Thayyib)', description: '100% menggunakan bahan baku halal, bebas babi/alkohol, bersih & higienis' },
+                                { value: 'Dalam Proses Sertifikasi Halal', label: 'Dalam Proses Sertifikasi Halal', description: 'Sedang dalam proses audit sertifikasi halal' },
+                                { value: 'Non-Halal', label: 'Non-Halal', description: 'Mengandung bahan non-halal / khusus non-muslim' }
+                              ]}
+                            />
                           </div>
 
-                          <div>
+                          <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Level Rasa / Varian Porsi (Opsional)
+                              Pilihan Varian / Level Rasa (Opsional)
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.variant || ''}
                               onChange={(e) => updateProductAttribute('variant', e.target.value)}
-                              placeholder="Contoh: Pedas Sedang, Manis Gurih / 500gr"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: Pedas Sedang, Ekstra Pedas / 500gr"
+                              style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Suhu Penyimpanan
+                              Porsi / Takaran Saji
                             </label>
-                            <select
-                              value={productForm.attributes.storage_temp || 'Suhu Ruang (Kering & Sejuk)'}
-                              onChange={(e) => updateProductAttribute('storage_temp', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Suhu Ruang (Kering & Sejuk)">Suhu Ruang (Kering & Sejuk)</option>
-                              <option value="Chiller / Lemari Pendingin (2°C - 8°C)">Chiller / Dingin (2°C - 8°C)</option>
-                              <option value="Freezer / Beku (-18°C)">Freezer / Beku (-18°C)</option>
-                              <option value="Hangat / Siap Santap">Hangat / Siap Santap Langsung</option>
-                            </select>
+                            <input
+                              type="text"
+                              value={productForm.attributes.portion_size || ''}
+                              onChange={(e) => updateProductAttribute('portion_size', e.target.value)}
+                              placeholder="Contoh: 1 Porsi / 2-3 Orang / 500ml"
+                              style={tabletInputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Waktu Penyajian / Pre-Order
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.prep_time || ''}
+                              onChange={(e) => updateProductAttribute('prep_time', e.target.value)}
+                              placeholder="Contoh: 15-20 Menit / PO 1 Hari"
+                              style={tabletInputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Suhu / Cara Penyimpanan
+                            </label>
+                            <TabletCustomSelect
+                              value={productForm.attributes.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (productForm.attributes.storage_temp === 'Hangat / Siap Santap' ? 'Hangat' : (productForm.attributes.storage_temp || 'Suhu Ruang'))}
+                              onChange={(val) => updateProductAttribute('storage_temp', val)}
+                              options={[
+                                { value: 'Suhu Ruang', label: 'Suhu Ruang (Kering & Sejuk)' },
+                                { value: 'Chiller (2°C - 8°C)', label: 'Dingin (Kulkas / Chiller 2-8°C)' },
+                                { value: 'Freezer (-18°C)', label: 'Beku (Freezer -18°C)' },
+                                { value: 'Hangat', label: 'Hangat (Warmer / Siap Santap)' }
+                              ]}
+                            />
                           </div>
 
                           <div>
@@ -2963,18 +4915,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               type="text"
                               value={productForm.attributes.expired_info || ''}
                               onChange={(e) => updateProductAttribute('expired_info', e.target.value)}
-                              placeholder="Contoh: Fresh Daily / 3 Hari Chiller / 3 Bulan Freezer"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: 3 Hari Suhu Ruang / 1 Bulan Freezer"
+                              style={tabletInputStyle}
                             />
                           </div>
                         </div>
@@ -2982,152 +4924,96 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
                       {/* 3. ITEM DIGITAL */}
                       {productForm.product_type === 'digital' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Format Berkas / File *
+                              Format File *
                             </label>
                             <input
                               type="text"
+                              required
                               value={productForm.attributes.file_format || ''}
                               onChange={(e) => updateProductAttribute('file_format', e.target.value)}
-                              placeholder="Contoh: PDF / EPUB / ZIP / Figma"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: PDF / EPUB / ZIP"
+                              style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Ukuran Berkas File
+                              Ukuran File *
                             </label>
                             <input
                               type="text"
+                              required
                               value={productForm.attributes.file_size || ''}
                               onChange={(e) => updateProductAttribute('file_size', e.target.value)}
-                              placeholder="Contoh: 15 MB / 250 MB"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: 15 MB"
+                              style={tabletInputStyle}
                             />
                           </div>
 
-                          <div>
+                          <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Tipe Lisensi Digital *
+                              Tipe Lisensi *
                             </label>
-                            <select
+                            <TabletCustomSelect
                               value={productForm.attributes.license_type || 'Lisensi Personal'}
-                              onChange={(e) => updateProductAttribute('license_type', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Lisensi Personal">Lisensi Personal (Pemakaian Pribadi)</option>
-                              <option value="Lisensi Komersial">Lisensi Komersial (Bisnis & Komersial)</option>
-                              <option value="Extended License / Resale Rights">Extended License / Resale Rights (Boleh Dijual Ulang)</option>
-                              <option value="Open Source / Bebas">Open Source / Bebas Royalti</option>
-                            </select>
+                              onChange={(val) => updateProductAttribute('license_type', val)}
+                              options={[
+                                { value: 'Lisensi Personal', label: 'Lisensi Personal', description: 'Hanya untuk pemakaian individu non-komersial' },
+                                { value: 'Lisensi Komersial', label: 'Lisensi Komersial', description: 'Boleh digunakan untuk bisnis & proyek berbayar' },
+                                { value: 'Resale Rights', label: 'Extended License / Resale Rights', description: 'Hak cipta diperluas / dapat dijual kembali' },
+                                { value: 'Open Source', label: 'Open Source / Bebas', description: 'Bebas digunakan tanpa batasan royalti' }
+                              ]}
+                            />
                           </div>
                         </div>
                       )}
 
                       {/* 4. JASA & LAYANAN */}
                       {productForm.product_type === 'service' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Estimasi Durasi Layanan *
+                              Durasi Layanan *
                             </label>
                             <input
                               type="text"
+                              required
                               value={productForm.attributes.duration || ''}
                               onChange={(e) => updateProductAttribute('duration', e.target.value)}
-                              placeholder="Contoh: 1 Jam / 1 Sesi / 2 Hari Kerja"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: 1 Sesi / 1 Jam / 1 Hari"
+                              style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Metode Pelaksanaan Layanan *
+                              Metode Layanan *
                             </label>
-                            <select
-                              value={productForm.attributes.service_location || 'Datang ke Toko / Workshop'}
-                              onChange={(e) => updateProductAttribute('service_location', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Datang ke Toko / Workshop">Datang ke Toko / Workshop</option>
-                              <option value="Home Visit (Kunjungan ke Rumah)">Home Visit (Kunjungan ke Rumah)</option>
-                              <option value="Online / Jarak Jauh">Online / Jarak Jauh</option>
-                            </select>
+                            <TabletCustomSelect
+                              value={productForm.attributes.service_location || 'Datang ke Toko'}
+                              onChange={(val) => updateProductAttribute('service_location', val)}
+                              options={[
+                                { value: 'Datang ke Toko', label: 'Datang ke Toko', description: 'Klien datang langsung ke outlet / workshop' },
+                                { value: 'Home Visit (Ke Rumah)', label: 'Home Visit (Ke Rumah)', description: 'Penyedia jasa datang ke lokasi / rumah klien' },
+                                { value: 'Online', label: 'Online / Jarak Jauh', description: 'Layanan digital via internet / remote' }
+                              ]}
+                            />
                           </div>
 
                           <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Area Jangkauan Layanan *
+                              Area Jangkauan *
                             </label>
                             <input
                               type="text"
+                              required
                               value={productForm.attributes.service_area || ''}
                               onChange={(e) => updateProductAttribute('service_area', e.target.value)}
-                              placeholder="Contoh: Jabodetabek / Kota Bandung / Seluruh Indonesia"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: Jabodetabek / Bandung Kota / Seluruh Indonesia"
+                              style={tabletInputStyle}
                             />
                           </div>
                         </div>
@@ -3135,365 +5021,241 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
                       {/* 5. TANAMAN & BIBIT */}
                       {productForm.product_type === 'plant' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                           <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               Nama Ilmiah / Botani (Latin) <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Opsional)</span>
                             </label>
                             <input
                               type="text"
-                              value={productForm.scientific_name || ''}
+                              value={productForm.scientific_name || productForm.attributes.scientific_name || ''}
                               onChange={(e) => {
                                 const v = e.target.value;
                                 setProductForm(p => ({ ...p, scientific_name: v, attributes: { ...(p.attributes || {}), scientific_name: v } }));
                               }}
                               placeholder="Contoh: Monstera deliciosa, Sansevieria..."
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                fontStyle: 'italic',
-                                outline: 'none'
-                              }}
+                              style={{ ...tabletInputStyle, fontStyle: 'italic' }}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              <Sun size={13} style={{ color: '#f59e0b' }} />
-                              <span>Kebutuhan Cahaya *</span>
+                              <Sun size={14} style={{ color: '#f59e0b' }} />
+                              <span>Cahaya *</span>
                             </label>
-                            <select
-                              value={productForm.attributes.sunlight || 'Partial Sun (Teduh Terang / Naungan Paranet)'}
-                              onChange={(e) => updateProductAttribute('sunlight', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Full Sun (Matahari Langsung 6+ Jam)">Full Sun (Matahari Langsung 6+ Jam)</option>
-                              <option value="Partial Sun (Teduh Terang / Naungan Paranet)">Partial Sun (Teduh Terang)</option>
-                              <option value="Low Light / Indoor (Cahaya Rendah Ruangan)">Low Light / Indoor (Cahaya Rendah)</option>
-                              <option value="Fleksibel (Indoor / Outdoor)">Fleksibel (Indoor / Outdoor)</option>
-                            </select>
+                            <TabletCustomSelect
+                              value={productForm.attributes.sunlight || 'Partial Sun (Teduh Terang)'}
+                              onChange={(val) => updateProductAttribute('sunlight', val)}
+                              options={[
+                                { value: 'Full Sun (Matahari Langsung)', label: 'Full Sun (Matahari Langsung)', description: 'Butuh 6+ jam sinar matahari langsung per hari' },
+                                { value: 'Partial Sun (Teduh Terang)', label: 'Partial Sun (Teduh Terang)', description: 'Cahaya terang tidak langsung / naungan paranet' },
+                                { value: 'Low Light / Indoor (Cahaya Rendah)', label: 'Low Light / Indoor', description: 'Cocok dalam ruangan dengan pencahayaan minim' },
+                                { value: 'Fleksibel (Indoor / Outdoor)', label: 'Fleksibel (Indoor/Outdoor)', description: 'Bisa beradaptasi di dalam maupun luar ruangan' }
+                              ]}
+                            />
                           </div>
 
                           <div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              <Droplets size={13} style={{ color: '#0ea5e9' }} />
-                              <span>Frekuensi Penyiraman *</span>
+                              <Droplets size={14} style={{ color: '#0ea5e9' }} />
+                              <span>Penyiraman *</span>
                             </label>
-                            <select
+                            <TabletCustomSelect
                               value={productForm.attributes.watering || 'Sedang (2-3 Hari Sekali)'}
-                              onChange={(e) => updateProductAttribute('watering', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Banyak (Rutin Setiap Hari)">Banyak (Rutin Setiap Hari)</option>
-                              <option value="Sedang (2-3 Hari Sekali)">Sedang (2-3 Hari Sekali)</option>
-                              <option value="Sedikit (1-2 Minggu Sekali / Sukulen)">Sedikit (1-2 Minggu Sekali / Sukulen)</option>
-                              <option value="Khusus / Hidroponik & Tanaman Air">Khusus / Hidroponik & Air</option>
-                            </select>
+                              onChange={(val) => updateProductAttribute('watering', val)}
+                              options={[
+                                { value: 'Banyak (Setiap Hari)', label: 'Banyak (Setiap Hari)', description: 'Media harus selalu lembab & rutin disiram' },
+                                { value: 'Sedang (2-3 Hari Sekali)', label: 'Sedang (2-3 Hari Sekali)', description: 'Siram saat media tanam mulai agak kering' },
+                                { value: 'Sedikit (1-2 Minggu Sekali / Sukulen & Kaktus)', label: 'Sedikit (1-2 Minggu Sekali)', description: 'Tahan kering, sukulen, kaktus, sansiviera' },
+                                { value: 'Khusus / Tanaman Air', label: 'Khusus / Hidroponik & Air', description: 'Aquascape atau media terendam air' }
+                              ]}
+                            />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Media Tanam
+                              Media Tanam *
                             </label>
                             <input
                               type="text"
+                              required
                               value={productForm.attributes.planting_medium || ''}
                               onChange={(e) => updateProductAttribute('planting_medium', e.target.value)}
-                              placeholder="Contoh: Sekam Bakar, Pasir Malang, Humus"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: Sekam Bakar, Humus"
+                              style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Ukuran / Tinggi Tanaman
+                              Ukuran / Tinggi
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.plant_size || ''}
                               onChange={(e) => updateProductAttribute('plant_size', e.target.value)}
-                              placeholder="Contoh: Tinggi 25-35 cm, Pot D15"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: 25-35 cm, Pot D15"
+                              style={tabletInputStyle}
                             />
                           </div>
 
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Status Legalitas Bibit *
+                          <div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              <ShieldCheck size={14} style={{ color: '#10b981' }} />
+                              <span>Legalitas Bibit *</span>
                             </label>
-                            <select
-                              value={productForm.attributes.protection_status || 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)'}
-                              onChange={(e) => updateProductAttribute('protection_status', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Non-Dilindungi (Aman & Bebas Diperjualbelikan)">Non-Dilindungi (Aman & Bebas Diperjualbelikan)</option>
-                              <option value="Hasil Budidaya Nursery Resmi">Hasil Budidaya Nursery Resmi</option>
-                              <option value="Dilindungi (Wajib Izin Khusus / CITES)">Dilindungi (Wajib Izin Khusus / CITES)</option>
-                            </select>
+                            <TabletCustomSelect
+                              value={productForm.attributes.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)'}
+                              onChange={(val) => updateProductAttribute('protection_status', val)}
+                              options={[
+                                { value: 'Non-Dilindungi (Aman Diperjualbelikan)', label: 'Non-Dilindungi (Aman & Bebas)', description: 'Tanaman umum bebas izin diperjualbelikan' },
+                                { value: 'Hasil Budidaya Nursery', label: 'Hasil Budidaya Nursery Resmi', description: 'Perbanyakan legal dari kebun/nursery bersertifikat' },
+                                { value: 'Dilindungi (Sertifikasi/Izin Khusus)', label: 'Dilindungi (Izin Khusus/CITES)', description: 'Wajib sertifikasi BKSDA / CITES resmi' }
+                              ]}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              <Package size={14} style={{ color: '#8b5cf6' }} />
+                              <span>Kondisi Kirim *</span>
+                            </label>
+                            <TabletCustomSelect
+                              value={productForm.attributes.delivery_condition || 'Kirim Bersama Pot & Media Tanam'}
+                              onChange={(val) => updateProductAttribute('delivery_condition', val)}
+                              options={[
+                                { value: 'Kirim Bersama Pot & Media Tanam', label: 'Dengan Pot & Media Tanam', description: 'Tanaman aman dan siap langsung dipajang' },
+                                { value: 'Kirim Bare Root (Tanpa Pot/Media Dikurangi)', label: 'Bare Root (Hemat Ongkir)', description: 'Akar dibungkus cocopeat lembab rapi' },
+                                { value: 'Kirim Polybag', label: 'Polybag (Bibit)', description: 'Kemasan polybag bibit kebun hemat tempat' },
+                                { value: 'Khusus Kurir Instan / Sameday', label: 'Khusus Kurir Instan / Sameday', description: 'Siap pajang, tanpa risiko rusak di perjalanan' }
+                              ]}
+                            />
                           </div>
                         </div>
                       )}
 
                       {/* 6. SATWA PELIHARAAN */}
                       {productForm.product_type === 'fauna' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                           <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Nama Ilmiah / Taksonomi (Latin) <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Opsional)</span>
+                              Nama Ilmiah / Taksonomi (Latin)
                             </label>
                             <input
                               type="text"
-                              value={productForm.scientific_name || ''}
+                              value={productForm.scientific_name || productForm.attributes.scientific_name || ''}
                               onChange={(e) => {
                                 const v = e.target.value;
                                 setProductForm(p => ({ ...p, scientific_name: v, attributes: { ...(p.attributes || {}), scientific_name: v } }));
                               }}
-                              placeholder="Contoh: Scleropages formosus, Felis catus..."
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                fontStyle: 'italic',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: Scleropages formosus..."
+                              style={{ ...tabletInputStyle, fontStyle: 'italic' }}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Habitat Asli
+                              Habitat Asli *
                             </label>
                             <input
                               type="text"
+                              required
                               value={productForm.attributes.habitat || ''}
                               onChange={(e) => updateProductAttribute('habitat', e.target.value)}
-                              placeholder="Contoh: Air Tawar / Darat / Hutan Hujan"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: Air Tawar / Darat"
+                              style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Makanan / Diet
+                              Makanan / Diet *
                             </label>
                             <input
                               type="text"
+                              required
                               value={productForm.attributes.diet || ''}
                               onChange={(e) => updateProductAttribute('diet', e.target.value)}
-                              placeholder="Contoh: Pelet / Karnivora / Omnivora"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: Pelet / Karnivora"
+                              style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Asal Wilayah Persebaran
+                              Asal Wilayah
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.native_region || ''}
                               onChange={(e) => updateProductAttribute('native_region', e.target.value)}
-                              placeholder="Contoh: Kalimantan / Amerika Selatan"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Kalimantan..."
+                              style={tabletInputStyle}
                             />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Estimasi Masa Hidup
+                              Masa Hidup
                             </label>
                             <input
                               type="text"
                               value={productForm.attributes.lifespan || ''}
                               onChange={(e) => updateProductAttribute('lifespan', e.target.value)}
-                              placeholder="Contoh: 5 - 8 Tahun"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="10 tahun..."
+                              style={tabletInputStyle}
                             />
                           </div>
 
-                          <div style={{ gridColumn: '1 / -1' }}>
+                          <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                              Status Ketersediaan *
+                              Bobot
                             </label>
-                            <select
-                              value={productForm.attributes.conservation_status || 'Tersedia (Ready Stock)'}
-                              onChange={(e) => updateProductAttribute('conservation_status', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Tersedia (Ready Stock)">Tersedia (Ready Stock / Siap Adopsi)</option>
-                              <option value="Pre-Order (PO)">Pre-Order (PO / Inden Khusus)</option>
-                              <option value="Koleksi / Display Showcase">Koleksi / Display Showcase (Tanya Penjual)</option>
-                              <option value="Habis Terjual (Sold Out)">Habis Terjual (Sold Out)</option>
-                            </select>
+                            <input
+                              type="text"
+                              value={productForm.attributes.weight || ''}
+                              onChange={(e) => updateProductAttribute('weight', e.target.value)}
+                              placeholder="1 kg..."
+                              style={tabletInputStyle}
+                            />
                           </div>
                         </div>
                       )}
 
                       {/* 7. PROPERTI & REAL ESTATE */}
                       {productForm.product_type === 'property' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               Tipe Transaksi *
                             </label>
-                            <select
-                              value={productForm.attributes.transaction_type || 'Dijual (Jual Putus)'}
-                              onChange={(e) => updateProductAttribute('transaction_type', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Dijual (Jual Putus)">Dijual (Jual Putus)</option>
-                              <option value="Disewakan (Tahunan)">Disewakan (Tahunan)</option>
-                              <option value="Disewakan (Bulanan)">Disewakan (Bulanan)</option>
-                            </select>
+                            <TabletCustomSelect
+                              value={productForm.attributes.transaction_type || 'Dijual'}
+                              onChange={(val) => updateProductAttribute('transaction_type', val)}
+                              options={[
+                                { value: 'Dijual', label: 'Dijual (Jual Putus)', description: 'Pengalihan hak milik properti secara penuh' },
+                                { value: 'Disewakan (Tahunan)', label: 'Disewakan (Tahunan)', description: 'Sewa kontrak dengan termin per tahun' },
+                                { value: 'Disewakan (Bulanan)', label: 'Disewakan (Bulanan)', description: 'Sewa fleksibel dengan pembayaran per bulan' }
+                              ]}
+                            />
                           </div>
 
                           <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               Legalitas / Sertifikat *
                             </label>
-                            <select
+                            <TabletCustomSelect
                               value={productForm.attributes.certificate || 'SHM (Sertifikat Hak Milik)'}
-                              onChange={(e) => updateProductAttribute('certificate', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="SHM (Sertifikat Hak Milik)">SHM (Sertifikat Hak Milik)</option>
-                              <option value="HGB (Hak Guna Bangunan)">HGB (Hak Guna Bangunan)</option>
-                              <option value="Strata Title / SHMRS">Strata Title / SHMRS (Apartemen)</option>
-                              <option value="AJB (Akta Jual Beli)">AJB (Akta Jual Beli)</option>
-                              <option value="Girik / Letter C">Girik / Letter C</option>
-                              <option value="Lainnya">Lainnya</option>
-                            </select>
+                              onChange={(val) => updateProductAttribute('certificate', val)}
+                              options={[
+                                { value: 'SHM (Sertifikat Hak Milik)', label: 'SHM (Sertifikat Hak Milik)', description: 'Tingkat kepemilikan terkuat & tertinggi' },
+                                { value: 'HGB (Hak Guna Bangunan)', label: 'HGB (Hak Guna Bangunan)', description: 'Hak mendirikan bangunan di atas tanah' },
+                                { value: 'Strata Title / SHMRS', label: 'Strata Title / SHMRS', description: 'Kepemilikan unit apartemen / kondominium' },
+                                { value: 'AJB (Akta Jual Beli)', label: 'AJB (Akta Jual Beli)', description: 'Bukti sah transaksi di hadapan PPAT' },
+                                { value: 'Girik / Letter C', label: 'Girik / Letter C', description: 'Surat keterangan tanah adat / warisan' },
+                                { value: 'Lainnya', label: 'Lainnya', description: 'Status legalitas atau dokumen khusus' }
+                              ]}
+                            />
                           </div>
 
                           <div>
@@ -3502,20 +5264,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             </label>
                             <input
                               type="text"
+                              required
                               value={productForm.attributes.land_area || ''}
                               onChange={(e) => updateProductAttribute('land_area', e.target.value)}
                               placeholder="Contoh: 120"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              style={tabletInputStyle}
                             />
                           </div>
 
@@ -3527,18 +5280,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               type="text"
                               value={productForm.attributes.building_area || ''}
                               onChange={(e) => updateProductAttribute('building_area', e.target.value)}
-                              placeholder="Contoh: 90 (0 jika tanah kavling)"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              placeholder="Contoh: 90 (0 jika tanah)"
+                              style={tabletInputStyle}
                             />
                           </div>
 
@@ -3550,19 +5293,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               type="number"
                               min="0"
                               value={productForm.attributes.bedrooms ?? ''}
-                              onChange={(e) => updateProductAttribute('bedrooms', Number(e.target.value) || 0)}
+                              onChange={(e) => updateProductAttribute('bedrooms', parseInt(e.target.value) || 0)}
                               placeholder="Contoh: 3"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              style={tabletInputStyle}
                             />
                           </div>
 
@@ -3574,19 +5307,61 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               type="number"
                               min="0"
                               value={productForm.attributes.bathrooms ?? ''}
-                              onChange={(e) => updateProductAttribute('bathrooms', Number(e.target.value) || 0)}
+                              onChange={(e) => updateProductAttribute('bathrooms', parseInt(e.target.value) || 0)}
                               placeholder="Contoh: 2"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              style={tabletInputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Jumlah Lantai
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.floors || ''}
+                              onChange={(e) => updateProductAttribute('floors', e.target.value)}
+                              placeholder="Contoh: 2 Lantai"
+                              style={tabletInputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Kapasitas Carport
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.carport || ''}
+                              onChange={(e) => updateProductAttribute('carport', e.target.value)}
+                              placeholder="Contoh: 2 Mobil"
+                              style={tabletInputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Daya Listrik
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.electricity || ''}
+                              onChange={(e) => updateProductAttribute('electricity', e.target.value)}
+                              placeholder="Contoh: 2200 VA"
+                              style={tabletInputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Sumber Air
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.attributes.water_source || ''}
+                              onChange={(e) => updateProductAttribute('water_source', e.target.value)}
+                              placeholder="Contoh: PDAM / Sumur Bor"
+                              style={tabletInputStyle}
                             />
                           </div>
 
@@ -3594,437 +5369,712 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               Kondisi Perabotan
                             </label>
-                            <select
+                            <TabletCustomSelect
                               value={productForm.attributes.furnishing || 'Semi-Furnished'}
-                              onChange={(e) => updateProductAttribute('furnishing', e.target.value)}
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="Unfurnished (Kosong)">Unfurnished (Kosong)</option>
-                              <option value="Semi-Furnished">Semi-Furnished</option>
-                              <option value="Fully Furnished (Lengkap)">Fully Furnished (Lengkap Siap Huni)</option>
-                            </select>
+                              onChange={(val) => updateProductAttribute('furnishing', val)}
+                              options={[
+                                { value: 'Unfurnished (Kosong)', label: 'Unfurnished (Kosong)', description: 'Unit kosong siap diisi perabot sendiri' },
+                                { value: 'Semi-Furnished', label: 'Semi-Furnished', description: 'Sudah ada beberapa perabot utama (AC, Kitchen Set)' },
+                                { value: 'Fully Furnished (Lengkap)', label: 'Fully Furnished (Lengkap)', description: 'Unit lengkap siap huni / tinggal bawa koper' }
+                              ]}
+                            />
                           </div>
 
                           <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                              Arah Hadap
+                            </label>
+                            <TabletCustomSelect
+                              value={productForm.attributes.facing || 'Timur'}
+                              onChange={(val) => updateProductAttribute('facing', val)}
+                              options={[
+                                { value: 'Utara', label: 'Utara' },
+                                { value: 'Selatan', label: 'Selatan' },
+                                { value: 'Timur', label: 'Timur (Matahari Pagi)' },
+                                { value: 'Barat', label: 'Barat' },
+                                { value: 'Timur Laut', label: 'Timur Laut' },
+                                { value: 'Tenggara', label: 'Tenggara' },
+                                { value: 'Barat Daya', label: 'Barat Daya' },
+                                { value: 'Barat Laut', label: 'Barat Laut' },
+                                { value: 'Bebas / Fleksibel', label: 'Bebas / Fleksibel' }
+                              ]}
+                            />
+                          </div>
+
+                          <div style={{ gridColumn: '1 / -1' }}>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                               Lokasi / Wilayah Properti *
                             </label>
                             <input
                               type="text"
+                              required
                               value={productForm.attributes.property_location || ''}
                               onChange={(e) => updateProductAttribute('property_location', e.target.value)}
                               placeholder="Contoh: BSD City, Serpong, Tangerang Selatan"
-                              style={{
-                                width: '100%',
-                                minHeight: '40px',
-                                padding: '0.55rem 0.8rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.85rem',
-                                outline: 'none'
-                              }}
+                              style={tabletInputStyle}
                             />
                           </div>
                         </div>
                       )}
                     </div>
 
-                  {/* Primary Photo with Direct Upload */}
+                  {/* 1-10 Photos Manager */}
                   <div style={{
                     padding: '1.25rem',
                     borderRadius: '0.75rem',
                     backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem'
                   }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                      Foto Utama Produk
-                    </label>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-                      <div style={{
-                        width: '90px',
-                        height: '90px',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px solid var(--border-light)',
-                        overflow: 'hidden',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        {productForm.image_url ? (
-                          <img src={productForm.image_url} alt="Foto Utama" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <ImageIcon size={32} color="var(--text-muted)" />
-                        )}
-                      </div>
-
-                      <div style={{ flex: 1, minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <input
-                          type="text"
-                          value={productForm.image_url}
-                          onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
-                          placeholder="https://domain.com/foto-produk.jpg"
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-card)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.85rem',
-                            outline: 'none'
-                          }}
-                        />
-
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            ref={mainImageInputRef}
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const url = await handleUploadImage(file, 'products');
-                                if (url) setProductForm(p => ({ ...p, image_url: url }));
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => mainImageInputRef.current?.click()}
-                            style={{
-                              minHeight: '40px',
-                              padding: '0.5rem 1rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--primary)',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontSize: '0.82rem',
-                              fontWeight: 700,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.4rem',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <Upload size={15} />
-                            Unggah Foto Tablet
-                          </button>
-                          {productForm.image_url && (
-                            <button
-                              type="button"
-                              onClick={() => setProductForm(p => ({ ...p, image_url: '' }))}
-                              style={{
-                                minHeight: '40px',
-                                padding: '0.5rem 0.85rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'transparent',
-                                border: '1px solid var(--border-light)',
-                                color: '#ef4444',
-                                fontSize: '0.82rem',
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Hapus Foto
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Multiple Gallery Images */}
-                  <div style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                       <div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700 }}>Foto Tambahan Galeri (Maksimal 5)</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tambahkan sudut pandang lain dari produk Anda</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                          <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                            {typeConfig.photoLabel}
+                          </h4>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '0.12rem 0.55rem',
+                            borderRadius: '999px',
+                            backgroundColor: validPhotoCount > 0 ? 'var(--primary-glow)' : 'var(--bg-card)',
+                            color: validPhotoCount > 0 ? 'var(--primary)' : 'var(--text-secondary)',
+                            border: '1px solid var(--border-light)'
+                          }}>
+                            {validPhotoCount} / 10 Foto
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                          {typeConfig.photoHelper}
+                        </p>
                       </div>
 
-                      {productForm.gallery_images.length < 5 && (
-                        <div>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            ref={galleryImageInputRef}
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const url = await handleUploadImage(file, 'products');
-                                if (url) handleAddGalleryImage(url);
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => galleryImageInputRef.current?.click()}
+                      {productPhotos.length < 10 && (
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <label
                             style={{
                               minHeight: '38px',
                               padding: '0.4rem 0.85rem',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
                               borderRadius: '0.5rem',
                               backgroundColor: 'var(--bg-card)',
                               border: '1px solid var(--border-light)',
                               color: 'var(--text-primary)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              cursor: isBatchUploading ? 'not-allowed' : 'pointer',
+                              opacity: isBatchUploading ? 0.7 : 1
+                            }}
+                            title="Unggah banyak foto sekaligus dari perangkat tablet"
+                          >
+                            {isBatchUploading ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
+                            <span>{isBatchUploading ? 'Mengunggah...' : 'Upload Sekaligus'}</span>
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              disabled={isBatchUploading}
+                              style={{ display: 'none' }}
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files.length > 0) {
+                                  handleBatchPhotoUpload(e.target.files);
+                                  e.target.value = '';
+                                }
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleAddPhotoRow}
+                            style={{
+                              minHeight: '38px',
+                              padding: '0.4rem 0.85rem',
                               fontSize: '0.8rem',
                               fontWeight: 700,
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--primary)',
+                              color: '#ffffff',
+                              border: 'none',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.35rem',
                               cursor: 'pointer'
                             }}
                           >
-                            <Plus size={15} />
-                            Tambah Foto Galeri
+                            <Plus size={14} />
+                            <span>Tambah Baris</span>
                           </button>
                         </div>
                       )}
                     </div>
 
-                    {productForm.gallery_images.length === 0 ? (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        Belum ada foto galeri tambahan.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        {productForm.gallery_images.map((imgUrl, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              position: 'relative',
-                              width: '74px',
-                              height: '74px',
-                              borderRadius: '0.5rem',
-                              overflow: 'hidden',
-                              border: '1px solid var(--border-light)'
-                            }}
-                          >
-                            <img src={imgUrl} alt={`Galeri ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      {productPhotos.map((imgUrl, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            display: 'flex',
+                            gap: '0.75rem',
+                            alignItems: 'center',
+                            backgroundColor: 'var(--bg-card)',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.65rem',
+                            border: '1px solid var(--border-light)'
+                          }}
+                        >
+                          {/* Role Badge: Sampul vs Foto #{index + 1} */}
+                          <div style={{ minWidth: '76px', textAlign: 'center', flexShrink: 0 }}>
+                            {index === 0 ? (
+                              <span style={{
+                                display: 'inline-block',
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                color: 'var(--primary)',
+                                backgroundColor: 'var(--primary-glow)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '0.35rem',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                ★ Sampul
+                              </span>
+                            ) : (
+                              <span style={{
+                                display: 'inline-block',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                color: 'var(--text-secondary)',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '0.35rem',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                Foto #{index + 1}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Thumbnail Preview */}
+                          <div style={{
+                            width: '46px',
+                            height: '46px',
+                            borderRadius: '0.45rem',
+                            overflow: 'hidden',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-deep)',
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            position: 'relative'
+                          }}>
+                            {imgUrl ? (
+                              <img
+                                src={imgUrl}
+                                alt={`Preview Foto ${index + 1}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <ImageIcon size={18} style={{ color: 'var(--text-muted)' }} />
+                            )}
+                            {uploadingPhotoIndex === index && (
+                              <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <RefreshCw size={14} className="animate-spin" color="#ffffff" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* URL Input & Single Device Upload Button */}
+                          <div style={{ flex: 1, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              placeholder={`Tautan Foto ${index === 0 ? 'Sampul Utama (Wajib) *' : `${index + 1} (Opsional)`}`}
+                              value={imgUrl}
+                              onChange={(e) => handleUpdateProductPhoto(index, e.target.value)}
+                              style={{
+                                flex: 1,
+                                minHeight: '38px',
+                                padding: '0.45rem 0.75rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.84rem',
+                                outline: 'none'
+                              }}
+                            />
+                            <label
+                              style={{
+                                minHeight: '38px',
+                                padding: '0 0.85rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title="Pilih foto dari perangkat tablet"
+                            >
+                              <Upload size={13} />
+                              <span>Upload</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) {
+                                    handleUploadPhotoAtIndex(index, e.target.files[0]);
+                                    e.target.value = '';
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+
+                          {/* Delete Row Button */}
+                          {productPhotos.length > 1 && (
                             <button
                               type="button"
-                              onClick={() => handleRemoveGalleryImage(idx)}
+                              onClick={() => handleRemovePhotoRow(index)}
                               style={{
-                                position: 'absolute',
-                                top: '3px',
-                                right: '3px',
-                                width: '22px',
-                                height: '22px',
-                                borderRadius: '50%',
-                                backgroundColor: 'rgba(0,0,0,0.65)',
-                                color: '#ffffff',
-                                border: 'none',
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '0.45rem',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#ef4444',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                flexShrink: 0
                               }}
+                              title="Hapus baris foto ini"
                             >
-                              <Trash2 size={12} />
+                              <Trash2 size={15} />
                             </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Product Variants Manager */}
+
+                  {/* Video Showcase Input */}
                   <div style={{
                     padding: '1.25rem',
                     borderRadius: '0.75rem',
                     backgroundColor: 'var(--bg-deep)',
                     border: '1px solid var(--border-light)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                      <div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700 }}>Variasi Produk (Ukuran, Rasa, Warna, SKU)</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Atur harga dan stok spesifik untuk masing-masing varian</div>
+                    <VideoPreviewInput
+                      value={productForm.video_url}
+                      onChange={(val) => setProductForm(p => ({ ...p, video_url: val }))}
+                      label={typeConfig.videoLabel}
+                      placeholder={typeConfig.videoPlaceholder}
+                    />
+                  </div>
+
+                  {/* Marketplace Links (Non-property) */}
+                  {productForm.product_type !== 'property' && (
+                    <div style={{
+                      padding: '1.25rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div>
+                          <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                            {productForm.product_type === 'service'
+                              ? 'Link Platform Freelance / Pihak Ketiga (Opsional)'
+                              : (productForm.product_type === 'food'
+                                  ? 'Link Pesan-Antar / Toko Online (Opsional)'
+                                  : 'Link Marketplace / Toko Online (Opsional)')}
+                          </h4>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                            {productForm.product_type === 'service'
+                              ? 'Tautkan lapak jasa di Fastwork, Projects.co.id, Fiverr, dll.'
+                              : (productForm.product_type === 'food'
+                                  ? 'Tautkan link pesanan dari GoFood, GrabFood, ShopeeFood, Tokopedia, dll.'
+                                  : 'Tautkan link produk spesifik dari Shopee, Tokopedia, TikTok Shop, dll.')}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddPurchaseLink}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.4rem 0.85rem',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            backgroundColor: 'var(--primary-glow)',
+                            color: 'var(--primary)',
+                            border: '1px solid var(--primary)',
+                            borderRadius: '0.45rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Plus size={13} />
+                          <span>Tambah Link</span>
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={handleAddVariant}
+                      {productForm.purchase_links.length === 0 ? (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          Belum ada link eksternal. Klik "Tambah Link" jika Anda menjual produk ini di marketplace lain.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.85rem' }}>
+                          {productForm.purchase_links.map((link, index) => (
+                            <div
+                              key={index}
+                              style={{
+                                padding: '0.85rem',
+                                border: '1px solid var(--border-light)',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--bg-card)',
+                                position: 'relative'
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePurchaseLink(index)}
+                                style={{
+                                  position: 'absolute',
+                                  top: '0.5rem',
+                                  right: '0.5rem',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: '0.25rem'
+                                }}
+                                title="Hapus Link"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+
+                              <div style={{ marginBottom: '0.5rem', width: '85%' }}>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: '0.2rem' }}>
+                                  Platform / Toko *
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder={
+                                    productForm.product_type === 'service'
+                                      ? "Fastwork / Projects.co.id / Fiverr"
+                                      : (productForm.product_type === 'food'
+                                          ? "GoFood / GrabFood / ShopeeFood / Tokopedia"
+                                          : "Shopee / Tokopedia / TikTok Shop")
+                                  }
+                                  value={link.platform}
+                                  onChange={(e) => handleUpdatePurchaseLink(index, 'platform', e.target.value)}
+                                  style={tabletInputStyle}
+                                />
+                              </div>
+
+                              <div>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: '0.2rem' }}>
+                                  URL Link Pembelian *
+                                </label>
+                                <input
+                                  type="url"
+                                  placeholder="https://..."
+                                  value={link.url}
+                                  onChange={(e) => handleUpdatePurchaseLink(index, 'url', e.target.value)}
+                                  style={tabletInputStyle}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* WhatsApp & Rekber Syariah Section */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.85rem'
+                  }}>
+                    <div>
+                      <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: '0 0 0.2rem 0', color: 'var(--text-primary)' }}>
+                        {productForm.product_type === 'property'
+                          ? 'Kontak & Janji Survey Properti'
+                          : (productForm.product_type === 'service'
+                              ? 'Opsi Transaksi & Escrow Layanan'
+                              : (productForm.product_type === 'food'
+                                  ? 'Opsi Transaksi Pesanan Kuliner'
+                                  : 'Opsi Transaksi WhatsApp (Per Produk)'))}
+                      </h4>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                        Atur jalur komunikasi langsung pelanggan dan sistem rekening bersama syariah:
+                      </span>
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: productForm.product_type === 'property' ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+                      gap: '0.85rem'
+                    }}>
+                      {productForm.product_type !== 'property' && (
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem',
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.65rem',
+                            border: `1px solid ${productForm.enable_wa_rekber !== false ? 'var(--primary)' : 'var(--border-light)'}`,
+                            backgroundColor: productForm.enable_wa_rekber !== false ? 'var(--primary-glow)' : 'var(--bg-card)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={productForm.enable_wa_rekber !== false}
+                            onChange={(e) => setProductForm(p => ({ ...p, enable_wa_rekber: e.target.checked }))}
+                            style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.84rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                              {productForm.product_type === 'service'
+                                ? 'Rekber Syariah (Escrow Jasa)'
+                                : (productForm.product_type === 'food'
+                                    ? 'Rekber Syariah (Kuliner & Katering)'
+                                    : (productForm.product_type === 'digital'
+                                        ? 'Rekber Syariah (Item Digital & Lisensi)'
+                                        : (productForm.product_type === 'plant'
+                                            ? 'Rekber Syariah (Tanaman & Bibit)'
+                                            : (productForm.product_type === 'fauna'
+                                                ? 'Rekber Syariah (Satwa & Garansi Hidup)'
+                                                : 'Chat WA & Rekber Syariah (Barang Fisik)'))))}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.35 }}>
+                              {productForm.product_type === 'service'
+                                ? 'Dana ditahan aman di escrow Rekber Syariah hingga pengerjaan tuntas & diverifikasi klien.'
+                                : productForm.product_type === 'food'
+                                  ? 'Cocok untuk makanan beku, hampers, atau pesanan katering partai besar.'
+                                  : productForm.product_type === 'digital'
+                                    ? 'Proteksi pembayaran aman hingga tautan unduh atau lisensi resmi diterima pembeli.'
+                                    : productForm.product_type === 'plant'
+                                      ? 'Proteksi dana pembeli hingga tanaman hias / bibit tiba dalam kondisi segar & sehat.'
+                                      : productForm.product_type === 'fauna'
+                                        ? 'Proteksi dana pembeli dengan jaminan garansi hidup & kesehatan saat satwa tiba.'
+                                        : 'Dana ditahan aman di rekening bersama hingga barang diterima & dicek pembeli.'}
+                            </span>
+                          </div>
+                        </label>
+                      )}
+
+                      <label
                         style={{
-                          minHeight: '38px',
-                          padding: '0.4rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--primary)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.75rem',
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.65rem',
+                          border: `1px solid ${productForm.enable_wa_direct !== false ? 'var(--primary)' : 'var(--border-light)'}`,
+                          backgroundColor: productForm.enable_wa_direct !== false ? 'var(--primary-glow)' : 'var(--bg-card)',
                           cursor: 'pointer'
                         }}
                       >
-                        <Plus size={15} />
-                        Tambah Varian
-                      </button>
+                        <input
+                          type="checkbox"
+                          checked={productForm.enable_wa_direct !== false}
+                          onChange={(e) => setProductForm(p => ({ ...p, enable_wa_direct: e.target.checked }))}
+                          style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '0.84rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                            {productForm.product_type === 'property'
+                              ? 'Chat WA (Janji Survey & Konsultasi)'
+                              : (productForm.product_type === 'service'
+                                  ? 'Chat WA (Konsultasi Langsung)'
+                                  : (productForm.product_type === 'food'
+                                      ? 'Chat WA (Pesan Antar / Sameday)'
+                                      : 'Chat WA (Transaksi Langsung)'))}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.35 }}>
+                            {productForm.product_type === 'food'
+                              ? 'Pembeli langsung memesan menu via chat WhatsApp untuk pengiriman instan/sameday.'
+                              : 'Izinkan pembeli langsung berkonsultasi via WhatsApp.'}
+                          </span>
+                        </div>
+                      </label>
                     </div>
 
-                    {productForm.variants.length === 0 ? (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        Item tunggal standar tanpa variasi. Klik "Tambah Varian" bila produk memiliki ragam opsi.
+                    {/* WhatsApp CS Channel Selector */}
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
+                          <MessageCircle size={15} style={{ color: 'var(--primary)' }} />
+                          <span>Tujuan Kontak WhatsApp Produk Ini</span>
+                        </label>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                          Bawaan: Kontak Utama Toko
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                        Pilih nomor WhatsApp yang akan menerima pesanan / konsultasi khusus produk ini.
+                      </span>
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <TabletCustomSelect
+                          value={productForm.whatsapp_contact_id || 'default'}
+                          onChange={(val) => setProductForm(p => ({ ...p, whatsapp_contact_id: val }))}
+                          options={[
+                            {
+                              value: 'default',
+                              label: `[Default] Gunakan Kontak Utama Toko (${storefrontWA?.label || 'Utama'} - ${formatPhoneNumber(storefrontWA?.number || storeSettings.whatsapp_number || '-')})`
+                            },
+                            ...storeWAContacts
+                              .filter(c => c.id !== storefrontWA?.id)
+                              .map(c => ({
+                                value: c.id,
+                                label: `${c.label || 'CS Khusus'} (${formatPhoneNumber(c.number)})`
+                              }))
+                          ]}
+                          placeholder="Pilih saluran WhatsApp..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delivery Terms, Warranty / Legal, and Description Textareas */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {typeConfig.warrantyLabel ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
+                        <div>
+                          <RichTextarea
+                            label={typeConfig.deliveryTermsLabel}
+                            rows={3}
+                            placeholder={typeConfig.deliveryTermsPlaceholder}
+                            value={productForm.shipping_terms}
+                            onChange={(val) => setProductForm(p => ({ ...p, shipping_terms: val }))}
+                          />
+                        </div>
+                        <div>
+                          <RichTextarea
+                            label={typeConfig.warrantyLabel}
+                            rows={3}
+                            placeholder={typeConfig.warrantyPlaceholder}
+                            value={productForm.warranty_info}
+                            onChange={(val) => setProductForm(p => ({ ...p, warranty_info: val }))}
+                          />
+                        </div>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                        {productForm.variants.map((v, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr)) 40px',
-                              gap: '0.6rem',
-                              alignItems: 'center',
-                              padding: '0.65rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--bg-card)',
-                              border: '1px solid var(--border-light)'
-                            }}
-                          >
-                            <input
-                              type="text"
-                              placeholder="Nama Varian (misal: Size L)"
-                              value={v.variant_name}
-                              onChange={(e) => handleUpdateVariant(idx, 'variant_name', e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.35rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.82rem',
-                                outline: 'none'
-                              }}
-                            />
-                            <input
-                              type="text"
-                              placeholder="SKU (Opsional)"
-                              value={v.sku}
-                              onChange={(e) => handleUpdateVariant(idx, 'sku', e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.35rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.82rem',
-                                outline: 'none'
-                              }}
-                            />
-                            <input
-                              type="number"
-                              placeholder="Harga Khusus (Rp)"
-                              value={v.price_override ?? ''}
-                              onChange={(e) => handleUpdateVariant(idx, 'price_override', e.target.value === '' ? undefined : Number(e.target.value))}
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.35rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.82rem',
-                                outline: 'none'
-                              }}
-                            />
-                            <input
-                              type="number"
-                              placeholder="Stok"
-                              value={v.stock_qty}
-                              onChange={(e) => handleUpdateVariant(idx, 'stock_qty', Number(e.target.value))}
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.35rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.82rem',
-                                outline: 'none'
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveVariant(idx)}
-                              style={{
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '0.35rem',
-                                border: 'none',
-                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                color: '#ef4444',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        ))}
+                      <div>
+                        <RichTextarea
+                          label={typeConfig.deliveryTermsLabel}
+                          rows={3}
+                          placeholder={typeConfig.deliveryTermsPlaceholder}
+                          value={productForm.shipping_terms}
+                          onChange={(val) => setProductForm(p => ({ ...p, shipping_terms: val }))}
+                        />
                       </div>
                     )}
-                  </div>
 
-                  {/* Video & Description */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                      Tautan Video Promosi (YouTube / TikTok)
-                    </label>
-                    <input
-                      type="text"
-                      value={productForm.video_url}
-                      onChange={(e) => setProductForm({ ...productForm, video_url: e.target.value })}
-                      placeholder="https://youtube.com/watch?v=..."
-                      style={{
-                        width: '100%',
-                        padding: '0.65rem 0.85rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.88rem',
-                        outline: 'none'
-                      }}
-                    />
-                  </div>
+                    <div>
+                      <RichTextarea
+                        label={typeConfig.descLabel}
+                        rows={5}
+                        placeholder={typeConfig.descPlaceholder}
+                        required={productForm.product_type !== 'food'}
+                        value={productForm.description}
+                        onChange={(val) => setProductForm(p => ({ ...p, description: val }))}
+                        showZenFullscreen={true}
+                      />
+                    </div>
 
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <RichTextarea
-                      label="Deskripsi & Spesifikasi Produk"
-                      value={productForm.description}
-                      onChange={(val) => setProductForm((prev) => ({ ...prev, description: val }))}
-                      placeholder="Jelaskan secara detail keunggulan, material, spesifikasi, dan kelengkapan produk..."
-                      rows={5}
-                      minHeight="140px"
-                      showZenFullscreen={true}
-                    />
+                    {/* Status Publikasi / Arsip Produk */}
+                    <div style={{ padding: '1rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem', fontWeight: 700, marginBottom: '0.65rem', color: 'var(--text-primary)' }}>
+                        <Archive size={14} style={{ color: 'var(--primary)' }} />
+                        <span>Status Publikasi Katalog</span>
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.65rem',
+                            padding: '0.75rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            border: productForm.is_active !== false ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                            backgroundColor: productForm.is_active !== false ? 'var(--primary-glow)' : 'transparent',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="tablet_is_active_status"
+                            checked={productForm.is_active !== false}
+                            onChange={() => setProductForm(p => ({ ...p, is_active: true }))}
+                            style={{ marginTop: '2px' }}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)' }}>Publikasi Aktif</div>
+                            <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Tampil di etalase & dapat dilihat pembeli</div>
+                          </div>
+                        </label>
+
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.65rem',
+                            padding: '0.75rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            border: productForm.is_active === false ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                            backgroundColor: productForm.is_active === false ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="tablet_is_active_status"
+                            checked={productForm.is_active === false}
+                            onChange={() => setProductForm(p => ({ ...p, is_active: false }))}
+                            style={{ marginTop: '2px' }}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#f59e0b' }}>Arsipkan Sementara</div>
+                            <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Sembunyikan dari pembeli (data tetap tersimpan)</div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Submit Footer */}
@@ -4078,152 +6128,442 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               );
             })() : null}
           />
+          )
         )}
 
         {/* ===================================================================
-            TAB 2: KATEGORI ETALASE (Master-Detail Split View)
+            TAB 2: KATEGORI ETALASE (Two-Tier Master Data Hub - Master-Detail Split View)
             =================================================================== */}
-        {activeTab === 'categories' && (
-          <TabletMasterDetailView
-            title="Kategori Etalase Toko"
-            subtitle={`${categories.length} kategori aktif`}
-            headerAction={
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCategoryId('new');
-                  setCategoryForm({ id: 0, name: '' });
-                }}
-                style={{
-                  minHeight: '40px',
-                  padding: '0.45rem 1rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={16} />
-                Tambah Kategori
-              </button>
-            }
-            selectedId={selectedCategoryId}
-            onClearSelection={() => setSelectedCategoryId(null)}
-            masterPane={
-              <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto' }}>
-                {categories.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    Belum ada kategori etalase dibuat
+        {activeTab === 'categories' && (() => {
+          const activeTypeDef = MASTER_CATEGORY_DEFINITIONS.find(t => t.id === masterCategoryContextTab) || MASTER_CATEGORY_DEFINITIONS[0];
+          const ActiveTypeIcon = activeTypeDef.icon;
+          const activeCategories = getCategoryOptionsForType(masterCategoryContextTab);
+          const defaultList = DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || [];
+          const systemCategories = activeCategories.filter(c => defaultList.includes(c));
+          const customCategories = activeCategories.filter(c => !defaultList.includes(c));
+
+          return (
+            <TabletMasterDetailView
+              title="Master Kategori Etalase"
+              subtitle="Kelola taksonomi kategori etalase per format spesialisasi katalog"
+              selectedId={masterCategoryContextTab}
+              onClearSelection={() => {}}
+              masterPane={
+                <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', overflowY: 'auto' }}>
+                  <div style={{ padding: '0.25rem 0.5rem 0.5rem', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                    Pilih Tipe Katalog
                   </div>
-                ) : (
-                  categories.map(cat => {
-                    const isSelected = selectedCategoryId === cat.id;
+                  {MASTER_CATEGORY_DEFINITIONS.map(tab => {
+                    const isSelected = masterCategoryContextTab === tab.id;
+                    const TabIcon = tab.icon;
+                    const opts = getCategoryOptionsForType(tab.id);
+                    const defaults = DEFAULT_MASTER_CATEGORIES[tab.id] || [];
+                    const customCount = opts.filter(c => !defaults.includes(c)).length;
+
                     return (
                       <div
-                        key={cat.id}
-                        onClick={() => {
-                          setSelectedCategoryId(cat.id);
-                          setCategoryForm({ id: cat.id, name: cat.name });
+                        key={tab.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setMasterCategoryContextTab(tab.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setMasterCategoryContextTab(tab.id);
+                          }
                         }}
                         style={{
                           padding: '0.85rem 1rem',
                           borderRadius: '0.65rem',
-                          backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                          border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? `${tab.color}15` : 'var(--bg-card)',
+                          border: isSelected ? `1.5px solid ${tab.color}` : '1px solid var(--border-light)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <Tag size={18} color="var(--primary)" />
-                          <span style={{ fontSize: '0.92rem', fontWeight: 600 }}>{cat.name}</span>
+                          <div style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '0.5rem',
+                            backgroundColor: `${tab.color}20`,
+                            color: tab.color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <TabIcon size={19} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: isSelected ? 800 : 600, color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                              {tab.label}
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                              {opts.length} Kategori
+                            </div>
+                          </div>
                         </div>
+
+                        {customCount > 0 && (
+                          <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '0.12rem 0.45rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                            color: '#10b981'
+                          }}>
+                            +{customCount} Kustom
+                          </span>
+                        )}
                       </div>
                     );
-                  })
-                )}
-              </div>
-            }
-            detailPane={
-              <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
-                  {selectedCategoryId === 'new' ? 'Buat Kategori Baru' : 'Ubah Nama Kategori'}
-                </h3>
-                <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '440px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                      Nama Kategori
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: Pakan Hewan, Aksesoris, Tanaman"
-                      value={categoryForm.name}
-                      onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem 0.85rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.88rem',
-                        outline: 'none'
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0.65rem 1.25rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--primary)',
-                        color: '#ffffff',
-                        border: 'none',
+                  })}
+                </div>
+              }
+              detailPane={
+                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
+                  {/* Context Header Card */}
+                  <div style={{
+                    padding: '1.25rem 1.5rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: `${activeTypeDef.color}10`,
+                    border: `1px solid ${activeTypeDef.color}30`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '1rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                      <div style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '0.75rem',
+                        backgroundColor: `${activeTypeDef.color}25`,
+                        color: activeTypeDef.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <ActiveTypeIcon size={24} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          {activeTypeDef.label}
+                        </h3>
+                        <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {activeTypeDef.desc}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: '0.74rem',
                         fontWeight: 700,
-                        cursor: 'pointer',
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '6px',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid var(--border-light)',
                         display: 'inline-flex',
                         alignItems: 'center',
+                        gap: '0.35rem'
+                      }}>
+                        <Lock size={12} strokeWidth={2.2} /> {systemCategories.length} Standar
+                      </span>
+                      {customCategories.length > 0 && (
+                        <span style={{
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                          color: '#10b981',
+                          border: '1px solid rgba(16, 185, 129, 0.3)'
+                        }}>
+                          +{customCategories.length} Kustom
+                        </span>
+                      )}
+                      <span style={{
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '6px',
+                        backgroundColor: 'var(--primary)',
+                        color: '#ffffff'
+                      }}>
+                        Total {activeCategories.length} Kategori
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Section 1: Kategori Standar Sistem */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Lock size={14} strokeWidth={2.2} style={{ color: 'var(--text-muted)' }} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
+                          Kategori Standar Sistem
+                        </span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }}>
+                          {systemCategories.length}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Standar bawaan ekosistem (terkunci demi konsistensi etalase)
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                      {systemCategories.map(c => {
+                        const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
+                        return (
+                          <div
+                            key={c}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              padding: '0.45rem 0.85rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border-light)',
+                              fontSize: '0.84rem',
+                              color: 'var(--text-primary)'
+                            }}
+                            title="Kategori bawaan standar sistem yang terkunci"
+                          >
+                            <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                            <span style={{ fontWeight: 500 }}>{c}</span>
+                            {count > 0 && (
+                              <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '999px',
+                                backgroundColor: 'var(--bg-deep)',
+                                color: 'var(--text-secondary)',
+                                border: '1px solid var(--border-light)'
+                              }}>
+                                {count} item
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Section 2: Kategori Kustom Anda */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: customCategories.length > 0 ? 'rgba(16, 185, 129, 0.03)' : 'var(--bg-deep)',
+                    border: customCategories.length > 0 ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-light)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Tag size={15} style={{ color: 'var(--primary)' }} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--primary)' }}>
+                          Kategori Kustom Anda
+                        </span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.1rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                          {customCategories.length}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        Dapat diubah nama atau dihapus kapan saja
+                      </span>
+                    </div>
+
+                    {customCategories.length === 0 ? (
+                      <div style={{
+                        padding: '1rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px dashed var(--border-light)',
+                        fontSize: '0.82rem',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: '0.5rem'
-                      }}
-                    >
-                      <Save size={16} />
-                      Simpan Kategori
-                    </button>
-                    {selectedCategoryId && selectedCategoryId !== 'new' && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCategory(Number(selectedCategoryId))}
-                        style={{
-                          minHeight: '44px',
-                          padding: '0.65rem 1.25rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                          color: '#ef4444',
-                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                          fontWeight: 600,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Hapus
-                      </button>
+                      }}>
+                        <Tag size={15} style={{ opacity: 0.5 }} />
+                        <span>Belum ada kategori kustom untuk <strong>{activeTypeDef.label}</strong>. Tambahkan melalui kolom di bawah.</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                        {customCategories.map(c => {
+                          const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
+                          return (
+                            <div
+                              key={c}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.45rem',
+                                padding: '0.4rem 0.55rem 0.4rem 0.85rem',
+                                borderRadius: '0.55rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                fontSize: '0.84rem',
+                                color: 'var(--text-primary)'
+                              }}
+                            >
+                              <Tag size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                              <span style={{ fontWeight: 600 }}>{c}</span>
+                              {count > 0 && (
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  padding: '0.1rem 0.45rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                  color: '#10b981'
+                                }}>
+                                  {count} item
+                                </span>
+                              )}
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setRenameMasterModalData({
+                                    field: 'class',
+                                    fieldLabel: `Kategori (${activeTypeDef.label})`,
+                                    oldValue: c,
+                                    newValue: c,
+                                    productType: masterCategoryContextTab
+                                  })}
+                                  style={{
+                                    width: '26px',
+                                    height: '26px',
+                                    borderRadius: '4px',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'transparent',
+                                    color: 'var(--text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                  title={`Ubah nama kategori "${c}"`}
+                                >
+                                  <Edit3 size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDeleteMasterOption(c, masterCategoryContextTab)}
+                                  style={{
+                                    width: '26px',
+                                    height: '26px',
+                                    borderRadius: '4px',
+                                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                    color: '#ef4444',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                  title={`Hapus kategori "${c}"`}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-                </form>
-              </div>
-            }
-          />
-        )}
+
+                  {/* Section 3: Add Custom Category Form */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem'
+                  }}>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Tambah Kategori Kustom Baru ({activeTypeDef.label})
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <input
+                          type="text"
+                          placeholder={`Ketik nama kategori baru untuk ${activeTypeDef.label}... (tekan Enter untuk menyimpan)`}
+                          value={newCustomCategoryInput}
+                          onChange={(e) => setNewCustomCategoryInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput);
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            minHeight: '42px',
+                            padding: '0.55rem 0.85rem 0.55rem 2.25rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                        <Plus size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving || !newCustomCategoryInput.trim()}
+                        onClick={() => handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput)}
+                        style={{
+                          minHeight: '42px',
+                          padding: '0 1.25rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.84rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          cursor: saving || !newCustomCategoryInput.trim() ? 'not-allowed' : 'pointer',
+                          opacity: saving || !newCustomCategoryInput.trim() ? 0.6 : 1,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <Plus size={16} />
+                        <span>Tambah Kategori</span>
+                      </button>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Sparkles size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                      <span>Kategori yang Anda tambahkan di sini akan langsung tersedia di formulir input produk <strong>{activeTypeDef.label}</strong>.</span>
+                    </div>
+                  </div>
+                </div>
+              }
+            />
+          );
+        })()}
 
         {/* ===================================================================
             TAB 3: STATISTIK & TRAFIK BISNIS
@@ -4235,9 +6575,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           <TabletAnalyticsView
             token={token}
             storeSlug={storeSlug}
+            storeTitle={storeSettings.name}
             showToast={showToast}
             onLogout={onLogout}
             onUnauthorized={onUnauthorized}
+            onViewProduct={(pId) => {
+              setSelectedProductId(pId);
+              setIsSelectingProductType(false);
+              setActiveTab('items');
+            }}
           />
         )}
 
@@ -4834,6 +7180,69 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     Buka Etalase Publik
                   </button>
                 </div>
+
+                {/* Penutupan Akun & Katalog Link */}
+                <div style={{
+                  backgroundColor: 'var(--bg-card)',
+                  padding: '1.75rem',
+                  borderRadius: '1rem',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1.25rem',
+                  flexWrap: 'wrap'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        <FolderMinus size={17} />
+                      </div>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                        Penutupan Akun &amp; Katalog
+                      </h3>
+                    </div>
+                    <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, maxWidth: '600px', lineHeight: 1.45 }}>
+                      Hapus profil katalog yang sudah tidak aktif atau ajukan penutupan akun pengelola secara permanen dengan verifikasi kata sandi.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('profile');
+                      setProfileSubTab('danger');
+                    }}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.65rem 1.25rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      color: 'var(--text-primary)',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <FolderMinus size={15} />
+                    <span>Kelola Penutupan</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSaveSettings} style={{
@@ -5244,280 +7653,966 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 6: AKUN & KEAMANAN (Profile, Password, Sessions, Danger Zone)
             =================================================================== */}
         {activeTab === 'profile' && (
-          <div style={{ padding: '2rem', maxWidth: '960px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-              Akun & Keamanan Pengelola
-            </h2>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Kelola kredensial akun, pembaruan kata sandi, dan pemantauan sesi perangkat aktif.
-            </p>
+          <div style={{ padding: '1.75rem 2rem', maxWidth: '1040px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Akun &amp; Keamanan Pengelola
+                </h2>
+                <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
+                  Pusat kendali identitas akun, kredensial login, sesi perangkat terhubung, dan tata kelola akun.
+                </p>
+              </div>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '999px',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                color: '#10b981',
+                fontSize: '0.75rem',
+                fontWeight: 700
+              }}>
+                <ShieldCheck size={14} />
+                <span>Proteksi Keamanan Aktif</span>
+              </div>
+            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
-              {/* Profile Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 1rem 0' }}>
-                  Informasi Pengelola
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.88rem' }}>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.78rem' }}>Nama Pemilik</span>
-                    <strong>{currentUser?.name || 'Pengelola Toko'}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.78rem' }}>Alamat Email</span>
-                    <strong>{currentUser?.email || '-'}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.78rem' }}>Hak Akses</span>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: '999px',
-                      backgroundColor: 'rgba(30, 58, 138, 0.12)',
-                      color: 'var(--primary)',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      marginTop: '0.2rem'
-                    }}>
-                      Merchant Store Owner
-                    </span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.78rem' }}>Status Keamanan</span>
-                    <span style={{
+            {/* Segmented Sub-Tab Switcher Pills */}
+            <div style={{
+              display: 'flex',
+              gap: '0.5rem',
+              padding: '0.35rem',
+              backgroundColor: 'var(--bg-deep)',
+              borderRadius: '0.75rem',
+              border: '1px solid var(--border-light)',
+              marginBottom: '1.5rem',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch'
+            }}>
+              {[
+                { id: 'info', label: 'Profil & Kredensial', icon: UserCheck },
+                { id: 'devices', label: 'Sesi & Perangkat Terhubung', icon: Smartphone },
+                { id: 'audit_logs', label: 'Jejak Audit & Log', icon: History },
+                { id: 'danger', label: 'Penutupan Akun & Katalog', icon: FolderMinus }
+              ].map(tab => {
+                const Icon = tab.icon;
+                const isActive = profileSubTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setProfileSubTab(tab.id as any)}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.5rem 1.15rem',
+                      borderRadius: '0.55rem',
+                      border: '1px solid',
+                      borderColor: isActive ? 'var(--primary)' : 'transparent',
+                      backgroundColor: isActive ? 'var(--primary)' : 'transparent',
+                      color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                      fontWeight: isActive ? 800 : 600,
+                      fontSize: '0.84rem',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '999px',
-                      backgroundColor: hasCustomPassword ? 'rgba(16, 185, 129, 0.12)' : 'rgba(37, 99, 235, 0.12)',
-                      color: hasCustomPassword ? '#10b981' : '#2563eb',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      marginTop: '0.2rem'
-                    }}>
-                      <ShieldCheck size={13} />
-                      {hasCustomPassword ? 'Kata Sandi Kustom Aktif' : 'Google SSO (Kata Sandi Manual Belum Disetel)'}
-                    </span>
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease',
+                      boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none'
+                    }}
+                  >
+                    <Icon size={16} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* SUB-TAB 1: PROFIL & KREDENSIAL */}
+            {profileSubTab === 'info' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* 4-Item Summary Metric Strip */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                  gap: '0.85rem',
+                  padding: '1.15rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Role Akun</span>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--primary)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <ShieldCheck size={14} />
+                      {(adminUser?.role === 'superadmin' || adminUser?.is_superadmin) ? 'Superadmin Platform' : 'Pengelola Toko (Merchant)'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>ID Akun Pengguna</span>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem', fontFamily: 'monospace' }}>
+                      #{adminUser?.id || currentUser?.id || '-'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Status Otentikasi</span>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <CheckCircle2 size={14} />
+                      Aktif &amp; Terverifikasi
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Metode Kredensial</span>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: hasCustomPassword ? '#10b981' : '#2563eb', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Key size={14} />
+                      {hasCustomPassword ? 'Kata Sandi Kustom Aktif' : 'Google SSO Terhubung'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2-Column Grid: Profile Name Form & Password Security Form */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem' }}>
+                  {/* Card 1: Informasi Pengelola & Ubah Nama */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+                      <UserCheck size={18} style={{ color: 'var(--primary)' }} />
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                        Identitas Profil Pengelola
+                      </h3>
+                    </div>
+
+                    <form onSubmit={handleUpdateProfileName} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                          Nama Lengkap Pengelola *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          placeholder="Masukkan nama lengkap Anda..."
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0', lineHeight: 1.4 }}>
+                          Nama ini digunakan sebagai identitas resmi pengelola akun di seluruh sistem dan dicatat pada riwayat audit log.
+                        </p>
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                          <label style={{ fontSize: '0.82rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                            Alamat Email Login
+                          </label>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <Lock size={12} /> Terkunci (SSO)
+                          </span>
+                        </div>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            type="email"
+                            disabled
+                            value={adminUser?.email || currentUser?.email || ''}
+                            style={{
+                              width: '100%',
+                              padding: '0.65rem 2.2rem 0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-secondary)',
+                              fontSize: '0.88rem',
+                              cursor: 'not-allowed',
+                              opacity: 0.85
+                            }}
+                          />
+                          <Lock size={14} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        </div>
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0', lineHeight: 1.4 }}>
+                          Alamat email dikunci demi integritas Single Sign-On (SSO) dan otorisasi kepemilikan katalog.
+                        </p>
+                      </div>
+
+                      <div style={{
+                        padding: '0.75rem 0.85rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'rgba(30, 58, 138, 0.08)',
+                        border: '1px solid rgba(30, 58, 138, 0.2)',
+                        fontSize: '0.76rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.45,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.5rem'
+                      }}>
+                        <ShieldCheck size={16} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+                        <div>
+                          Identitas akun Anda terproteksi secara terenkripsi. Pembaruan nama profil langsung tersinkronisasi ke seluruh etalase katalog yang Anda kelola.
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.6rem 1.25rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: (updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')) ? 'not-allowed' : 'pointer',
+                          opacity: (updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')) ? 0.6 : 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        {updatingProfileName ? (
+                          <>
+                            <RefreshCw size={15} className="animate-spin" />
+                            <span>Menyimpan...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save size={15} />
+                            <span>Simpan Nama Profil</span>
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Card 2: Keamanan Kata Sandi */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {hasCustomPassword ? (
+                          <Lock size={18} style={{ color: 'var(--primary)' }} />
+                        ) : (
+                          <Key size={18} style={{ color: '#2563eb' }} />
+                        )}
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                          {hasCustomPassword ? 'Ubah Kata Sandi Akun' : 'Setel Kata Sandi Cadangan'}
+                        </h3>
+                      </div>
+                      {!hasCustomPassword ? (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                          color: '#2563eb',
+                          fontSize: '0.72rem',
+                          fontWeight: 700
+                        }}>
+                          <ShieldCheck size={12} />
+                          Google SSO
+                        </span>
+                      ) : (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                          color: '#10b981',
+                          fontSize: '0.72rem',
+                          fontWeight: 700
+                        }}>
+                          <ShieldCheck size={12} />
+                          Terenkripsi Bcrypt
+                        </span>
+                      )}
+                    </div>
+
+                    {profilePasswordMode === 'otp' ? (
+                      /* OTP Recovery View */
+                      <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                        <div style={{
+                          padding: '1rem 1.15rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1.5px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.85rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '8px',
+                                background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+                                color: 'var(--primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                <Key size={16} />
+                              </div>
+                              <div>
+                                <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  Pemulihan Kata Sandi via OTP Email
+                                </h4>
+                                <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                                  Kode OTP dikirimkan ke email terdaftar: <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>{adminUser?.email || currentUser?.email}</strong>
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProfilePasswordMode('standard');
+                                setProfileOtpError(null);
+                                setProfileOtpSuccess(null);
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0.4rem 0.85rem',
+                                borderRadius: '0.55rem',
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer'
+                              }}
+                              title="Kembali ke formulir kata sandi saat ini"
+                            >
+                              <ArrowLeft size={13} />
+                              <span>Batal &amp; Gunakan Sandi Lama</span>
+                            </button>
+                          </div>
+
+                          {profileOtpSuccess && (
+                            <div style={{
+                              fontSize: '0.78rem',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              background: 'rgba(16, 185, 129, 0.12)',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              color: '#10b981',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem'
+                            }}>
+                              <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+                              <span>{profileOtpSuccess}</span>
+                            </div>
+                          )}
+
+                          {profileOtpError && (
+                            <div style={{
+                              fontSize: '0.78rem',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              background: 'rgba(239, 68, 68, 0.12)',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              color: '#ef4444',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem'
+                            }}>
+                              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                              <span>{profileOtpError}</span>
+                            </div>
+                          )}
+
+                          {!profileOtpSent ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
+                              <p style={{ margin: 0, fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                                Klik tombol di bawah untuk menerima 6-digit kode OTP ke alamat email terdaftar Anda guna mereset kata sandi akun secara aman tanpa memerlukan kata sandi lama.
+                              </p>
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={handleSendProfileBackupOTP}
+                                  disabled={profileOtpLoading}
+                                  style={{
+                                    minHeight: '44px',
+                                    padding: '0.6rem 1.35rem',
+                                    fontSize: '0.84rem',
+                                    fontWeight: 800,
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: 'var(--primary)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    cursor: profileOtpLoading ? 'not-allowed' : 'pointer',
+                                    opacity: profileOtpLoading ? 0.7 : 1
+                                  }}
+                                >
+                                  {profileOtpLoading ? (
+                                    <>
+                                      <RefreshCw size={15} className="animate-spin" />
+                                      <span>Mengirim Kode OTP...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Mail size={15} />
+                                      <span>Kirim Kode OTP ke Email Saya</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                              <div style={{ maxWidth: '280px' }}>
+                                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Kode OTP 6-Digit *
+                                </label>
+                                <input
+                                  type="text"
+                                  maxLength={6}
+                                  required
+                                  placeholder="------"
+                                  value={profileOtpCode}
+                                  onChange={(e) => setProfileOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.6rem',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '1.35rem',
+                                    fontWeight: 800,
+                                    letterSpacing: '8px',
+                                    textAlign: 'center',
+                                    fontFamily: 'monospace',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '2px solid var(--primary)',
+                                    color: 'var(--primary)',
+                                    outline: 'none'
+                                  }}
+                                />
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                    Kata Sandi Baru *
+                                  </label>
+                                  <div style={{ position: 'relative' }}>
+                                    <input
+                                      type={showNewPassword ? 'text' : 'password'}
+                                      required
+                                      value={passwordForm.new_password}
+                                      onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                                      placeholder="Minimal 8 karakter..."
+                                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowNewPassword(!showNewPassword)}
+                                      aria-label="Tampilkan atau sembunyikan kata sandi baru"
+                                      style={{
+                                        position: 'absolute',
+                                        right: '0.5rem',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-muted)',
+                                        padding: '0.25rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                    >
+                                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                    Konfirmasi Kata Sandi Baru *
+                                  </label>
+                                  <div style={{ position: 'relative' }}>
+                                    <input
+                                      type={showConfirmPassword ? 'text' : 'password'}
+                                      required
+                                      value={passwordForm.confirm_password}
+                                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
+                                      placeholder="Ketik ulang kata sandi baru"
+                                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                      aria-label="Tampilkan atau sembunyikan konfirmasi kata sandi baru"
+                                      style={{
+                                        position: 'absolute',
+                                        right: '0.5rem',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-muted)',
+                                        padding: '0.25rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                    >
+                                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Interactive Criteria Checklist */}
+                              {(() => {
+                                const pass = passwordForm.new_password || '';
+                                const requirements = [
+                                  { label: 'Min. 8 karakter', valid: pass.length >= 8 },
+                                  { label: 'Huruf besar & huruf kecil (A-Z, a-z)', valid: /[A-Z]/.test(pass) && /[a-z]/.test(pass) },
+                                  { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(pass) },
+                                  { label: 'Simbol unik (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(pass) }
+                                ];
+                                return (
+                                  <div style={{
+                                    padding: '0.75rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '1px solid var(--border-light)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.45rem'
+                                  }}>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                      Kriteria Kekuatan Kata Sandi
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.4rem' }}>
+                                      {requirements.map((req, idx) => (
+                                        <div
+                                          key={idx}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem',
+                                            fontSize: '0.74rem',
+                                            color: req.valid ? '#10b981' : 'var(--text-muted)',
+                                            fontWeight: req.valid ? 700 : 500,
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                        >
+                                          <div style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            borderRadius: '50%',
+                                            backgroundColor: req.valid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                                            border: req.valid ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: req.valid ? '#10b981' : 'var(--text-muted)',
+                                            flexShrink: 0
+                                          }}>
+                                            {req.valid ? <Check size={10} strokeWidth={3} /> : <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />}
+                                          </div>
+                                          <span>{req.label}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                                <button
+                                  type="submit"
+                                  disabled={saving || profileOtpCode.length !== 6}
+                                  style={{
+                                    minHeight: '44px',
+                                    padding: '0.6rem 1.4rem',
+                                    fontSize: '0.84rem',
+                                    borderRadius: '0.55rem',
+                                    fontWeight: 800,
+                                    backgroundColor: 'var(--primary)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.45rem',
+                                    cursor: (saving || profileOtpCode.length !== 6) ? 'not-allowed' : 'pointer',
+                                    opacity: (saving || profileOtpCode.length !== 6) ? 0.6 : 1
+                                  }}
+                                >
+                                  {saving ? (
+                                    <>
+                                      <RefreshCw size={15} className="animate-spin" />
+                                      <span>Memverifikasi...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 size={15} />
+                                      <span>Verifikasi OTP &amp; Simpan Kata Sandi</span>
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleSendProfileBackupOTP}
+                                  disabled={profileOtpCooldown > 0 || profileOtpLoading}
+                                  style={{
+                                    minHeight: '44px',
+                                    padding: '0.55rem 0.95rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '1px solid var(--border-light)',
+                                    color: profileOtpCooldown > 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    cursor: (profileOtpCooldown > 0 || profileOtpLoading) ? 'default' : 'pointer'
+                                  }}
+                                >
+                                  <RefreshCw size={13} className={profileOtpLoading ? 'animate-spin' : ''} />
+                                  <span>{profileOtpCooldown > 0 ? `Kirim Ulang OTP (${profileOtpCooldown}s)` : 'Kirim Ulang OTP'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </form>
+                    ) : (
+                      /* Standard Password Mode */
+                      <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                        {!hasCustomPassword ? (
+                          <div style={{
+                            padding: '0.75rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'rgba(37, 99, 235, 0.06)',
+                            border: '1px solid rgba(37, 99, 235, 0.2)',
+                            fontSize: '0.78rem',
+                            color: 'var(--text-secondary)',
+                            lineHeight: 1.45,
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.5rem'
+                          }}>
+                            <ShieldAlert size={16} style={{ color: '#2563eb', flexShrink: 0, marginTop: '2px' }} />
+                            <div>
+                              Akun Anda saat ini login via Google SSO. Menyetel kata sandi cadangan memungkinkan Anda tetap bisa masuk manual jika layanan SSO Google sedang mengalami gangguan.
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, margin: 0 }}>
+                                Kata Sandi Saat Ini *
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProfilePasswordMode('otp');
+                                  setProfileOtpError(null);
+                                  setProfileOtpSuccess(null);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '0.25rem 0.65rem',
+                                  borderRadius: '0.45rem',
+                                  background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                                  border: '1px solid var(--primary)',
+                                  color: 'var(--primary)',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                                title="Reset dengan kode OTP via email jika lupa kata sandi lama"
+                              >
+                                Lupa Kata Sandi?
+                              </button>
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                              <input
+                                type={showOldPassword ? 'text' : 'password'}
+                                required
+                                value={passwordForm.old_password}
+                                onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
+                                placeholder="Masukkan kata sandi lama Anda"
+                                style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowOldPassword(!showOldPassword)}
+                                aria-label="Tampilkan atau sembunyikan kata sandi saat ini"
+                                style={{
+                                  position: 'absolute',
+                                  right: '0.5rem',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  color: 'var(--text-muted)',
+                                  padding: '0.25rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                {showOldPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                            {hasCustomPassword ? 'Kata Sandi Baru *' : 'Kata Sandi Baru Cadangan *'}
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type={showNewPassword ? 'text' : 'password'}
+                              required
+                              value={passwordForm.new_password}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                              placeholder="Minimal 8 karakter..."
+                              style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              aria-label="Tampilkan atau sembunyikan kata sandi baru"
+                              style={{
+                                position: 'absolute',
+                                right: '0.5rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'var(--text-muted)',
+                                padding: '0.25rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                            Konfirmasi Kata Sandi Baru *
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type={showConfirmPassword ? 'text' : 'password'}
+                              required
+                              value={passwordForm.confirm_password}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
+                              placeholder="Ketik ulang kata sandi baru"
+                              style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              aria-label="Tampilkan atau sembunyikan konfirmasi kata sandi baru"
+                              style={{
+                                position: 'absolute',
+                                right: '0.5rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'var(--text-muted)',
+                                padding: '0.25rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Interactive Criteria Checklist */}
+                        {(() => {
+                          const pass = passwordForm.new_password || '';
+                          const requirements = [
+                            { label: 'Min. 8 karakter', valid: pass.length >= 8 },
+                            { label: 'Huruf besar & huruf kecil (A-Z, a-z)', valid: /[A-Z]/.test(pass) && /[a-z]/.test(pass) },
+                            { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(pass) },
+                            { label: 'Simbol unik (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(pass) }
+                          ];
+                          return (
+                            <div style={{
+                              padding: '0.75rem 0.85rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.45rem'
+                            }}>
+                              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Kriteria Kekuatan Kata Sandi
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.4rem' }}>
+                                {requirements.map((req, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.4rem',
+                                      fontSize: '0.74rem',
+                                      color: req.valid ? '#10b981' : 'var(--text-muted)',
+                                      fontWeight: req.valid ? 700 : 500,
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    <div style={{
+                                      width: '16px',
+                                      height: '16px',
+                                      borderRadius: '50%',
+                                      backgroundColor: req.valid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                                      border: req.valid ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: req.valid ? '#10b981' : 'var(--text-muted)',
+                                      flexShrink: 0
+                                    }}>
+                                      {req.valid ? <Check size={10} strokeWidth={3} /> : <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />}
+                                    </div>
+                                    <span>{req.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        <button
+                          type="submit"
+                          disabled={saving}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.6rem 1rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--primary)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontWeight: 700,
+                            fontSize: '0.85rem',
+                            cursor: saving ? 'not-allowed' : 'pointer',
+                            marginTop: '0.35rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.5rem',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                          }}
+                        >
+                          {saving ? (
+                            <>
+                              <RefreshCw size={16} className="animate-spin" />
+                              <span>Menyimpan...</span>
+                            </>
+                          ) : hasCustomPassword ? (
+                            <>
+                              <Lock size={16} />
+                              <span>Perbarui Kata Sandi</span>
+                            </>
+                          ) : (
+                            <>
+                              <Key size={16} />
+                              <span>Simpan Kata Sandi Cadangan</span>
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    )}
                   </div>
                 </div>
               </div>
+            )}
 
-              {/* Password Form Card (Dual-Mode: SSO Backup vs Standard Update) */}
-              <form onSubmit={handleChangePassword} style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {hasCustomPassword ? (
-                      <Lock size={18} style={{ color: 'var(--primary)' }} />
-                    ) : (
-                      <Key size={18} style={{ color: '#2563eb' }} />
-                    )}
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
-                      {hasCustomPassword ? 'Ubah Kata Sandi Akun' : 'Kata Sandi Cadangan (Opsional)'}
-                    </h3>
-                  </div>
-                  {!hasCustomPassword && (
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '999px',
-                      backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                      color: '#2563eb',
-                      fontSize: '0.72rem',
-                      fontWeight: 700
-                    }}>
-                      <ShieldCheck size={12} />
-                      Google SSO
-                    </span>
-                  )}
-                </div>
+            {/* SUB-TAB 2: SESI & PERANGKAT TERHUBUNG */}
+            {profileSubTab === 'devices' && (
+              <div className="animate-fade-in">
+                <TabletConnectedDevicesView
+                  token={token}
+                  showToast={showToast}
+                  onLogoutCurrent={onLogout}
+                  onLogout={onLogout}
+                  onUnauthorized={onUnauthorized}
+                />
+              </div>
+            )}
 
-                {!hasCustomPassword ? (
-                  <div style={{
-                    padding: '0.75rem 0.85rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'rgba(37, 99, 235, 0.06)',
-                    border: '1px solid rgba(37, 99, 235, 0.2)',
-                    fontSize: '0.8rem',
-                    color: 'var(--text-secondary)',
-                    lineHeight: 1.45,
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.5rem'
-                  }}>
-                    <ShieldAlert size={16} style={{ color: '#2563eb', flexShrink: 0, marginTop: '2px' }} />
-                    <div>
-                      Akun Anda terhubung dengan Google SSO. Anda dapat menyetel kata sandi manual untuk login alternatif jika layanan Google mengalami kendala.
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      Kata Sandi Saat Ini
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type={showOldPassword ? 'text' : 'password'}
-                        required
-                        value={passwordForm.old_password}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
-                        placeholder="Masukkan kata sandi lama Anda"
-                        style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowOldPassword(!showOldPassword)}
-                        aria-label="Tampilkan atau sembunyikan kata sandi saat ini"
-                        style={{
-                          position: 'absolute',
-                          right: '0.5rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--text-muted)',
-                          padding: '0.25rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                      >
-                        {showOldPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                  </div>
-                )}
+            {/* SUB-TAB 3: JEJAK AUDIT & LOG AKTIVITAS */}
+            {profileSubTab === 'audit_logs' && (
+              <div className="animate-fade-in">
+                <TabletAuditLogsView
+                  token={token}
+                  currentUser={adminUser || currentUser}
+                  storeSlug={storeSlug}
+                  showToast={showToast}
+                  onLogout={onLogout}
+                  onUnauthorized={onUnauthorized}
+                />
+              </div>
+            )}
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                    {hasCustomPassword ? 'Kata Sandi Baru' : 'Kata Sandi Baru Cadangan'}
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      required
-                      value={passwordForm.new_password}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
-                      placeholder="Minimal 8 karakter (huruf besar, kecil, angka, simbol)"
-                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      aria-label="Tampilkan atau sembunyikan kata sandi baru"
-                      style={{
-                        position: 'absolute',
-                        right: '0.5rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        padding: '0.25rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                    Konfirmasi Kata Sandi Baru
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      required
-                      value={passwordForm.confirm_password}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
-                      placeholder="Ketik ulang kata sandi baru"
-                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      aria-label="Tampilkan atau sembunyikan konfirmasi kata sandi baru"
-                      style={{
-                        position: 'absolute',
-                        right: '0.5rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        padding: '0.25rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.4, marginTop: '-0.2rem' }}>
-                  Kriteria: Min. 8 karakter, wajib kombinasi huruf besar (A-Z), huruf kecil (a-z), angka (0-9), dan simbol unik (@, #, $, dll).
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  style={{
-                    minHeight: '44px',
-                    padding: '0.6rem 1rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--primary)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    cursor: saving ? 'not-allowed' : 'pointer',
-                    marginTop: '0.35rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                  }}
-                >
-                  {saving ? (
-                    <>
-                      <RefreshCw size={16} className="animate-spin" />
-                      <span>Menyimpan...</span>
-                    </>
-                  ) : hasCustomPassword ? (
-                    <>
-                      <Lock size={16} />
-                      <span>Perbarui Kata Sandi</span>
-                    </>
-                  ) : (
-                    <>
-                      <Key size={16} />
-                      <span>Simpan Kata Sandi Cadangan</span>
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* Connected Devices (Real Active Sessions Management) */}
-            <TabletConnectedDevicesView
-              token={token}
-              showToast={showToast}
-              onLogoutCurrent={onLogout}
-              onLogout={onLogout}
-              onUnauthorized={onUnauthorized}
-            />
+            {/* SUB-TAB 4: PENUTUPAN AKUN & KATALOG */}
+            {profileSubTab === 'danger' && (
+              <div className="animate-fade-in">
+                <TabletDangerZoneView
+                  currentStore={currentStoreObj}
+                  currentUser={adminUser || currentUser}
+                  userStores={userStores}
+                  token={token}
+                  onStoreDeleted={handleStoreDeleted}
+                  onAccountDeleted={handleAccountDeleted}
+                  showToast={showToast}
+                  onExportCatalogJSON={handleExportCatalogJSON}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -5527,6 +8622,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         {activeTab === 'audit_logs' && (
           <TabletAuditLogsView
             token={token}
+            currentUser={currentUser}
             storeSlug={storeSlug}
             showToast={showToast}
             onLogout={onLogout}
@@ -5535,114 +8631,821 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         )}
 
         {/* ===================================================================
-            TAB 7: PUSAT NOTIFIKASI
+            TAB 7: PUSAT NOTIFIKASI (Master-Detail Split View)
             =================================================================== */}
         {activeTab === 'notifications' && (
-          <div style={{ padding: '2rem', maxWidth: '960px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.35rem 0' }}>
-                  Pusat Notifikasi Toko
-                </h2>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
-                  Informasi aktivitas sistem, keamanan, dan pembaruan pesanan katalog Anda.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleMarkAllNotifsRead}
-                style={{
-                  padding: '0.45rem 1rem',
-                  borderRadius: '0.5rem',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-card)',
-                  color: 'var(--text-primary)',
-                  fontWeight: 600,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Tandai Semua Dibaca
-              </button>
-            </div>
-
-            {/* Filter Pills */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
-              {[
-                { key: 'all', label: 'Semua' },
-                { key: 'unread', label: 'Belum Dibaca' },
-                { key: 'security', label: 'Keamanan' },
-                { key: 'system', label: 'Sistem' }
-              ].map(f => (
-                <button
-                  key={f.key}
-                  type="button"
-                  onClick={() => setNotifFilter(f.key as any)}
-                  style={{
-                    padding: '0.4rem 0.95rem',
-                    borderRadius: '999px',
-                    border: '1px solid',
-                    borderColor: notifFilter === f.key ? 'var(--primary)' : 'var(--border-light)',
-                    backgroundColor: notifFilter === f.key ? 'var(--primary)' : 'var(--bg-card)',
-                    color: notifFilter === f.key ? '#ffffff' : 'var(--text-secondary)',
-                    fontWeight: 600,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Notification Items */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              {notifications.length === 0 ? (
-                <div style={{ padding: '3rem', textAlign: 'center', backgroundColor: 'var(--bg-card)', borderRadius: '1rem', border: '1px dashed var(--border-light)', color: 'var(--text-muted)' }}>
-                  Tidak ada notifikasi pada kategori ini
-                </div>
-              ) : (
-                notifications.map(notif => (
-                  <div
-                    key={notif.id}
-                    onClick={() => {
-                      setSelectedNotif(notif);
-                      handleMarkNotifRead(notif.id);
-                    }}
+          <TabletMasterDetailView
+            title="Pusat Notifikasi Toko"
+            subtitle={`${notifTotal || notifications.length} riwayat pesan & aktivitas`}
+            headerAction={
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                {totalNotifUnread > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllNotifsRead}
                     style={{
-                      padding: '1rem',
-                      borderRadius: '0.75rem',
-                      backgroundColor: notif.read ? 'var(--bg-card)' : 'rgba(30, 58, 138, 0.08)',
-                      border: notif.read ? '1px solid var(--border-light)' : '1px solid var(--primary)',
+                      minHeight: '40px',
+                      padding: '0.45rem 0.95rem',
+                      borderRadius: '0.65rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--primary)',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
                       cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      gap: '1rem'
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <span style={{ fontSize: '0.92rem', fontWeight: notif.read ? 600 : 800 }}>
-                          {notif.title}
+                    <CheckCheck size={15} />
+                    <span>Tandai Semua Dibaca</span>
+                  </button>
+                )}
+                {notifications.some(n => n.read) && (
+                  <button
+                    type="button"
+                    onClick={handleClearReadNotifications}
+                    style={{
+                      minHeight: '40px',
+                      padding: '0.45rem 0.95rem',
+                      borderRadius: '0.65rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-deep)',
+                      color: 'var(--text-muted)',
+                      fontWeight: 600,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Bersihkan riwayat notifikasi yang sudah dibaca"
+                  >
+                    <Trash2 size={14} />
+                    <span>Bersihkan Terbaca</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fetchNotifications(1, notifFilter, notifDebouncedSearch)}
+                  disabled={notifLoading}
+                  style={{
+                    minHeight: '40px',
+                    minWidth: '40px',
+                    padding: '0.45rem',
+                    borderRadius: '0.65rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-secondary)',
+                    cursor: notifLoading ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Segarkan notifikasi"
+                >
+                  <RefreshCw size={15} className={notifLoading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+            }
+            selectedId={selectedNotif ? selectedNotif.id : null}
+            onClearSelection={() => setSelectedNotif(null)}
+            masterPane={
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+                {/* 1. Summary Metric Cards (Total Masuk, Belum Dibaca, Terbaca) */}
+                <div style={{
+                  padding: '1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  borderBottom: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)'
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                    <div
+                      onClick={() => handleNotifFilterChange('all')}
+                      style={{
+                        padding: '0.65rem 0.5rem',
+                        borderRadius: '0.65rem',
+                        textAlign: 'center',
+                        backgroundColor: notifFilter === 'all' ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                        border: notifFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: notifFilter === 'all' ? 'var(--primary)' : 'var(--text-muted)', display: 'block' }}>
+                        Total Masuk
+                      </span>
+                      <strong style={{ fontSize: '1.1rem', fontWeight: 800, color: notifFilter === 'all' ? 'var(--primary)' : 'var(--text-primary)' }}>
+                        {notifTotal || notifications.length}
+                      </strong>
+                    </div>
+
+                    <div
+                      onClick={() => handleNotifFilterChange('unread')}
+                      style={{
+                        padding: '0.65rem 0.5rem',
+                        borderRadius: '0.65rem',
+                        textAlign: 'center',
+                        backgroundColor: notifFilter === 'unread' ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                        border: notifFilter === 'unread' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: notifUnreadCount > 0 ? '#ef4444' : 'var(--text-muted)', display: 'block' }}>
+                        Belum Dibaca
+                      </span>
+                      <strong style={{ fontSize: '1.1rem', fontWeight: 800, color: notifUnreadCount > 0 ? '#ef4444' : 'var(--text-primary)' }}>
+                        {notifUnreadCount}
+                      </strong>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '0.65rem 0.5rem',
+                        borderRadius: '0.65rem',
+                        textAlign: 'center',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)'
+                      }}
+                    >
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#10b981', display: 'block' }}>
+                        Terbaca
+                      </span>
+                      <strong style={{ fontSize: '1.1rem', fontWeight: 800, color: '#10b981' }}>
+                        {notifReadCount}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input
+                      type="text"
+                      placeholder="Cari judul, pesan, nomor laporan..."
+                      value={notifSearchQuery}
+                      onChange={(e) => setNotifSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 2.2rem 0.55rem 2.2rem',
+                        borderRadius: '0.65rem',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-deep)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.82rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    {notifSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setNotifSearchQuery('')}
+                        style={{
+                          position: 'absolute',
+                          right: '0.65rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          padding: '0.2rem'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter Pills with Badge Counters */}
+                  <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' }}>
+                    {[
+                      { key: 'all', label: 'Semua', count: notifTotal || notifications.length },
+                      { key: 'unread', label: 'Belum Dibaca', count: notifUnreadCount, badgeColor: '#ef4444' },
+                      { key: 'security', label: 'Keamanan & Kepatuhan', count: notifSecurityCount, badgeColor: '#f43f5e' },
+                      { key: 'system', label: 'Sistem Toko', count: notifSystemCount }
+                    ].map(f => {
+                      const isActive = notifFilter === f.key;
+                      return (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => handleNotifFilterChange(f.key as any)}
+                          style={{
+                            minHeight: '36px',
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '999px',
+                            border: '1px solid',
+                            borderColor: isActive ? 'var(--primary)' : 'var(--border-light)',
+                            backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
+                            color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <span>{f.label}</span>
+                          <span style={{
+                            fontSize: '0.68rem',
+                            padding: '0.08rem 0.35rem',
+                            borderRadius: '999px',
+                            backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : (f.badgeColor ? `${f.badgeColor}22` : 'rgba(255, 255, 255, 0.08)'),
+                            color: isActive ? '#ffffff' : (f.badgeColor || 'var(--text-muted)'),
+                            fontWeight: 800
+                          }}>
+                            {f.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Notifications List */}
+                <div style={{ flex: 1, padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', overflowY: 'auto' }}>
+                  {notifLoading && notifications.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1rem', gap: '0.75rem', color: 'var(--text-muted)' }}>
+                      <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Memuat notifikasi...</span>
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    notifSearchQuery.trim() ? (
+                      <div style={{ padding: '2.5rem 1rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
+                        <Search size={28} style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }} />
+                        <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: '0 0 0.3rem 0' }}>Tidak Ditemukan Notifikasi</h4>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.75rem 0' }}>
+                          Tidak ada riwayat yang cocok dengan "{notifSearchQuery}".
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setNotifSearchQuery('')}
+                          style={{
+                            padding: '0.4rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--primary)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Hapus Pencarian
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '3rem 1.5rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)' }}>
+                        <Bell size={32} style={{ marginBottom: '0.65rem', opacity: 0.6 }} />
+                        <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.3rem 0' }}>Tidak Ada Notifikasi</h4>
+                        <p style={{ fontSize: '0.78rem', margin: 0 }}>Semua pembaruan sistem dan aktivitas toko akan tampil di sini.</p>
+                      </div>
+                    )
+                  ) : (
+                    notifications.map(rawNotif => {
+                      const norm = normalizeNotification(rawNotif);
+                      const isSelected = selectedNotif?.id === rawNotif.id;
+                      const isBannedNotif = norm.modCase?.actionTaken === 'item_banned' || norm.modCase?.actionTaken === 'account_banned' || norm.modCase?.actionTaken === 'catalog_banned';
+                      const isWarningNotif = norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix' || rawNotif.type === 'warning';
+
+                      return (
+                        <div
+                          key={rawNotif.id}
+                          onClick={() => {
+                            setSelectedNotif(rawNotif);
+                            handleMarkNotifRead(rawNotif.id);
+                          }}
+                          style={{
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: isSelected
+                              ? 'var(--primary-glow)'
+                              : norm.read
+                              ? 'var(--bg-card)'
+                              : 'rgba(30, 58, 138, 0.08)',
+                            border: isSelected
+                              ? '1.5px solid var(--primary)'
+                              : isBannedNotif
+                              ? (norm.read ? '1px solid rgba(239, 68, 68, 0.35)' : '1.5px solid #ef4444')
+                              : isWarningNotif
+                              ? (norm.read ? '1px solid rgba(245, 158, 11, 0.35)' : '1.5px solid #f59e0b')
+                              : norm.read
+                              ? '1px solid var(--border-light)'
+                              : '1px solid var(--primary)',
+                            borderLeft: isBannedNotif
+                              ? '4px solid #ef4444'
+                              : isWarningNotif
+                              ? '4px solid #f59e0b'
+                              : !norm.read
+                              ? '4px solid var(--primary)'
+                              : '1px solid var(--border-light)',
+                            boxShadow: isSelected
+                              ? '0 0 14px var(--primary-glow)'
+                              : !norm.read
+                              ? '0 2px 8px rgba(0, 0, 0, 0.04)'
+                              : 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.45rem',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {/* Top Meta Line: Badge & Timestamp */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              {!norm.read && (
+                                <span style={{
+                                  width: '7px',
+                                  height: '7px',
+                                  borderRadius: '50%',
+                                  backgroundColor: isBannedNotif ? '#ef4444' : isWarningNotif ? '#f59e0b' : 'var(--primary)',
+                                  display: 'inline-block'
+                                }} />
+                              )}
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em',
+                                padding: '0.12rem 0.45rem',
+                                borderRadius: '0.35rem',
+                                color: norm.categoryColor,
+                                backgroundColor: norm.categoryBg,
+                                border: `1px solid ${norm.categoryBorder}`
+                              }}>
+                                {isBannedNotif ? 'KEAMANAN • SANKSI' : norm.category}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                              {norm.time}
+                            </span>
+                          </div>
+
+                          {/* Title */}
+                          <h4 style={{
+                            fontSize: '0.88rem',
+                            fontWeight: norm.read ? 700 : 800,
+                            color: 'var(--text-primary)',
+                            margin: 0,
+                            lineHeight: 1.35
+                          }}>
+                            {norm.title}
+                          </h4>
+
+                          {/* Summary text */}
+                          <p style={{
+                            fontSize: '0.78rem',
+                            color: 'var(--text-secondary)',
+                            margin: 0,
+                            lineHeight: 1.45,
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}>
+                            {norm.message}
+                          </p>
+
+                          {/* Catatan Admin Callout */}
+                          {norm.modCase?.notes && !norm.modCase.notes.startsWith('Ditemukan ketidaksesuaian') && (
+                            <div style={{
+                              padding: '0.35rem 0.55rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                              borderLeft: isBannedNotif ? '3px solid #ef4444' : '3px solid #f59e0b',
+                              fontSize: '0.72rem',
+                              color: 'var(--text-primary)',
+                              fontStyle: 'italic',
+                              lineHeight: 1.35
+                            }}>
+                              <span style={{ fontWeight: 800, fontStyle: 'normal', color: isBannedNotif ? '#ef4444' : '#f59e0b' }}>
+                                Catatan Admin:{" "}
+                              </span>
+                              "{norm.modCase.notes}"
+                            </div>
+                          )}
+
+                          {/* Action Micro-Pill */}
+                          {norm.displayType && (
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              padding: '0.18rem 0.55rem',
+                              borderRadius: '0.35rem',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              backgroundColor: norm.modCase?.actionTaken === 'item_needs_fix'
+                                ? 'rgba(245, 158, 11, 0.14)'
+                                : isBannedNotif
+                                ? 'rgba(239, 68, 68, 0.12)'
+                                : norm.displayType === 'external'
+                                ? 'rgba(59, 130, 246, 0.12)'
+                                : 'var(--primary-glow)',
+                              color: norm.modCase?.actionTaken === 'item_needs_fix'
+                                ? '#f59e0b'
+                                : isBannedNotif
+                                ? '#ef4444'
+                                : norm.displayType === 'external'
+                                ? '#3b82f6'
+                                : 'var(--primary)',
+                              border: '1px solid currentColor',
+                              width: 'fit-content',
+                              marginTop: '0.2rem'
+                            }}>
+                              <span>
+                                {norm.modCase?.actionTaken === 'item_needs_fix'
+                                  ? 'Perbaiki Item Sekarang'
+                                  : norm.isModerationNotif && norm.modCase.isAppealEligible
+                                  ? 'Ajukan Banding Kepatuhan'
+                                  : isBannedNotif
+                                  ? 'Lihat Salinan Keputusan'
+                                  : norm.displayLabel}
+                              </span>
+                              {norm.displayType === 'external' && <ExternalLink size={11} />}
+                              {norm.displayType === 'navigate' && <ArrowRight size={11} />}
+                              {norm.displayType === 'detail' && <ChevronRight size={11} />}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* 3. Segmented Pagination at Master Pane Bottom */}
+                <TabletSegmentedPagination
+                  currentPage={notifPage}
+                  totalPages={Math.ceil((notifTotal || notifications.length) / notifLimit) || 1}
+                  totalRecords={notifTotal || notifications.length}
+                  pageSize={notifLimit}
+                  onPageChange={(p) => fetchNotifications(p, notifFilter, notifDebouncedSearch)}
+                  isLoading={notifLoading}
+                />
+              </div>
+            }
+            detailPane={
+              selectedNotif ? (() => {
+                const norm = normalizeNotification(selectedNotif);
+                const modCase = norm.modCase;
+
+                if (modCase.isModeration) {
+                  return (
+                    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+                      {/* Header */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            padding: '0.2rem 0.65rem',
+                            borderRadius: '0.4rem',
+                            color: modCase.statusColor,
+                            backgroundColor: `${modCase.statusColor}18`,
+                            border: `1px solid ${modCase.statusColor}40`
+                          }}>
+                            {modCase.statusBadge}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            • {modCase.issuedDateStr}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 700, backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.55rem', borderRadius: '999px', border: '1px solid var(--border-light)' }}>
+                          ✓ Terbaca
                         </span>
-                        {!notif.read && (
-                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
+                      </div>
+
+                      {/* Incident Banner */}
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: modCase.isRestored
+                          ? 'rgba(16, 185, 129, 0.08)'
+                          : modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix'
+                          ? 'rgba(245, 158, 11, 0.08)'
+                          : 'rgba(239, 68, 68, 0.08)',
+                        border: `1px solid ${modCase.statusColor}40`,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '1rem'
+                      }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: `${modCase.statusColor}20`,
+                          border: `1px solid ${modCase.statusColor}50`,
+                          color: modCase.statusColor,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          {modCase.isRestored ? <CheckCircle size={22} /> : modCase.actionTaken === 'item_needs_fix' ? <Edit3 size={22} /> : <ShieldAlert size={22} />}
+                        </div>
+                        <div>
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>
+                            {modCase.statusHeadline}
+                          </h3>
+                          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                            {selectedNotif.message}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Target & Report Info Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                        <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Entitas Terkait</span>
+                          <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{modCase.targetName || (modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog')}</strong>
+                        </div>
+                        <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Nomor Berkas / Laporan</span>
+                          <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>#{modCase.reportNumber || 'RPT-MODERASI'}</strong>
+                        </div>
+                        <div style={{ gridColumn: 'span 2', padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Kategori Pelanggaran / Evaluasi</span>
+                          <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{modCase.reason}</strong>
+                        </div>
+                      </div>
+
+                      {/* Admin Notes Quote Box */}
+                      {modCase.notes && (
+                        <div style={{
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: `${modCase.statusColor}10`,
+                          borderLeft: `4px solid ${modCase.statusColor}`,
+                          fontSize: '0.82rem',
+                          lineHeight: 1.5,
+                          fontStyle: 'italic',
+                          color: 'var(--text-primary)'
+                        }}>
+                          <span style={{ fontWeight: 800, fontStyle: 'normal', color: modCase.statusColor }}>Catatan Tim Kepatuhan: </span>
+                          "{modCase.notes}"
+                        </div>
+                      )}
+
+                      {/* Detail Content (FormattedText) */}
+                      {selectedNotif.detail_content && (
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                          <FormattedText text={selectedNotif.detail_content} />
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
+                        {modCase.actionTaken === 'item_needs_fix' && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenFixItemFromNotif(selectedNotif)}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.65rem 1.25rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: '#f59e0b',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontWeight: 700,
+                              fontSize: '0.88rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)'
+                            }}
+                          >
+                            <Edit3 size={16} />
+                            <span>Perbaiki Item Sekarang</span>
+                            <ArrowRight size={16} />
+                          </button>
+                        )}
+
+                        {modCase.isAppealEligible && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAppealFromNotif(selectedNotif)}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.65rem 1.25rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--primary)',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontWeight: 700,
+                              fontSize: '0.88rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              boxShadow: '0 4px 14px var(--primary-glow)'
+                            }}
+                          >
+                            <Scale size={16} />
+                            <span>Ajukan Banding Kepatuhan</span>
+                            <ArrowRight size={16} />
+                          </button>
+                        )}
+
+                        {modCase.actionTaken === 'item_banned' && (
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('items')}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.65rem 1.25rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              color: 'var(--text-primary)',
+                              border: '1px solid var(--border-light)',
+                              fontWeight: 700,
+                              fontSize: '0.88rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem'
+                            }}
+                          >
+                            <Package size={16} />
+                            <span>Buka Inventaris Item</span>
+                          </button>
+                        )}
+
+                        {modCase.isRestored && (
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('items')}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.65rem 1.25rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: '#10b981',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontWeight: 700,
+                              fontSize: '0.88rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                            }}
+                          >
+                            <CheckCircle size={16} />
+                            <span>Kembali ke Inventaris Katalog</span>
+                          </button>
                         )}
                       </div>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                        {notif.message}
-                      </p>
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                      {notif.timestamp || notif.time || 'Baru'}
-                    </span>
+                  );
+                }
+
+                // Standard Editorial Notification View
+                return (
+                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+                    {/* Header */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          padding: '0.2rem 0.65rem',
+                          borderRadius: '0.4rem',
+                          color: norm.categoryColor,
+                          backgroundColor: norm.categoryBg,
+                          border: `1px solid ${norm.categoryBorder}`
+                        }}>
+                          {norm.category}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          • {norm.time}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 700, backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.55rem', borderRadius: '999px', border: '1px solid var(--border-light)' }}>
+                        ✓ Terbaca
+                      </span>
+                    </div>
+
+                    {/* Title */}
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35 }}>
+                      {norm.title}
+                    </h2>
+
+                    {/* Full Body / Formatted Message */}
+                    <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                      <FormattedText text={norm.detailContent || norm.message} />
+                    </div>
+
+                    {/* Action Buttons */}
+                    {(norm.isTicketNotif || norm.isDirectNav || norm.isExternal) && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
+                        {norm.isTicketNotif && (
+                          <button
+                            type="button"
+                            onClick={() => handleNavigateTicketFromNotif(selectedNotif)}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.65rem 1.25rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--primary)',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontWeight: 700,
+                              fontSize: '0.88rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              boxShadow: '0 4px 14px var(--primary-glow)'
+                            }}
+                          >
+                            <MessageSquare size={16} />
+                            <span>{norm.ticketRef ? `Lihat Tiket CS #${norm.ticketRef}` : 'Buka Pusat Bantuan CS'}</span>
+                            <ArrowRight size={16} />
+                          </button>
+                        )}
+
+                        {norm.isDirectNav && norm.subTab && !norm.isTicketNotif && (
+                          <button
+                            type="button"
+                            onClick={() => handleNavigateSubTabFromNotif(norm.subTab, selectedNotif)}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.65rem 1.25rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--primary)',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontWeight: 700,
+                              fontSize: '0.88rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              boxShadow: '0 4px 14px var(--primary-glow)'
+                            }}
+                          >
+                            <span>{norm.displayLabel || `Buka Menu Terkait`}</span>
+                            <ArrowRight size={16} />
+                          </button>
+                        )}
+
+                        {norm.isExternal && norm.actionUrl && (
+                          <button
+                            type="button"
+                            onClick={() => safeOpenUrl(norm.actionUrl)}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.65rem 1.25rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: '#3b82f6',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontWeight: 700,
+                              fontSize: '0.88rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)'
+                            }}
+                          >
+                            <ExternalLink size={16} />
+                            <span>{norm.displayLabel || 'Kunjungi Tautan Luar'}</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                );
+              })() : null
+            }
+          />
         )}
 
         {/* ===================================================================
@@ -6164,6 +9967,426 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           </div>
         )}
       </main>
+
+      {/* Product Filter Side Sheet (Tablet Native Standard) */}
+      <TabletProductFilterSheet
+        isOpen={isProductFilterOpen}
+        onClose={() => setIsProductFilterOpen(false)}
+        status={productStatusFilter}
+        sort={productSortFilter}
+        productType={productTypeFilter}
+        categoryId={productCategoryFilter}
+        stockStatus={productStockFilter === 'low' || productStockFilter === 'out' ? 'all' : (productStockFilter as 'all' | 'in_stock' | 'out_of_stock')}
+        categories={categories}
+        catalogMetrics={catalogMetrics || undefined}
+        isHybridStore={isHybridStore}
+        availableProductTypes={availableCatalogTypes}
+        onApply={handleApplyProductFilters}
+        onReset={handleResetAllFilters}
+      />
+
+      {/* ===================================================================
+          RENAME MASTER CATEGORY MODAL (Tablet Native Standard)
+          =================================================================== */}
+      {renameMasterModalData && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.25rem',
+            animation: 'fadeIn 0.18s ease'
+          }}
+          onClick={() => setRenameMasterModalData(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Edit3 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Ubah Nama Kategori
+                  </h3>
+                  {renameMasterModalData.fieldLabel && (
+                    <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                      {renameMasterModalData.fieldLabel}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRenameMasterModalData(null)}
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                  Nama Kategori Saat Ini:
+                </label>
+                <div style={{
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '0.55rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.88rem',
+                  fontWeight: 600
+                }}>
+                  {renameMasterModalData.oldValue}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                  Nama Baru Kategori *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Masukkan nama baru kategori..."
+                  value={renameMasterModalData.newValue}
+                  onChange={(e) => setRenameMasterModalData({ ...renameMasterModalData, newValue: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (renameMasterModalData.newValue.trim() && !saving) {
+                        handleRenameMasterOption(
+                          renameMasterModalData.oldValue,
+                          renameMasterModalData.newValue,
+                          renameMasterModalData.productType
+                        );
+                      }
+                    }
+                  }}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    minHeight: '44px',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Informative Synchronize Note */}
+              <div style={{
+                padding: '0.75rem 0.95rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.22)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.65rem'
+              }}>
+                <Info size={16} color="#3b82f6" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  Perubahan nama kategori ini akan otomatis disinkronkan ke seluruh item katalog yang menggunakan kategori ini secara aman.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '0.75rem',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setRenameMasterModalData(null)}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 1.25rem',
+                  borderRadius: '0.55rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={saving || !renameMasterModalData.newValue.trim() || renameMasterModalData.newValue.trim() === renameMasterModalData.oldValue}
+                onClick={() => handleRenameMasterOption(
+                  renameMasterModalData.oldValue,
+                  renameMasterModalData.newValue,
+                  renameMasterModalData.productType
+                )}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 1.5rem',
+                  borderRadius: '0.55rem',
+                  border: 'none',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: (saving || !renameMasterModalData.newValue.trim() || renameMasterModalData.newValue.trim() === renameMasterModalData.oldValue) ? 'not-allowed' : 'pointer',
+                  opacity: (saving || !renameMasterModalData.newValue.trim() || renameMasterModalData.newValue.trim() === renameMasterModalData.oldValue) ? 0.6 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem'
+                }}
+              >
+                <Save size={15} />
+                <span>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          DELETE & REASSIGN MASTER CATEGORY MODAL (Tablet Native Standard)
+          =================================================================== */}
+      {deleteMasterModalData && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.25rem',
+            animation: 'fadeIn 0.18s ease'
+          }}
+          onClick={() => setDeleteMasterModalData(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '500px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  color: '#ef4444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Trash2 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#ef4444' }}>
+                    Konfirmasi Hapus Kategori
+                  </h3>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                    Pengalihan Relasi Item Katalog Wajib Dilakukan
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteMasterModalData(null)}
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                Anda akan menghapus kategori <strong style={{ color: 'var(--text-primary)' }}>"{deleteMasterModalData.value}"</strong>. 
+                Seluruh item katalog yang saat ini menggunakan kategori ini akan dialihkan ke kategori pengganti di bawah ini.
+              </p>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.45rem' }}>
+                  Pilih Kategori Pengganti *
+                </label>
+                <TabletCustomSelect
+                  value={deleteMasterModalData.selectedReplacement}
+                  onChange={(val) => setDeleteMasterModalData({
+                    ...deleteMasterModalData,
+                    selectedReplacement: val
+                  })}
+                  options={deleteMasterModalData.replacementOptions.map(opt => ({
+                    value: opt,
+                    label: opt
+                  }))}
+                  placeholder="Pilih Kategori Pengganti..."
+                  triggerStyle={{ minHeight: '44px', fontSize: '0.88rem' }}
+                />
+              </div>
+
+              {/* Informative Note */}
+              <div style={{
+                padding: '0.75rem 0.95rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.65rem'
+              }}>
+                <AlertCircle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  Tindakan ini tidak dapat dibatalkan. Kategori lama akan dihapus permanen dari daftar etalase toko Anda.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '0.75rem',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setDeleteMasterModalData(null)}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 1.25rem',
+                  borderRadius: '0.55rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={saving || !deleteMasterModalData.selectedReplacement}
+                onClick={handleConfirmDeleteMasterOption}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 1.5rem',
+                  borderRadius: '0.55rem',
+                  border: 'none',
+                  backgroundColor: '#ef4444',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: (saving || !deleteMasterModalData.selectedReplacement) ? 'not-allowed' : 'pointer',
+                  opacity: (saving || !deleteMasterModalData.selectedReplacement) ? 0.6 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem'
+                }}
+              >
+                <Trash2 size={15} />
+                <span>{saving ? 'Menghapus...' : 'Hapus & Alihkan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

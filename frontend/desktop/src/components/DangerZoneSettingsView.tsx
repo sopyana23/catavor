@@ -120,6 +120,7 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
+          confirm_slug: storeSlugConfirmation.trim(),
           slug: storeSlugConfirmation.trim(),
           password: storePassword
         })
@@ -172,6 +173,7 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
+          confirm_phrase: accountPhraseConfirmation.trim(),
           confirmation: accountPhraseConfirmation.trim(),
           password: accountPassword
         })

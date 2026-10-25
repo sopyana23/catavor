@@ -15,6 +15,7 @@ import {
   Tag
 } from 'lucide-react';
 import { TabletProductDetailSheet } from './TabletProductDetailSheet';
+import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
 
 export interface TabletStoreCatalogProps {
   slug: string;
@@ -417,61 +418,29 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
           />
         </div>
 
-        {/* Category Filter Pills (Horizontal Touch Scroll) */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          overflowX: 'auto',
-          paddingBottom: '0.35rem',
-          scrollbarWidth: 'none'
-        }}>
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('all')}
-            style={{
-              minHeight: '40px',
-              padding: '0.45rem 1.15rem',
-              borderRadius: '999px',
-              border: selectedCategory === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-              backgroundColor: selectedCategory === 'all' ? 'var(--primary)' : 'var(--bg-card)',
-              color: selectedCategory === 'all' ? '#ffffff' : 'var(--text-secondary)',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            Semua Produk ({products.length})
-          </button>
-
-          {categories.map((cat) => {
-            const isSelected = selectedCategory === String(cat.id) || selectedCategory === cat.name;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(String(cat.id))}
-                style={{
-                  minHeight: '40px',
-                  padding: '0.45rem 1.15rem',
-                  borderRadius: '999px',
-                  border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                  backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
-                  color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {cat.name}
-              </button>
-            );
-          })}
-        </div>
+        {/* Category Filter Pills (Horizontal Touch & Drag Scroll - only if categories exist) */}
+        {categories.length > 0 && (
+          <TabletScrollableFilterTags
+            items={[
+              {
+                id: 'all',
+                label: 'Semua Produk',
+                count: products.length
+              },
+              ...categories.map((cat) => ({
+                id: String(cat.id),
+                label: cat.name,
+                count: products.filter(
+                  (p) => String(p.category_id) === String(cat.id) || p.category_name?.toLowerCase() === cat.name.toLowerCase()
+                ).length
+              }))
+            ]}
+            selectedId={selectedCategory}
+            onSelect={(id) => setSelectedCategory(id)}
+            ariaLabel="Filter Kategori Toko"
+            containerBg="var(--bg-card)"
+          />
+        )}
       </div>
 
       {/* 4. Product Catalog Grid (Tablet 3-Column Native) */}
@@ -548,10 +517,54 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                       padding: '0.2rem 0.55rem',
                       borderRadius: '999px',
                       backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                      color: '#ffffff'
+                      color: '#ffffff',
+                      zIndex: 2
                     }}>
                       {prod.category_name}
                     </span>
+                  )}
+
+                  {/* Availability Status Badge */}
+                  {prod.conservation_status && prod.conservation_status !== 'Tersedia' && (
+                    <div
+                      title={prod.conservation_status}
+                      style={{
+                        position: 'absolute',
+                        top: '8px',
+                        right: '8px',
+                        padding: '0.18rem 0.55rem',
+                        borderRadius: '6px',
+                        backgroundColor: prod.conservation_status === 'Habis Terjual'
+                          ? 'rgba(239, 68, 68, 0.92)'
+                          : prod.conservation_status === 'Pre-Order'
+                          ? 'rgba(217, 119, 6, 0.92)'
+                          : prod.conservation_status === 'Buka Jadwal'
+                          ? 'rgba(124, 58, 237, 0.92)'
+                          : 'rgba(59, 130, 246, 0.92)',
+                        backdropFilter: 'blur(8px)',
+                        color: '#ffffff',
+                        fontSize: '0.64rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.02em',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                        maxWidth: 'calc(100% - 1rem)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        zIndex: 2
+                      }}
+                    >
+                      <span style={{
+                        width: '5px',
+                        height: '5px',
+                        borderRadius: '50%',
+                        backgroundColor: '#ffffff'
+                      }} />
+                      <span>{prod.conservation_status}</span>
+                    </div>
                   )}
                 </div>
 
@@ -593,7 +606,16 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                     fontSize: '0.78rem',
                     color: 'var(--text-muted)'
                   }}>
-                    <span>{prod.stock > 0 ? `Stok: ${prod.stock}` : 'Siap Pesan'}</span>
+                    <span style={{
+                      fontWeight: 600,
+                      color: prod.conservation_status === 'Habis Terjual'
+                        ? '#ef4444'
+                        : prod.conservation_status === 'Pre-Order'
+                        ? '#f59e0b'
+                        : 'var(--text-secondary)'
+                    }}>
+                      {prod.conservation_status || (prod.stock > 0 ? `Stok: ${prod.stock}` : 'Tersedia')}
+                    </span>
                     <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       Rincian &rarr;
                     </span>

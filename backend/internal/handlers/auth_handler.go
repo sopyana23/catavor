@@ -2094,6 +2094,7 @@ func cleanSlug(s string) string {
 
 type DeleteAccountRequest struct {
 	ConfirmPhrase string `json:"confirm_phrase"`
+	Confirmation  string `json:"confirmation,omitempty"`
 	Password      string `json:"password"`
 }
 
@@ -2121,8 +2122,11 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		})
 	}
 
-	// 1. Validate confirmation phrase
+	// 1. Validate confirmation phrase (support confirm_phrase with fallback to confirmation)
 	phrase := strings.TrimSpace(req.ConfirmPhrase)
+	if phrase == "" {
+		phrase = strings.TrimSpace(req.Confirmation)
+	}
 	expectedPhrase := "HAPUS AKUN SAYA"
 	if phrase != expectedPhrase && !strings.EqualFold(phrase, user.Email) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

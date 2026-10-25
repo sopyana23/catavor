@@ -20,6 +20,69 @@ func NewSettingHandler(db *gorm.DB) *SettingHandler {
 	return &SettingHandler{db: db}
 }
 
+// PublicIndex returns ONLY allowlisted public platform settings with safe defaults.
+// Internal platform settings (such as master coupons or payment secrets)
+// are strictly excluded from public visibility (OWASP Information Disclosure prevention).
+func (h *SettingHandler) PublicIndex(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	publicKeys := map[string]bool{
+		"store_title":              true,
+		"articles_enabled":         true,
+		"ads_enabled":              true,
+		"ads_client_id":            true,
+		"ads_auto_enabled":         true,
+		"ads_slot_header":          true,
+		"ads_slot_infeed":          true,
+		"ads_slot_product_detail":  true,
+		"ads_slot_bottom":          true,
+		"ads_slot_dashboard":       true,
+		"ads_test_mode":            true,
+		"ads_txt_content":          true,
+		"ga_enabled":               true,
+		"ga_measurement_id":        true,
+		"market_intel_enabled":     true,
+		"rekber_enabled":           true,
+		"rekber_partner_name":      true,
+		"rekber_website_url":       true,
+		"rekber_wa_number":         true,
+		"rekber_logo_url":          true,
+		"rekber_template_physical": true,
+		"rekber_template_general":  true,
+		"rekber_template_food":     true,
+		"rekber_template_digital":  true,
+		"rekber_template_service":  true,
+		"rekber_template_plant":    true,
+		"rekber_template_fauna":    true,
+		"maintenance_mode":         true,
+		"maintenance_message":      true,
+		"terms_conditions":         true,
+		"privacy_policy":           true,
+	}
+
+	var settings []models.Setting
+	h.db.Find(&settings)
+
+	res := make(map[string]string)
+	for _, s := range settings {
+		if publicKeys[s.Key] {
+			res[s.Key] = s.Value
+		}
+	}
+
+	h.applyFallbacks(res)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    res,
+	})
+}
+
 func (h *SettingHandler) Index(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -35,6 +98,15 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 		res[s.Key] = s.Value
 	}
 
+	h.applyFallbacks(res)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    res,
+	})
+}
+
+func (h *SettingHandler) applyFallbacks(res map[string]string) {
 	// Set fallbacks if missing
 	if _, ok := res["store_title"]; !ok {
 		res["store_title"] = "Catavor"
@@ -135,11 +207,6 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 			}
 		}
 	}
-
-	return c.JSON(fiber.Map{
-		"success": true,
-		"data":    res,
-	})
 }
 
 // GetAdsTxt serves public /ads.txt for Google AdSense site verification

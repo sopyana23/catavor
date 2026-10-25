@@ -14,11 +14,19 @@ interface ModalEntry {
 const modalStack: ModalEntry[] = [];
 let isPopstateListenerActive = false;
 let isInternalBackTriggered = false;
+let isProgrammaticCleanupPopping = false;
 
 function ensurePopstateListener() {
   if (isPopstateListenerActive || typeof window === 'undefined') return;
 
   window.addEventListener('popstate', () => {
+    // If popstate was triggered by our own modal cleanup popping its own dummy entry,
+    // do NOT pop or close any parent modal from the stack!
+    if (isProgrammaticCleanupPopping || window.__catavor_is_modal_popping) {
+      isProgrammaticCleanupPopping = false;
+      return;
+    }
+
     if (modalStack.length > 0) {
       const topModal = modalStack.pop();
       if (topModal) {
@@ -186,11 +194,13 @@ export function useModalBackHandler({
       }
 
       if (!isInternalBackTriggered && window.history.state?.modalKey === uniqueKey) {
+        isProgrammaticCleanupPopping = true;
         window.__catavor_is_modal_popping = true;
         window.history.back();
         setTimeout(() => {
+          isProgrammaticCleanupPopping = false;
           window.__catavor_is_modal_popping = false;
-        }, 120);
+        }, 150);
       }
       isInternalBackTriggered = false;
     };

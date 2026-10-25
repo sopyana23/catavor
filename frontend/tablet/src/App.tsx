@@ -18,6 +18,7 @@ import { isTokenExpired } from './utils/auth';
 import { broadcastAuthEvent, subscribeAuthSync } from './utils/authSync';
 import { initGoogleAdSense } from './utils/googleAdSense';
 import { initGoogleAnalytics } from './utils/googleAnalytics';
+import { smartBack } from './utils/navigation';
 
 export const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('catavor_token') || localStorage.getItem('token') || '');
@@ -143,6 +144,7 @@ export const App: React.FC = () => {
   // Handle URL change
   useEffect(() => {
     const handlePopState = () => {
+      if (typeof window !== 'undefined' && window.__catavor_is_modal_popping) return;
       const pathname = window.location.pathname.toLowerCase();
       setCurrentPath(pathname);
       const parts = pathname.split('/').filter(Boolean);
@@ -485,7 +487,7 @@ export const App: React.FC = () => {
     return (
       <TabletStoreCatalog
         slug={activeSlug}
-        onBackToExplore={() => navigateTo('/')}
+        onBackToExplore={() => smartBack('/')}
       />
     );
   }
@@ -589,7 +591,7 @@ export const App: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => navigateTo('/')}
+                onClick={() => smartBack('/')}
                 style={{
                   minHeight: '38px',
                   background: 'transparent',
@@ -776,7 +778,7 @@ export const App: React.FC = () => {
               type="button"
               onClick={() => {
                 setLoginError(null);
-                navigateTo('/');
+                smartBack('/');
               }}
               style={{
                 width: '100%',
@@ -1217,7 +1219,7 @@ export const App: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => navigateTo('/')}
+              onClick={() => smartBack('/')}
               style={{
                 minHeight: '40px',
                 background: 'transparent',

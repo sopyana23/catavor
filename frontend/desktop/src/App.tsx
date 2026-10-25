@@ -891,7 +891,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryOptions: ['E-Book & Publikasi', 'Template & Dokumen', 'Desain Grafis & UI Kit', 'Source Code & Skrip', 'Audio, Musik & SFX', 'Preset, Filter & LUTs', 'Video & Aset 3D', 'Software & Tool', 'Kursus & Modul', 'Lainnya'],
         priceLabel: 'Harga Lisensi (IDR) *',
         pricePlaceholder: 'Contoh: 75.000 (Ketik 0 jika Gratis)',
-        photoLabel: 'Banner / Mockup File (1-5 Gambar) *',
+        photoLabel: 'Banner / Mockup File (1-10 Gambar) *',
         photoHelper: 'Unggah cover mockup, screenshot preview, atau banner item digital.',
         videoLabel: 'Video Preview / Demo Item Digital (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
@@ -1099,11 +1099,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         warrantyLabel: 'Legalitas & Kelengkapan Dokumen',
         warrantyPlaceholder: 'Contoh: Sertifikat Hak Milik (SHM) on hand, IMB/PBG lengkap, PBB lunas. Pembayaran bisa Cash Keras, Cash Bertahap, atau KPR Bank (dibantu hingga akad)...',
         descLabel: 'Deskripsi Lengkap & Keunggulan Properti *',
-        descPlaceholder: 'Jelaskan fasilitas cluster (one gate, security 24 jam), akses transportasi terdekat (stasiun/tol), spesifikasi pondasi/kusen, dan nilai investasi properti ini...',
-        minOrderLabel: 'Minimal Unit *',
-        minOrderPlaceholder: '1',
-        maxOrderLabel: 'Maksimal Unit per Pembeli (Opsional)',
-        maxOrderPlaceholder: '1'
+        descPlaceholder: 'Jelaskan fasilitas cluster (one gate, security 24 jam), akses transportasi terdekat (stasiun/tol), spesifikasi pondasi/kusen, dan nilai investasi properti ini...'
       };
   }
 }
@@ -1236,7 +1232,7 @@ export function getAvailabilityStatusOptions(productType: ItemCategoryType = 'ph
       ];
     case 'plant':
       return [
-        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Tanaman segar siap kirim dari nursery' },
+        { value: 'Ready Stock', label: 'Ready Stock (Tersedia)', desc: 'Tanaman segar siap kirim dari nursery' },
         { value: 'Pre-Order', label: 'Pre-Order (PO / Inden)', desc: 'Bibit dalam proses rawatan / semai' },
         { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Indukan kebun / display kontes' },
         { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tanaman saat ini kosong' }
@@ -1307,6 +1303,10 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
       property_location: 'BSD City, Tangerang Selatan',
       facilities: 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
       halal_status: 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+      portion_size: '',
+      prep_time: '',
+      storage_temp: 'Suhu Ruang',
+      expired_info: '',
       sunlight: 'Partial Sun (Teduh Terang)',
       watering: 'Sedang (2-3 Hari Sekali)',
       planting_medium: 'Tanah Subur & Kompos',
@@ -9597,7 +9597,17 @@ Terima kasih atas perhatian dan kerja samanya.`;
     modalId: 'desktop-archive-confirmation-modal'
   })
 
+  // Enterprise Product Delete Confirmation Modal State
+  const [itemToDelete, setItemToDelete] = useState<Fauna | null>(null)
+  const [isDeletingItem, setIsDeletingItem] = useState<boolean>(false)
 
+  useModalBackHandler({
+    isOpen: Boolean(itemToDelete),
+    onClose: () => {
+      if (!isDeletingItem) setItemToDelete(null);
+    },
+    modalId: 'desktop-product-delete-confirmation-modal'
+  })
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
@@ -13460,6 +13470,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
         property_location: item.attributes?.property_location ?? 'BSD City, Tangerang Selatan',
         facilities: item.attributes?.facilities ?? 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
         halal_status: item.attributes?.halal_status ?? 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+        portion_size: item.attributes?.portion_size ?? '',
+        prep_time: item.attributes?.prep_time ?? '',
+        storage_temp: item.attributes?.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (item.attributes?.storage_temp || 'Suhu Ruang'),
+        expired_info: item.attributes?.expired_info ?? '',
         sunlight: item.attributes?.sunlight ?? 'Partial Sun (Teduh Terang)',
         watering: item.attributes?.watering ?? 'Sedang (2-3 Hari Sekali)',
         planting_medium: item.attributes?.planting_medium ?? 'Campuran Tanah, Sekam & Kompos',
@@ -13538,9 +13552,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return
     }
 
-    const minOrderNum = Math.max(1, parseInt(String(crudForm.min_order)) || 1);
-    const maxOrderParsed = crudForm.max_order !== '' && crudForm.max_order !== null && crudForm.max_order !== undefined ? parseInt(String(crudForm.max_order)) : null;
-    const maxOrderNum = (maxOrderParsed && maxOrderParsed > 0) ? Math.max(minOrderNum, maxOrderParsed) : null;
+    const isNoMinMax = crudForm.product_type === 'service' || crudForm.product_type === 'property';
+    const minOrderNum = isNoMinMax ? 1 : Math.max(1, parseInt(String(crudForm.min_order)) || 1);
+    const maxOrderParsed = isNoMinMax ? null : (crudForm.max_order !== '' && crudForm.max_order !== null && crudForm.max_order !== undefined ? parseInt(String(crudForm.max_order)) : null);
+    const maxOrderNum = isNoMinMax ? null : ((maxOrderParsed && maxOrderParsed > 0) ? Math.max(minOrderNum, maxOrderParsed) : null);
 
     try {
       // Step A: Deferred Upload Execution - upload any staged File objects right now
@@ -13606,7 +13621,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
           max_order: maxOrderNum,
           file_format: crudForm.attributes.file_format || 'PDF',
           enable_wa_rekber: crudForm.enable_wa_rekber !== false,
-          enable_wa_direct: crudForm.enable_wa_direct !== false
+          enable_wa_direct: crudForm.enable_wa_direct !== false,
+          whatsapp_contact_id: crudForm.whatsapp_contact_id || 'default'
         },
         detailed_info: {
           native_region: crudForm.native_region,
@@ -13944,44 +13960,47 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
 
 
-  // Handle Fauna/Product Delete
-  const handleFaunaDelete = async (id: number): Promise<boolean> => {
+  // Execute Fauna/Product Delete from Centered Confirmation Modal
+  const handleExecuteProductDelete = async () => {
+    if (!itemToDelete) return;
     if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
       showToast('Operasional katalog sedang dibekukan sementara. Penghapusan item dinonaktifkan.', 'error');
-      return false;
+      setItemToDelete(null);
+      return;
     }
-    if (!window.confirm('Apakah Anda yakin ingin menghapus postingan item ini?')) return false
 
+    setIsDeletingItem(true);
     try {
-      const res = await fetch(`${API_BASE}/products/${id}`, {
+      const res = await fetch(`${API_BASE}/products/${itemToDelete.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       if (res.ok && data.success) {
-        loadData()
-        fetchMyQuota()
-        showToast('Data item berhasil dihapus!')
+        showToast('Data item berhasil dihapus permanen!');
+        setItemToDelete(null);
+        handleCloseDetail();
+        loadData();
+        fetchMyQuota();
         if (view === 'admin') {
-          sessionStorage.setItem('catavor_desktop_view', 'admin')
-          sessionStorage.setItem('catavor_desktop_admin_tab', adminTab || 'items')
+          sessionStorage.setItem('catavor_desktop_view', 'admin');
+          sessionStorage.setItem('catavor_desktop_admin_tab', adminTab || 'items');
         }
         setTimeout(() => {
-          window.location.reload()
-        }, 500)
-        return true
+          window.location.reload();
+        }, 500);
       } else {
         if (res.status === 401) {
-          handleUnauthorized()
+          handleUnauthorized();
         } else {
-          showToast(data.message || 'Gagal menghapus data item.', 'error')
+          showToast(data.message || 'Gagal menghapus data item.', 'error');
         }
-        return false
       }
     } catch (err) {
-      console.error(err)
-      showToast('Koneksi terputus. Gagal menghapus data item.', 'error')
-      return false
+      console.error(err);
+      showToast('Koneksi terputus. Gagal menghapus data item.', 'error');
+    } finally {
+      setIsDeletingItem(false);
     }
   }
 
@@ -17942,13 +17961,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <button
                           type="button"
                           disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                          onClick={async () => {
+                          onClick={() => {
                             setShowDetailActionDropdown(false);
                             if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
-                            const deleted = await handleFaunaDelete(selectedFauna.id);
-                            if (deleted) {
-                              handleCloseDetail();
-                            }
+                            setItemToDelete(selectedFauna);
                           }}
                           style={{
                             display: 'flex',
@@ -18457,14 +18473,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       {selectedFauna.attributes.halal_status}
                     </span>
                   )}
-                  {selectedFauna.product_type !== 'service' && ((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
+                  {selectedFauna.product_type !== 'service' && selectedFauna.product_type !== 'property' && ((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
                     <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.15)', color: '#60a5fa', border: '1px solid rgba(37, 99, 235, 0.3)' }}>
-                      {selectedFauna.product_type === 'food' ? 'Min. Pesanan' : (selectedFauna.product_type === 'property' ? 'Min. Unit' : 'Min. Beli')}: {selectedFauna.min_order || selectedFauna.attributes?.min_order} {getCatalogItemUnit(selectedFauna)}
+                      {selectedFauna.product_type === 'food' ? 'Min. Pesanan' : 'Min. Beli'}: {selectedFauna.min_order || selectedFauna.attributes?.min_order} {getCatalogItemUnit(selectedFauna)}
                     </span>
                   )}
-                  {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
+                  {selectedFauna.product_type !== 'property' && ((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
                     <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
-                      {selectedFauna.product_type === 'food' ? 'Maks. Pesanan' : (selectedFauna.product_type === 'service' ? 'Maks. Pemesanan' : (selectedFauna.product_type === 'property' ? 'Maks. Unit' : 'Maks. Beli'))}: {selectedFauna.max_order || selectedFauna.attributes?.max_order} {getCatalogItemUnit(selectedFauna)}
+                      {selectedFauna.product_type === 'food' ? 'Maks. Pesanan' : (selectedFauna.product_type === 'service' ? 'Maks. Pemesanan' : 'Maks. Beli')}: {selectedFauna.max_order || selectedFauna.attributes?.max_order} {getCatalogItemUnit(selectedFauna)}
                     </span>
                   )}
                 </div>
@@ -18603,8 +18619,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             {renderRow('Kondisi Perabotan', selectedFauna.attributes?.furnishing)}
                             {renderRow('Arah Hadap', selectedFauna.attributes?.facing)}
                             {renderRow('Lokasi / Wilayah Properti', selectedFauna.attributes?.property_location || selectedFauna.habitat)}
-                            {minOrderVal > 1 && renderRow('Minimal Unit', `${minOrderVal} Unit`)}
-                            {maxOrderVal && Number(maxOrderVal) > 0 && renderRow('Maksimal Unit', `${maxOrderVal} Unit`)}
                           </>
                         );
                       } else if (selectedFauna.product_type === 'physical') {
@@ -19051,12 +19065,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   <button 
                     type="button" 
                     disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                    onClick={async () => {
+                    onClick={() => {
                       if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
-                      const deleted = await handleFaunaDelete(selectedFauna.id);
-                      if (deleted) {
-                        handleCloseDetail();
-                      }
+                      setItemToDelete(selectedFauna);
                     }}
                     style={{
                       height: '42px',
@@ -29372,9 +29383,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     apiBase={API_BASE}
                     token={token}
                     onBack={() => {
-                      setAdminTab('items');
                       const slug = getStoreSlug();
-                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      smartBack(() => {
+                        setAdminTab('items');
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      });
                     }}
                   />
                 </div>
@@ -29387,9 +29400,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     token={token || ''}
                     currentUserEmail={adminUser?.email}
                     onClose={() => {
-                      setAdminTab('items');
                       const slug = getStoreSlug();
-                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      smartBack(() => {
+                        setAdminTab('items');
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      });
                     }}
                   />
                 </div>
@@ -29407,9 +29422,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       if (slug) window.history.pushState({}, '', `/${slug}/admin/${tab}`);
                     }}
                     onClose={() => {
-                      setAdminTab('items');
                       const slug = getStoreSlug();
-                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      smartBack(() => {
+                        setAdminTab('items');
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      });
                     }}
                   />
                 </div>
@@ -29572,6 +29589,113 @@ Terima kasih atas perhatian dan kerja samanya.`;
           </div>
         );
       })()}
+
+      {/* ENTERPRISE PRODUCT DELETE CONFIRMATION MODAL */}
+      {itemToDelete && (
+        <div className="modal-overlay" onClick={() => !isDeletingItem && setItemToDelete(null)} style={{ zIndex: 9999 }}>
+          <div 
+            className="glass-panel animate-scale-up" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '460px', 
+              width: '90%', 
+              padding: '1.75rem', 
+              borderRadius: '1rem', 
+              border: '1px solid rgba(239, 68, 68, 0.3)', 
+              backgroundColor: 'var(--bg-card)', 
+              position: 'relative', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)' 
+            }}
+          >
+            <button 
+              type="button" 
+              className="modal-close-btn" 
+              disabled={isDeletingItem}
+              onClick={() => setItemToDelete(null)}
+              style={{ position: 'absolute', top: '1rem', right: '1rem' }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.1rem' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                color: '#ef4444'
+              }}>
+                <Trash2 size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Hapus Item Permanen
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                  Konfirmasi tindakan destruktif katalog
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.05)',
+              border: '1px solid rgba(239, 68, 68, 0.15)',
+              borderRadius: '0.65rem',
+              padding: '0.85rem 1rem',
+              marginBottom: '1.25rem',
+              fontSize: '0.84rem',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.5
+            }}>
+              Apakah Anda yakin ingin menghapus postingan <strong style={{ color: 'var(--text-primary)' }}>"{itemToDelete.name}"</strong>? Seluruh foto dan data terkait akan dihapus secara permanen dari server. Tindakan ini tidak dapat dibatalkan.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                disabled={isDeletingItem}
+                onClick={() => setItemToDelete(null)}
+                style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }}
+              >
+                Batal
+              </button>
+              <button 
+                type="button" 
+                className="btn-primary"
+                disabled={isDeletingItem}
+                style={{ 
+                  padding: '0.45rem 1.15rem', 
+                  fontSize: '0.82rem',
+                  backgroundColor: '#ef4444',
+                  borderColor: '#ef4444',
+                  boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+                onClick={handleExecuteProductDelete}
+              >
+                {isDeletingItem ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Menghapus...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    <span>Ya, Hapus Permanen</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CUSTOM CONFIRMATION DIALOG FOR MASTER OPTION DELETION */}
       {deleteMasterModalData && (
@@ -30251,7 +30375,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           options={[
                             { value: 'Lisensi Personal', label: 'Lisensi Personal (Penggunaan Pribadi)' },
                             { value: 'Lisensi Komersial', label: 'Lisensi Komersial (Bisnis/Proyek)' },
-                            { value: 'Extended License', label: 'Extended License / Resell Rights' },
+                            { value: 'Resale Rights', label: 'Extended License / Resell Rights' },
                             { value: 'Open Source', label: 'Open Source / Bebas' }
                           ]}
                           style={{ height: '42px' }}
@@ -30371,8 +30495,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, protection_status: val } })}
                           options={[
                             { value: 'Non-Dilindungi (Aman Diperjualbelikan)', label: 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)' },
-                            { value: 'Dilindungi / Budidaya Legal', label: 'Dilindungi / Budidaya Legal (Penangkar Bersertifikat)' },
-                            { value: 'Tanaman Endemik / Karantina', label: 'Tanaman Endemik / Bersertifikat Karantina' }
+                            { value: 'Hasil Budidaya Nursery', label: 'Hasil Budidaya Nursery (Penangkar Bersertifikat)' },
+                            { value: 'Dilindungi (Sertifikasi/Izin Khusus)', label: 'Dilindungi (Sertifikasi/Izin Khusus / CITES)' }
                           ]}
                           style={{ height: '42px' }}
                         />
@@ -30387,9 +30511,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           value={crudForm.attributes?.sunlight || 'Partial Sun (Teduh Terang)'}
                           onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, sunlight: val } })}
                           options={[
-                            { value: 'Full Sun (Matahari Penuh > 6 jam)', label: 'Full Sun (Matahari Penuh > 6 Jam)' },
+                            { value: 'Full Sun (Matahari Langsung)', label: 'Full Sun (Matahari Penuh > 6 Jam)' },
                             { value: 'Partial Sun (Teduh Terang)', label: 'Partial Sun (Teduh Terang / Cahaya Tersaring)' },
-                            { value: 'Indoor / Low Light (Dalam Ruangan)', label: 'Indoor / Low Light (Dalam Ruangan)' },
+                            { value: 'Low Light / Indoor (Cahaya Rendah)', label: 'Low Light / Indoor (Dalam Ruangan)' },
                             { value: 'Fleksibel (Indoor / Outdoor)', label: 'Fleksibel (Bisa Indoor / Outdoor)' }
                           ]}
                           style={{ height: '42px' }}
@@ -30401,10 +30525,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           value={crudForm.attributes?.watering || 'Sedang (2-3 Hari Sekali)'}
                           onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, watering: val } })}
                           options={[
-                            { value: 'Rutin Harian (1-2x Sehari)', label: 'Rutin Harian (1-2x Sehari)' },
+                            { value: 'Banyak (Setiap Hari)', label: 'Banyak (Setiap Hari / 1-2x Sehari)' },
                             { value: 'Sedang (2-3 Hari Sekali)', label: 'Sedang (2-3 Hari Sekali / Saat Media Kering)' },
-                            { value: 'Minim Air (1-2 Minggu Sekali)', label: 'Minim Air (1-2 Minggu Sekali - Sukulen/Kaktus)' },
-                            { value: 'Khusus / Hidroponik / Air', label: 'Khusus / Hidroponik / Terendam Air' }
+                            { value: 'Sedikit (1-2 Minggu Sekali / Sukulen & Kaktus)', label: 'Sedikit (1-2 Minggu Sekali - Sukulen/Kaktus)' },
+                            { value: 'Khusus / Tanaman Air', label: 'Khusus / Hidroponik / Terendam Air' }
                           ]}
                           style={{ height: '42px' }}
                         />
@@ -30413,15 +30537,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                     {/* Row 3: Kondisi Pengiriman */}
                     <div className="form-group" style={{ marginBottom: '0.85rem' }}>
-                      <label className="form-label">Kondisi Pengiriman Tanaman</label>
+                      <label className="form-label">Kondisi Pengiriman Tanaman *</label>
                       <DesktopCustomSelect
                         value={crudForm.attributes?.delivery_condition || 'Kirim Bersama Pot & Media Tanam'}
                         onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, delivery_condition: val } })}
                         options={[
                           { value: 'Kirim Bersama Pot & Media Tanam', label: 'Kirim Bersama Pot & Media Tanam' },
-                          { value: 'Kirim Bare Root (Kurangi Media)', label: 'Kirim Bare Root (Kurangi Media - Hemat Ongkir)' },
-                          { value: 'Khusus Kurir Instan / Sameday', label: 'Khusus Kurir Instan / Sameday (Siap Pajang)' },
-                          { value: 'Bisa Kirim se-Indonesia', label: 'Bisa Kirim se-Indonesia (Packing Paralon/Kardus)' }
+                          { value: 'Kirim Bare Root (Tanpa Pot/Media Dikurangi)', label: 'Kirim Bare Root (Kurangi Media - Hemat Ongkir)' },
+                          { value: 'Kirim Polybag', label: 'Kirim Polybag (Bibit Tanaman)' },
+                          { value: 'Khusus Kurir Instan / Sameday', label: 'Khusus Kurir Instan / Sameday (Siap Pajang)' }
                         ]}
                         style={{ height: '42px' }}
                       />
@@ -30430,11 +30554,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     {/* Row 4: Fisik & Spesifikasi Tanaman */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
                       <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
-                        <label className="form-label">Rekomendasi Media Tanam</label>
+                        <label className="form-label">Rekomendasi Media Tanam *</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: Tanah Humus / Sekam / Pasir Malang..."
+                          placeholder="Contoh: Sekam Bakar, Pasir Malang, Humus"
+                          required
                           value={crudForm.attributes?.planting_medium || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, planting_medium: e.target.value } })}
                           style={{ height: '42px' }}
@@ -30482,12 +30607,23 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           options={[
                             { value: 'Datang ke Toko', label: 'Datang ke Lokasi Toko / Studio' },
                             { value: 'Home Visit (Ke Rumah)', label: 'Panggilan ke Rumah (Home Service)' },
-                            { value: 'Online', label: 'Online / Jarak Jauh (Remote)' },
-                            { value: 'Fleksibel', label: 'Fleksibel (Toko / Home Visit)' }
+                            { value: 'Online', label: 'Online / Jarak Jauh (Remote)' }
                           ]}
                           style={{ height: '42px' }}
                         />
                       </div>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Area Jangkauan Layanan *</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: Jabodetabek / Bandung Kota / Seluruh Indonesia"
+                        required
+                        value={crudForm.attributes.service_area || ''}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
+                        style={{ height: '42px' }}
+                      />
                     </div>
                   </div>
                 )}
@@ -30543,11 +30679,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Luas Bangunan (m²) *</label>
+                        <label className="form-label">Luas Bangunan (m²)</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: 90"
+                          placeholder="Contoh: 90 (0 jika tanah)"
                           value={crudForm.attributes.building_area || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, building_area: e.target.value } })}
                           style={{ height: '42px' }}
@@ -30640,21 +30776,30 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Arah Hadap</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
-                          placeholder="Contoh: Hadap Timur / Utara"
-                          value={crudForm.attributes.facing || ''}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, facing: e.target.value } })}
+                        <DesktopCustomSelect
+                          value={crudForm.attributes.facing || 'Timur'}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, facing: val } })}
+                          options={[
+                            { value: 'Utara', label: 'Utara' },
+                            { value: 'Selatan', label: 'Selatan' },
+                            { value: 'Timur', label: 'Timur (Matahari Pagi)' },
+                            { value: 'Barat', label: 'Barat' },
+                            { value: 'Timur Laut', label: 'Timur Laut' },
+                            { value: 'Tenggara', label: 'Tenggara' },
+                            { value: 'Barat Daya', label: 'Barat Daya' },
+                            { value: 'Barat Laut', label: 'Barat Laut' },
+                            { value: 'Bebas / Fleksibel', label: 'Bebas / Fleksibel' }
+                          ]}
                           style={{ height: '42px' }}
                         />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Lokasi / Wilayah Properti</label>
+                        <label className="form-label">Lokasi / Wilayah Properti *</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: BSD City, Tangerang Selatan"
+                          placeholder="Contoh: BSD City, Serpong, Tangerang Selatan"
+                          required
                           value={crudForm.attributes.property_location || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, property_location: e.target.value } })}
                           style={{ height: '42px' }}
@@ -30664,13 +30809,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   </div>
                 )}
 
-                {/* 6. KULINER & MAKANAN (SEPERTI SCREENSHOT USER) */}
+                {/* 6. KULINER & MAKANAN */}
                 {crudForm.product_type === 'food' && (
                   <div style={{ background: 'rgba(220, 38, 38, 0.05)', border: '1px solid rgba(220, 38, 38, 0.2)', padding: '1.25rem', borderRadius: '0.85rem' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
                       Atribut Spesifik Kuliner &amp; Makanan
                     </span>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Sertifikasi / Status Halal *</label>
                         <DesktopCustomSelect
@@ -30697,6 +30842,59 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         />
                       </div>
                     </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Porsi / Takaran Saji</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 1 Porsi (1-2 Orang) / 500 Gram"
+                          value={crudForm.attributes.portion_size || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Estimasi Waktu Penyajian</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 10-15 Menit (Siap Saji)"
+                          value={crudForm.attributes.prep_time || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, prep_time: e.target.value } })}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Suhu / Metode Penyimpanan</label>
+                        <DesktopCustomSelect
+                          value={crudForm.attributes.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (crudForm.attributes.storage_temp || 'Suhu Ruang')}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: val } })}
+                          options={[
+                            { value: 'Suhu Ruang', label: 'Suhu Ruang (Kering & Sejuk)' },
+                            { value: 'Chiller (2°C - 8°C)', label: 'Dingin (Kulkas / Chiller 2-8°C)' },
+                            { value: 'Freezer (-18°C)', label: 'Beku (Freezer -18°C)' },
+                            { value: 'Hangat', label: 'Hangat (Warmer / Siap Santap)' }
+                          ]}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Masa Simpan / Kadaluwarsa</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 24 Jam di Suhu Ruang / 1 Bulan di Freezer"
+                          value={crudForm.attributes.expired_info || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -30710,7 +30908,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                             <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                              Foto Produk
+                              {typeConfig.photoLabel}
                             </h3>
                             <span style={{
                               flexShrink: 0,
@@ -30727,7 +30925,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             </span>
                           </div>
                           <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                            Unggah hingga 10 foto beresolusi jelas. Foto pertama otomatis menjadi foto sampul utama katalog Anda.
+                            {typeConfig.photoHelper}
                           </p>
                         </div>
                         {crudImages.length < MAX_PRODUCT_PHOTOS && (

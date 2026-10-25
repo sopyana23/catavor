@@ -154,15 +154,7 @@ Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewaki
        3. Intersepsi tombol hardware/browser back (`useModalBackHandler`),
        4. Tombol aksi yang jelas di footer jika ada (misal: "Batal", "Tutup", "Reset", "Terapkan").
      - **Pilihan Opsi Ramah Sentuhan**: Pilihan opsi disajikan dalam touch pills / buttons (touch target $\ge 44\text{px}$) dengan indikator centang (`Check`) dan highlight warna aksen.
-   - **Standar Tombol Mengambang & Scroll-to-Top (MANDATORY)**:
-     - **Deteksi Intensi Arah Scroll (Intent-Based Directional Detection)**:
-       - **Sembunyi saat Scroll ke Bawah**: Saat pengguna men-scroll ke bawah (*scrolling down*), tombol Scroll-to-Top **WAJIB DISEMBUNYIKAN SEKETIKA** agar tidak menindih konten, tabel, list, maupun tombol aksi bawah/paginasi (*zero clutter & zero overlap*).
-       - **Hanya Muncul saat Scroll ke Atas**: Tombol hanya muncul jika terdeteksi gerakan scroll ke atas (*scrolling up* $\ge 25\text{px}$) saat posisi $scrollY > 150\text{px}$ (menandakan intensi nyata pengguna ingin kembali ke atas). Otomatis sembunyi saat mencapai pucuk halaman ($scrollY \le 150\text{px}$).
-     - **Posisi Ergonomis Standar di Bawah**:
-       - Pada Main Tabs (dengan Persistent Bottom Nav): `bottom: calc(72px + safe-area)`.
-       - Pada Sub-Pages (tanpa Bottom Nav): `bottom: calc(20px + safe-area)` (posisi standar pojok kanan bawah yang ramah sentuhan jempol / *Thumb Zone*).
-     - **Supresi Mutlak saat Modal/Sheet Terbuka**: Tombol kembali ke atas dan aksi melayang sejenis **HARAM MUNCUL / TEMBUS** saat ada modal, bottom sheet, dialog, atau lightbox yang sedang aktif. Wajib diproteksi oleh pemantauan tumpukan modal global (`useIsAnyModalOpen()`) serta modal state lokal (`!isAnyOverlayActive`).
-     - **Pembatasan Z-Index Tingkat Halaman**: Tombol aksi mengambang wajib dibatasi pada `zIndex: 40`, sehingga selalu berada di bawah backdrop modal (`zIndex: 50` s/d `10000`) dan di bawah Bottom Navigation Bar (`zIndex: 9998`).
+
 
 ### B. Single Source of Truth & Database Consistency (MANDATORY)
 - **Tabel & API yang Sama**: Seluruh transaksi, operasi data, pembacaan, dan penulisan dari ketiga device **wajib menggunakan endpoint API Go yang sama dan tersimpan ke tabel PostgreSQL yang sama**. Tidak boleh ada skema database terpisah antar-device.
@@ -188,9 +180,15 @@ Seluruh penampilan data daftar (katalog, transaksi, tiket, audit log, pengguna) 
 
 ### D. Mandat Verifikasi Tiga Kompilasi (*Tri-Build Verification*)
 Agen **DILARANG MENGKLAIM SELESAI** jika fitur baru tidak diverifikasi di ketiga codebase. Sebelum menyatakan tugas tuntas, jalankan pengujian build:
-- `npm run build` pada [frontend/desktop](file:///c:/MyProject/DFauna/frontend/desktop) $\rightarrow$ Wajib 0 error.
-- `npm run build` pada [frontend/tablet](file:///c:/MyProject/DFauna/frontend/tablet) $\rightarrow$ Wajib 0 error.
-- `npm run build` pada [frontend/mobile](file:///c:/MyProject/DFauna/frontend/mobile) $\rightarrow$ Wajib 0 error.
+- `npm run build` pada [frontend/desktop](file:///c:/MyProject/agentA/catavor/frontend/desktop) $\rightarrow$ Wajib 0 error.
+- `npm run build` pada [frontend/tablet](file:///c:/MyProject/agentA/catavor/frontend/tablet) $\rightarrow$ Wajib 0 error.
+- `npm run build` pada [frontend/mobile](file:///c:/MyProject/agentA/catavor/frontend/mobile) $\rightarrow$ Wajib 0 error.
+
+### E. Mandat Keselarasan Menyeluruh Form & Atribut (Bukan Sekadar Label)
+Setiap kali pengguna meminta **"harus selaras"**, **"sinkronkan"**, atau **"samakan"** antarmuka:
+1. **Wajib Aktifkan Skill**: Gunakan [.agents/skills/selaras-frontend-parity/SKILL.md](file:///c:/MyProject/agentA/.agents/skills/selaras-frontend-parity/SKILL.md).
+2. **Bukan Sekadar Label**: Penyelarasan wajib mencakup **seluruh isian formulir** lintas 7 tipe katalog (`physical`, `food`, `digital`, `service`, `plant`, `fauna`, `property`), atribut domain spesifik, aturan kondisionalitas (pengecualian min/max order, pengiriman, rekber), format Rupiah pemisah ribuan, pengelola 1-10 foto dengan badge sampul, video preview player, hingga payload backend (`attributes` & `detailed_info`).
+3. **Dual-Layer Hydration & Serialization**: Form wajib menghidrasi data dari `detailed_info`, `attributes`, dan kolom master tabel secara berjenjang saat edit, serta mengirimkan payload ganda yang sinkron saat submit.
 
 ---
 
@@ -233,12 +231,7 @@ Detail lengkap diatur pada [.agents/rules/03_clean_code_and_architecture.md](fil
 4. **Idempotensi & Concurrency Safety**:
    - Tombol submit/bayar wajib otomatis disable saat loading (`isSubmitting`), debounced, dan dikunci secara unik di backend untuk mencegah transaksi/pesanan duplikat.
 
----
 
-## 11. Agent-B Specialization & Domain Ownership: Admin Pengelola (Platform Management Console)
-Detail operasional diatur pada [.agents/rules/07_agent_role_specialization.md](file:///c:/MyProject/DFauna/.agents/rules/07_agent_role_specialization.md):
-- **Mandat Utama**: Agent-B berfokus penuh dan terisolasi pada modul **Admin Pengelola (Platform Management Console / Platform Role Portal)** beserta seluruh fitur di dalamnya (Manajemen Toko & Merchant, Audit Logs, RBAC & Hak Akses Staf, Helpdesk Tiket, Finansial & Pemantauan Sistem).
-- **Zero Distraction**: Tidak mencampuri atau merombak fitur etalase/admin toko merchant (`/:slug/*`) milik agen lain tanpa kebutuhan integrasi antar-platform.
-- **Tri-Frontend Parity**: Seluruh fitur atau perbaikan pada antarmuka admin pengelola wajib diverifikasi di Desktop, Tablet, dan Mobile.
+
 
 

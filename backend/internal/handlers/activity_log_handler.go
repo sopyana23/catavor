@@ -79,7 +79,8 @@ func (h *ActivityLogHandler) GetStoreActivityLogs(c *fiber.Ctx) error {
 	}
 
 	if searchQuery != "" {
-		likePattern := "%" + searchQuery + "%"
+		escapedQuery := escapeLikePattern(searchQuery)
+		likePattern := "%" + escapedQuery + "%"
 		query = query.Where("(description ILIKE ? OR entity_title ILIKE ? OR actor_name ILIKE ? OR action ILIKE ?)",
 			likePattern, likePattern, likePattern, likePattern)
 	}
@@ -164,7 +165,8 @@ func (h *ActivityLogHandler) GetSuperadminAuditLogs(c *fiber.Ctx) error {
 	}
 
 	if searchQuery != "" {
-		likePattern := "%" + searchQuery + "%"
+		escapedQuery := escapeLikePattern(searchQuery)
+		likePattern := "%" + escapedQuery + "%"
 		query = query.Where("(description ILIKE ? OR entity_title ILIKE ? OR actor_name ILIKE ? OR actor_email ILIKE ? OR action ILIKE ?)",
 			likePattern, likePattern, likePattern, likePattern, likePattern)
 	}

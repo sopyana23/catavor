@@ -1,5 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { ArrowLeft, ClipboardList } from 'lucide-react';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface TabletMasterDetailViewProps {
   title: string;
@@ -60,6 +61,15 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
   // Back button is only relevant in single-pane mode (narrow tablet) when a detail view is active,
   // because on wide tablet both master list and detail pane are already visible side-by-side.
   const showBackButton = !hideBackButton && isNarrowTablet && Boolean(selectedId && onClearSelection);
+
+  // Intercept hardware, browser, and gesture back while in single-pane detail view
+  useModalBackHandler({
+    isOpen: Boolean(isNarrowTablet && selectedId && onClearSelection),
+    onClose: () => {
+      if (onClearSelection) onClearSelection();
+    },
+    modalId: `tablet-pane-${title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`
+  });
 
   return (
     <div
@@ -145,9 +155,9 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
         {/* Left Pane: Master List */}
         {showMaster && (
           <div style={{
-            width: isNarrowTablet ? '100%' : isSpaciousTablet ? '35%' : '38%',
-            minWidth: isNarrowTablet ? '100%' : '270px',
-            maxWidth: isNarrowTablet ? '100%' : isSpaciousTablet ? '380px' : '320px',
+            width: isNarrowTablet ? '100%' : isSpaciousTablet ? '38%' : '42%',
+            minWidth: isNarrowTablet ? '100%' : '320px',
+            maxWidth: isNarrowTablet ? '100%' : isSpaciousTablet ? '420px' : '380px',
             height: '100%',
             display: 'flex',
             flexDirection: 'column',

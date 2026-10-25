@@ -1503,8 +1503,70 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
   }
 }
 
+export function getAvailabilityStatusOptions(productType: ItemCategoryType = 'physical'): Array<{ value: string; label: string; desc: string }> {
+  switch (productType) {
+    case 'physical':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Stok tersedia siap dikirim segera' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Produk dibuat / dipesan berdasarkan pesanan' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase, hubungi penjual' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok barang saat ini sedang habis' }
+      ];
+    case 'food':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready / Siap Saji)', desc: 'Menu siap diolah & disajikan segera' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO / Pesan H-1)', desc: 'Pemesanan terjadwal (katering / hampers)' },
+        { value: 'Habis Hari Ini', label: 'Habis Hari Ini (Sold Out)', desc: 'Porsi untuk hari ini telah habis' },
+        { value: 'Musiman', label: 'Musiman (Seasonal Menu)', desc: 'Menu khusus periode / musim tertentu' }
+      ];
+    case 'service':
+      return [
+        { value: 'Buka Jadwal', label: 'Buka Jadwal (Tersedia)', desc: 'Menerima order & booking jadwal baru' },
+        { value: 'Slot Penuh', label: 'Slot Penuh (Full Booked)', desc: 'Antrean pengerjaan penuh sementara' },
+        { value: 'Pre-Order', label: 'Pre-Order (Jadwal Mendatang)', desc: 'Booking untuk minggu / bulan depan' },
+        { value: 'Tutup Sementara', label: 'Tutup Sementara (Off Duty)', desc: 'Layanan sedang libur / cuti sementara' }
+      ];
+    case 'digital':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Instan Download)', desc: 'Link unduh / lisensi langsung dikirim' },
+        { value: 'Pre-Order', label: 'Pre-Order (Coming Soon)', desc: 'Akses awal / pre-order produk digital' },
+        { value: 'Batch Terbatas', label: 'Batch Terbatas (Limited Seat)', desc: 'Slot mentoring / kuota lisensi terbatas' },
+        { value: 'Sedang Diperbarui', label: 'Sedang Diperbarui (Maintenance)', desc: 'File sedang revisi ke versi terbaru' }
+      ];
+    case 'property':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Available)', desc: 'Unit / tanah siap disurvey & ditransaksikan' },
+        { value: 'Ter-Booking', label: 'Ter-Booking (Under Offer)', desc: 'Sudah ada tanda jadi / proses verifikasi' },
+        { value: 'Terjual', label: 'Terjual (Sold Out)', desc: 'Properti telah resmi terjual / AJB' },
+        { value: 'Tersewa', label: 'Tersewa (Leased)', desc: 'Unit sedang dalam masa sewa aktif' }
+      ];
+    case 'fauna':
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Satwa sehat siap dikirim / diadopsi' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Pemesanan indukan / inden varian khusus' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Maskot pameran / koleksi showcase' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Telah Diadopsi)', desc: 'Satwa telah diadopsi / terjual' }
+      ];
+    case 'plant':
+      return [
+        { value: 'Ready Stock', label: 'Ready Stock (Tersedia)', desc: 'Tanaman segar siap kirim dari nursery' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO / Inden)', desc: 'Bibit dalam proses rawatan / semai' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Indukan kebun / display kontes' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tanaman saat ini kosong' }
+      ];
+    default:
+      return [
+        { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Stok item tersedia' },
+        { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Pemesanan terlebih dahulu' },
+        { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase' },
+        { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tidak tersedia' }
+      ];
+  }
+}
+
 export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
   const typeConfig = getItemTypeFormConfig(type);
+  const statusOptions = getAvailabilityStatusOptions(type);
 
   return {
     is_active: true,
@@ -1513,7 +1575,7 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
     class: typeConfig.defaultCategory,
     habitat: 'General',
     diet: '',
-    conservation_status: 'Tersedia',
+    conservation_status: statusOptions[0].value,
     price: 0,
     min_order: 1,
     max_order: '' as string | number,
@@ -1558,6 +1620,10 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
       property_location: 'BSD City, Tangerang Selatan',
       facilities: 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
       halal_status: 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+      portion_size: '',
+      prep_time: '',
+      storage_temp: 'Suhu Ruang',
+      expired_info: '',
       sunlight: 'Partial Sun (Teduh Terang)',
       watering: 'Sedang (2-3 Hari Sekali)',
       planting_medium: 'Tanah Subur & Kompos',
@@ -9766,6 +9832,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useModalBackHandler({ isOpen: showAdminFilterSheet, onClose: () => setShowAdminFilterSheet(false), modalId: 'admin-filter-sheet' });
   useModalBackHandler({ isOpen: showProductTypeSelector, onClose: () => setShowProductTypeSelector(false), modalId: 'product-type-selector' });
   useModalBackHandler({ isOpen: Boolean(reportModalData), onClose: () => setReportModalData(null), modalId: 'report-modal' });
+  useModalBackHandler({ isOpen: showRekberExplainerModal, onClose: () => setShowRekberExplainerModal(false), modalId: 'rekber-explainer' });
+  useModalBackHandler({ isOpen: Boolean(crudDropdownPicker), onClose: () => setCrudDropdownPicker(null), modalId: 'crud-dropdown-picker' });
 
   // Mobile Discard Confirmation Sheet State
   const [showDiscardConfirmSheet, setShowDiscardConfirmSheet] = useState<boolean>(false);
@@ -9823,6 +9891,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
           class: item.class,
           price: item.price,
           description: item.description,
+          min_order: item.min_order,
+          max_order: item.max_order,
+          is_shipping_available: item.is_shipping_available,
           is_active: newActive
         })
       });
@@ -10514,11 +10585,44 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   }, [showCrudSheet])
 
+  // Nilai terbaru untuk listener popstate yang dipasang sekali (deps []). Tanpa ref,
+  // guard di bawah akan membaca state basi dari render pertama.
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const isFormDirtyRef = useRef(isFormDirty);
+  isFormDirtyRef.current = isFormDirty;
+  const showDiscardRef = useRef(showDiscardConfirmSheet);
+  showDiscardRef.current = showDiscardConfirmSheet;
+  const formActiveUrlRef = useRef<string>('');
+
+  // Simpan URL saat form produk aktif, agar guard back dapat memulihkan alamat yang
+  // sesuai dengan tampilan (mencegah URL desync ketika back dicegah).
+  useEffect(() => {
+    if (view === 'fauna-editor') {
+      formActiveUrlRef.current = window.location.href;
+    }
+  }, [view]);
+
   // Unified Browser Back/Forward PopState Event Listener for Mobile Navigation
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       // 0. If this popstate was triggered by closing a modal/drawer, do NOT reset page routes!
       if (window.__catavor_is_modal_popping || (event.state && event.state.__catavor_modal)) {
+        return;
+      }
+
+      // 0b. Guard (AGENTS.md §2): form produk terbuka dan masih ada isian belum disimpan.
+      // Back tidak boleh membuang input diam-diam. Selama form kotor, logika rute di bawah
+      // TIDAK dijalankan agar tampilan tidak berubah di bawah sheet konfirmasi.
+      if (viewRef.current === 'fauna-editor' && isFormDirtyRef.current()) {
+        if (!showDiscardRef.current) {
+          setShowDiscardConfirmSheet(true);
+          // Pulihkan URL form agar alamat tetap sesuai dengan tampilan (anti desync).
+          const formUrl = formActiveUrlRef.current;
+          if (formUrl && window.location.href !== formUrl) {
+            window.history.pushState({}, '', formUrl);
+          }
+        }
         return;
       }
 
@@ -13634,7 +13738,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       class: item.class || typeConfig.defaultCategory,
       habitat: item.attributes?.habitat || item.habitat || 'General',
       diet: item.attributes?.diet || item.diet || '',
-      conservation_status: item.conservation_status || 'Tersedia',
+      conservation_status: item.conservation_status || getAvailabilityStatusOptions(itemType)[0].value,
       price: item.price,
       min_order: minOrderVal,
       max_order: maxOrderVal,
@@ -13661,6 +13765,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       product_type: itemType,
       is_active: (item as any).is_active !== false,
       attributes: {
+        ...(item.attributes || {}),
         condition: (item.attributes?.condition as any) || 'Baru',
         weight: item.attributes?.weight ?? 100,
         brand: item.attributes?.brand || '',
@@ -13686,6 +13791,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         property_location: item.attributes?.property_location || 'BSD City, Tangerang Selatan',
         facilities: item.attributes?.facilities || 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
         halal_status: item.attributes?.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+        portion_size: item.attributes?.portion_size || '',
+        prep_time: item.attributes?.prep_time || '',
+        storage_temp: item.attributes?.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (item.attributes?.storage_temp || 'Suhu Ruang'),
+        expired_info: item.attributes?.expired_info || '',
         sunlight: item.attributes?.sunlight || 'Partial Sun (Teduh Terang)',
         watering: item.attributes?.watering || 'Sedang (2-3 Hari Sekali)',
         planting_medium: item.attributes?.planting_medium || 'Tanah Subur & Kompos',
@@ -13824,6 +13933,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
     const isFauna = crudForm.product_type === 'fauna';
     const isPlant = crudForm.product_type === 'plant';
+    const effectiveAvailabilityStatus = selectedConservationStatus || crudForm.conservation_status || getAvailabilityStatusOptions(crudForm.product_type)[0].value;
 
     const payload = {
       name: crudForm.name,
@@ -13831,7 +13941,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       class: selectedClass || 'Umum',
       habitat: isFauna ? (selectedHabitat || '') : '',
       diet: isFauna ? (crudForm.diet || '') : '',
-      conservation_status: isFauna ? (selectedConservationStatus || 'Tersedia') : 'Tersedia',
+      conservation_status: effectiveAvailabilityStatus,
       price: crudForm.price,
       min_order: minOrderNum,
       max_order: maxOrderNum,
@@ -13844,6 +13954,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       is_active: crudForm.is_active !== false,
       attributes: {
         ...crudForm.attributes,
+        conservation_status: effectiveAvailabilityStatus,
         ...(isFauna ? { habitat: selectedHabitat || '', diet: crudForm.diet || '' } : {}),
         min_order: minOrderNum,
         max_order: maxOrderNum,
@@ -13853,6 +13964,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         whatsapp_contact_id: crudForm.whatsapp_contact_id || 'default'
       },
       detailed_info: {
+        conservation_status: effectiveAvailabilityStatus,
         native_region: crudForm.native_region,
         lifespan: crudForm.lifespan,
         weight: crudForm.weight,
@@ -19671,6 +19783,47 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   )}
                 </div>
 
+                {/* Status Ketersediaan Kontekstual (Universal untuk Seluruh 7 Tipe Katalog) */}
+                <div className="form-group" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Status Ketersediaan &amp; Pemesanan *</span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                      {crudForm.product_type === 'service' ? 'Ketersediaan Jadwal' : (crudForm.product_type === 'property' ? 'Status Listing Unit' : (crudForm.product_type === 'food' ? 'Ketersediaan Menu' : 'Status Stok'))}
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCrudDropdownPicker({
+                        title: 'Status Ketersediaan & Pemesanan',
+                        icon: CheckCircle,
+                        options: getAvailabilityStatusOptions(crudForm.product_type),
+                        selectedValue: crudForm.conservation_status || getAvailabilityStatusOptions(crudForm.product_type)[0].value,
+                        onSelect: (val) => setCrudForm(prev => ({ ...prev, conservation_status: val }))
+                      });
+                    }}
+                    className="form-input"
+                    style={{
+                      height: '42px',
+                      padding: '0 0.85rem',
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)'
+                    }}
+                  >
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                      {getAvailabilityStatusOptions(crudForm.product_type).find(o => o.value === (crudForm.conservation_status || getAvailabilityStatusOptions(crudForm.product_type)[0].value))?.label || crudForm.conservation_status}
+                    </span>
+                    <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                  </button>
+                </div>
+
                 {/* DYNAMIC FIELDS SPECIFIC TO PRODUCT TYPE */}
                 {/* 1. BARANG FISIK */}
                 {crudForm.product_type === 'physical' && (
@@ -19888,45 +20041,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           onChange={(e) => setCrudForm({ ...crudForm, weight: e.target.value })}
                         />
                       </div>
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Status Ketersediaan *</label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCrudDropdownPicker({
-                            title: 'Pilih Status Ketersediaan',
-                            icon: CheckCircle,
-                            options: [
-                              { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Satwa / fauna siap dikirim / diadopsi segera' },
-                              { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Pemesanan terlebih dahulu / inden khusus' },
-                              { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase, hubungi penjual via WA' },
-                              { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok satwa saat ini sedang kosong / telah diadopsi' }
-                            ],
-                            selectedValue: crudForm.conservation_status || 'Tersedia',
-                            onSelect: (val) => setCrudForm(prev => ({ ...prev, conservation_status: val }))
-                          });
-                        }}
-                        className="form-input"
-                        style={{
-                          height: '42px',
-                          padding: '0 0.85rem',
-                          fontSize: '0.85rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          color: 'var(--text-primary)',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)'
-                        }}
-                      >
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                          {crudForm.conservation_status || 'Ready Stock'}
-                        </span>
-                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                      </button>
                     </div>
                   </div>
                 )}
@@ -20331,6 +20445,87 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, variant: e.target.value } })}
                       />
                     </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.35rem' }}>Porsi / Takaran Saji (Opsional)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: 1 Porsi (1-2 Orang) / 500 Gram"
+                        value={crudForm.attributes.portion_size || ''}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.35rem' }}>Estimasi Waktu Penyajian (Opsional)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: 10-15 Menit (Siap Saji)"
+                        value={crudForm.attributes.prep_time || ''}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, prep_time: e.target.value } })}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.35rem' }}>Suhu / Metode Penyimpanan</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCrudDropdownPicker({
+                            title: 'Pilih Suhu / Metode Penyimpanan',
+                            icon: Utensils,
+                            options: [
+                              { value: 'Suhu Ruang', label: 'Suhu Ruang (Kering & Sejuk)', desc: 'Simpan pada suhu ruangan sejuk & kering (20-25°C)' },
+                              { value: 'Chiller (2°C - 8°C)', label: 'Dingin (Kulkas / Chiller 2-8°C)', desc: 'Wajib simpan di kulkas pendingin agar tetap segar' },
+                              { value: 'Freezer (-18°C)', label: 'Beku (Freezer -18°C)', desc: 'Simpan dalam freezer beku untuk masa simpan tahan lama' },
+                              { value: 'Hangat', label: 'Hangat (Warmer / Siap Santap)', desc: 'Jaga suhu hangat atau segera santap saat tiba' }
+                            ],
+                            selectedValue: crudForm.attributes.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (crudForm.attributes.storage_temp || 'Suhu Ruang'),
+                            onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, storage_temp: val } }))
+                          });
+                        }}
+                        className="form-input"
+                        style={{
+                          height: '42px',
+                          padding: '0 0.85rem',
+                          fontSize: '0.85rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)'
+                        }}
+                      >
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                          {crudForm.attributes.storage_temp === 'Suhu Ruang (Kering & Sejuk)'
+                            ? 'Suhu Ruang (Kering & Sejuk)'
+                            : (crudForm.attributes.storage_temp === 'Chiller (2°C - 8°C)'
+                              ? 'Dingin (Kulkas / Chiller 2-8°C)'
+                              : (crudForm.attributes.storage_temp === 'Freezer (-18°C)'
+                                ? 'Beku (Freezer -18°C)'
+                                : (crudForm.attributes.storage_temp === 'Hangat'
+                                  ? 'Hangat (Warmer / Siap Santap)'
+                                  : (crudForm.attributes.storage_temp || 'Suhu Ruang (Kering & Sejuk)'))))}
+                        </span>
+                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                      </button>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.35rem' }}>Masa Simpan / Kadaluwarsa (Opsional)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: 24 Jam di Suhu Ruang / 1 Bulan di Freezer"
+                        value={crudForm.attributes.expired_info || ''}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -20604,52 +20799,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <ChevronDown size={15} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                         </button>
                       </div>
-                    </div>
-
-                    {/* 5. Status Ketersediaan / Stok Tanaman */}
-                    <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
-                      <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <CheckCircle2 size={13} style={{ color: '#059669', flexShrink: 0 }} />
-                        <span>Status Ketersediaan Tanaman *</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCrudDropdownPicker({
-                            title: 'Pilih Status Ketersediaan',
-                            icon: CheckCircle2,
-                            options: [
-                              { value: 'Ready Stock', label: 'Ready Stock (Tersedia)', desc: 'Tanaman siap kirim segera dari kebun/nursery' },
-                              { value: 'Pre-Order', label: 'Pre-Order (PO / Inden)', desc: 'Pemesanan terlebih dahulu / bibit dalam tahap rawatan' },
-                              { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase, hubungi penjual via WA' },
-                              { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tanaman saat ini sedang kosong' }
-                            ],
-                            selectedValue: crudForm.conservation_status || 'Ready Stock',
-                            onSelect: (val) => setCrudForm(prev => ({ ...prev, conservation_status: val }))
-                          });
-                        }}
-                        className="form-input"
-                        style={{
-                          height: '42px',
-                          padding: '0 0.85rem',
-                          fontSize: '0.85rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          color: 'var(--text-primary)',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          minWidth: 0,
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, minWidth: 0, flex: 1, paddingRight: '0.5rem' }}>
-                          {crudForm.conservation_status || 'Ready Stock'}
-                        </span>
-                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                      </button>
                     </div>
                   </div>
                 )}

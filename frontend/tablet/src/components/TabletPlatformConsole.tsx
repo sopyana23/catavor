@@ -261,9 +261,25 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       // Canonical tab name across ecosystem: 'rbac' for staff, 'master_data' for master-data
       const canonicalTab = target === 'staff' ? 'rbac' : (target === 'master-data' ? 'master_data' : target);
       url.searchParams.set('tab', canonicalTab);
-      window.history.pushState({}, '', url.toString());
+      window.history.pushState({ tab: canonicalTab }, '', url.toString());
     }
   };
+
+  // Sync activeView when user navigates using browser back / forward
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab') || params.get('view');
+      if (tab) {
+        setActiveView(tab);
+      } else {
+        setActiveView('dashboard');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Header Title metadata
   const viewMetadata = useMemo(() => {
