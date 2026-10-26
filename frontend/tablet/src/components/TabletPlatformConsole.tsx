@@ -317,11 +317,19 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const handleSwitchView = (newView: string) => {
     const target = normalizeTabletTab(newView);
     setActiveView(target);
+    if (target === 'broadcast') {
+      setBroadcastSubView('list');
+      setSelectedBroadcastId(null);
+      setSelectedBroadcastDetail(null);
+    }
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       // Canonical tab name across ecosystem: 'rbac' for staff, 'master_data' for master-data
       const canonicalTab = target === 'staff' ? 'rbac' : (target === 'master-data' ? 'master_data' : target);
       url.searchParams.set('tab', canonicalTab);
+      url.searchParams.delete('subview');
+      url.searchParams.delete('subtab');
+      url.searchParams.delete('broadcast_id');
       window.history.pushState({ tab: canonicalTab }, '', url.toString());
     }
   };

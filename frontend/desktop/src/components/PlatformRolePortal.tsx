@@ -419,10 +419,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const targetView = (view === 'safe_domains') ? 'master_data' : view;
     setActiveView(targetView);
     setSelectedTicket(null);
-    if (targetView !== 'broadcast') {
+
+    // Reset broadcast subview & detail to default history list on sidebar navigation
+    if (targetView === 'broadcast') {
+      const bSub = (subView === 'create' || subView === 'detail') ? subView : 'list';
+      setBroadcastSubView(bSub);
+      setSelectedBroadcastDetail(null);
+      if (bSub === 'list') {
+        updatePlatformUrl('broadcast', null, null, null);
+      } else if (bSub === 'create') {
+        updatePlatformUrl('broadcast', null, 'create', null);
+      }
+    } else {
       setBroadcastSubView('list');
       setSelectedBroadcastDetail(null);
     }
+
     if (targetView === 'master_data') {
       const sub = (subView === 'templates' || subView === 'domains' || subView === 'rekber') 
         ? subView 
@@ -432,7 +444,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (sub === 'templates') {
         fetchCannedTemplates(true);
       }
-    } else {
+    } else if (targetView !== 'broadcast') {
       updatePlatformUrl(targetView, null, subView || null);
     }
     try {
@@ -4084,96 +4096,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         showToast('Data platform berhasil diperbarui', 'success');
       }}
       isRefreshing={loading}
-      headerAction={
-        activeView === 'broadcast' && canAccessBroadcast ? (
-          broadcastSubView === 'list' ? (
-            <button
-              type="button"
-              onClick={handleOpenCreateBroadcast}
-              id="btn-header-tambah-broadcast"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.95rem',
-                height: '36px',
-                borderRadius: '0.65rem',
-                border: 'none',
-                backgroundColor: '#f59e0b',
-                color: '#000000',
-                fontSize: '0.78rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
-                transition: 'all 0.15s ease',
-                flexShrink: 0
-              }}
-              title="Buat Siaran Baru"
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#d97706';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#f59e0b';
-              }}
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              <span>Buat Siaran</span>
-            </button>
-          ) : broadcastSubView === 'create' ? (
-            <button
-              type="button"
-              onClick={handleCloseCreateBroadcast}
-              id="btn-header-kembali-broadcast"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.85rem',
-                height: '36px',
-                borderRadius: '0.65rem',
-                border: `1px solid ${theme.border}`,
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
-                color: theme.textSecondary,
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                flexShrink: 0
-              }}
-              title="Kembali ke Riwayat Siaran"
-            >
-              <ChevronLeft size={16} />
-              <span>Kembali ke Riwayat</span>
-            </button>
-          ) : broadcastSubView === 'detail' ? (
-            <button
-              type="button"
-              onClick={handleCloseBroadcastDetail}
-              id="btn-header-kembali-broadcast-detail"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.85rem',
-                height: '36px',
-                borderRadius: '0.65rem',
-                border: `1px solid ${theme.border}`,
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
-                color: theme.textSecondary,
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                flexShrink: 0
-              }}
-              title="Kembali ke Riwayat Siaran"
-            >
-              <ChevronLeft size={16} />
-              <span>Kembali ke Riwayat</span>
-            </button>
-          ) : null
-        ) : undefined
-      }
     >
       <div
         className={`catavor-platform-portal ${isDark ? 'portal-dark' : 'portal-light'}`}
