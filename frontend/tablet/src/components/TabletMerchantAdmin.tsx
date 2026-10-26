@@ -90,6 +90,8 @@ import { TabletProductFilterSheet, type TabletProductFilterValues } from './Tabl
 import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
 import { TabletCustomSelect } from './TabletCustomSelect';
 import { RichTextarea, FormattedText } from './RichTextarea';
+import { StoreChooserModal, type CatalogStoreItem } from './StoreChooserModal';
+import { broadcastAuthEvent } from '../utils/authSync';
 import { useModalBackHandler } from '../utils/navigation';
 import { createAuthFetch, isTokenExpired } from '../utils/auth';
 import { safeOpenUrl } from '../utils/urlSecurity';
@@ -257,6 +259,7 @@ export interface TabletMerchantAdminProps {
   token: string;
   currentUser: any;
   storeSlug: string;
+  initialOpenStoreChooser?: boolean;
   onLogout: () => void;
   onUnauthorized?: (msg?: string) => void;
   onViewPublicCatalog: () => void;
@@ -267,6 +270,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   token,
   currentUser,
   storeSlug: initialStoreSlug,
+  initialOpenStoreChooser = false,
   onLogout,
   onUnauthorized,
   onViewPublicCatalog,
@@ -381,6 +385,137 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  // Store Chooser & Switcher Modal State (Tablet Native)
+  const [showStoreChooserModal, setShowStoreChooserModal] = useState<boolean>(() => {
+    if (initialOpenStoreChooser) return true;
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      return p === '/catalogs' || p === '/select-catalog' || p === '/stores';
+    }
+    return false;
+  });
+  const [userStores, setUserStores] = useState<CatalogStoreItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('catavor_stores');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [switchingSlug, setSwitchingSlug] = useState<string | null>(null);
+
+  const fetchUserStores = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/user/stores', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.stores)) {
+          const mapped: CatalogStoreItem[] = data.stores.map((st: any) => ({
+            id: st.id,
+            slug: st.slug,
+            store_title: st.store_title || st.store_name || st.name || st.slug,
+            store_slogan: st.store_slogan || st.slogan,
+            store_theme: st.store_theme || st.theme || 'navy',
+            store_logo_url: st.store_logo_url || st.logo_url,
+            plan: st.plan,
+            payment_status: st.payment_status,
+            whatsapp_number: st.whatsapp_number,
+            item_count: typeof st.item_count === 'number' ? st.item_count : Number(st.products_count ?? st.product_count ?? st.total_items ?? 0),
+            dormancy_status: st.dormancy_status,
+            is_suspended: Boolean(st.is_suspended || st.dormancy_status === 'suspended'),
+            suspension_reason: st.suspension_reason,
+            is_blacklisted: Boolean(st.is_blacklisted),
+            last_activity_at: st.last_activity_at,
+            created_at: st.created_at
+          }));
+          setUserStores(mapped);
+          try {
+            localStorage.setItem('catavor_stores', JSON.stringify(mapped));
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch user stores for tablet:', err);
+    }
+  }, [token, fetch]);
+
+  useEffect(() => {
+    fetchUserStores();
+  }, [fetchUserStores]);
+
+  const openStoreChooserModal = useCallback(() => {
+    fetchUserStores();
+    setShowStoreChooserModal(true);
+    if (typeof window !== 'undefined' && !window.location.pathname.toLowerCase().includes('/catalogs')) {
+      window.history.pushState({ chooser: true }, '', '/catalogs');
+    }
+  }, [fetchUserStores]);
+
+  const handleCloseStoreChooserModal = useCallback(() => {
+    setShowStoreChooserModal(false);
+    if (typeof window !== 'undefined') {
+      const isChooser = window.location.pathname.toLowerCase().includes('/catalogs');
+      if (isChooser) {
+        if (window.history.length > 1) {
+          window.history.back();
+        } else {
+          window.history.pushState({}, '', `/${storeSlug}/admin`);
+        }
+      }
+    }
+  }, [storeSlug]);
+
+  useModalBackHandler({
+    isOpen: showStoreChooserModal,
+    onClose: handleCloseStoreChooserModal,
+    modalId: 'tablet-store-chooser'
+  });
+
+  const handleSwitchStore = useCallback(async (targetStore: CatalogStoreItem) => {
+    if (!targetStore.slug || targetStore.slug.toLowerCase() === storeSlug.toLowerCase()) {
+      handleCloseStoreChooserModal();
+      return;
+    }
+    setSwitchingSlug(targetStore.slug);
+    try {
+      const res = await fetch('/api/user/stores/switch', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ store_slug: targetStore.slug })
+      });
+      if (res.ok) {
+        localStorage.setItem('catavor_active_slug', targetStore.slug);
+        if (targetStore.store_theme && onThemeChange) {
+          onThemeChange(targetStore.store_theme);
+        }
+        broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUser?.id || '0', slug: targetStore.slug });
+        setShowStoreChooserModal(false);
+        window.location.href = `/${targetStore.slug}/admin`;
+      } else {
+        localStorage.setItem('catavor_active_slug', targetStore.slug);
+        broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUser?.id || '0', slug: targetStore.slug });
+        setShowStoreChooserModal(false);
+        window.location.href = `/${targetStore.slug}/admin`;
+      }
+    } catch {
+      localStorage.setItem('catavor_active_slug', targetStore.slug);
+      broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUser?.id || '0', slug: targetStore.slug });
+      setShowStoreChooserModal(false);
+      window.location.href = `/${targetStore.slug}/admin`;
+    } finally {
+      setSwitchingSlug(null);
+    }
+  }, [storeSlug, token, fetch, currentUser, onThemeChange, handleCloseStoreChooserModal]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -2591,16 +2726,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
-  // User stores list for Danger Zone multi-store coordination
-  const [userStores, setUserStores] = useState<any[]>(() => {
-    try {
-      const raw = localStorage.getItem('catavor_stores');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
-
+  // User stores list for Danger Zone multi-store coordination (uses state declared at top)
   const handleStoreDeleted = (deletedSlug: string, remainingStores: any[]) => {
     setUserStores(remainingStores);
     try {
@@ -2887,7 +3013,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           }}>
             {isNavExpanded ? (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden' }}>
+                <div 
+                  onClick={openStoreChooserModal}
+                  title="Buka Pusat Pengelolaan Katalog (Ganti Profil)"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden', cursor: 'pointer' }}
+                >
                   <div style={{
                     width: '38px',
                     height: '38px',
@@ -2903,11 +3033,24 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     <StoreIcon size={20} />
                   </div>
                   <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      {storeSettings.name || 'Admin Toko'}
+                    <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{storeSettings.name || 'Admin Toko'}</span>
+                      <Layers size={13} color="var(--primary)" style={{ flexShrink: 0 }} />
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600 }}>
-                      Konsol Merchant
+                    <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <span>Pusat Katalog</span>
+                      {userStores.length > 0 && (
+                        <span style={{
+                          backgroundColor: 'var(--primary)',
+                          color: '#fff',
+                          fontSize: '0.62rem',
+                          fontWeight: 800,
+                          padding: '0.05rem 0.35rem',
+                          borderRadius: '999px'
+                        }}>
+                          {userStores.length}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3075,6 +3218,47 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             gap: '0.35rem',
             flexShrink: 0
           }}>
+            <button
+              type="button"
+              onClick={openStoreChooserModal}
+              title="Pusat Pengelolaan Katalog (Ganti Profil)"
+              style={{
+                width: '100%',
+                minHeight: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: isNavExpanded ? '0 0.75rem' : 0,
+                justifyContent: isNavExpanded ? 'flex-start' : 'center',
+                borderRadius: '0.6rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'rgba(30, 58, 138, 0.08)',
+                color: 'var(--primary)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.85rem'
+              }}
+            >
+              <Layers size={18} style={{ flexShrink: 0 }} />
+              {isNavExpanded && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span>Pusat Katalog</span>
+                  {userStores.length > 0 && (
+                    <span style={{
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: '999px'
+                    }}>
+                      {userStores.length}
+                    </span>
+                  )}
+                </div>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={onViewPublicCatalog}
@@ -3246,58 +3430,95 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             title="Katalog Produk & Inventaris"
             subtitle={isCatalogCompletelyEmpty ? undefined : `${productTotalRecords} total item`}
             headerAction={
-              selectedProductId === 'new' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                 <button
-                  id="btn-reset-form-produk"
-                  data-testid="btn-reset-form-produk"
                   type="button"
-                  onClick={() => handleCancelToProductTypeSelection()}
-                  title="Mulai Ulang Formulir & Pilih Ulang Tipe Katalog"
+                  onClick={openStoreChooserModal}
+                  title="Pusat Pengelolaan Katalog"
                   style={{
                     minHeight: '44px',
-                    padding: '0.55rem 1.15rem',
+                    padding: '0.55rem 0.95rem',
                     borderRadius: '0.65rem',
                     backgroundColor: 'var(--bg-deep)',
-                    color: 'var(--text-secondary)',
+                    color: 'var(--text-primary)',
                     border: '1px solid var(--border-light)',
                     fontWeight: 700,
                     fontSize: '0.85rem',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.45rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    cursor: 'pointer'
                   }}
                 >
-                  <RotateCcw size={16} />
-                  <span>Reset Form</span>
+                  <Layers size={16} color="var(--primary)" />
+                  <span>Pusat Katalog</span>
+                  {userStores.length > 0 && (
+                    <span style={{
+                      backgroundColor: 'var(--primary)',
+                      color: '#fff',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: '999px'
+                    }}>
+                      {userStores.length}
+                    </span>
+                  )}
                 </button>
-              ) : (
-                <button
-                  id="btn-tambah-produk"
-                  data-testid="btn-tambah-produk"
-                  type="button"
-                  onClick={() => handleCancelToProductTypeSelection()}
-                  style={{
-                    minHeight: '44px',
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--primary)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px var(--primary-glow)'
-                  }}
-                >
-                  <Plus size={17} />
-                  <span>Tambah Produk</span>
-                </button>
-              )
+
+                {selectedProductId === 'new' ? (
+                  <button
+                    id="btn-reset-form-produk"
+                    data-testid="btn-reset-form-produk"
+                    type="button"
+                    onClick={() => handleCancelToProductTypeSelection()}
+                    title="Mulai Ulang Formulir & Pilih Ulang Tipe Katalog"
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-light)',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <RotateCcw size={16} />
+                    <span>Reset Form</span>
+                  </button>
+                ) : (
+                  <button
+                    id="btn-tambah-produk"
+                    data-testid="btn-tambah-produk"
+                    type="button"
+                    onClick={() => handleCancelToProductTypeSelection()}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px var(--primary-glow)'
+                    }}
+                  >
+                    <Plus size={17} />
+                    <span>Tambah Produk</span>
+                  </button>
+                )}
+              </div>
             }
             selectedId={selectedProductId}
             onClearSelection={() => {
@@ -10387,6 +10608,24 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           </div>
         </div>
       )}
+
+      {/* ==========================================================
+          STORE CHOOSER & SWITCHER MODAL (TABLET NATIVE)
+          ========================================================== */}
+      <StoreChooserModal
+        isOpen={showStoreChooserModal}
+        onClose={handleCloseStoreChooserModal}
+        user={currentUser}
+        stores={userStores}
+        activeSlug={storeSlug}
+        onSelectStore={handleSwitchStore}
+        onCreateNewStore={() => {
+          window.location.href = '/register/step-1';
+        }}
+        onLogout={onLogout}
+        switchingSlug={switchingSlug}
+        activeTheme={storeSettings.store_theme || 'navy'}
+      />
     </div>
   );
 };

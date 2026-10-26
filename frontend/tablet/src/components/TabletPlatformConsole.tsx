@@ -1626,6 +1626,29 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
             <button
               type="button"
+              onClick={() => handleSwitchView('stores')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '0.6rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: activeView === 'stores' ? 'var(--primary)' : 'var(--bg-deep)',
+                color: activeView === 'stores' ? '#ffffff' : 'var(--text-secondary)',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Pusat Pengelolaan Katalog Toko Platform"
+            >
+              <StoreIcon size={14} />
+              <span>Kelola Toko</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleRefreshData}
               disabled={isRefreshingData}
               style={{

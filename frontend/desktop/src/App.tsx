@@ -9999,29 +9999,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
         return;
       }
 
-      const savedStoresRaw = localStorage.getItem('catavor_stores');
-      let parsedStores: any[] = [];
-      try {
-        parsedStores = savedStoresRaw ? JSON.parse(savedStoresRaw) : [];
-      } catch {}
-
-      if (parsedStores.length === 1 && parsedStores[0]?.slug) {
-        const singleSlug = parsedStores[0].slug;
-        try {
-          sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
-          localStorage.setItem('catavor_active_slug', singleSlug);
-        } catch {}
-        setStoreSlug(singleSlug);
-        setIsFirstTimeLogin(false);
-        setShowStoreSwitcherModal(false);
-        setView('admin');
-        setAdminTab('items');
-        setPortalTab('home');
-        window.history.replaceState({}, '', `/${singleSlug}/admin`);
-        loadData(singleSlug);
-        return;
-      }
-
       const hasSavedActive = Boolean(localStorage.getItem('catavor_active_slug') || sessionStorage.getItem('catavor_active_slug_selected'));
       setStoreSlug(null);
       setIsFirstTimeLogin(!hasSavedActive);
@@ -10451,6 +10428,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setStoreSlug(null);
           return;
         }
+      }
+
+      if (isCatalogChooserRoute(path)) {
+        setShowStoreSwitcherModal(true);
+        fetchMyStores();
+        return;
       }
 
       const slug = getStoreSlug();
@@ -11569,8 +11552,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
   }, [storeSlug])
   // Sync view state, admin tab, sub-sub-paths, settings section, public tab & open modals to browser URL pathname
   useEffect(() => {
-    if (!storeSlug || error || isInvalidRoute()) return;
+    if (!storeSlug || error || isInvalidRoute() || showStoreSwitcherModal) return;
     const path = window.location.pathname.toLowerCase();
+    if (isCatalogChooserRoute(path)) return;
     if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) return;
     if (isPlatformAdmin(adminUser) && (!storeSlug || path === '/admin' || path.startsWith('/admin/'))) return;
 
@@ -11689,12 +11673,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       isInitialLoadRef.current = false;
     }
     isUserNavRef.current = false;
-  }, [view, adminTab, isSuspendedAccount, desktopSuspendedView, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, isDetailActive, selectedFauna, selectedTicket, selectedNotificationDetail, storeSlug, error]);
+  }, [view, adminTab, isSuspendedAccount, desktopSuspendedView, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, isDetailActive, selectedFauna, selectedTicket, selectedNotificationDetail, storeSlug, error, showStoreSwitcherModal]);
 
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs (/ , /login , /register/step-X)
   useEffect(() => {
-    if (storeSlug || error || isInvalidRoute()) return;
+    if (storeSlug || error || isInvalidRoute() || showStoreSwitcherModal) return;
     const path = window.location.pathname.toLowerCase();
     if (isCatalogChooserRoute(path)) return;
     if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) return;

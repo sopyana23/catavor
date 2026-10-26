@@ -23,6 +23,13 @@ import {
 } from './utils/authSync';
 import { smartBack } from './utils/navigation';
 
+const RESERVED_SLUGS = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops', 'catalogs', 'select-catalog', 'stores'];
+
+export const isCatalogChooserRoute = (path: string): boolean => {
+  const p = path.toLowerCase().replace(/\/$/, '');
+  return p === '/catalogs' || p === '/select-catalog' || p === '/stores';
+};
+
 export const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('catavor_token') || localStorage.getItem('token') || '');
   const [currentUser, setCurrentUser] = useState<UserRBACInfo | null>(() => {
@@ -47,8 +54,7 @@ export const App: React.FC = () => {
   const [activeSlug, setActiveSlug] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     const parts = window.location.pathname.split('/').filter(Boolean);
-    const reserved = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops'];
-    if (parts.length > 0 && !reserved.includes(parts[0].toLowerCase())) {
+    if (parts.length > 0 && !RESERVED_SLUGS.includes(parts[0].toLowerCase())) {
       return parts[0].toLowerCase();
     }
     return null;
@@ -120,8 +126,7 @@ export const App: React.FC = () => {
       const pathname = window.location.pathname.toLowerCase();
       setCurrentPath(pathname);
       const parts = pathname.split('/').filter(Boolean);
-      const reserved = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops'];
-      if (parts.length > 0 && !reserved.includes(parts[0])) {
+      if (parts.length > 0 && !RESERVED_SLUGS.includes(parts[0])) {
         setActiveSlug(parts[0]);
       } else {
         setActiveSlug(null);
@@ -168,8 +173,7 @@ export const App: React.FC = () => {
     const pathname = path.split('?')[0].toLowerCase();
     setCurrentPath(pathname);
     const parts = pathname.split('/').filter(Boolean);
-    const reserved = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops'];
-    if (parts.length > 0 && !reserved.includes(parts[0].toLowerCase())) {
+    if (parts.length > 0 && !RESERVED_SLUGS.includes(parts[0].toLowerCase())) {
       setActiveSlug(parts[0].toLowerCase());
     } else {
       setActiveSlug(null);
@@ -526,6 +530,7 @@ export const App: React.FC = () => {
   }, [token, currentUser, activeSlug, currentPath]);
 
   const isLoginRoute = currentPath === '/login';
+  const isCatalogChooser = isCatalogChooserRoute(currentPath);
   const isStoreAdminRoute = Boolean(activeSlug) && (currentPath === `/${activeSlug}/admin` || currentPath.startsWith(`/${activeSlug}/admin/`));
   const merchantSlug =
     (currentUser as any)?.store_slug ||
@@ -862,9 +867,13 @@ export const App: React.FC = () => {
     );
   }
 
-  // 3. STORE ADMIN ROUTE (/:slug/admin)
-  if (isStoreAdminRoute) {
+  // 3. STORE ADMIN ROUTE (/:slug/admin) & CATALOG CHOOSER (/catalogs)
+  if (isStoreAdminRoute || isCatalogChooser) {
     if (!token) {
+      if (isCatalogChooser) {
+        navigateTo('/login');
+        return null;
+      }
       return (
         <div style={{
           minHeight: '100vh',
@@ -1069,6 +1078,7 @@ export const App: React.FC = () => {
         token={token}
         currentUser={currentUser}
         storeSlug={activeSlug || merchantSlug || 'my-store'}
+        initialOpenStoreChooser={isCatalogChooser}
         onLogout={() => handleLogout('/login')}
         onUnauthorized={(msg) => handleUnauthorized(msg, '/login')}
         onViewPublicCatalog={() => navigateTo(activeSlug ? `/${activeSlug}` : '/')}

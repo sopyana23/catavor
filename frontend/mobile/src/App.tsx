@@ -9819,7 +9819,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useModalBackHandler({ isOpen: showLightbox, onClose: () => setShowLightbox(false), modalId: 'lightbox' });
   useModalBackHandler({ isOpen: showPurchaseOptions, onClose: () => setShowPurchaseOptions(false), modalId: 'purchase-options' });
   useModalBackHandler({ isOpen: Boolean(actionMenuData), onClose: () => setActionMenuData(null), modalId: 'action-menu' });
-  useModalBackHandler({ isOpen: showStoreSwitcherModal, onClose: () => setShowStoreSwitcherModal(false), modalId: 'store-switcher' });
+  useModalBackHandler({ isOpen: showStoreSwitcherModal, onClose: handleCloseStoreChooserModal, modalId: 'store-switcher' });
   useModalBackHandler({ isOpen: showCreateStoreModal, onClose: () => setShowCreateStoreModal(false), modalId: 'create-store' });
   useModalBackHandler({ isOpen: showCategorySheet, onClose: () => setShowCategorySheet(false), modalId: 'category-sheet' });
   useModalBackHandler({ isOpen: showSortSheet, onClose: () => setShowSortSheet(false), modalId: 'sort-sheet' });
@@ -10121,29 +10121,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
           sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: '/catalogs' }));
         } catch {}
         window.history.replaceState({ tab: 'login' }, '', '/login');
-        return;
-      }
-
-      const savedStoresRaw = localStorage.getItem('catavor_stores');
-      let parsedStores: any[] = [];
-      try {
-        parsedStores = savedStoresRaw ? JSON.parse(savedStoresRaw) : [];
-      } catch {}
-
-      if (parsedStores.length === 1 && parsedStores[0]?.slug) {
-        const singleSlug = parsedStores[0].slug;
-        try {
-          sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
-          localStorage.setItem('catavor_active_slug', singleSlug);
-        } catch {}
-        setStoreSlug(singleSlug);
-        setIsFirstTimeLogin(false);
-        setShowStoreSwitcherModal(false);
-        setView('tabs');
-        setActiveTab('admin');
-        setAdminSubTab('menu');
-        window.history.replaceState({}, '', `/${singleSlug}/admin`);
-        loadData(singleSlug);
         return;
       }
 
@@ -10646,6 +10623,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setView('tabs');
           return;
         }
+      }
+
+      if (isCatalogChooserRoute(path)) {
+        setShowStoreSwitcherModal(true);
+        fetchMyStores();
+        return;
       }
 
       const slug = getStoreSlug();
@@ -11880,8 +11863,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Sync activeTab state, admin sub-tab, sub-sub-paths, settings section, and open views/modals to browser URL
   useEffect(() => {
-    if (!storeSlug || error || isInvalidRoute()) return;
+    if (!storeSlug || error || isInvalidRoute() || showStoreSwitcherModal) return;
     const path = window.location.pathname.toLowerCase();
+    if (isCatalogChooserRoute(path)) return;
     if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) return;
     if (isPlatformAdmin(adminUser) && (!storeSlug || path === '/admin' || path.startsWith('/admin/'))) return;
 
@@ -12009,12 +11993,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       isInitialLoadRef.current = false;
     }
     isUserNavRef.current = false;
-  }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error]);
+  }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error, showStoreSwitcherModal]);
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {
     const path = window.location.pathname.toLowerCase();
-    if (storeSlug || error || isInvalidRoute() || isCatalogChooserRoute(path)) return;
+    if (storeSlug || error || isInvalidRoute() || isCatalogChooserRoute(path) || showStoreSwitcherModal) return;
     if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) return;
     if (token && isPlatformAdmin(adminUser) && (!storeSlug || path === '/admin' || path.startsWith('/admin/'))) return;
 

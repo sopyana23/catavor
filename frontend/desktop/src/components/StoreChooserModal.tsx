@@ -259,6 +259,11 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
 
   return (
     <div 
+      onClick={(e) => {
+        if (e.target === e.currentTarget && effectiveActiveSlug && onClose) {
+          onClose();
+        }
+      }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -273,6 +278,7 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
       }}
     >
       <div 
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
           maxWidth: '820px',
