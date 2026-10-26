@@ -135,6 +135,57 @@ const TICKET_PRIORITY_FILTER_OPTIONS: TabletSelectOption[] = [
   { value: 'low', label: 'Low', badge: 'Rendah', badgeBg: 'rgba(16, 185, 129, 0.15)', badgeColor: '#10b981' },
 ];
 
+const BROADCAST_CATEGORY_OPTIONS: TabletSelectOption[] = [
+  { value: 'PENGUMUMAN', label: 'PENGUMUMAN', description: 'Informasi umum & pembaruan platform', badge: 'Umum' },
+  { value: 'SISTEM', label: 'SISTEM', description: 'Patch atau pembaruan teknis sistem', badge: 'Sistem' },
+  { value: 'PROMOSI', label: 'PROMOSI', description: 'Penawaran diskon & paket langganan', badge: 'Promo' },
+  { value: 'PEMELIHARAAN', label: 'PEMELIHARAAN', description: 'Jadwal maintenance & servis', badge: 'Maintenance' },
+  { value: 'PANDUAN', label: 'PANDUAN', description: 'Panduan & tutorial fitur baru', badge: 'Edukasi' },
+  { value: 'KEAMANAN', label: 'KEAMANAN', description: 'Pemberitahuan keamanan & privasi', badge: 'Security' }
+];
+
+const BROADCAST_URGENCY_OPTIONS: TabletSelectOption[] = [
+  { value: 'info', label: 'Informasi (Biru)', description: 'Notifikasi standar bersifat informatif', badge: 'Info', badgeColor: '#3b82f6', badgeBg: 'rgba(59, 130, 246, 0.15)' },
+  { value: 'warning', label: 'Peringatan / Urgent (Oranye)', description: 'Pemberitahuan penting butuh perhatian segera', badge: 'Urgent', badgeColor: '#f59e0b', badgeBg: 'rgba(245, 158, 11, 0.15)' },
+  { value: 'success', label: 'Rilis & Sukses (Hijau)', description: 'Fitur baru atau kabar pencapaian positif', badge: 'Sukses', badgeColor: '#10b981', badgeBg: 'rgba(16, 185, 129, 0.15)' },
+  { value: 'system', label: 'Sistem (Ungu)', description: 'Pemberitahuan arsitektur dan teknis', badge: 'Sistem', badgeColor: '#8b5cf6', badgeBg: 'rgba(139, 92, 246, 0.15)' }
+];
+
+const BROADCAST_TARGET_TYPE_OPTIONS: TabletSelectOption[] = [
+  { value: 'all', label: 'Semua Merchant & Pengguna (Global)', description: 'Siaran broadcast massal untuk seluruh ekosistem Catavor', badge: 'Global' },
+  { value: 'plan', label: 'Berdasarkan Paket Langganan', description: 'Kirim hanya ke merchant pada tier Free, Pro, atau Enterprise', badge: 'Tier' },
+  { value: 'specific', label: 'Toko atau Pengguna Spesifik', description: 'Pilih manual toko merchant atau akun pengguna tertentu', badge: 'Spesifik' }
+];
+
+const BROADCAST_PLAN_OPTIONS: TabletSelectOption[] = [
+  { value: 'free', label: 'Gratis (Free Tier)', description: 'Merchant dengan paket dasar' },
+  { value: 'pro', label: 'Pro Tier', description: 'Merchant berlangganan aktif Pro' },
+  { value: 'enterprise', label: 'Enterprise Tier', description: 'Merchant tier tertinggi Enterprise' }
+];
+
+const BROADCAST_EXPIRY_OPTIONS: TabletSelectOption[] = [
+  { value: '0', label: 'Permanen / Tanpa Batas', description: 'Notifikasi tetap aktif selamanya' },
+  { value: '24', label: '24 Jam (1 Hari)', description: 'Kedaluwarsa otomatis setelah 1 hari' },
+  { value: '72', label: '72 Jam (3 Hari)', description: 'Kedaluwarsa otomatis setelah 3 hari' },
+  { value: '168', label: '168 Jam (1 Minggu / 7 Hari)', description: 'Kedaluwarsa otomatis setelah 7 hari' },
+  { value: '720', label: '720 Jam (30 Hari / 1 Bulan)', description: 'Kedaluwarsa otomatis setelah 30 hari' }
+];
+
+const BROADCAST_ACTION_TYPE_OPTIONS: TabletSelectOption[] = [
+  { value: 'detail', label: 'Buka Artikel Lengkap (Rich Text)', description: 'Membuka modal artikel kaya teks dan panduan' },
+  { value: 'navigate', label: 'Navigasi Menu Merchant', description: 'Mengarahkan pengelola langsung ke tab menu tertentu' },
+  { value: 'external_link', label: 'Buka Tautan Luar (Web Eksternal)', description: 'Mengarahkan pengguna ke URL web eksternal' }
+];
+
+const BROADCAST_MENU_OPTIONS: TabletSelectOption[] = [
+  { value: 'settings', label: 'Pengaturan Profil & Toko (settings)' },
+  { value: 'items', label: 'Inventaris & Produk (items)' },
+  { value: 'subscription', label: 'Paket Langganan & Billing (subscription)' },
+  { value: 'help', label: 'Pusat Bantuan & Tiket (help)' },
+  { value: 'share', label: 'Bagikan Katalog & QR Merchant (share)' },
+  { value: 'analytics', label: 'Dashboard Analitik Merchant (analytics)' }
+];
+
 const DEFAULT_CANNED_TEMPLATES = [
   {
     title: 'Salam Pembuka & Konfirmasi Penerimaan',
@@ -161,23 +212,6 @@ const DEFAULT_CANNED_TEMPLATES = [
     category: 'Selesai',
     text: 'Karena solusi telah diberikan dan tidak ada pertanyaan lanjutan, tiket ini kami tandai sebagai terselesaikan. Anda dapat memberikan penilaian layanan (CSAT) untuk membantu kami meningkatkan kualitas dukungan.'
   }
-];
-
-const BROADCAST_CATEGORY_OPTIONS: TabletSelectOption[] = [
-  { value: 'PENGUMUMAN', label: 'Pengumuman Resmi', description: 'Informasi umum platform untuk seluruh merchant' },
-  { value: 'SISTEM', label: 'Pembaruan Sistem', description: 'Pemberitahuan perubahan atau patch sistem' },
-  { value: 'PROMOSI', label: 'Promosi & Diskon', description: 'Penawaran diskon, voucher, dan event promo' },
-  { value: 'PEMELIHARAAN', label: 'Jadwal Pemeliharaan', description: 'Jadwal maintenance & perawatan server berkala' },
-  { value: 'PANDUAN', label: 'Panduan & Edukasi', description: 'Tutorial penggunaan dan tips fitur baru' },
-  { value: 'KEAMANAN', label: 'Keamanan & Privasi', description: 'Peringatan kritis dan keamanan platform' },
-];
-
-const BROADCAST_TARGET_OPTIONS: TabletSelectOption[] = [
-  { value: 'all', label: 'Semua Merchant', description: 'Terkirim ke seluruh merchant terdaftar' },
-  { value: 'pro', label: 'Hanya Merchant Paket Pro', description: 'Eksklusif merchant Pro Starter & Pro Business' },
-  { value: 'free', label: 'Hanya Merchant Paket Free', description: 'Merchant paket gratis/dasar' },
-  { value: 'active', label: 'Hanya Merchant Aktif', description: 'Merchant dengan aktivitas katalog aktif' },
-  { value: 'dormant', label: 'Merchant Indikasi Dormansi', description: 'Merchant yang lama tidak aktif atau belum ada item' },
 ];
 
 export interface TabletPlatformConsoleProps {
@@ -230,6 +264,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [activeView, setActiveView] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
+      const bId = params.get('broadcast_id') || params.get('broadcast') || params.get('notif_id');
+      if (bId) return 'broadcast';
       const tab = params.get('tab') || params.get('view') || params.get('division');
       if (tab) return normalizeTabletTab(tab);
     }
@@ -239,7 +275,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // Synchronize on browser history popstate (Back/Forward navigation)
   useEffect(() => {
     const handlePopState = () => {
+      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
       const params = new URLSearchParams(window.location.search);
+      const bId = params.get('broadcast_id') || params.get('broadcast') || params.get('notif_id');
+      if (bId) {
+        setActiveView('broadcast');
+        return;
+      }
       const tab = params.get('tab') || params.get('view') || params.get('division');
       setActiveView(normalizeTabletTab(tab));
     };
@@ -267,22 +309,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       window.history.pushState({ tab: canonicalTab }, '', url.toString());
     }
   };
-
-  // Sync activeView when user navigates using browser back / forward
-  useEffect(() => {
-    const handlePopState = () => {
-      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
-      const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab') || params.get('view');
-      if (tab) {
-        setActiveView(tab);
-      } else {
-        setActiveView('dashboard');
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
 
   // Header Title metadata
   const viewMetadata = useMemo(() => {
@@ -1090,13 +1116,72 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // SUB-VIEW: BROADCAST (Siaran Pengumuman)
   // =========================================================================
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
-  const [broadcastSubView, setBroadcastSubView] = useState<'list' | 'create'>('list');
-  const [selectedBroadcastId, setSelectedBroadcastId] = useState<number | null>(null);
+  const [broadcastSubView, setBroadcastSubView] = useState<'list' | 'create'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const sub = (params.get('subview') || params.get('subtab') || params.get('action') || '').toLowerCase();
+      if (['create', 'new', 'tambah', 'buat'].includes(sub)) return 'create';
+    }
+    return 'list';
+  });
+  const [selectedBroadcastId, setSelectedBroadcastId] = useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const bId = params.get('broadcast_id') || params.get('broadcast') || params.get('notif_id');
+      if (bId) {
+        const num = parseInt(bId, 10);
+        return isNaN(num) ? null : num;
+      }
+    }
+    return null;
+  });
+  const [selectedBroadcastDetail, setSelectedBroadcastDetail] = useState<any | null>(null);
+  const [isFetchingBroadcastDetail, setIsFetchingBroadcastDetail] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const bId = params.get('broadcast_id') || params.get('broadcast') || params.get('notif_id');
+      return Boolean(bId);
+    }
+    return false;
+  });
   const [broadcastPage, setBroadcastPage] = useState<number>(1);
   const [broadcastTotalPages, setBroadcastTotalPages] = useState<number>(1);
   const [broadcastTotalItems, setBroadcastTotalItems] = useState<number>(0);
   const broadcastPageSize = 10;
   const broadcastCacheRef = useRef<Map<string, { data: any[]; pagination: any; metrics: any; timestamp: number }>>(new Map());
+
+  // URL Deep-Linking & History Synchronizer for Broadcast
+  const updateBroadcastUrl = useCallback((subview?: 'list' | 'create' | 'detail' | null, broadcastId?: number | string | null) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'broadcast');
+      if (subview && subview !== 'list') {
+        url.searchParams.set('subview', subview);
+      } else {
+        url.searchParams.delete('subview');
+      }
+      if (broadcastId) {
+        const cleanId = String(broadcastId).replace(/[^a-zA-Z0-9_#-]/g, '').trim();
+        url.searchParams.set('broadcast_id', cleanId);
+      } else {
+        url.searchParams.delete('broadcast_id');
+        url.searchParams.delete('broadcast');
+        url.searchParams.delete('notif_id');
+      }
+      const newRelativePathQuery = url.pathname + url.search + url.hash;
+      const currentRelativePathQuery = window.location.pathname + window.location.search + window.location.hash;
+      if (newRelativePathQuery !== currentRelativePathQuery) {
+        window.history.pushState(
+          { tab: 'broadcast', subview: subview || 'list', broadcast_id: broadcastId || null },
+          '',
+          newRelativePathQuery
+        );
+      }
+    } catch (e) {
+      console.error('Failed to sync tablet broadcast URL:', e);
+    }
+  }, []);
 
   const [broadcastMetrics, setBroadcastMetrics] = useState({
     total_broadcasts: 0,
@@ -1213,6 +1298,79 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   }, [targetRecipientSearch, broadcastForm.target_type, token]);
 
+  const fetchSingleBroadcastDetail = useCallback(async (id: number | string) => {
+    if (!id) {
+      setIsFetchingBroadcastDetail(false);
+      return;
+    }
+    const cleanId = String(id).replace(/[^a-zA-Z0-9_#-]/g, '').trim();
+    if (!cleanId) {
+      setIsFetchingBroadcastDetail(false);
+      return;
+    }
+    setIsFetchingBroadcastDetail(true);
+
+    const authToken = token || localStorage.getItem('catavor_token') || localStorage.getItem('token') || '';
+    const headers: Record<string, string> = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+
+    // 1. Check in-memory broadcasts if available
+    if (broadcasts && broadcasts.length > 0) {
+      const existing = broadcasts.find(b => 
+        String(b.id) === cleanId || 
+        String(b.id).replace('#', '') === cleanId.replace('#', '')
+      );
+      if (existing) {
+        setSelectedBroadcastDetail(existing);
+        setIsFetchingBroadcastDetail(false);
+        return;
+      }
+    }
+
+    try {
+      // 2. Fetch direct broadcast detail from admin endpoint
+      const res = await authFetch(`/api/admin/notifications/${encodeURIComponent(cleanId)}`, { headers });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.data) {
+          setSelectedBroadcastDetail(d.data);
+          setIsFetchingBroadcastDetail(false);
+          return;
+        }
+      }
+
+      // 3. Fallback to standard notifications endpoint
+      const res2 = await authFetch(`/api/notifications/${encodeURIComponent(cleanId)}`, { headers });
+      if (res2.ok) {
+        const d2 = await res2.json();
+        if (d2.data) {
+          setSelectedBroadcastDetail(d2.data);
+          setIsFetchingBroadcastDetail(false);
+          return;
+        }
+      }
+
+      // 4. Secondary fallback: query list to find item
+      const resList = await authFetch('/api/admin/notifications?limit=50', { headers });
+      if (resList.ok) {
+        const listData = await resList.json();
+        const arr = Array.isArray(listData.data) ? listData.data : (Array.isArray(listData) ? listData : []);
+        const matched = arr.find((b: any) => 
+          String(b.id) === cleanId || 
+          String(b.id).replace('#', '') === cleanId.replace('#', '')
+        );
+        if (matched) {
+          setSelectedBroadcastDetail(matched);
+          setIsFetchingBroadcastDetail(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch single broadcast detail:', e);
+    } finally {
+      setIsFetchingBroadcastDetail(false);
+    }
+  }, [token, broadcasts, authFetch]);
+
   const fetchBroadcasts = useCallback(async (page = 1, force = false) => {
     if (!token) return;
     const cacheKey = `p${page}_s${broadcastStatusFilter}_q${debouncedBroadcastSearch.trim()}`;
@@ -1271,20 +1429,18 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           timestamp: now
         });
 
-        // Auto selection: only in wide tablet landscape (>= 880px)
-        // In mini tablet portrait (< 880px), keep selectedBroadcastId as null so user sees the list!
-        if (typeof window !== 'undefined' && window.innerWidth >= 880) {
-          if (selectedBroadcastId) {
-            const found = list.find((b: any) => b.id === selectedBroadcastId);
-            if (!found && list.length > 0) setSelectedBroadcastId(list[0].id);
-          } else if (list.length > 0) {
-            setSelectedBroadcastId(list[0].id);
+        // Detail Selection & Refresh Persistence Logic
+        if (selectedBroadcastId) {
+          const found = list.find((b: any) => b.id === selectedBroadcastId);
+          if (found) {
+            setSelectedBroadcastDetail(found);
+          } else if (!selectedBroadcastDetail || selectedBroadcastDetail.id !== selectedBroadcastId) {
+            fetchSingleBroadcastDetail(selectedBroadcastId);
           }
-        } else {
-          if (selectedBroadcastId) {
-            const found = list.find((b: any) => b.id === selectedBroadcastId);
-            if (!found) setSelectedBroadcastId(null);
-          }
+        } else if (typeof window !== 'undefined' && window.innerWidth >= 880 && list.length > 0) {
+          // On spacious tablet only, auto select first broadcast if none selected
+          setSelectedBroadcastId(list[0].id);
+          setSelectedBroadcastDetail(list[0]);
         }
       }
     } catch {
@@ -1292,7 +1448,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     } finally {
       setIsFetchingBroadcasts(false);
     }
-  }, [token, authFetch, broadcastStatusFilter, debouncedBroadcastSearch, selectedBroadcastId]);
+  }, [token, authFetch, broadcastStatusFilter, debouncedBroadcastSearch, selectedBroadcastId, selectedBroadcastDetail, fetchSingleBroadcastDetail]);
 
   useEffect(() => {
     if (activeView === 'broadcast') {
@@ -1301,8 +1457,70 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   }, [activeView, broadcastStatusFilter, debouncedBroadcastSearch]);
 
   const selectedBroadcast = useMemo(() => {
-    return broadcasts.find(b => b.id === selectedBroadcastId) || null;
-  }, [broadcasts, selectedBroadcastId]);
+    if (selectedBroadcastDetail && selectedBroadcastId && selectedBroadcastDetail.id === selectedBroadcastId) {
+      return selectedBroadcastDetail;
+    }
+    if (selectedBroadcastId) {
+      return broadcasts.find(b => b.id === selectedBroadcastId) || selectedBroadcastDetail || null;
+    }
+    return null;
+  }, [broadcasts, selectedBroadcastId, selectedBroadcastDetail]);
+
+  const handleSelectBroadcast = useCallback((bc: any) => {
+    setSelectedBroadcastId(bc.id);
+    setSelectedBroadcastDetail(bc);
+    updateBroadcastUrl('detail', bc.id);
+  }, [updateBroadcastUrl]);
+
+  const handleClearBroadcastSelection = useCallback(() => {
+    setSelectedBroadcastId(null);
+    setSelectedBroadcastDetail(null);
+    updateBroadcastUrl('list', null);
+  }, [updateBroadcastUrl]);
+
+  // Deep-link initial hydration effect
+  useEffect(() => {
+    if (activeView === 'broadcast' && selectedBroadcastId) {
+      if (!selectedBroadcastDetail || selectedBroadcastDetail.id !== selectedBroadcastId) {
+        const inMemory = broadcasts.find(b => b.id === selectedBroadcastId);
+        if (inMemory) {
+          setSelectedBroadcastDetail(inMemory);
+        } else {
+          fetchSingleBroadcastDetail(selectedBroadcastId);
+        }
+      }
+    }
+  }, [activeView, selectedBroadcastId, broadcasts, selectedBroadcastDetail, fetchSingleBroadcastDetail]);
+
+  // Broadcast popstate listener for back/forward browser navigation
+  useEffect(() => {
+    const handleBroadcastPopState = () => {
+      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab') || params.get('view') || params.get('division');
+      const normalized = normalizeTabletTab(tab);
+      if (normalized === 'broadcast') {
+        const sub = (params.get('subview') || params.get('subtab') || params.get('action') || '').toLowerCase();
+        const bId = params.get('broadcast_id') || params.get('broadcast') || params.get('notif_id');
+        if (['create', 'new', 'tambah', 'buat'].includes(sub)) {
+          setBroadcastSubView('create');
+          setSelectedBroadcastId(null);
+          setSelectedBroadcastDetail(null);
+        } else if (bId) {
+          const num = parseInt(bId, 10);
+          const parsed = isNaN(num) ? null : num;
+          setSelectedBroadcastId(parsed);
+          setBroadcastSubView('list');
+        } else {
+          setSelectedBroadcastId(null);
+          setSelectedBroadcastDetail(null);
+          setBroadcastSubView('list');
+        }
+      }
+    };
+    window.addEventListener('popstate', handleBroadcastPopState);
+    return () => window.removeEventListener('popstate', handleBroadcastPopState);
+  }, [normalizeTabletTab]);
 
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1383,6 +1601,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         broadcastCacheRef.current.clear();
         setBroadcastSubView('list');
         setSelectedBroadcastId(null);
+        setSelectedBroadcastDetail(null);
+        updateBroadcastUrl('list', null);
         fetchBroadcasts(1, true);
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -1406,6 +1626,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         showToast('Siaran pengumuman berhasil dihapus');
         broadcastCacheRef.current.clear();
         setSelectedBroadcastId(null);
+        setSelectedBroadcastDetail(null);
+        updateBroadcastUrl('list', null);
         fetchBroadcasts(broadcastPage, true);
       } else {
         showToast('Gagal menghapus siaran', 'error');
@@ -6231,6 +6453,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     onClick={() => {
                       setBroadcastSubView('list');
                       setSelectedBroadcastId(null);
+                      setSelectedBroadcastDetail(null);
+                      updateBroadcastUrl('list', null);
                     }}
                     style={{
                       display: 'inline-flex',
@@ -6266,6 +6490,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     onClick={() => {
                       setBroadcastSubView('create');
                       setSelectedBroadcastId(null);
+                      setSelectedBroadcastDetail(null);
+                      updateBroadcastUrl('create', null);
                     }}
                     style={{
                       display: 'inline-flex',
@@ -6509,7 +6735,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       hideHeaderTitle={true}
                       hideBackButton={true}
                       selectedId={selectedBroadcastId}
-                      onClearSelection={() => setSelectedBroadcastId(null)}
+                      onClearSelection={handleClearBroadcastSelection}
                       emptyDetailMessage="Pilih salah satu siaran pengumuman dari daftar di samping untuk melihat rincian isi, sasaran, artikel lengkap, dan tindakan."
                       masterPane={
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -6539,7 +6765,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 return (
                                   <div
                                     key={bc.id}
-                                    onClick={() => setSelectedBroadcastId(bc.id)}
+                                    onClick={() => handleSelectBroadcast(bc)}
                                     style={{
                                       padding: '0.85rem 1rem',
                                       borderRadius: '0.85rem',
@@ -6620,7 +6846,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       {bc.message}
                                     </div>
 
-                                    {/* Footer: Date & Read Counter & Action Indicator */}
+                                    {/* Footer: Date & Read Counter & Specific Rincian Action Badge */}
                                     <div style={{
                                       display: 'flex',
                                       justifyContent: 'space-between',
@@ -6639,22 +6865,20 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           <Eye size={12} />
                                           {bc.read_count || 0} Pembaca
                                         </span>
-                                        {bc.action_type && bc.action_type !== 'none' && (
-                                          <span style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '0.2rem',
-                                            fontSize: '0.65rem',
-                                            fontWeight: 700,
-                                            color: 'var(--primary)',
-                                            backgroundColor: 'rgba(59, 130, 246, 0.08)',
-                                            padding: '0.1rem 0.35rem',
-                                            borderRadius: '0.3rem'
-                                          }}>
-                                            <ExternalLink size={10} />
-                                            <span>Aksi</span>
-                                          </span>
-                                        )}
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.25rem',
+                                          fontSize: '0.68rem',
+                                          fontWeight: 700,
+                                          color: 'var(--primary)',
+                                          backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                                          padding: '0.15rem 0.45rem',
+                                          borderRadius: '0.35rem'
+                                        }}>
+                                          <FileText size={11} />
+                                          <span>Rincian</span>
+                                        </span>
                                       </div>
                                     </div>
                                   </div>
@@ -6677,7 +6901,22 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         </div>
                       }
                       detailPane={
-                        selectedBroadcast ? (
+                        isFetchingBroadcastDetail && !selectedBroadcast ? (
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '4rem 1.5rem',
+                            height: '100%',
+                            gap: '0.85rem'
+                          }}>
+                            <RefreshCw size={28} className="animate-spin" color="var(--primary)" />
+                            <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                              Memuat rincian siaran...
+                            </span>
+                          </div>
+                        ) : selectedBroadcast ? (
                           <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
                             {/* Top Navigation Row */}
                             <div style={{
@@ -6688,7 +6927,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             }}>
                               <button
                                 type="button"
-                                onClick={() => setSelectedBroadcastId(null)}
+                                onClick={handleClearBroadcastSelection}
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
@@ -6754,6 +6993,21 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           color: urgStyle.text
                                         }}>
                                           {urgStyle.label}
+                                        </span>
+                                        <span style={{
+                                          fontSize: '0.72rem',
+                                          fontWeight: 800,
+                                          padding: '0.2rem 0.65rem',
+                                          borderRadius: '0.45rem',
+                                          backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                                          color: '#6366f1',
+                                          border: '1px solid rgba(99, 102, 241, 0.25)'
+                                        }}>
+                                          TARGET: {selectedBroadcast.target_type === 'all' || !selectedBroadcast.target_type 
+                                            ? 'SEMUA MERCHANT (GLOBAL)' 
+                                            : selectedBroadcast.target_type === 'plan' 
+                                              ? `PAKET ${(selectedBroadcast.target_plan_code || 'PRO').toUpperCase()}` 
+                                              : (selectedBroadcast.target_name || 'PENERIMA SPESIFIK')}
                                         </span>
                                         <span style={{
                                           fontSize: '0.72rem',
@@ -6971,6 +7225,29 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </div>
                             )}
 
+                            {/* Informative Action Callout for Article Detail Action */}
+                            {selectedBroadcast.action_type === 'detail' && (
+                              <div style={{
+                                padding: '0.95rem 1.15rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                                border: '1px solid rgba(245, 158, 11, 0.25)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem'
+                              }}>
+                                <FileText size={18} color="#f59e0b" style={{ flexShrink: 0 }} />
+                                <div>
+                                  <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#f59e0b' }}>
+                                    Aksi Sentuh Notifikasi: Buka Rincian Artikel
+                                  </div>
+                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                                    Saat notifikasi disentuh oleh merchant, aplikasi akan membuka rincian artikel lengkap seperti di atas.
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             {/* Internal Navigation Action Target (If Present) */}
                             {selectedBroadcast.action_type === 'navigate' && selectedBroadcast.link_sub_tab && (
                               <div style={{
@@ -7126,32 +7403,30 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       border: '1px solid var(--border-light)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between'
+                      gap: '0.85rem'
                     }}>
-                      <div>
-                        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                          Sebarkan Siaran Pengumuman Platform
+                      <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '0.85rem',
+                        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#f59e0b',
+                        flexShrink: 0
+                      }}>
+                        <Megaphone size={22} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                          Publikasikan Siaran Platform
                         </h2>
                         <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          Kirim notifikasi langsung ke dashboard pengelola toko merchant dan pengguna secara tersegmentasi atau global.
+                          Kirim pengumuman langsung ke banner &amp; bilah lonceng notifikasi pengguna
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setBroadcastSubView('list')}
-                        style={{
-                          padding: '0.55rem 1rem',
-                          borderRadius: '0.55rem',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-deep)',
-                          color: 'var(--text-secondary)',
-                          fontSize: '0.82rem',
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Batal
-                      </button>
                     </div>
 
                     {/* 2-Column Split: Left (Target & Classification) | Right (Content & Live Preview) */}
@@ -7173,39 +7448,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <span>1. Target Sasaran Penerima</span>
                           </div>
 
-                          {/* 3 Target Type Buttons */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                            {[
-                              { id: 'all', label: 'Semua', desc: 'Global' },
-                              { id: 'plan', label: 'Paket', desc: 'Tier Langganan' },
-                              { id: 'specific', label: 'Spesifik', desc: 'Pilihan Khusus' }
-                            ].map(t => {
-                              const isSelected = broadcastForm.target_type === t.id;
-                              return (
-                                <button
-                                  key={t.id}
-                                  type="button"
-                                  onClick={() => setBroadcastForm(prev => ({ ...prev, target_type: t.id as any }))}
-                                  style={{
-                                    padding: '0.65rem 0.5rem',
-                                    borderRadius: '0.65rem',
-                                    border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
-                                    backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-deep)',
-                                    color: isSelected ? 'var(--primary)' : 'var(--text-secondary)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: '0.15rem',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s ease'
-                                  }}
-                                >
-                                  <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>{t.label}</span>
-                                  <span style={{ fontSize: '0.66rem', opacity: 0.8 }}>{t.desc}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
+                          <TabletCustomSelect
+                            label="Tipe Target Penerima:"
+                            value={broadcastForm.target_type}
+                            onChange={(val) => setBroadcastForm(prev => ({ ...prev, target_type: val as any }))}
+                            options={BROADCAST_TARGET_TYPE_OPTIONS}
+                            icon={<Users size={16} />}
+                          />
 
                           {/* Sub-Target: Plan Selector */}
                           {broadcastForm.target_type === 'plan' && (
@@ -7218,34 +7467,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               flexDirection: 'column',
                               gap: '0.5rem'
                             }}>
-                              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                                Pilih Paket Langganan Merchant:
-                              </label>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
-                                {[
-                                  { id: 'free', label: 'Gratis (Free)' },
-                                  { id: 'pro', label: 'Pro Tier' },
-                                  { id: 'enterprise', label: 'Enterprise' }
-                                ].map(p => (
-                                  <button
-                                    key={p.id}
-                                    type="button"
-                                    onClick={() => setBroadcastForm(prev => ({ ...prev, target_plan_code: p.id }))}
-                                    style={{
-                                      padding: '0.5rem 0.35rem',
-                                      borderRadius: '0.5rem',
-                                      border: `1px solid ${broadcastForm.target_plan_code === p.id ? 'var(--primary)' : 'var(--border-light)'}`,
-                                      backgroundColor: broadcastForm.target_plan_code === p.id ? 'var(--primary)' : 'var(--bg-card)',
-                                      color: broadcastForm.target_plan_code === p.id ? '#ffffff' : 'var(--text-primary)',
-                                      fontSize: '0.76rem',
-                                      fontWeight: 700,
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    {p.label}
-                                  </button>
-                                ))}
-                              </div>
+                              <TabletCustomSelect
+                                label="Pilih Paket Langganan Merchant:"
+                                value={broadcastForm.target_plan_code}
+                                onChange={(val) => setBroadcastForm(prev => ({ ...prev, target_plan_code: val }))}
+                                options={BROADCAST_PLAN_OPTIONS}
+                              />
                             </div>
                           )}
 
@@ -7406,108 +7633,32 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <span>2. Klasifikasi & Prioritas</span>
                           </div>
 
-                          {/* Kategori Grid */}
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
-                              Kategori Siaran:
-                            </label>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
-                              {(['PENGUMUMAN', 'SISTEM', 'PROMOSI', 'PEMELIHARAAN', 'PANDUAN', 'KEAMANAN'] as const).map(cat => {
-                                const isSelected = broadcastForm.category === cat;
-                                const style = getBroadcastCategoryStyle(cat);
-                                return (
-                                  <button
-                                    key={cat}
-                                    type="button"
-                                    onClick={() => setBroadcastForm(prev => ({ ...prev, category: cat }))}
-                                    style={{
-                                      padding: '0.5rem 0.35rem',
-                                      borderRadius: '0.55rem',
-                                      border: `1.5px solid ${isSelected ? style.text : 'var(--border-light)'}`,
-                                      backgroundColor: isSelected ? style.bg : 'var(--bg-deep)',
-                                      color: isSelected ? style.text : 'var(--text-secondary)',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 800,
-                                      cursor: 'pointer',
-                                      transition: 'all 0.15s ease'
-                                    }}
-                                  >
-                                    {cat}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                          {/* 2-column select grid: Category & Urgency */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.85rem' }}>
+                            <TabletCustomSelect
+                              label="Kategori Siaran:"
+                              value={broadcastForm.category}
+                              onChange={(val) => setBroadcastForm(prev => ({ ...prev, category: val as any }))}
+                              options={BROADCAST_CATEGORY_OPTIONS}
+                              icon={<Tag size={15} />}
+                            />
+                            <TabletCustomSelect
+                              label="Tingkat Urgensi:"
+                              value={broadcastForm.type}
+                              onChange={(val) => setBroadcastForm(prev => ({ ...prev, type: val as any }))}
+                              options={BROADCAST_URGENCY_OPTIONS}
+                              icon={<AlertTriangle size={15} />}
+                            />
                           </div>
 
-                          {/* Urgency Level */}
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
-                              Tingkat Urgensi / Nada Notifikasi:
-                            </label>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.45rem' }}>
-                              {[
-                                { id: 'info', label: 'Informasi', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.12)' },
-                                { id: 'warning', label: 'Peringatan', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)' },
-                                { id: 'success', label: 'Sukses', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)' },
-                                { id: 'system', label: 'Sistem', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' }
-                              ].map(u => {
-                                const isSelected = broadcastForm.type === u.id;
-                                return (
-                                  <button
-                                    key={u.id}
-                                    type="button"
-                                    onClick={() => setBroadcastForm(prev => ({ ...prev, type: u.id as any }))}
-                                    style={{
-                                      padding: '0.5rem 0.25rem',
-                                      borderRadius: '0.55rem',
-                                      border: `1.5px solid ${isSelected ? u.color : 'var(--border-light)'}`,
-                                      backgroundColor: isSelected ? u.bg : 'var(--bg-deep)',
-                                      color: isSelected ? u.color : 'var(--text-secondary)',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 800,
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    {u.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Expiration Duration */}
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
-                              Masa Berlaku Notifikasi:
-                            </label>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.35rem' }}>
-                              {[
-                                { hours: 0, label: 'Permanen' },
-                                { hours: 24, label: '24 Jam' },
-                                { hours: 72, label: '3 Hari' },
-                                { hours: 168, label: '1 Minggu' },
-                                { hours: 720, label: '1 Bulan' }
-                              ].map(exp => (
-                                <button
-                                  key={exp.hours}
-                                  type="button"
-                                  onClick={() => setBroadcastForm(prev => ({ ...prev, expires_in_hours: exp.hours }))}
-                                  style={{
-                                    padding: '0.45rem 0.25rem',
-                                    borderRadius: '0.5rem',
-                                    border: `1px solid ${broadcastForm.expires_in_hours === exp.hours ? 'var(--primary)' : 'var(--border-light)'}`,
-                                    backgroundColor: broadcastForm.expires_in_hours === exp.hours ? 'var(--primary)' : 'var(--bg-deep)',
-                                    color: broadcastForm.expires_in_hours === exp.hours ? '#ffffff' : 'var(--text-secondary)',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  {exp.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
+                          {/* Expiration Duration Select */}
+                          <TabletCustomSelect
+                            label="Masa Berlaku Notifikasi:"
+                            value={String(broadcastForm.expires_in_hours)}
+                            onChange={(val) => setBroadcastForm(prev => ({ ...prev, expires_in_hours: parseInt(val, 10) || 0 }))}
+                            options={BROADCAST_EXPIRY_OPTIONS}
+                            icon={<Clock size={15} />}
+                          />
                         </div>
                       </div>
 
@@ -7626,41 +7777,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
                             {broadcastForm.notification_action_enabled && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
-                                {/* 3 Action Type Pills */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
-                                  {[
-                                    { id: 'detail', label: 'Buka Artikel Lengkap', icon: FileText },
-                                    { id: 'navigate', label: 'Navigasi Menu', icon: Compass },
-                                    { id: 'external_link', label: 'Tautan Luar', icon: ExternalLink }
-                                  ].map(act => {
-                                    const isSelected = broadcastForm.action_type === act.id;
-                                    const Icon = act.icon;
-                                    return (
-                                      <button
-                                        key={act.id}
-                                        type="button"
-                                        onClick={() => setBroadcastForm(prev => ({ ...prev, action_type: act.id as any }))}
-                                        style={{
-                                          padding: '0.6rem 0.4rem',
-                                          borderRadius: '0.55rem',
-                                          border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
-                                          backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
-                                          color: isSelected ? 'var(--primary)' : 'var(--text-secondary)',
-                                          fontSize: '0.74rem',
-                                          fontWeight: 800,
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          gap: '0.35rem',
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        <Icon size={13} />
-                                        <span>{act.label}</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                                <TabletCustomSelect
+                                  label="Pilih Jenis Aksi Sentuh:"
+                                  value={broadcastForm.action_type === 'none' ? 'detail' : broadcastForm.action_type}
+                                  onChange={(val) => setBroadcastForm(prev => ({ ...prev, action_type: val as any }))}
+                                  options={BROADCAST_ACTION_TYPE_OPTIONS}
+                                />
 
                                 {/* Option 1: Detail RichTextarea */}
                                 {broadcastForm.action_type === 'detail' && (
@@ -7680,30 +7802,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 {/* Option 2: Internal Menu Navigation */}
                                 {broadcastForm.action_type === 'navigate' && (
                                   <div>
-                                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                                      Pilih Menu Internal Merchant:
-                                    </label>
-                                    <select
+                                    <TabletCustomSelect
+                                      label="Pilih Menu Internal Merchant:"
                                       value={broadcastForm.link_sub_tab}
-                                      onChange={e => setBroadcastForm(prev => ({ ...prev, link_sub_tab: e.target.value }))}
-                                      style={{
-                                        width: '100%',
-                                        padding: '0.65rem 0.85rem',
-                                        borderRadius: '0.55rem',
-                                        border: '1px solid var(--border-light)',
-                                        backgroundColor: 'var(--bg-card)',
-                                        color: 'var(--text-primary)',
-                                        fontSize: '0.82rem',
-                                        fontWeight: 700
-                                      }}
-                                    >
-                                      <option value="settings">Pengaturan Profil & Tampilan Toko (settings)</option>
-                                      <option value="items">Manajemen Inventaris & Produk (items)</option>
-                                      <option value="subscription">Paket Langganan & Billing (subscription)</option>
-                                      <option value="help">Pusat Bantuan & Tiket (help)</option>
-                                      <option value="share">Bagikan Katalog & QR Merchant (share)</option>
-                                      <option value="analytics">Dashboard Analitik Merchant (analytics)</option>
-                                    </select>
+                                      onChange={(val) => setBroadcastForm(prev => ({ ...prev, link_sub_tab: val }))}
+                                      options={BROADCAST_MENU_OPTIONS}
+                                      icon={<Compass size={15} />}
+                                    />
                                   </div>
                                 )}
 
@@ -7884,29 +7989,35 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
                           <button
                             type="button"
-                            onClick={() => setBroadcastSubView('list')}
+                            onClick={() => {
+                              setBroadcastSubView('list');
+                              setSelectedBroadcastId(null);
+                              setSelectedBroadcastDetail(null);
+                              updateBroadcastUrl('list', null);
+                            }}
                             style={{
                               padding: '0.75rem 1.5rem',
-                              borderRadius: '0.65rem',
+                              borderRadius: '0.75rem',
                               border: '1px solid var(--border-light)',
-                              backgroundColor: 'transparent',
+                              backgroundColor: 'var(--bg-card)',
                               color: 'var(--text-secondary)',
                               fontWeight: 700,
                               fontSize: '0.85rem',
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
                             }}
                           >
-                            Batal & Kembali
+                            Batal
                           </button>
                           <button
                             type="submit"
                             disabled={isSendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()}
                             style={{
-                              padding: '0.75rem 2rem',
-                              borderRadius: '0.65rem',
+                              padding: '0.75rem 1.85rem',
+                              borderRadius: '0.75rem',
                               border: 'none',
-                              backgroundColor: 'var(--primary)',
-                              color: '#ffffff',
+                              backgroundColor: '#f59e0b',
+                              color: '#000000',
                               fontWeight: 800,
                               fontSize: '0.85rem',
                               cursor: (isSendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()) ? 'not-allowed' : 'pointer',
@@ -7914,18 +8025,19 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.45rem',
-                              boxShadow: '0 4px 14px rgba(59, 130, 246, 0.25)'
+                              boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)',
+                              transition: 'all 0.15s ease'
                             }}
                           >
                             {isSendingBroadcast ? (
                               <>
-                                <RefreshCw size={15} className="animate-spin" />
-                                <span>Mengirim Siaran...</span>
+                                <RefreshCw size={16} className="animate-spin" />
+                                <span>Mempublikasikan...</span>
                               </>
                             ) : (
                               <>
-                                <Send size={15} />
-                                <span>Sebarkan Siaran Sekarang</span>
+                                <Sparkles size={16} />
+                                <span>Publikasikan Siaran</span>
                               </>
                             )}
                           </button>
