@@ -481,21 +481,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           try {
             localStorage.setItem('catavor_stores', JSON.stringify(mapped));
           } catch {}
-
-          if (mapped.length === 1) {
-            setShowStoreChooserModal(false);
-            const singleSlug = mapped[0].slug;
-            try {
-              localStorage.setItem('catavor_active_slug', singleSlug);
-              sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
-            } catch {}
-            if (typeof window !== 'undefined') {
-              const currentP = window.location.pathname.toLowerCase().replace(/\/$/, '');
-              if (currentP === '/catalogs' || currentP === '/select-catalog' || currentP === '/stores') {
-                window.location.replace(appendViewParam(`/${singleSlug}/admin`));
-              }
-            }
-          }
         }
       }
     } catch (err) {
@@ -510,24 +495,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const openStoreChooserModal = useCallback(() => {
     fetchUserStores();
     setShowStoreChooserModal(true);
-    if (typeof window !== 'undefined' && !window.location.pathname.toLowerCase().includes('/catalogs')) {
-      window.history.pushState({ chooser: true }, '', '/catalogs');
-    }
   }, [fetchUserStores]);
 
   const handleCloseStoreChooserModal = useCallback(() => {
     setShowStoreChooserModal(false);
-    if (typeof window !== 'undefined') {
-      const isChooser = window.location.pathname.toLowerCase().includes('/catalogs');
-      if (isChooser) {
-        if (window.history.length > 1) {
-          window.history.back();
-        } else {
-          window.history.pushState({}, '', `/${storeSlug}/admin`);
-        }
-      }
-    }
-  }, [storeSlug]);
+  }, []);
 
   useModalBackHandler({
     isOpen: showStoreChooserModal,

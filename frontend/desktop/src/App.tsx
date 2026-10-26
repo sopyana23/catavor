@@ -7758,42 +7758,36 @@ Terima kasih.`;
     setIsFirstTimeLogin(false);
     fetchMyStores();
     setShowStoreSwitcherModal(true);
-    if (typeof window !== 'undefined' && !isCatalogChooserRoute(window.location.pathname)) {
-      window.history.pushState({ chooser: true }, '', '/catalogs');
-    }
   };
 
   const handleCloseStoreChooserModal = () => {
     setShowStoreSwitcherModal(false);
     setStoreChooserComplianceAlert(null);
     setIsFirstTimeLogin(false);
-    const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
-    const activeSlug = 
-      (isValid(storeSlug) ? storeSlug : null) ||
-      (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) ||
-      (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
-      (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
-      null;
-
     const isChooserUrl = typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname);
+    if (isChooserUrl) {
+      const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+      const activeSlug = 
+        (isValid(storeSlug) ? storeSlug : null) ||
+        (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) ||
+        (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
+        (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
+        null;
 
-    if (activeSlug && isValid(activeSlug)) {
-      setStoreSlug(activeSlug);
-      try { localStorage.setItem('catavor_active_slug', activeSlug); } catch {}
-      setView('admin');
-      if (typeof window !== 'undefined') {
-        if (isChooserUrl && window.history.length > 1) {
+      if (activeSlug && isValid(activeSlug)) {
+        setStoreSlug(activeSlug);
+        try { localStorage.setItem('catavor_active_slug', activeSlug); } catch {}
+        setView('admin');
+        if (window.history.length > 1) {
           window.history.back();
         } else {
-          window.history.pushState({}, '', `/${activeSlug}/admin`);
+          window.history.pushState({}, '', appendViewParam(`/${activeSlug}/admin`));
         }
-      }
-      loadData(activeSlug);
-    } else {
-      setView('catalog');
-      setPortalTab('home');
-      if (typeof window !== 'undefined') {
-        if (isChooserUrl && window.history.length > 1) {
+        loadData(activeSlug);
+      } else {
+        setView('catalog');
+        setPortalTab('home');
+        if (window.history.length > 1) {
           window.history.back();
         } else {
           window.history.pushState({}, '', '/');

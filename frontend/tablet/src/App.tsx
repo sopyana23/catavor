@@ -1224,19 +1224,8 @@ export const App: React.FC = () => {
           sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
           localStorage.setItem('catavor_active_slug', singleSlug);
         } catch {}
-        window.location.replace(appendViewParam(`/${singleSlug}/admin`));
-        return (
-          <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'var(--bg-deep)',
-            color: 'var(--text-primary)'
-          }}>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Mengarahkan ke dashboard katalog...</div>
-          </div>
-        );
+        navigateTo(`/${singleSlug}/admin`);
+        return null;
       }
     }
 
