@@ -164,7 +164,8 @@ import {
   broadcastAuthEvent, 
   subscribeAuthSync,
   resolveAuthenticatedRedirect,
-  hasValidSessionToken
+  hasValidSessionToken,
+  appendViewParam
 } from './utils/authSync'
 
 export interface UserStoreSummary {
@@ -292,7 +293,17 @@ function resolveActiveStoreSlug(): string | null {
       const u = JSON.parse(userRaw);
       if (u.store_slug && !isInvalid(u.store_slug)) return u.store_slug;
       if (u.active_store?.slug && !isInvalid(u.active_store.slug)) return u.active_store.slug;
+      if (Array.isArray(u.stores) && u.stores.length > 0 && u.stores[0]?.slug && !isInvalid(u.stores[0].slug)) return u.stores[0].slug;
       if (u.username && !isInvalid(u.username)) return u.username;
+    }
+  } catch {}
+  try {
+    const rawStores = localStorage.getItem('catavor_stores');
+    if (rawStores) {
+      const stores = JSON.parse(rawStores);
+      if (Array.isArray(stores) && stores.length > 0 && stores[0]?.slug && !isInvalid(stores[0].slug)) {
+        return stores[0].slug;
+      }
     }
   } catch {}
   return null;
@@ -7618,6 +7629,25 @@ Terima kasih.`;
         try {
           localStorage.setItem('catavor_stores', JSON.stringify(normalizedStores));
         } catch {}
+
+        const activeStores = normalizedStores.filter(s => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+        const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+        if (isCatalogChooserRoute(curPath) && activeStores.length === 1 && activeStores[0]?.slug) {
+          const singleSlug = activeStores[0].slug;
+          try {
+            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+            localStorage.setItem('catavor_active_slug', singleSlug);
+          } catch {}
+          setShowStoreSwitcherModal(false);
+          setIsFirstTimeLogin(false);
+          setStoreSlug(singleSlug);
+          setView('tabs');
+          setActiveTab('admin');
+          setAdminSubTab('menu');
+          window.history.replaceState({}, '', appendViewParam(`/${singleSlug}/admin`));
+          loadData(singleSlug);
+          return;
+        }
         const currentSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
         const activeMatch = normalizedStores.find(st => st.slug.toLowerCase() === currentSlug);
         if (activeMatch) {
@@ -7658,6 +7688,26 @@ Terima kasih.`;
     const handleRouteSync = () => {
       const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
       if (isCatalogChooserRoute(path)) {
+        let userStoresList: any[] = [];
+        try {
+          const s = localStorage.getItem('catavor_stores');
+          if (s) userStoresList = JSON.parse(s);
+        } catch {}
+        if (!userStoresList.length && Array.isArray((adminUser as any)?.stores)) {
+          userStoresList = (adminUser as any).stores;
+        }
+        userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+        if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+          const targetSlug = userStoresList[0].slug;
+          setShowStoreSwitcherModal(false);
+          setStoreSlug(targetSlug);
+          setView('tabs');
+          setActiveTab('admin');
+          setAdminSubTab('menu');
+          window.history.replaceState({}, '', appendViewParam(`/${targetSlug}/admin`));
+          loadData(targetSlug);
+          return;
+        }
         setShowStoreSwitcherModal(true);
         const hasActiveSlug = Boolean(localStorage.getItem('catavor_active_slug') || sessionStorage.getItem('catavor_active_slug_selected'));
         setIsFirstTimeLogin(!hasActiveSlug);
@@ -10150,6 +10200,33 @@ Terima kasih atas perhatian dan kerja samanya.`;
         return;
       }
 
+      let parsedStores: any[] = [];
+      try {
+        const raw = localStorage.getItem('catavor_stores');
+        if (raw) parsedStores = JSON.parse(raw);
+      } catch {}
+      if (!parsedStores.length && (adminUser as any)?.stores?.length) {
+        parsedStores = (adminUser as any).stores;
+      }
+      parsedStores = parsedStores.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+
+      if (parsedStores.length === 1 && parsedStores[0]?.slug) {
+        const singleSlug = parsedStores[0].slug;
+        try {
+          sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+          localStorage.setItem('catavor_active_slug', singleSlug);
+        } catch {}
+        setShowStoreSwitcherModal(false);
+        setIsFirstTimeLogin(false);
+        setStoreSlug(singleSlug);
+        setView('tabs');
+        setActiveTab('admin');
+        setAdminSubTab('menu');
+        window.history.replaceState({}, '', `/${singleSlug}/admin`);
+        loadData(singleSlug);
+        return;
+      }
+
       const hasSavedActive = Boolean(localStorage.getItem('catavor_active_slug') || sessionStorage.getItem('catavor_active_slug_selected'));
       setStoreSlug(null);
       setIsFirstTimeLogin(!hasSavedActive);
@@ -10173,6 +10250,64 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setStoreSlug(null);
         return;
       }
+      if (token && !isPlatformAdmin(adminUser)) {
+        if (path === '/admin' || path.startsWith('/admin/')) {
+          const dest = resolveAuthenticatedRedirect(adminUser, storeSlug);
+          const pathOnly = dest.split('?')[0];
+          if (pathOnly !== '/admin') {
+            if (pathOnly === '/catalogs') {
+              let userStoresList: any[] = [];
+              try {
+                const s = localStorage.getItem('catavor_stores');
+                if (s) userStoresList = JSON.parse(s);
+              } catch {}
+              if (!userStoresList.length && Array.isArray((adminUser as any)?.stores)) {
+                userStoresList = (adminUser as any).stores;
+              }
+              userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+              if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+                const targetSlug = userStoresList[0].slug;
+                setStoreSlug(targetSlug);
+                setView('tabs');
+                setActiveTab('admin');
+                setAdminSubTab('menu');
+                window.history.replaceState({}, '', appendViewParam(`/${targetSlug}/admin`));
+                loadData(targetSlug);
+                return;
+              }
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              window.history.replaceState({}, '', dest);
+              return;
+            } else {
+              const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+              setStoreSlug(targetSlug);
+              setView('tabs');
+              setActiveTab('admin');
+              setAdminSubTab('menu');
+              window.history.replaceState({}, '', dest);
+              loadData(targetSlug);
+              return;
+            }
+          } else {
+            const fallbackSlug = (adminUser as any)?.store_slug || (adminUser as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+            if (fallbackSlug) {
+              setStoreSlug(fallbackSlug);
+              setView('tabs');
+              setActiveTab('admin');
+              setAdminSubTab('menu');
+              window.history.replaceState({}, '', appendViewParam(`/${fallbackSlug}/admin`));
+              loadData(fallbackSlug);
+              return;
+            } else {
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              window.history.replaceState({}, '', appendViewParam('/catalogs'));
+              return;
+            }
+          }
+        }
+      }
     }
 
     const isLoginRoute = path === '/login' || (path.split('/').filter(Boolean).length === 2 && path.endsWith('/login') && !isReservedStoreSlug(path.split('/').filter(Boolean)[0]));
@@ -10188,13 +10323,55 @@ Terima kasih atas perhatian dan kerja samanya.`;
         const redirectUrl = resolveAuthenticatedRedirect(u, requestedSlug);
         const pathOnly = redirectUrl.split('?')[0];
         if (pathOnly === '/admin') {
-          setView('tabs');
-          setActiveTab('admin');
-          setStoreSlug(null);
-          setPortalTab('home');
-          window.history.replaceState({}, '', redirectUrl);
-          return;
+          if (isPlatformAdmin(u)) {
+            setView('tabs');
+            setActiveTab('admin');
+            setStoreSlug(null);
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+            return;
+          } else {
+            const fallbackSlug = (u as any)?.store_slug || (u as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+            if (fallbackSlug) {
+              const targetUrl = appendViewParam(`/${fallbackSlug}/admin`);
+              setStoreSlug(fallbackSlug);
+              setView('tabs');
+              setActiveTab('admin');
+              setAdminSubTab('menu');
+              setPortalTab('home');
+              window.history.replaceState({}, '', targetUrl);
+              loadData(fallbackSlug);
+              return;
+            } else {
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              setPortalTab('home');
+              window.history.replaceState({}, '', appendViewParam('/catalogs'));
+              return;
+            }
+          }
         } else if (pathOnly === '/catalogs') {
+          let userStoresList: any[] = [];
+          try {
+            const s = localStorage.getItem('catavor_stores');
+            if (s) userStoresList = JSON.parse(s);
+          } catch {}
+          if (!userStoresList.length && Array.isArray(u?.stores)) {
+            userStoresList = u.stores;
+          }
+          userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+          if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+            const targetSlug = userStoresList[0].slug;
+            const targetUrl = appendViewParam(`/${targetSlug}/admin`);
+            setStoreSlug(targetSlug);
+            setView('tabs');
+            setActiveTab('admin');
+            setAdminSubTab('menu');
+            setPortalTab('home');
+            window.history.replaceState({}, '', targetUrl);
+            loadData(targetSlug);
+            return;
+          }
           setStoreSlug(null);
           setShowStoreSwitcherModal(true);
           setPortalTab('home');
@@ -10652,6 +10829,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
 
       if (isCatalogChooserRoute(path)) {
+        let parsedStores: any[] = userStores;
+        if (!parsedStores.length) {
+          try {
+            const raw = localStorage.getItem('catavor_stores');
+            if (raw) parsedStores = JSON.parse(raw);
+          } catch {}
+        }
+        if (Array.isArray(parsedStores) && parsedStores.length === 1 && parsedStores[0]?.slug) {
+          const singleSlug = parsedStores[0].slug;
+          try {
+            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+            localStorage.setItem('catavor_active_slug', singleSlug);
+          } catch {}
+          setShowStoreSwitcherModal(false);
+          setIsFirstTimeLogin(false);
+          setStoreSlug(singleSlug);
+          setView('tabs');
+          setActiveTab('admin');
+          setAdminSubTab('menu');
+          window.history.replaceState({}, '', `/${singleSlug}/admin`);
+          loadData(singleSlug);
+          return;
+        }
         setShowStoreSwitcherModal(true);
         fetchMyStores();
         return;
@@ -10843,6 +11043,31 @@ Terima kasih atas perhatian dan kerja samanya.`;
       // Non-store platform routes
       const urlPlan = urlParams.get('plan');
       if (isCatalogChooserRoute(path)) {
+        let parsedStores: any[] = [];
+        try {
+          const raw = localStorage.getItem('catavor_stores');
+          if (raw) parsedStores = JSON.parse(raw);
+        } catch {}
+        if (!parsedStores.length && (adminUser as any)?.stores?.length) {
+          parsedStores = (adminUser as any).stores;
+        }
+        parsedStores = parsedStores.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+        if (parsedStores.length === 1 && parsedStores[0]?.slug) {
+          const singleSlug = parsedStores[0].slug;
+          try {
+            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+            localStorage.setItem('catavor_active_slug', singleSlug);
+          } catch {}
+          setShowStoreSwitcherModal(false);
+          setIsFirstTimeLogin(false);
+          setStoreSlug(singleSlug);
+          setView('tabs');
+          setActiveTab('admin');
+          setAdminSubTab('menu');
+          window.history.replaceState({}, '', `/${singleSlug}/admin`);
+          loadData(singleSlug);
+          return;
+        }
         setStoreSlug(null);
         setIsFirstTimeLogin(true);
         fetchMyStores();
@@ -10858,16 +11083,56 @@ Terima kasih atas perhatian dan kerja samanya.`;
           const redirectUrl = resolveAuthenticatedRedirect(u);
           const pathOnly = redirectUrl.split('?')[0];
           if (pathOnly === '/admin') {
-            setView('tabs');
-            setActiveTab('admin');
-            setStoreSlug(null);
-            setPortalTab('home');
-            window.history.replaceState({}, '', redirectUrl);
+            if (isPlatformAdmin(u)) {
+              setView('tabs');
+              setActiveTab('admin');
+              setStoreSlug(null);
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+            } else {
+              const fallbackSlug = (u as any)?.store_slug || (u as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+              if (fallbackSlug) {
+                const targetUrl = appendViewParam(`/${fallbackSlug}/admin`);
+                setStoreSlug(fallbackSlug);
+                setView('tabs');
+                setActiveTab('admin');
+                setAdminSubTab('menu');
+                setPortalTab('home');
+                window.history.replaceState({}, '', targetUrl);
+                loadData(fallbackSlug);
+              } else {
+                setStoreSlug(null);
+                setShowStoreSwitcherModal(true);
+                setPortalTab('home');
+                window.history.replaceState({}, '', appendViewParam('/catalogs'));
+              }
+            }
           } else if (pathOnly === '/catalogs') {
-            setStoreSlug(null);
-            setShowStoreSwitcherModal(true);
-            setPortalTab('home');
-            window.history.replaceState({}, '', redirectUrl);
+            let userStoresList: any[] = [];
+            try {
+              const s = localStorage.getItem('catavor_stores');
+              if (s) userStoresList = JSON.parse(s);
+            } catch {}
+            if (!userStoresList.length && Array.isArray(u?.stores)) {
+              userStoresList = u.stores;
+            }
+            userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+            if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+              const singleSlug = userStoresList[0].slug;
+              const targetUrl = appendViewParam(`/${singleSlug}/admin`);
+              setStoreSlug(singleSlug);
+              setView('tabs');
+              setActiveTab('admin');
+              setAdminSubTab('menu');
+              setPortalTab('home');
+              window.history.replaceState({}, '', targetUrl);
+              loadData(singleSlug);
+            } else {
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+            }
           } else {
             const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
             setStoreSlug(targetSlug);
@@ -11382,7 +11647,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           }
           const currentP = window.location.pathname.toLowerCase();
-          if (currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login') {
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs';
+          if (isGenericAuthOrRoot) {
             const rawUser = localStorage.getItem('catavor_user');
             let parsedUser: any = adminUserRef.current;
             if (!parsedUser && rawUser) {
@@ -11391,16 +11657,65 @@ Terima kasih atas perhatian dan kerja samanya.`;
             const redirectUrl = resolveAuthenticatedRedirect(parsedUser);
             const pathOnly = redirectUrl.split('?')[0];
             if (pathOnly === '/admin') {
-              setView('tabs');
-              setActiveTab('admin');
-              setStoreSlug(null);
-              setPortalTab('home');
-              window.history.replaceState({}, '', redirectUrl);
+              if (isPlatformAdmin(parsedUser)) {
+                setView('tabs');
+                setActiveTab('admin');
+                setStoreSlug(null);
+                setPortalTab('home');
+                window.history.replaceState({}, '', redirectUrl);
+              } else {
+                let userStoresList: any[] = [];
+                try {
+                  const s = localStorage.getItem('catavor_stores');
+                  if (s) userStoresList = JSON.parse(s);
+                } catch {}
+                if (!userStoresList.length && Array.isArray((parsedUser as any)?.stores)) {
+                  userStoresList = (parsedUser as any).stores;
+                }
+                userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+                const fallbackSlug = userStoresList[0]?.slug || (parsedUser as any)?.store_slug || localStorage.getItem('catavor_active_slug');
+                if (fallbackSlug) {
+                  const targetUrl = appendViewParam(`/${fallbackSlug}/admin`);
+                  setStoreSlug(fallbackSlug);
+                  setView('tabs');
+                  setActiveTab('admin');
+                  setAdminSubTab('menu');
+                  setPortalTab('home');
+                  window.history.replaceState({}, '', targetUrl);
+                  loadData(fallbackSlug);
+                } else {
+                  setStoreSlug(null);
+                  setShowStoreSwitcherModal(true);
+                  setPortalTab('home');
+                  window.history.replaceState({}, '', appendViewParam('/catalogs'));
+                }
+              }
             } else if (pathOnly === '/catalogs') {
-              setStoreSlug(null);
-              setShowStoreSwitcherModal(true);
-              setPortalTab('home');
-              window.history.replaceState({}, '', redirectUrl);
+              let userStoresList: any[] = [];
+              try {
+                const s = localStorage.getItem('catavor_stores');
+                if (s) userStoresList = JSON.parse(s);
+              } catch {}
+              if (!userStoresList.length && Array.isArray((parsedUser as any)?.stores)) {
+                userStoresList = (parsedUser as any).stores;
+              }
+              userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+              if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+                const singleSlug = userStoresList[0].slug;
+                const targetUrl = appendViewParam(`/${singleSlug}/admin`);
+                setStoreSlug(singleSlug);
+                setView('tabs');
+                setActiveTab('admin');
+                setAdminSubTab('menu');
+                setPortalTab('home');
+                window.history.replaceState({}, '', targetUrl);
+                loadData(singleSlug);
+              } else {
+                setStoreSlug(null);
+                setShowStoreSwitcherModal(true);
+                setPortalTab('home');
+                window.history.replaceState({}, '', appendViewParam('/catalogs'));
+              }
             } else {
               const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
               setStoreSlug(targetSlug);
@@ -11450,7 +11765,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
 
           const currentP = window.location.pathname.toLowerCase();
-          if (currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login') {
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs';
+          if (isGenericAuthOrRoot) {
             const rawUser = localStorage.getItem('catavor_user');
             let parsedUser: any = adminUser;
             if (!parsedUser && rawUser) {
@@ -11459,16 +11775,65 @@ Terima kasih atas perhatian dan kerja samanya.`;
             const redirectUrl = resolveAuthenticatedRedirect(parsedUser);
             const pathOnly = redirectUrl.split('?')[0];
             if (pathOnly === '/admin') {
-              setView('tabs');
-              setActiveTab('admin');
-              setStoreSlug(null);
-              setPortalTab('home');
-              window.history.replaceState({}, '', redirectUrl);
+              if (isPlatformAdmin(parsedUser)) {
+                setView('tabs');
+                setActiveTab('admin');
+                setStoreSlug(null);
+                setPortalTab('home');
+                window.history.replaceState({}, '', redirectUrl);
+              } else {
+                let userStoresList: any[] = [];
+                try {
+                  const s = localStorage.getItem('catavor_stores');
+                  if (s) userStoresList = JSON.parse(s);
+                } catch {}
+                if (!userStoresList.length && Array.isArray((parsedUser as any)?.stores)) {
+                  userStoresList = (parsedUser as any).stores;
+                }
+                userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+                const fallbackSlug = userStoresList[0]?.slug || (parsedUser as any)?.store_slug || localStorage.getItem('catavor_active_slug');
+                if (fallbackSlug) {
+                  const targetUrl = appendViewParam(`/${fallbackSlug}/admin`);
+                  setStoreSlug(fallbackSlug);
+                  setView('tabs');
+                  setActiveTab('admin');
+                  setAdminSubTab('menu');
+                  setPortalTab('home');
+                  window.history.replaceState({}, '', targetUrl);
+                  loadData(fallbackSlug);
+                } else {
+                  setStoreSlug(null);
+                  setShowStoreSwitcherModal(true);
+                  setPortalTab('home');
+                  window.history.replaceState({}, '', appendViewParam('/catalogs'));
+                }
+              }
             } else if (pathOnly === '/catalogs') {
-              setStoreSlug(null);
-              setShowStoreSwitcherModal(true);
-              setPortalTab('home');
-              window.history.replaceState({}, '', redirectUrl);
+              let userStoresList: any[] = [];
+              try {
+                const s = localStorage.getItem('catavor_stores');
+                if (s) userStoresList = JSON.parse(s);
+              } catch {}
+              if (!userStoresList.length && Array.isArray((parsedUser as any)?.stores)) {
+                userStoresList = (parsedUser as any).stores;
+              }
+              userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+              if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+                const singleSlug = userStoresList[0].slug;
+                const targetUrl = appendViewParam(`/${singleSlug}/admin`);
+                setStoreSlug(singleSlug);
+                setView('tabs');
+                setActiveTab('admin');
+                setAdminSubTab('menu');
+                setPortalTab('home');
+                window.history.replaceState({}, '', targetUrl);
+                loadData(singleSlug);
+              } else {
+                setStoreSlug(null);
+                setShowStoreSwitcherModal(true);
+                setPortalTab('home');
+                window.history.replaceState({}, '', appendViewParam('/catalogs'));
+              }
             } else {
               const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
               setStoreSlug(targetSlug);
@@ -15207,6 +15572,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
   // Dedicated Platform Staff Login Screen for Unauthenticated Platform Routes (Mobile)
   if (isPlatformAdminPath && (!token || !isPlatformAdmin(adminUser))) {
+    if (token && !isPlatformAdmin(adminUser)) {
+      const redirectUrl = resolveAuthenticatedRedirect(adminUser, storeSlug);
+      const pathOnly = redirectUrl.split('?')[0];
+      if (pathOnly !== '/admin') {
+        window.location.replace(redirectUrl);
+        return (
+          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: '#64748b', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <p style={{ fontSize: '0.85rem' }}>Mengarahkan ke Dashboard Katalog...</p>
+          </div>
+        );
+      }
+    }
     return (
       <div style={{
         minHeight: '100vh',

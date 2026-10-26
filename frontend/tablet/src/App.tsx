@@ -19,7 +19,8 @@ import {
   saveUserActiveSlug,
   clearUserActiveSlug,
   resolveAuthenticatedRedirect,
-  hasValidSessionToken
+  hasValidSessionToken,
+  appendViewParam
 } from './utils/authSync';
 import { smartBack } from './utils/navigation';
 
@@ -97,11 +98,26 @@ export const App: React.FC = () => {
           if (data.valid && data.user) {
             setCurrentUser(data.user);
             localStorage.setItem('catavor_user', JSON.stringify(data.user));
+            if (data.stores && Array.isArray(data.stores)) {
+              try {
+                localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+              } catch {}
+            }
             if (data.active_store?.store_theme || data.user?.store_theme) {
               setStoreTheme(data.active_store?.store_theme || data.user?.store_theme);
             }
             if (data.active_store?.slug) {
               localStorage.setItem('catavor_active_slug', data.active_store.slug);
+            }
+            if (!isPlatformAdmin(data.user)) {
+              const curPath = window.location.pathname.toLowerCase();
+              if (curPath === '/admin' || isCatalogChooserRoute(curPath)) {
+                const destination = resolveAuthenticatedRedirect(data.user);
+                const destPath = destination.split('?')[0].toLowerCase();
+                if (destPath !== curPath) {
+                  navigateTo(destination);
+                }
+              }
             }
           } else {
             handleUnauthorized();
@@ -132,28 +148,6 @@ export const App: React.FC = () => {
         setActiveSlug(null);
       }
 
-      if (pathname === '/login' || pathname.endsWith('/login')) {
-        const curToken = localStorage.getItem('catavor_token') || token;
-        if (curToken && !isTokenExpired(curToken)) {
-          const rawUser = localStorage.getItem('catavor_user');
-          let u: any = currentUser;
-          if (!u && rawUser) {
-            try { u = JSON.parse(rawUser); } catch {}
-          }
-          const destination = resolveAuthenticatedRedirect(u);
-          window.history.replaceState({}, '', destination);
-          setCurrentPath(destination.split('?')[0].toLowerCase());
-        }
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [token, currentUser]);
-
-  // Initial mount route check: if at /login with active token, immediately redirect to admin dashboard
-  useEffect(() => {
-    const pathname = window.location.pathname.toLowerCase();
-    if (pathname === '/login' || pathname.endsWith('/login')) {
       const curToken = localStorage.getItem('catavor_token') || token;
       if (curToken && !isTokenExpired(curToken)) {
         const rawUser = localStorage.getItem('catavor_user');
@@ -161,9 +155,59 @@ export const App: React.FC = () => {
         if (!u && rawUser) {
           try { u = JSON.parse(rawUser); } catch {}
         }
+        const isStaff = isPlatformAdmin(u);
+        const shouldRedirect =
+          pathname === '/login' ||
+          pathname.endsWith('/login') ||
+          (pathname === '/admin' && !isStaff) ||
+          isCatalogChooserRoute(pathname);
+
+        if (shouldRedirect) {
+          const destination = resolveAuthenticatedRedirect(u);
+          const destPath = destination.split('?')[0].toLowerCase();
+          if (destPath !== pathname) {
+            window.history.replaceState({}, '', destination);
+            setCurrentPath(destPath);
+            const pParts = destPath.split('/').filter(Boolean);
+            if (pParts.length > 0 && !RESERVED_SLUGS.includes(pParts[0])) {
+              setActiveSlug(pParts[0]);
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [token, currentUser]);
+
+  // Initial mount route check: if at /login, /admin (non-staff), or /catalogs with active token, immediately redirect to admin dashboard
+  useEffect(() => {
+    const pathname = window.location.pathname.toLowerCase();
+    const curToken = localStorage.getItem('catavor_token') || token;
+    if (curToken && !isTokenExpired(curToken)) {
+      const rawUser = localStorage.getItem('catavor_user');
+      let u: any = currentUser;
+      if (!u && rawUser) {
+        try { u = JSON.parse(rawUser); } catch {}
+      }
+      const isStaff = isPlatformAdmin(u);
+      const shouldRedirect =
+        pathname === '/login' ||
+        pathname.endsWith('/login') ||
+        ((pathname === '/admin' || pathname.startsWith('/admin/')) && !isStaff) ||
+        isCatalogChooserRoute(pathname);
+
+      if (shouldRedirect) {
         const destination = resolveAuthenticatedRedirect(u);
-        window.history.replaceState({}, '', destination);
-        setCurrentPath(destination.split('?')[0].toLowerCase());
+        const destPath = destination.split('?')[0].toLowerCase();
+        if (destPath !== pathname) {
+          window.history.replaceState({}, '', destination);
+          setCurrentPath(destPath);
+          const parts = destPath.split('/').filter(Boolean);
+          if (parts.length > 0 && !RESERVED_SLUGS.includes(parts[0])) {
+            setActiveSlug(parts[0]);
+          }
+        }
       }
     }
   }, []);
@@ -188,7 +232,9 @@ export const App: React.FC = () => {
     const targetLoginUrl = customRedirectUrl || (isStaff || isPlatformAdminPath ? '/admin' : '/login');
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
+    localStorage.removeItem('catavor_stores');
     localStorage.removeItem('catavor_active_slug');
+    try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch {}
     clearUserActiveSlug(currentUser?.id);
     setToken(null);
     setCurrentUser(null);
@@ -203,7 +249,9 @@ export const App: React.FC = () => {
     const targetLoginUrl = customRedirectUrl || (isStaff || isPlatformAdminPath ? '/admin' : '/login');
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
+    localStorage.removeItem('catavor_stores');
     localStorage.removeItem('catavor_active_slug');
+    try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch {}
     clearUserActiveSlug(currentUser?.id);
     setToken(null);
     setCurrentUser(null);
@@ -231,28 +279,33 @@ export const App: React.FC = () => {
       if (res.ok && json.token) {
         localStorage.setItem('catavor_token', json.token);
         localStorage.setItem('catavor_user', JSON.stringify(json.user || {}));
-        if (json.stores) {
-          localStorage.setItem('catavor_stores', JSON.stringify(json.stores));
-        }
+        const rawStoresList = Array.isArray(json.stores) ? json.stores : [];
+        const availableStores = rawStoresList.filter((s: any) => s && s.slug && !RESERVED_SLUGS.includes(s.slug.toLowerCase()) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+        localStorage.setItem('catavor_stores', JSON.stringify(availableStores));
+
         setToken(json.token);
         setCurrentUser(json.user);
         if (json.active_store?.store_theme || json.user?.store_theme) {
           setStoreTheme(json.active_store?.store_theme || json.user?.store_theme);
         }
-        if (json.active_store?.slug) {
-          localStorage.setItem('catavor_active_slug', json.active_store.slug);
+
+        let targetSlug: string | null = null;
+        if (availableStores.length === 1 && availableStores[0]?.slug) {
+          const singleSlug = String(availableStores[0].slug);
+          targetSlug = singleSlug;
+          localStorage.setItem('catavor_active_slug', singleSlug);
+          try { sessionStorage.setItem('catavor_active_slug_selected', singleSlug); } catch {}
+          if (json.user?.id) saveUserActiveSlug(json.user.id, singleSlug);
+        } else {
+          localStorage.removeItem('catavor_active_slug');
+          try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch {}
         }
+
         setLoginEmail('');
         setLoginPassword('');
 
-        const destination = resolveAuthenticatedRedirect(json.user, json.active_store?.slug);
-        if (json.user?.id) {
-          const matchedSlug = destination.replace(/^\//, '').replace(/\/admin.*$/, '');
-          if (matchedSlug && destination.includes('/admin') && destination !== '/admin') {
-            saveUserActiveSlug(json.user.id, matchedSlug);
-          }
-          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: json.user.id, token: json.token });
-        }
+        const destination = resolveAuthenticatedRedirect(json.user, targetSlug);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: json.user?.id || '0', token: json.token });
         navigateTo(destination);
       } else {
         setLoginError(json.message || 'Email atau password tidak sesuai.');
@@ -290,24 +343,29 @@ export const App: React.FC = () => {
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
           setCurrentUser(data.user);
         }
-        if (data.stores) {
-          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
-        }
+        const rawStoresList = Array.isArray(data.stores) ? data.stores : [];
+        const availableStores = rawStoresList.filter((s: any) => s && s.slug && !RESERVED_SLUGS.includes(s.slug.toLowerCase()) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+        localStorage.setItem('catavor_stores', JSON.stringify(availableStores));
+
         setToken(data.token);
         if (data.active_store?.store_theme || data.user?.store_theme) {
           setStoreTheme(data.active_store?.store_theme || data.user?.store_theme);
         }
-        if (data.active_store?.slug) {
-          localStorage.setItem('catavor_active_slug', data.active_store.slug);
+
+        let targetSlug: string | null = null;
+        if (availableStores.length === 1 && availableStores[0]?.slug) {
+          const singleSlug = String(availableStores[0].slug);
+          targetSlug = singleSlug;
+          localStorage.setItem('catavor_active_slug', singleSlug);
+          try { sessionStorage.setItem('catavor_active_slug_selected', singleSlug); } catch {}
+          if (data.user?.id) saveUserActiveSlug(data.user.id, singleSlug);
+        } else {
+          localStorage.removeItem('catavor_active_slug');
+          try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch {}
         }
-        const destination = resolveAuthenticatedRedirect(data.user, data.active_store?.slug);
-        if (data.user?.id) {
-          const matchedSlug = destination.replace(/^\//, '').replace(/\/admin.*$/, '');
-          if (matchedSlug && destination.includes('/admin') && destination !== '/admin') {
-            saveUserActiveSlug(data.user.id, matchedSlug);
-          }
-          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-        }
+
+        const destination = resolveAuthenticatedRedirect(data.user, targetSlug);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user?.id || '0', token: data.token });
         navigateTo(destination);
       } else {
         setLoginError(data.message || 'Otentikasi Google gagal diproses.');
@@ -477,12 +535,20 @@ export const App: React.FC = () => {
           }
 
           const currentP = window.location.pathname.toLowerCase();
-          if (currentP === '/login' || currentP.endsWith('/login')) {
+          let parsedUser: any = null;
+          try {
             const rawUser = localStorage.getItem('catavor_user');
-            let parsedUser: any = currentUser;
-            if (!parsedUser && rawUser) {
-              try { parsedUser = JSON.parse(rawUser); } catch {}
-            }
+            if (rawUser) parsedUser = JSON.parse(rawUser);
+          } catch {}
+          if (!parsedUser) parsedUser = currentUser;
+
+          const isStaff = isPlatformAdmin(parsedUser);
+          const isGenericAdmin = currentP === '/admin' || currentP.startsWith('/admin/');
+          const isLogin = currentP === '/login' || currentP.endsWith('/login');
+          const isChooser = currentP === '/catalogs' || isCatalogChooserRoute(currentP);
+          const isHome = currentP === '/' || currentP === '';
+
+          if (isLogin || isHome || isChooser || (isGenericAdmin && !isStaff)) {
             const redirectUrl = resolveAuthenticatedRedirect(parsedUser);
             navigateTo(redirectUrl);
           }
@@ -504,14 +570,32 @@ export const App: React.FC = () => {
             let parsedUser: any = null;
             try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch {}
             if (parsedUser) setCurrentUser(parsedUser);
+
+            const rawStores = localStorage.getItem('catavor_stores');
+            if (rawStores) {
+              try {
+                const parsedStores = JSON.parse(rawStores);
+                if (Array.isArray(parsedStores) && parsedStores.length > 0 && parsedStores[0]?.slug) {
+                  setActiveSlug(parsedStores[0].slug);
+                }
+              } catch {}
+            }
           }
           const currentP = window.location.pathname.toLowerCase();
-          if (currentP === '/login' || currentP.endsWith('/login')) {
+          let parsedUser: any = null;
+          try {
             const rawUser = localStorage.getItem('catavor_user');
-            let parsedUser: any = currentUser;
-            if (!parsedUser && rawUser) {
-              try { parsedUser = JSON.parse(rawUser); } catch {}
-            }
+            if (rawUser) parsedUser = JSON.parse(rawUser);
+          } catch {}
+          if (!parsedUser) parsedUser = currentUser;
+
+          const isStaff = isPlatformAdmin(parsedUser);
+          const isGenericAdmin = currentP === '/admin' || currentP.startsWith('/admin/');
+          const isLogin = currentP === '/login' || currentP.endsWith('/login');
+          const isChooser = currentP === '/catalogs' || isCatalogChooserRoute(currentP);
+          const isHome = currentP === '/' || currentP === '';
+
+          if (isLogin || isHome || isChooser || (isGenericAdmin && !isStaff)) {
             const redirectUrl = resolveAuthenticatedRedirect(parsedUser);
             navigateTo(redirectUrl);
           }
@@ -532,13 +616,39 @@ export const App: React.FC = () => {
   const isLoginRoute = currentPath === '/login';
   const isCatalogChooser = isCatalogChooserRoute(currentPath);
   const isStoreAdminRoute = Boolean(activeSlug) && (currentPath === `/${activeSlug}/admin` || currentPath.startsWith(`/${activeSlug}/admin/`));
-  const merchantSlug =
-    (currentUser as any)?.store_slug ||
-    (currentUser as any)?.active_store?.slug ||
-    (currentUser as any)?.stores?.[0]?.slug ||
-    localStorage.getItem('catavor_active_slug') ||
-    activeSlug ||
-    '';
+  const merchantSlug = (() => {
+    if ((currentUser as any)?.store_slug) return (currentUser as any).store_slug;
+    if ((currentUser as any)?.active_store?.slug) return (currentUser as any).active_store.slug;
+    if (Array.isArray((currentUser as any)?.stores) && (currentUser as any).stores[0]?.slug) {
+      return (currentUser as any).stores[0].slug;
+    }
+    if (typeof localStorage !== 'undefined') {
+      const active = localStorage.getItem('catavor_active_slug');
+      if (active) return active;
+      try {
+        const rawStores = localStorage.getItem('catavor_stores');
+        if (rawStores) {
+          const parsed = JSON.parse(rawStores);
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.slug) {
+            return parsed[0].slug;
+          }
+        }
+      } catch {}
+    }
+    return activeSlug || '';
+  })();
+
+  useEffect(() => {
+    if (token && !isPlatformAdmin(currentUser) && (currentPath === '/admin' || currentPath.startsWith('/admin/'))) {
+      const destination = resolveAuthenticatedRedirect(currentUser, merchantSlug);
+      const destPath = destination.split('?')[0].toLowerCase();
+      if (destPath !== '/admin') {
+        navigateTo(destination);
+      } else {
+        navigateTo('/catalogs');
+      }
+    }
+  }, [token, currentUser, currentPath, merchantSlug]);
 
   // 1. PUBLIC STORE CATALOG ROUTE (e.g. /:slug and not admin, platform, ops, or login)
   if (activeSlug && !isStoreAdminRoute && !isLoginRoute && !isPlatformAdminPath) {
@@ -565,6 +675,112 @@ export const App: React.FC = () => {
 
     // 2B. Authenticated but NON-PLATFORM STAFF (Merchant logged in attempting /admin access)
     if (token && !isPlatformAdmin(currentUser)) {
+      // Pure ops & internal platform admin paths require platform staff privileges
+      if (currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/')) {
+        return (
+          <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'var(--bg-deep)',
+            color: 'var(--text-primary)',
+            padding: '2rem'
+          }}>
+            <div style={{
+              width: '100%',
+              maxWidth: '520px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1.25rem',
+              border: '1px solid var(--border-light)',
+              padding: '2.5rem',
+              boxShadow: 'var(--shadow-premium)',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '1.15rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.28)',
+                color: '#ef4444',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '1.25rem'
+              }}>
+                <ShieldAlert size={30} />
+              </div>
+              <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+                Akses Dibatasi — Staf Platform
+              </h1>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: '0 0 1.5rem 0', lineHeight: 1.6 }}>
+                Akun Anda saat ini (<strong>{currentUser?.email || 'Merchant'}</strong>) terdaftar sebagai merchant/penjual, bukan staf pengelola platform Catavor.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => navigateTo(merchantSlug ? `/${merchantSlug}/admin` : '/')}
+                  style={{
+                    minHeight: '48px',
+                    padding: '0.75rem 1.25rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.95rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Buka Dashboard Toko Saya
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLogout('/admin')}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.75rem 1.25rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-light)',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Keluar &amp; Masuk Akun Pengelola
+                </button>
+                <button
+                  type="button"
+                  onClick={() => smartBack('/')}
+                  style={{
+                    minHeight: '38px',
+                    background: 'transparent',
+                    color: 'var(--text-muted)',
+                    border: 'none',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    marginTop: '0.25rem'
+                  }}
+                >
+                  &larr; Kembali ke Halaman Utama
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Seamless Merchant Experience: When merchant visits generic /admin, auto-redirect directly to their dashboard!
+      const redirectUrl = resolveAuthenticatedRedirect(currentUser, merchantSlug);
+      const pathOnly = redirectUrl.split('?')[0].toLowerCase();
+      if (pathOnly !== '/admin') {
+        window.location.replace(redirectUrl);
+      } else {
+        window.location.replace(appendViewParam(merchantSlug ? `/${merchantSlug}/admin` : '/catalogs'));
+      }
       return (
         <div style={{
           minHeight: '100vh',
@@ -572,94 +788,13 @@ export const App: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: 'var(--bg-deep)',
-          color: 'var(--text-primary)',
-          padding: '2rem'
+          color: 'var(--text-primary)'
         }}>
-          <div style={{
-            width: '100%',
-            maxWidth: '520px',
-            backgroundColor: 'var(--bg-card)',
-            borderRadius: '1.25rem',
-            border: '1px solid var(--border-light)',
-            padding: '2.5rem',
-            boxShadow: 'var(--shadow-premium)',
-            textAlign: 'center'
-          }}>
-            <div style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '1.15rem',
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.28)',
-              color: '#ef4444',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '1.25rem'
-            }}>
-              <ShieldAlert size={30} />
-            </div>
-            <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-              Akses Dibatasi — Staf Platform
-            </h1>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: '0 0 1.5rem 0', lineHeight: 1.6 }}>
-              Akun Anda saat ini (<strong>{currentUser?.email || 'Merchant'}</strong>) terdaftar sebagai merchant/penjual, bukan staf pengelola platform Catavor.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <button
-                type="button"
-                onClick={() => navigateTo(merchantSlug ? `/${merchantSlug}/admin` : '/')}
-                style={{
-                  minHeight: '48px',
-                  padding: '0.75rem 1.25rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Buka Dashboard Toko Saya
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLogout('/admin')}
-                style={{
-                  minHeight: '44px',
-                  padding: '0.75rem 1.25rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--bg-deep)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-light)',
-                  fontWeight: 600,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Keluar &amp; Masuk Akun Pengelola
-              </button>
-              <button
-                type="button"
-                onClick={() => smartBack('/')}
-                style={{
-                  minHeight: '38px',
-                  background: 'transparent',
-                  color: 'var(--text-muted)',
-                  border: 'none',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  marginTop: '0.25rem'
-                }}
-              >
-                &larr; Kembali ke Halaman Utama
-              </button>
-            </div>
-          </div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Mengarahkan ke dashboard katalog...</div>
         </div>
       );
     }
+
 
     // 2C. Unauthenticated on Platform Admin Route -> Dedicated Platform Staff Login Screen
     return (
@@ -1071,6 +1206,38 @@ export const App: React.FC = () => {
           </div>
         </div>
       );
+    }
+
+    if (isCatalogChooser) {
+      let storesList: any[] = [];
+      try {
+        const raw = localStorage.getItem('catavor_stores');
+        if (raw) storesList = JSON.parse(raw);
+      } catch {}
+      if (!storesList.length && Array.isArray((currentUser as any)?.stores)) {
+        storesList = (currentUser as any).stores;
+      }
+      storesList = storesList.filter((s: any) => s && s.slug && !RESERVED_SLUGS.includes(s.slug.toLowerCase()) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+      if (storesList.length === 1) {
+        const singleSlug = storesList[0].slug;
+        try {
+          sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+          localStorage.setItem('catavor_active_slug', singleSlug);
+        } catch {}
+        window.location.replace(appendViewParam(`/${singleSlug}/admin`));
+        return (
+          <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'var(--bg-deep)',
+            color: 'var(--text-primary)'
+          }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Mengarahkan ke dashboard katalog...</div>
+          </div>
+        );
+      }
     }
 
     return (

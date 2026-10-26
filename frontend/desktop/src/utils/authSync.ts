@@ -148,62 +148,61 @@ export function resolveAuthenticatedRedirect(user?: any, preferredSlug?: string 
   } else if (preferredSlug && !isReservedStoreSlug(preferredSlug)) {
     dest = `/${preferredSlug.toLowerCase()}/admin`;
   } else {
-    // 1. Check if user already has an active chosen slug in this session!
-    let foundSlug: string | null = null;
-    if (resolvedUser?.id) {
-      const userScoped = getSavedUserSlug(resolvedUser.id);
-      if (userScoped && !isReservedStoreSlug(userScoped)) {
-        foundSlug = userScoped;
-      }
-    }
-    if (!foundSlug && typeof localStorage !== 'undefined') {
+    // Collect available stores
+    let availableStores: any[] = [];
+    if (Array.isArray(resolvedUser?.stores) && resolvedUser.stores.length > 0) {
+      availableStores = resolvedUser.stores;
+    } else if (typeof localStorage !== 'undefined') {
       try {
-        const activeSaved = localStorage.getItem('catavor_active_slug');
-        if (activeSaved && !isReservedStoreSlug(activeSaved)) {
-          foundSlug = activeSaved;
+        const rawStores = localStorage.getItem('catavor_stores');
+        if (rawStores) {
+          const parsed = JSON.parse(rawStores);
+          if (Array.isArray(parsed)) availableStores = parsed;
         }
       } catch {}
     }
 
-    // 2. If NO active store has been selected yet for this session:
-    if (!foundSlug) {
-      let availableStores: any[] = [];
-      if (Array.isArray(resolvedUser?.stores) && resolvedUser.stores.length > 0) {
-        availableStores = resolvedUser.stores;
-      } else if (typeof localStorage !== 'undefined') {
-        try {
-          const rawStores = localStorage.getItem('catavor_stores');
-          if (rawStores) {
-            const parsed = JSON.parse(rawStores);
-            if (Array.isArray(parsed)) availableStores = parsed;
-          }
-        } catch {}
+    availableStores = availableStores.filter(s => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+
+    if (availableStores.length === 1) {
+      // Rule: Account with EXACTLY 1 catalog profile automatically enters that single store dashboard
+      const singleSlug = availableStores[0].slug;
+      if (resolvedUser?.id && singleSlug) {
+        saveUserActiveSlug(resolvedUser.id, singleSlug);
       }
+      try {
+        localStorage.setItem('catavor_active_slug', singleSlug);
+        sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+      } catch {}
+      dest = `/${singleSlug.toLowerCase()}/admin`;
+    } else if (availableStores.length > 1) {
+      // Rule: Account with MULTIPLE stores (>1) MUST choose one at the beginning (/catalogs),
+      // unless a specific store was already chosen in this active browser session.
+      let activeSlug: string | null = null;
+      try {
+        activeSlug = sessionStorage.getItem('catavor_active_slug_selected');
+      } catch {}
 
-      availableStores = availableStores.filter(s => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
-
-      if (availableStores.length === 1) {
-        // User ONLY has 1 store! Automatically use this single store
-        const singleSlug = availableStores[0].slug;
-        foundSlug = singleSlug;
-        if (resolvedUser?.id && singleSlug) {
-          saveUserActiveSlug(resolvedUser.id, singleSlug);
-        }
-      } else if (availableStores.length === 0) {
-        if (resolvedUser?.store_slug && !isReservedStoreSlug(resolvedUser.store_slug)) {
-          foundSlug = resolvedUser.store_slug;
-        } else if (resolvedUser?.active_store?.slug && !isReservedStoreSlug(resolvedUser.active_store.slug)) {
-          foundSlug = resolvedUser.active_store.slug;
-        }
+      if (activeSlug && availableStores.some(s => s.slug?.toLowerCase() === activeSlug?.toLowerCase())) {
+        dest = `/${activeSlug.toLowerCase()}/admin`;
       } else {
-        // User has multiple stores and has NOT selected one yet!
-        // Return /catalogs so user is prompted to choose
-        foundSlug = null;
+        dest = '/catalogs';
       }
-    }
-
-    if (foundSlug) {
-      dest = `/${foundSlug.toLowerCase()}/admin`;
+    } else {
+      // 0 stores
+      let fallbackActiveSlug: string | null = null;
+      try {
+        fallbackActiveSlug = sessionStorage.getItem('catavor_active_slug_selected') || localStorage.getItem('catavor_active_slug');
+      } catch {}
+      if (fallbackActiveSlug && !isReservedStoreSlug(fallbackActiveSlug)) {
+        dest = `/${fallbackActiveSlug.toLowerCase()}/admin`;
+      } else if (resolvedUser?.store_slug && !isReservedStoreSlug(resolvedUser.store_slug)) {
+        dest = `/${resolvedUser.store_slug.toLowerCase()}/admin`;
+      } else if (resolvedUser?.active_store?.slug && !isReservedStoreSlug(resolvedUser.active_store.slug)) {
+        dest = `/${resolvedUser.active_store.slug.toLowerCase()}/admin`;
+      } else {
+        dest = '/';
+      }
     }
   }
 

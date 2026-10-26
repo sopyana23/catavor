@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { smartBack } from '../utils/navigation';
 import { 
   Layers, 
@@ -234,7 +234,14 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
   const [hoveredStoreId, setHoveredStoreId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  useEffect(() => {
+    if (isOpen && stores.length === 1 && !complianceAlert && stores[0]?.slug) {
+      onSelectStore(stores[0]);
+    }
+  }, [isOpen, stores, complianceAlert, onSelectStore]);
+
   if (!isOpen) return null;
+  if (stores.length === 1 && !complianceAlert) return null;
 
   const isFreshLogin = Boolean(isFirstTimeLogin || complianceAlert || !activeSlug);
   const effectiveActiveSlug = isFreshLogin ? null : activeSlug;

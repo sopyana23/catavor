@@ -91,7 +91,7 @@ import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollab
 import { TabletCustomSelect } from './TabletCustomSelect';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { StoreChooserModal, type CatalogStoreItem } from './StoreChooserModal';
-import { broadcastAuthEvent } from '../utils/authSync';
+import { broadcastAuthEvent, appendViewParam } from '../utils/authSync';
 import { useModalBackHandler } from '../utils/navigation';
 import { createAuthFetch, isTokenExpired } from '../utils/auth';
 import { safeOpenUrl } from '../utils/urlSecurity';
@@ -387,14 +387,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   // Store Chooser & Switcher Modal State (Tablet Native)
-  const [showStoreChooserModal, setShowStoreChooserModal] = useState<boolean>(() => {
-    if (initialOpenStoreChooser) return true;
-    if (typeof window !== 'undefined') {
-      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
-      return p === '/catalogs' || p === '/select-catalog' || p === '/stores';
-    }
-    return false;
-  });
   const [userStores, setUserStores] = useState<CatalogStoreItem[]>(() => {
     try {
       const saved = localStorage.getItem('catavor_stores');
@@ -402,6 +394,56 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     } catch {
       return [];
     }
+  });
+
+  // Store Chooser & Switcher Modal State (Tablet Native)
+  const [showStoreChooserModal, setShowStoreChooserModal] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('catavor_stores');
+      let parsed = saved ? JSON.parse(saved) : [];
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        if (Array.isArray((currentUser as any)?.stores)) {
+          parsed = (currentUser as any).stores;
+        } else {
+          const rawUser = localStorage.getItem('catavor_user');
+          if (rawUser) {
+            const u = JSON.parse(rawUser);
+            if (Array.isArray(u?.stores)) parsed = u.stores;
+          }
+        }
+      }
+      if (Array.isArray(parsed) && parsed.length === 1 && parsed[0]?.slug) return false;
+    } catch {}
+    if (initialOpenStoreChooser) {
+      try {
+        const saved = localStorage.getItem('catavor_stores');
+        let parsed = saved ? JSON.parse(saved) : [];
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          if (Array.isArray((currentUser as any)?.stores)) {
+            parsed = (currentUser as any).stores;
+          }
+        }
+        if (Array.isArray(parsed) && parsed.length === 1) return false;
+      } catch {}
+      return true;
+    }
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      if (p === '/catalogs' || p === '/select-catalog' || p === '/stores') {
+        try {
+          const saved = localStorage.getItem('catavor_stores');
+          let parsed = saved ? JSON.parse(saved) : [];
+          if (!Array.isArray(parsed) || parsed.length === 0) {
+            if (Array.isArray((currentUser as any)?.stores)) {
+              parsed = (currentUser as any).stores;
+            }
+          }
+          if (Array.isArray(parsed) && parsed.length === 1) return false;
+        } catch {}
+        return true;
+      }
+    }
+    return false;
   });
   const [switchingSlug, setSwitchingSlug] = useState<string | null>(null);
 
@@ -439,6 +481,21 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           try {
             localStorage.setItem('catavor_stores', JSON.stringify(mapped));
           } catch {}
+
+          if (mapped.length === 1) {
+            setShowStoreChooserModal(false);
+            const singleSlug = mapped[0].slug;
+            try {
+              localStorage.setItem('catavor_active_slug', singleSlug);
+              sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+            } catch {}
+            if (typeof window !== 'undefined') {
+              const currentP = window.location.pathname.toLowerCase().replace(/\/$/, '');
+              if (currentP === '/catalogs' || currentP === '/select-catalog' || currentP === '/stores') {
+                window.location.replace(appendViewParam(`/${singleSlug}/admin`));
+              }
+            }
+          }
         }
       }
     } catch (err) {
@@ -494,24 +551,27 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         body: JSON.stringify({ store_slug: targetStore.slug })
       });
       if (res.ok) {
+        try { sessionStorage.setItem('catavor_active_slug_selected', targetStore.slug); } catch {}
         localStorage.setItem('catavor_active_slug', targetStore.slug);
         if (targetStore.store_theme && onThemeChange) {
           onThemeChange(targetStore.store_theme);
         }
         broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUser?.id || '0', slug: targetStore.slug });
         setShowStoreChooserModal(false);
-        window.location.href = `/${targetStore.slug}/admin`;
+        window.location.href = appendViewParam(`/${targetStore.slug}/admin`);
       } else {
+        try { sessionStorage.setItem('catavor_active_slug_selected', targetStore.slug); } catch {}
         localStorage.setItem('catavor_active_slug', targetStore.slug);
         broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUser?.id || '0', slug: targetStore.slug });
         setShowStoreChooserModal(false);
-        window.location.href = `/${targetStore.slug}/admin`;
+        window.location.href = appendViewParam(`/${targetStore.slug}/admin`);
       }
     } catch {
+      try { sessionStorage.setItem('catavor_active_slug_selected', targetStore.slug); } catch {}
       localStorage.setItem('catavor_active_slug', targetStore.slug);
       broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUser?.id || '0', slug: targetStore.slug });
       setShowStoreChooserModal(false);
-      window.location.href = `/${targetStore.slug}/admin`;
+      window.location.href = appendViewParam(`/${targetStore.slug}/admin`);
     } finally {
       setSwitchingSlug(null);
     }
@@ -1595,6 +1655,23 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
       const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
       if (path === '/catalogs' || path === '/select-catalog' || path === '/stores') {
+        let storesList: CatalogStoreItem[] = userStores;
+        if (!storesList || storesList.length === 0) {
+          try {
+            const raw = localStorage.getItem('catavor_stores');
+            if (raw) storesList = JSON.parse(raw);
+          } catch {}
+        }
+        if (Array.isArray(storesList) && storesList.length === 1 && storesList[0]?.slug) {
+          const singleSlug = storesList[0].slug;
+          try {
+            localStorage.setItem('catavor_active_slug', singleSlug);
+            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+          } catch {}
+          window.location.replace(appendViewParam(`/${singleSlug}/admin`));
+          setShowStoreChooserModal(false);
+          return;
+        }
         setShowStoreChooserModal(true);
         fetchUserStores();
         return;
