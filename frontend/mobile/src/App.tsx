@@ -161,7 +161,9 @@ import {
   getSavedUserSlug, 
   saveUserActiveSlug, 
   broadcastAuthEvent, 
-  subscribeAuthSync 
+  subscribeAuthSync,
+  resolveAuthenticatedRedirect,
+  hasValidSessionToken
 } from './utils/authSync'
 
 export interface UserStoreSummary {
@@ -4893,7 +4895,12 @@ function App() {
           } catch {}
         }
       } else if (path === '/login') {
-        pathTab = 'login';
+        const curToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null;
+        if (curToken && !isTokenExpired(curToken)) {
+          pathTab = 'home';
+        } else {
+          pathTab = 'login';
+        }
       } else if (path === '/register' || path === '/register/step-1') {
         pathTab = 'register';
         pathStep = 1;
@@ -10164,6 +10171,45 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     }
 
+    const isLoginRoute = path === '/login' || (path.split('/').filter(Boolean).length === 2 && path.endsWith('/login') && !isReservedStoreSlug(path.split('/').filter(Boolean)[0]));
+    if (isLoginRoute) {
+      const savedToken = token || localStorage.getItem('catavor_token');
+      if (savedToken && !isTokenExpired(savedToken)) {
+        const savedUserStr = localStorage.getItem('catavor_user');
+        let u: any = adminUser;
+        if (!u && savedUserStr) {
+          try { u = JSON.parse(savedUserStr); } catch {}
+        }
+        const requestedSlug = path !== '/login' ? path.split('/').filter(Boolean)[0] : null;
+        const redirectUrl = resolveAuthenticatedRedirect(u, requestedSlug);
+        const pathOnly = redirectUrl.split('?')[0];
+        if (pathOnly === '/admin') {
+          setView('tabs');
+          setActiveTab('admin');
+          setStoreSlug(null);
+          setPortalTab('home');
+          window.history.replaceState({}, '', redirectUrl);
+          return;
+        } else if (pathOnly === '/catalogs') {
+          setStoreSlug(null);
+          setShowStoreSwitcherModal(true);
+          setPortalTab('home');
+          window.history.replaceState({}, '', redirectUrl);
+          return;
+        } else {
+          const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+          setStoreSlug(targetSlug);
+          setView('tabs');
+          setActiveTab('admin');
+          setAdminSubTab('menu');
+          setPortalTab('home');
+          window.history.replaceState({}, '', redirectUrl);
+          loadData(targetSlug);
+          return;
+        }
+      }
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const hasTicketParam = Boolean(urlParams.get('ticket'));
     const isSupportTab = ['support', 'help', 'bantuan'].includes((urlParams.get('tab') || '').toLowerCase());
@@ -10792,6 +10838,38 @@ Terima kasih atas perhatian dan kerja samanya.`;
         fetchMyStores();
         setShowStoreSwitcherModal(true);
       } else if (path === '/login') {
+        const curToken = token || localStorage.getItem('catavor_token');
+        if (curToken && !isTokenExpired(curToken)) {
+          const rawUser = localStorage.getItem('catavor_user');
+          let u: any = adminUser;
+          if (!u && rawUser) {
+            try { u = JSON.parse(rawUser); } catch {}
+          }
+          const redirectUrl = resolveAuthenticatedRedirect(u);
+          const pathOnly = redirectUrl.split('?')[0];
+          if (pathOnly === '/admin') {
+            setView('tabs');
+            setActiveTab('admin');
+            setStoreSlug(null);
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+          } else if (pathOnly === '/catalogs') {
+            setStoreSlug(null);
+            setShowStoreSwitcherModal(true);
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+          } else {
+            const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+            setStoreSlug(targetSlug);
+            setView('tabs');
+            setActiveTab('admin');
+            setAdminSubTab('menu');
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+            loadData(targetSlug);
+          }
+          return;
+        }
         setPortalTab('login');
       } else if (path === '/register' || path === '/register/step-1') {
         setPortalTab('register');
@@ -11258,8 +11336,54 @@ Terima kasih atas perhatian dan kerja samanya.`;
     };
 
     const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible' && localStorage.getItem('catavor_token')) {
-        checkTokenValidity(false);
+      if (document.visibilityState === 'visible') {
+        const storedToken = localStorage.getItem('catavor_token');
+        if (storedToken && !isTokenExpired(storedToken)) {
+          if (storedToken !== token) {
+            setToken(storedToken);
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = null;
+            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch {}
+            if (parsedUser) setAdminUser(parsedUser);
+            const rawStores = localStorage.getItem('catavor_stores');
+            if (rawStores) {
+              try { setUserStores(JSON.parse(rawStores)); } catch {}
+            }
+          }
+          const currentP = window.location.pathname.toLowerCase();
+          if (currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login') {
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = adminUser;
+            if (!parsedUser && rawUser) {
+              try { parsedUser = JSON.parse(rawUser); } catch {}
+            }
+            const redirectUrl = resolveAuthenticatedRedirect(parsedUser);
+            const pathOnly = redirectUrl.split('?')[0];
+            if (pathOnly === '/admin') {
+              setView('tabs');
+              setActiveTab('admin');
+              setStoreSlug(null);
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+            } else if (pathOnly === '/catalogs') {
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+            } else {
+              const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+              setStoreSlug(targetSlug);
+              setView('tabs');
+              setActiveTab('admin');
+              setAdminSubTab('menu');
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+              loadData(targetSlug);
+            }
+            return;
+          }
+          checkTokenValidity(false);
+        }
       }
     };
 
@@ -11270,7 +11394,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('focus', handleVisibilityOrFocus);
     };
-  }, [token]);
+  }, [token, adminUser, portalTab]);
+
   // Industry Best Practice: Cross-Tab Session & Store Synchronization
   useEffect(() => {
     const unsubscribe = subscribeAuthSync((event) => {
@@ -11279,12 +11404,54 @@ Terima kasih atas perhatian dan kerja samanya.`;
           handleUnauthorized('Sesi akun telah keluar dari tab lain.', false);
         }
       } else if (event.type === 'LOGIN_SUCCESS') {
-        const storedToken = localStorage.getItem('catavor_token');
-        if (storedToken && storedToken !== token) {
-          showToast('Sesi akun telah diperbarui di tab lain. Memuat ulang sesi...', 'info');
-          setTimeout(() => {
-            window.location.reload();
-          }, 500);
+        const storedToken = localStorage.getItem('catavor_token') || event.token;
+        if (storedToken) {
+          if (storedToken !== token) {
+            setToken(storedToken);
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = null;
+            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch {}
+            if (parsedUser) setAdminUser(parsedUser);
+            const rawStores = localStorage.getItem('catavor_stores');
+            if (rawStores) {
+              try { setUserStores(JSON.parse(rawStores)); } catch {}
+            }
+          }
+
+          const currentP = window.location.pathname.toLowerCase();
+          if (currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login') {
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = adminUser;
+            if (!parsedUser && rawUser) {
+              try { parsedUser = JSON.parse(rawUser); } catch {}
+            }
+            const redirectUrl = resolveAuthenticatedRedirect(parsedUser);
+            const pathOnly = redirectUrl.split('?')[0];
+            if (pathOnly === '/admin') {
+              setView('tabs');
+              setActiveTab('admin');
+              setStoreSlug(null);
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+            } else if (pathOnly === '/catalogs') {
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+            } else {
+              const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+              setStoreSlug(targetSlug);
+              setView('tabs');
+              setActiveTab('admin');
+              setAdminSubTab('menu');
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+              loadData(targetSlug);
+            }
+            showToast('Sesi akun terhubung dari tab lain.', 'success');
+          } else if (storedToken !== token) {
+            showToast('Sesi akun telah diperbarui di tab lain.', 'info');
+          }
         }
       } else if (event.type === 'STORE_CHANGED') {
         if (event.slug && event.slug !== storeSlug) {
@@ -11304,7 +11471,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     });
 
     return () => unsubscribe();
-  }, [token, storeSlug]);
+  }, [token, storeSlug, portalTab]);
 
 
 
@@ -12068,6 +12235,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setIsPasswordChanged(true);
 
           if (isPlatformAdmin(data.user)) {
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
             setStoreSlug(null);
             setPortalTab('home');
             setView('tabs');
@@ -13076,6 +13244,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setLoginForm({ email: '', password: '' })
         
         if (isPlatformAdmin(data.user)) {
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
           setStoreSlug(null);
           setPortalTab('home');
           setView('tabs');
@@ -14973,6 +15142,21 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         />
       </div>
     );
+  }
+
+  // Dedicated Pre-flight check for /login when user has a valid active session token
+  const isLoginRoute = portalTab === 'login' || currentPath === '/login' || currentPath.endsWith('/login');
+  if (isLoginRoute) {
+    const curToken = token || (typeof window !== 'undefined' ? localStorage.getItem('catavor_token') : null);
+    if (curToken && !isTokenExpired(curToken)) {
+      const redirectUrl = resolveAuthenticatedRedirect(adminUser, storeSlug);
+      window.location.replace(redirectUrl);
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: '#64748b', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <p style={{ fontSize: '0.85rem' }}>Mengarahkan ke Dashboard...</p>
+        </div>
+      );
+    }
   }
 
   // Dedicated Platform Staff Login Screen for Unauthenticated Platform Routes (Mobile)

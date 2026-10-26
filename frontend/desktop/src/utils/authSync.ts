@@ -1,8 +1,10 @@
 /**
- * Cross-Tab Authentication & Session Synchronization Utility
+ * Cross-Tab Authentication & Session Synchronization Utility (Desktop)
  * Implements Industry-Standard session sync across multiple tabs/windows
  * using BroadcastChannel and window StorageEvent.
  */
+
+import { isPlatformAdmin } from './rbac';
 
 export type AuthSyncEvent =
   | { type: 'LOGIN_SUCCESS'; userId: number | string; token: string }
@@ -13,6 +15,53 @@ type AuthSyncCallback = (event: AuthSyncEvent) => void;
 
 let channel: BroadcastChannel | null = null;
 const listeners = new Set<AuthSyncCallback>();
+
+/**
+ * Checks if a JWT token is expired using pure base64 decoding (5-second safety buffer).
+ */
+export function isTokenExpired(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(payloadBase64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const parsed = JSON.parse(jsonPayload);
+    if (!parsed || typeof parsed.exp !== 'number') return false;
+    const currentTime = Math.floor(Date.now() / 1000);
+    return parsed.exp < (currentTime + 5);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Checks if current browser environment has an active, unexpired session token.
+ */
+export function hasValidSessionToken(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+  return Boolean(token && !isTokenExpired(token));
+}
+
+export const isReservedStoreSlug = (slug?: string | null): boolean => {
+  if (!slug) return true;
+  const clean = slug.toLowerCase().trim();
+  const reserved = [
+    'api', 'sanctum', 'desktop', 'mobile', 'tablet', 'assets', 'login', 'register',
+    'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
+    'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi',
+    'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings',
+    'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription',
+    'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'
+  ];
+  return reserved.includes(clean);
+};
 
 /**
  * Generates user-scoped storage key for active catalog/store
@@ -43,6 +92,82 @@ export function saveUserActiveSlug(userId: number | string, slug: string): void 
     localStorage.setItem('catavor_active_slug', slug);
     sessionStorage.setItem('catavor_active_slug_selected', slug);
   } catch {}
+}
+
+/**
+ * Preserves active ?view= parameter (e.g. view=mobile or view=tablet) during cross-route redirects
+ */
+export function appendViewParam(url: string): string {
+  if (typeof window === 'undefined') return url;
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const view = urlParams.get('view');
+    if (view && !url.includes('view=')) {
+      return url + (url.includes('?') ? '&' : '?') + 'view=' + encodeURIComponent(view);
+    }
+  } catch {}
+  return url;
+}
+
+/**
+ * Resolves the destination URL for an authenticated user avoiding the login form.
+ */
+export function resolveAuthenticatedRedirect(user?: any, preferredSlug?: string | null, preserveViewParam: boolean = true): string {
+  let resolvedUser = user;
+  if (!resolvedUser && typeof localStorage !== 'undefined') {
+    try {
+      const savedUser = localStorage.getItem('catavor_user');
+      if (savedUser) resolvedUser = JSON.parse(savedUser);
+    } catch {}
+  }
+
+  let dest = '/catalogs';
+  if (isPlatformAdmin(resolvedUser)) {
+    dest = '/admin';
+  } else if (preferredSlug && !isReservedStoreSlug(preferredSlug)) {
+    dest = `/${preferredSlug.toLowerCase()}/admin`;
+  } else {
+    let foundSlug: string | null = null;
+    if (resolvedUser?.id) {
+      const userScoped = getSavedUserSlug(resolvedUser.id);
+      if (userScoped && !isReservedStoreSlug(userScoped)) {
+        foundSlug = userScoped;
+      }
+    }
+    if (!foundSlug && typeof localStorage !== 'undefined') {
+      try {
+        const activeSaved = localStorage.getItem('catavor_active_slug');
+        if (activeSaved && !isReservedStoreSlug(activeSaved)) {
+          foundSlug = activeSaved;
+        }
+      } catch {}
+    }
+    if (!foundSlug) {
+      if (resolvedUser?.store_slug && !isReservedStoreSlug(resolvedUser.store_slug)) {
+        foundSlug = resolvedUser.store_slug;
+      } else if (resolvedUser?.active_store?.slug && !isReservedStoreSlug(resolvedUser.active_store.slug)) {
+        foundSlug = resolvedUser.active_store.slug;
+      } else if (Array.isArray(resolvedUser?.stores) && resolvedUser.stores.length > 0 && resolvedUser.stores[0]?.slug && !isReservedStoreSlug(resolvedUser.stores[0].slug)) {
+        foundSlug = resolvedUser.stores[0].slug;
+      }
+    }
+    if (!foundSlug && typeof localStorage !== 'undefined') {
+      try {
+        const rawStores = localStorage.getItem('catavor_stores');
+        if (rawStores) {
+          const parsed = JSON.parse(rawStores);
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.slug && !isReservedStoreSlug(parsed[0].slug)) {
+            foundSlug = parsed[0].slug;
+          }
+        }
+      } catch {}
+    }
+    if (foundSlug) {
+      dest = `/${foundSlug.toLowerCase()}/admin`;
+    }
+  }
+
+  return preserveViewParam ? appendViewParam(dest) : dest;
 }
 
 /**

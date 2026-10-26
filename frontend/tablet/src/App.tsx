@@ -13,6 +13,13 @@ import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
 import { type UserRBACInfo, isPlatformAdmin } from './utils/rbac';
 import { isTokenExpired } from './utils/auth';
+import {
+  subscribeAuthSync,
+  broadcastAuthEvent,
+  saveUserActiveSlug,
+  resolveAuthenticatedRedirect,
+  hasValidSessionToken
+} from './utils/authSync';
 import { smartBack } from './utils/navigation';
 
 export const App: React.FC = () => {
@@ -105,7 +112,7 @@ export const App: React.FC = () => {
     };
   }, [token]);
 
-  // Handle URL change
+  // Handle URL change & proactive /login redirect
   useEffect(() => {
     const handlePopState = () => {
       if (typeof window !== 'undefined' && window.__catavor_is_modal_popping) return;
@@ -118,9 +125,41 @@ export const App: React.FC = () => {
       } else {
         setActiveSlug(null);
       }
+
+      if (pathname === '/login' || pathname.endsWith('/login')) {
+        const curToken = localStorage.getItem('catavor_token') || token;
+        if (curToken && !isTokenExpired(curToken)) {
+          const rawUser = localStorage.getItem('catavor_user');
+          let u: any = currentUser;
+          if (!u && rawUser) {
+            try { u = JSON.parse(rawUser); } catch {}
+          }
+          const destination = resolveAuthenticatedRedirect(u);
+          window.history.replaceState({}, '', destination);
+          setCurrentPath(destination.split('?')[0].toLowerCase());
+        }
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, [token, currentUser]);
+
+  // Initial mount route check: if at /login with active token, immediately redirect to admin dashboard
+  useEffect(() => {
+    const pathname = window.location.pathname.toLowerCase();
+    if (pathname === '/login' || pathname.endsWith('/login')) {
+      const curToken = localStorage.getItem('catavor_token') || token;
+      if (curToken && !isTokenExpired(curToken)) {
+        const rawUser = localStorage.getItem('catavor_user');
+        let u: any = currentUser;
+        if (!u && rawUser) {
+          try { u = JSON.parse(rawUser); } catch {}
+        }
+        const destination = resolveAuthenticatedRedirect(u);
+        window.history.replaceState({}, '', destination);
+        setCurrentPath(destination.split('?')[0].toLowerCase());
+      }
+    }
   }, []);
 
   const navigateTo = (path: string) => {
@@ -148,6 +187,7 @@ export const App: React.FC = () => {
     setToken(null);
     setCurrentUser(null);
     setLoginError(msg);
+    broadcastAuthEvent({ type: 'LOGOUT' });
     navigateTo(targetLoginUrl);
   };
 
@@ -161,6 +201,7 @@ export const App: React.FC = () => {
     setToken(null);
     setCurrentUser(null);
     setLoginError(null);
+    broadcastAuthEvent({ type: 'LOGOUT' });
     navigateTo(targetLoginUrl);
   };
 
@@ -183,6 +224,9 @@ export const App: React.FC = () => {
       if (res.ok && json.token) {
         localStorage.setItem('catavor_token', json.token);
         localStorage.setItem('catavor_user', JSON.stringify(json.user || {}));
+        if (json.stores) {
+          localStorage.setItem('catavor_stores', JSON.stringify(json.stores));
+        }
         setToken(json.token);
         setCurrentUser(json.user);
         if (json.active_store?.store_theme || json.user?.store_theme) {
@@ -193,16 +237,16 @@ export const App: React.FC = () => {
         }
         setLoginEmail('');
         setLoginPassword('');
-        if (isPlatformAdmin(json.user)) {
-          navigateTo('/admin?tab=dashboard');
-        } else {
-          const targetSlug = json.active_store?.slug || json.user?.store_slug || localStorage.getItem('catavor_active_slug');
-          if (targetSlug) {
-            navigateTo(`/${targetSlug}/admin`);
-          } else {
-            navigateTo('/catalogs');
+
+        const destination = resolveAuthenticatedRedirect(json.user, json.active_store?.slug);
+        if (json.user?.id) {
+          const matchedSlug = destination.replace(/^\//, '').replace(/\/admin.*$/, '');
+          if (matchedSlug && destination.includes('/admin') && destination !== '/admin') {
+            saveUserActiveSlug(json.user.id, matchedSlug);
           }
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: json.user.id, token: json.token });
         }
+        navigateTo(destination);
       } else {
         setLoginError(json.message || 'Email atau password tidak sesuai.');
       }
@@ -239,6 +283,9 @@ export const App: React.FC = () => {
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
           setCurrentUser(data.user);
         }
+        if (data.stores) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+        }
         setToken(data.token);
         if (data.active_store?.store_theme || data.user?.store_theme) {
           setStoreTheme(data.active_store?.store_theme || data.user?.store_theme);
@@ -246,16 +293,15 @@ export const App: React.FC = () => {
         if (data.active_store?.slug) {
           localStorage.setItem('catavor_active_slug', data.active_store.slug);
         }
-        if (isPlatformAdmin(data.user)) {
-          navigateTo('/admin?tab=dashboard');
-        } else {
-          const targetSlug = data.active_store?.slug || data.user?.store_slug || localStorage.getItem('catavor_active_slug');
-          if (targetSlug) {
-            navigateTo(`/${targetSlug}/admin`);
-          } else {
-            navigateTo('/catalogs');
+        const destination = resolveAuthenticatedRedirect(data.user, data.active_store?.slug);
+        if (data.user?.id) {
+          const matchedSlug = destination.replace(/^\//, '').replace(/\/admin.*$/, '');
+          if (matchedSlug && destination.includes('/admin') && destination !== '/admin') {
+            saveUserActiveSlug(data.user.id, matchedSlug);
           }
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
         }
+        navigateTo(destination);
       } else {
         setLoginError(data.message || 'Otentikasi Google gagal diproses.');
       }
@@ -393,6 +439,88 @@ export const App: React.FC = () => {
       if (bc) bc.close();
     };
   }, []);
+
+  // Industry Best Practice: Cross-Tab Session & Store Synchronization for Tablet
+  useEffect(() => {
+    const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'LOGOUT') {
+        if (token) {
+          const isStaff = isPlatformAdmin(currentUser);
+          handleLogout(isStaff ? '/admin' : '/login');
+        }
+      } else if (event.type === 'LOGIN_SUCCESS') {
+        const storedToken = localStorage.getItem('catavor_token') || event.token;
+        if (storedToken) {
+          if (storedToken !== token) {
+            setToken(storedToken);
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = null;
+            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch {}
+            if (parsedUser) setCurrentUser(parsedUser);
+
+            const rawStores = localStorage.getItem('catavor_stores');
+            if (rawStores) {
+              try {
+                const parsedStores = JSON.parse(rawStores);
+                if (Array.isArray(parsedStores) && parsedStores.length > 0 && parsedStores[0]?.slug) {
+                  setActiveSlug(parsedStores[0].slug);
+                }
+              } catch {}
+            }
+          }
+
+          const currentP = window.location.pathname.toLowerCase();
+          if (currentP === '/login' || currentP.endsWith('/login')) {
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = currentUser;
+            if (!parsedUser && rawUser) {
+              try { parsedUser = JSON.parse(rawUser); } catch {}
+            }
+            const redirectUrl = resolveAuthenticatedRedirect(parsedUser);
+            navigateTo(redirectUrl);
+          }
+        }
+      } else if (event.type === 'STORE_CHANGED') {
+        if (event.slug && event.slug !== activeSlug) {
+          setActiveSlug(event.slug);
+        }
+      }
+    });
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        const storedToken = localStorage.getItem('catavor_token');
+        if (storedToken && !isTokenExpired(storedToken)) {
+          if (storedToken !== token) {
+            setToken(storedToken);
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = null;
+            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch {}
+            if (parsedUser) setCurrentUser(parsedUser);
+          }
+          const currentP = window.location.pathname.toLowerCase();
+          if (currentP === '/login' || currentP.endsWith('/login')) {
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = currentUser;
+            if (!parsedUser && rawUser) {
+              try { parsedUser = JSON.parse(rawUser); } catch {}
+            }
+            const redirectUrl = resolveAuthenticatedRedirect(parsedUser);
+            navigateTo(redirectUrl);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
+  }, [token, currentUser, activeSlug, currentPath]);
 
   const isLoginRoute = currentPath === '/login';
   const isStoreAdminRoute = Boolean(activeSlug) && (currentPath === `/${activeSlug}/admin` || currentPath.startsWith(`/${activeSlug}/admin/`));
@@ -948,12 +1076,10 @@ export const App: React.FC = () => {
 
   // 4. GENERAL LOGIN ROUTE (/login)
   if (isLoginRoute) {
-    if (token) {
-      if (isPlatformAdmin(currentUser)) {
-        navigateTo('/admin');
-        return null;
-      }
-      navigateTo(merchantSlug ? `/${merchantSlug}/admin` : '/');
+    const curToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('catavor_token') : null);
+    if (curToken && !isTokenExpired(curToken)) {
+      const destination = resolveAuthenticatedRedirect(currentUser);
+      navigateTo(destination);
       return null;
     }
 
