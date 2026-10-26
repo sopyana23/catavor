@@ -1140,14 +1140,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
     return 'list';
   });
-  const [selectedBroadcastId, setSelectedBroadcastId] = useState<number | null>(() => {
+  const [selectedBroadcastId, setSelectedBroadcastId] = useState<string | number | null>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const bId = params.get('broadcast_id') || params.get('broadcast') || params.get('notif_id');
-      if (bId) {
-        const num = parseInt(bId, 10);
-        return isNaN(num) ? null : num;
-      }
+      if (bId) return bId;
     }
     return null;
   });
@@ -1212,9 +1209,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [targetRecipientSearch, setTargetRecipientSearch] = useState('');
   const [recipientSuggestions, setRecipientSuggestions] = useState<any[]>([]);
   const [isSearchingRecipients, setIsSearchingRecipients] = useState(false);
+  const recipientSearchAbortControllerRef = useRef<AbortController | null>(null);
+  const recipientSearchCacheRef = useRef<Map<string, any[]>>(new Map());
 
   const [broadcastForm, setBroadcastForm] = useState({
-    target_type: 'all' as 'all' | 'plan' | 'specific',
+    target_type: 'all' as 'all' | 'plan' | 'specific' | 'single_store' | 'single_user',
     target_plan_code: 'pro',
     target_id: 0,
     target_name: '',
@@ -1248,20 +1247,35 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     return () => clearTimeout(handler);
   }, [broadcastSearchQuery]);
 
-  // Unified Autocomplete Search for Stores & Users
+  // Unified Autocomplete Search for Stores & Users with in-memory caching & AbortController
   useEffect(() => {
     const query = targetRecipientSearch.trim();
-    if (broadcastForm.target_type === 'specific' && query.length >= 1) {
+    if (['specific', 'single_store', 'single_user'].includes(broadcastForm.target_type) && query.length >= 1) {
+      const cacheKey = `${broadcastForm.target_type}:${query.toLowerCase()}`;
+      if (recipientSearchCacheRef.current.has(cacheKey)) {
+        setRecipientSuggestions(recipientSearchCacheRef.current.get(cacheKey) || []);
+        setIsSearchingRecipients(false);
+        return;
+      }
+
       setIsSearchingRecipients(true);
       const timer = setTimeout(async () => {
+        if (recipientSearchAbortControllerRef.current) {
+          recipientSearchAbortControllerRef.current.abort();
+        }
+        const abortController = new AbortController();
+        recipientSearchAbortControllerRef.current = abortController;
+
         try {
           const authToken = token || localStorage.getItem('catavor_token') || '';
           const headers: Record<string, string> = authToken ? { Authorization: `Bearer ${authToken}` } : {};
 
           const [storesRes, usersRes] = await Promise.allSettled([
-            fetch(`/api/admin/stores/search?q=${encodeURIComponent(query)}`, { headers }),
-            fetch(`/api/admin/users/search?q=${encodeURIComponent(query)}`, { headers })
+            fetch(`/api/admin/stores/search?q=${encodeURIComponent(query)}`, { headers, signal: abortController.signal }),
+            fetch(`/api/admin/users/search?q=${encodeURIComponent(query)}`, { headers, signal: abortController.signal })
           ]);
+
+          if (abortController.signal.aborted) return;
 
           const results: Array<{
             type: 'store' | 'user';
@@ -1275,13 +1289,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           if (storesRes.status === 'fulfilled' && storesRes.value.ok) {
             const data = await storesRes.value.json();
             const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
-            list.slice(0, 5).forEach((s: any) => {
+            list.forEach((s: any) => {
               results.push({
                 type: 'store',
                 id: s.id,
-                name: s.name || s.title || `Toko #${s.id}`,
+                name: s.store_title || s.name || s.slug || `Toko #${s.id}`,
                 slug: s.slug,
-                plan: s.subscription_plan || s.plan
+                plan: s.plan || s.subscription_plan || 'free',
+                email: s.user_email || s.email
               });
             });
           }
@@ -1289,7 +1304,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
             const data = await usersRes.value.json();
             const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
-            list.slice(0, 5).forEach((u: any) => {
+            list.forEach((u: any) => {
               results.push({
                 type: 'user',
                 id: u.id,
@@ -1299,15 +1314,29 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             });
           }
 
+          if (recipientSearchCacheRef.current.size >= 100) {
+            const firstKey = recipientSearchCacheRef.current.keys().next().value;
+            if (firstKey) recipientSearchCacheRef.current.delete(firstKey);
+          }
+          recipientSearchCacheRef.current.set(cacheKey, results);
           setRecipientSuggestions(results);
-        } catch {
-          // ignore error
+        } catch (e: any) {
+          if (e?.name !== 'AbortError') {
+            console.error('Failed to search recipients:', e);
+          }
         } finally {
-          setIsSearchingRecipients(false);
+          if (!abortController.signal.aborted) {
+            setIsSearchingRecipients(false);
+          }
         }
       }, 300);
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        if (recipientSearchAbortControllerRef.current) {
+          recipientSearchAbortControllerRef.current.abort();
+        }
+      };
     } else {
       setRecipientSuggestions([]);
       setIsSearchingRecipients(false);
@@ -1447,10 +1476,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
         // Detail Selection & Refresh Persistence Logic
         if (selectedBroadcastId) {
-          const found = list.find((b: any) => b.id === selectedBroadcastId);
+          const found = list.find((b: any) => String(b.id) === String(selectedBroadcastId));
           if (found) {
             setSelectedBroadcastDetail(found);
-          } else if (!selectedBroadcastDetail || selectedBroadcastDetail.id !== selectedBroadcastId) {
+          } else if (!selectedBroadcastDetail || String(selectedBroadcastDetail.id) !== String(selectedBroadcastId)) {
             fetchSingleBroadcastDetail(selectedBroadcastId);
           }
         } else if (typeof window !== 'undefined' && window.innerWidth >= 880 && list.length > 0) {
@@ -1473,11 +1502,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   }, [activeView, broadcastStatusFilter, debouncedBroadcastSearch]);
 
   const selectedBroadcast = useMemo(() => {
-    if (selectedBroadcastDetail && selectedBroadcastId && selectedBroadcastDetail.id === selectedBroadcastId) {
+    if (selectedBroadcastDetail && selectedBroadcastId && String(selectedBroadcastDetail.id) === String(selectedBroadcastId)) {
       return selectedBroadcastDetail;
     }
     if (selectedBroadcastId) {
-      return broadcasts.find(b => b.id === selectedBroadcastId) || selectedBroadcastDetail || null;
+      return broadcasts.find(b => String(b.id) === String(selectedBroadcastId)) || selectedBroadcastDetail || null;
     }
     return null;
   }, [broadcasts, selectedBroadcastId, selectedBroadcastDetail]);
@@ -1497,8 +1526,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // Deep-link initial hydration effect
   useEffect(() => {
     if (activeView === 'broadcast' && selectedBroadcastId) {
-      if (!selectedBroadcastDetail || selectedBroadcastDetail.id !== selectedBroadcastId) {
-        const inMemory = broadcasts.find(b => b.id === selectedBroadcastId);
+      if (!selectedBroadcastDetail || String(selectedBroadcastDetail.id) !== String(selectedBroadcastId)) {
+        const inMemory = broadcasts.find(b => String(b.id) === String(selectedBroadcastId));
         if (inMemory) {
           setSelectedBroadcastDetail(inMemory);
         } else {
@@ -1523,9 +1552,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           setSelectedBroadcastId(null);
           setSelectedBroadcastDetail(null);
         } else if (bId) {
-          const num = parseInt(bId, 10);
-          const parsed = isNaN(num) ? null : num;
-          setSelectedBroadcastId(parsed);
+          setSelectedBroadcastId(bId);
           setBroadcastSubView('list');
         } else {
           setSelectedBroadcastId(null);
@@ -1544,8 +1571,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       showToast('Judul dan isi pesan siaran wajib diisi', 'error');
       return;
     }
-    if (broadcastForm.target_type === 'specific' && broadcastForm.recipients.length === 0) {
-      showToast('Silakan tambahkan minimal 1 penerima (merchant/user)', 'error');
+    if (broadcastForm.target_type === 'specific') {
+      if (broadcastForm.recipients.length === 0) {
+        showToast('Silakan tambahkan minimal 1 penerima (merchant/user)', 'error');
+        return;
+      }
+    } else if (broadcastForm.target_type === 'single_store' && (!broadcastForm.target_id || broadcastForm.target_id === 0)) {
+      showToast('Silakan pilih toko target terlebih dahulu', 'error');
+      return;
+    } else if (broadcastForm.target_type === 'single_user' && (!broadcastForm.target_id || broadcastForm.target_id === 0)) {
+      showToast('Silakan pilih user target terlebih dahulu', 'error');
       return;
     }
 
@@ -1556,6 +1591,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         const count = broadcastForm.recipients.length;
         const names = broadcastForm.recipients.slice(0, 2).map(r => r.name).join(', ');
         finalTargetName = `${count} Penerima Spesifik (${names}${count > 2 ? '...' : ''})`;
+      } else if (broadcastForm.target_type === 'all') {
+        finalTargetName = 'Semua Merchant & Pengguna (Global)';
+      } else if (broadcastForm.target_type === 'plan') {
+        finalTargetName = `Paket ${(broadcastForm.target_plan_code || 'PRO').toUpperCase()}`;
       }
 
       const isActionActive = broadcastForm.notification_action_enabled && broadcastForm.action_type !== 'none';
@@ -1614,6 +1653,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         });
         setTargetRecipientSearch('');
         setRecipientSuggestions([]);
+        recipientSearchCacheRef.current.clear();
         broadcastCacheRef.current.clear();
         setBroadcastSubView('list');
         setSelectedBroadcastId(null);
@@ -1631,7 +1671,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
-  const handleDeleteBroadcast = async (id: number) => {
+  const handleDeleteBroadcast = async (id: string | number) => {
     if (!window.confirm('Apakah Anda yakin ingin membatalkan dan menghapus notifikasi siaran ini?')) return;
     try {
       const res = await authFetch(`/api/admin/notifications/${id}`, {
@@ -6773,7 +6813,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </div>
                             ) : (
                               broadcasts.map(bc => {
-                                const isSelected = selectedBroadcastId === bc.id;
+                                const isSelected = String(selectedBroadcastId) === String(bc.id);
                                 const catStyle = getBroadcastCategoryStyle(bc.category);
                                 const isExpired = bc.expires_at && new Date(bc.expires_at) <= new Date();
                                 const isActive = bc.is_active !== false && !isExpired;
@@ -7516,16 +7556,20 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   <div
                                     key={sIdx}
                                     onClick={() => {
-                                      if (alreadySelected) return;
+                                      if (alreadySelected) {
+                                        showToast('Penerima sudah ada dalam daftar', 'error');
+                                        return;
+                                      }
                                       setBroadcastForm(prev => ({
                                         ...prev,
                                         recipients: [...prev.recipients, s]
                                       }));
                                       setTargetRecipientSearch('');
                                       setRecipientSuggestions([]);
+                                      showToast(`${s.name} ditambahkan ke daftar`, 'success');
                                     }}
                                     style={{
-                                      padding: '0.6rem 0.85rem',
+                                      padding: '0.65rem 0.85rem',
                                       borderBottom: '1px solid var(--border-light)',
                                       display: 'flex',
                                       alignItems: 'center',
@@ -7535,14 +7579,61 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       opacity: alreadySelected ? 0.6 : 1
                                     }}
                                   >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-                                      {s.type === 'store' ? <StoreIcon size={14} color="#3b82f6" style={{ flexShrink: 0 }} /> : <User size={14} color="#ec4899" style={{ flexShrink: 0 }} />}
-                                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-                                      {s.slug && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>({s.slug})</span>}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
+                                      {s.type === 'store' ? (
+                                        <div style={{
+                                          width: '28px',
+                                          height: '28px',
+                                          borderRadius: '0.5rem',
+                                          backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                                          color: '#3b82f6',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          flexShrink: 0
+                                        }}>
+                                          <StoreIcon size={14} />
+                                        </div>
+                                      ) : (
+                                        <div style={{
+                                          width: '28px',
+                                          height: '28px',
+                                          borderRadius: '0.5rem',
+                                          backgroundColor: 'rgba(236, 72, 153, 0.12)',
+                                          color: '#ec4899',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          flexShrink: 0
+                                        }}>
+                                          <User size={14} />
+                                        </div>
+                                      )}
+                                      <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {s.name}
+                                        </div>
+                                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                          {s.type === 'store' ? (s.slug ? `@${s.slug}` : `ID: #${s.id}`) : (s.email || `ID: #${s.id}`)}
+                                          {s.email && s.type === 'store' ? ` • ${s.email}` : ''}
+                                        </div>
+                                      </div>
                                     </div>
-                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: s.type === 'store' ? '#3b82f6' : '#ec4899', flexShrink: 0 }}>
-                                      {alreadySelected ? 'Sudah Dipilih' : '+ Tambah'}
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+                                      <span style={{
+                                        fontSize: '0.62rem',
+                                        padding: '0.12rem 0.45rem',
+                                        borderRadius: '0.35rem',
+                                        fontWeight: 800,
+                                        backgroundColor: s.type === 'store' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(236, 72, 153, 0.15)',
+                                        color: s.type === 'store' ? '#3b82f6' : '#ec4899'
+                                      }}>
+                                        {s.type === 'store' ? 'TOKO' : 'USER'}
+                                      </span>
+                                      <span style={{ fontSize: '0.68rem', fontWeight: 800, color: alreadySelected ? '#10b981' : '#f59e0b' }}>
+                                        {alreadySelected ? '✓ Ditambahkan' : '+ Tambah'}
+                                      </span>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -7552,9 +7643,28 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
                         {/* Selected Chips */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                            Penerima Terpilih ({broadcastForm.recipients.length}):
-                          </span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                              Penerima Terpilih ({broadcastForm.recipients.length}):
+                            </span>
+                            {broadcastForm.recipients.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setBroadcastForm(prev => ({ ...prev, recipients: [] }))}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  padding: 0
+                                }}
+                              >
+                                Hapus Semua
+                              </button>
+                            )}
+                          </div>
                           {broadcastForm.recipients.length === 0 ? (
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                               Belum ada penerima khusus yang ditambahkan.
@@ -7566,7 +7676,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   key={rIdx}
                                   style={{
                                     fontSize: '0.72rem',
-                                    padding: '0.2rem 0.55rem',
+                                    padding: '0.25rem 0.6rem',
                                     borderRadius: '0.45rem',
                                     backgroundColor: rec.type === 'store' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(236, 72, 153, 0.12)',
                                     color: rec.type === 'store' ? '#3b82f6' : '#ec4899',

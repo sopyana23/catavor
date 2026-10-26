@@ -3060,6 +3060,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         const count = broadcastForm.recipients.length;
         const names = broadcastForm.recipients.slice(0, 2).map(r => r.name).join(', ');
         finalTargetName = `${count} Penerima Spesifik (${names}${count > 2 ? '...' : ''})`;
+      } else if (broadcastForm.target_type === 'all') {
+        finalTargetName = 'Semua Merchant & Pengguna (Global)';
+      } else if (broadcastForm.target_type === 'plan') {
+        finalTargetName = `Paket ${(broadcastForm.target_plan_code || 'PRO').toUpperCase()}`;
       }
 
       const isActionActive = broadcastForm.notification_action_enabled && broadcastForm.action_type !== 'none';
