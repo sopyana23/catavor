@@ -746,6 +746,83 @@
    "description": "di_handler_test.go expanded: 13 nil-db tests + constructor sanity + 4 existing. 18/18 PASS.",
    "evidence": "go test ./internal/handlers/ -v: 18/18 PASS",
    "commit": "2a36e96"
+  },
+  {
+   "id": "BC-1",
+   "severity": "high",
+   "title": "Tablet menjanjikan fitur banner katalog yang tidak ada di backend/DB",
+   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx (+ backend/internal/handlers/notification_handler.go:671)",
+   "endpoint": "POST /api/admin/notifications/broadcast",
+   "impact": "Admin mencentang 'Sematkan Banner Strip di Katalog Merchant', memilih warna, mengirim siaran — tidak ada yang tersimpan atau tampil. UI berbohong ke operator. Field show_top_banner/banner_color tidak ada di BroadcastReq maupun kolom tabel notifications.",
+   "fix": "Dihapus dari tablet (7 titik: state, payload, reset, indikator detail, checkbox, swatch warna, preview). Tidak diimplementasikan di backend karena desktop & mobile pun tidak memilikinya.",
+   "status": "fixed",
+   "resolution": "7 titik dihapus; 0 sisa string di source & bundle publik. Payload tablet kini identik mobile."
+  },
+  {
+   "id": "BC-2",
+   "severity": "medium",
+   "title": "Tablet tidak pernah mengirim link_mobile_settings_tab (kolom DB nyata)",
+   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:1126,1293,1322",
+   "endpoint": "POST /api/admin/notifications/broadcast",
+   "impact": "Backend menyimpan link_mobile_settings_tab varchar(64) dan memakainya untuk navigasi notifikasi. Tablet tidak punya state maupun field ini, jadi siaran ber-aksi 'navigate' yang dibuat dari tablet kehilangan tujuan deep-link di mobile.",
+   "fix": "Tambahkan state default 'about', kirim dengan kondisi yang sama seperti mobile.",
+   "status": "fixed",
+   "resolution": "State + payload ditambahkan; payload tablet identik mobile (diff nilai: kosong)."
+  },
+  {
+   "id": "BC-3",
+   "severity": "low",
+   "title": "Tablet tidak menandai field judul & pesan sebagai required",
+   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:7424,7453",
+   "endpoint": "form siaran tablet",
+   "impact": "Validasi HTML5 hilang; hanya JS yang menjaga. Desktop & mobile punya required. Perbedaan affordance dan aksesibilitas (screen reader tidak mengumumkan field wajib).",
+   "fix": "Tambah atribut required pada input judul dan textarea pesan.",
+   "status": "fixed",
+   "resolution": "required=2 terverifikasi runtime di form tablet."
+  },
+  {
+   "id": "BC-4",
+   "severity": "low",
+   "title": "Label field tablet menyimpang dari mobile",
+   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:7416,7446",
+   "endpoint": "form siaran tablet",
+   "impact": "Mobile/desktop: 'Judul Pengumuman' & 'Pesan Ringkas Notifikasi'. Tablet: 'Judul Siaran Pengumuman' & 'Ringkasan Pesan Singkat (Tampil di Notifikasi)'. Istilah field berbeda antar device untuk data yang sama.",
+   "fix": "Samakan label dengan mobile sebagai patokan.",
+   "status": "fixed",
+   "resolution": "Label disamakan; verifikasi runtime kelima label form ditemukan."
+  },
+  {
+   "id": "BC-5",
+   "severity": "medium",
+   "title": "Tablet menarik limit=50 tanpa paginasi — riwayat >50 tak terjangkau",
+   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:1216",
+   "endpoint": "GET /api/admin/notifications",
+   "impact": "Desktop & mobile memakai page=1&limit=10 + kontrol Sebelumnya/Selanjutnya. Tablet hardcode limit=50 dan tidak merender kontrol halaman; jika siaran melewati 50, riwayat lama tidak bisa diakses sama sekali dari tablet.",
+   "fix": "Samakan dengan mobile: limit=10 + state halaman + kontrol paginasi.",
+   "status": "open",
+   "resolution": "Belum dieksekusi — item terpisah berikutnya."
+  },
+  {
+   "id": "BC-6",
+   "severity": "low",
+   "title": "Request daftar notifikasi ganda (portal induk + halaman broadcast)",
+   "location": "frontend/desktop/src/components/PlatformRolePortal.tsx:2267 + tablet",
+   "endpoint": "GET /api/admin/notifications",
+   "impact": "Dua request ke endpoint sama; yang tanpa parameter mengembalikan default 15 baris dan ikut meng-overwrite state daftar. Race state + beban server ganda.",
+   "fix": "Lewati fetch daftar di portal induk saat sub-tab broadcast aktif.",
+   "status": "open",
+   "resolution": "Belum dieksekusi."
+  },
+  {
+   "id": "BC-7",
+   "severity": "info",
+   "title": "target_id mati di ketiga device (jalur tidak hidup)",
+   "location": "ketiga bundle",
+   "endpoint": "POST /api/admin/notifications/broadcast",
+   "impact": "target_id selalu 0 dan tidak ada UI yang mengisinya. Backend punya lookup store/user via TargetID (notification_handler.go:760-772), tetapi tidak ada jalur hidup yang mencapainya. Tablet dulu tidak mengirim field ini — perbedaan struktural tanpa dampak fungsional.",
+   "fix": "Disamakan secara struktural (tablet kini kirim target_id:0). Bila tipe target single_store/single_user mau dihidupkan, UI pengisi harus dibuat di ketiga device.",
+   "status": "fixed",
+   "resolution": "Tablet mengirim target_id; payload identik mobile. Fitur pengisi tetap tidak ada (di luar lingkup)."
   }
  ],
  "verified_ok": [

@@ -1124,11 +1124,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     detail_content: '',
     type: 'info' as 'info' | 'warning' | 'success' | 'system',
     link_sub_tab: 'settings',
+    link_mobile_settings_tab: 'about',
     action_label: 'Buka Pengumuman Lengkap →',
     action_url: '',
-    expires_in_hours: 0,
-    show_top_banner: false,
-    banner_color: 'blue' as 'blue' | 'emerald' | 'amber' | 'rose'
+    expires_in_hours: 0
   });
 
   // 300ms Debounced Broadcast Search
@@ -1282,6 +1281,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         title: broadcastForm.title,
         category: broadcastForm.category,
         target_type: broadcastForm.target_type,
+        target_id: broadcastForm.target_id,
         target_plan_code: broadcastForm.target_plan_code,
         target_name: finalTargetName,
         target_recipients: JSON.stringify(broadcastForm.recipients),
@@ -1293,11 +1293,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         action_type: effectiveActionType,
         detail_content: isActionActive && effectiveActionType === 'detail' ? broadcastForm.detail_content : '',
         link_sub_tab: isActionActive && effectiveActionType === 'navigate' ? broadcastForm.link_sub_tab : '',
+        link_mobile_settings_tab: isActionActive && effectiveActionType === 'navigate' && broadcastForm.link_sub_tab === 'settings' ? broadcastForm.link_mobile_settings_tab : '',
         action_url: isActionActive && effectiveActionType === 'external_link' ? broadcastForm.action_url : '',
         action_label: isActionActive ? (broadcastForm.action_label || (effectiveActionType === 'external_link' ? 'Buka Tautan Luar →' : effectiveActionType === 'navigate' ? 'Buka Menu Terkait →' : 'Buka Pengumuman Lengkap →')) : '',
-        expires_in_hours: broadcastForm.expires_in_hours,
-        show_top_banner: broadcastForm.show_top_banner,
-        banner_color: broadcastForm.banner_color
+        expires_in_hours: broadcastForm.expires_in_hours
       };
 
       const res = await authFetch('/api/admin/notifications/broadcast', {
@@ -1324,11 +1323,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           detail_content: '',
           type: 'info',
           link_sub_tab: 'settings',
+          link_mobile_settings_tab: 'about',
           action_label: 'Buka Pengumuman Lengkap →',
           action_url: '',
-          expires_in_hours: 0,
-          show_top_banner: false,
-          banner_color: 'blue'
+          expires_in_hours: 0
         });
         setTargetRecipientSearch('');
         setRecipientSuggestions([]);
@@ -6989,37 +6987,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 })()}
                               </div>
                             )}
-
-                            {/* Top Banner on Merchant Catalog Indicator (If Active) */}
-                            {selectedBroadcast.show_top_banner && (
-                              <div style={{
-                                padding: '1rem 1.25rem',
-                                borderRadius: '0.85rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.5rem'
-                              }}>
-                                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                  Banner Strip Publik Terpasang di Katalog:
-                                </div>
-                                <div style={{
-                                  padding: '0.65rem 1rem',
-                                  borderRadius: '0.55rem',
-                                  backgroundColor: selectedBroadcast.banner_color === 'blue' ? '#3b82f6' : selectedBroadcast.banner_color === 'emerald' ? '#10b981' : selectedBroadcast.banner_color === 'amber' ? '#f59e0b' : '#ef4444',
-                                  color: '#ffffff',
-                                  fontSize: '0.78rem',
-                                  fontWeight: 800,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between'
-                                }}>
-                                  <span>{selectedBroadcast.title}</span>
-                                  <span style={{ fontSize: '0.68rem', opacity: 0.9, fontWeight: 700 }}>Banner Aktif</span>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         ) : null
                       }
@@ -7422,59 +7389,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               ))}
                             </div>
                           </div>
-
-                          {/* Top Banner Toggle */}
-                          <div style={{
-                            padding: '0.85rem 1rem',
-                            borderRadius: '0.75rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.65rem'
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div>
-                                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                  Sematkan Banner Strip di Katalog Merchant
-                                </div>
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                                  Menampilkan pita pengumuman di bagian atas etalase publik toko
-                                </div>
-                              </div>
-                              <input
-                                type="checkbox"
-                                checked={broadcastForm.show_top_banner}
-                                onChange={e => setBroadcastForm(prev => ({ ...prev, show_top_banner: e.target.checked }))}
-                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                              />
-                            </div>
-
-                            {broadcastForm.show_top_banner && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '0.4rem', borderTop: '1px solid var(--border-light)' }}>
-                                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>Warna Banner:</span>
-                                {(['blue', 'emerald', 'amber', 'rose'] as const).map(c => (
-                                  <button
-                                    key={c}
-                                    type="button"
-                                    onClick={() => setBroadcastForm(prev => ({ ...prev, banner_color: c }))}
-                                    style={{
-                                      padding: '0.25rem 0.65rem',
-                                      borderRadius: '999px',
-                                      border: `1.5px solid ${broadcastForm.banner_color === c ? 'var(--text-primary)' : 'transparent'}`,
-                                      backgroundColor: c === 'blue' ? '#3b82f6' : c === 'emerald' ? '#10b981' : c === 'amber' ? '#f59e0b' : '#ef4444',
-                                      color: '#ffffff',
-                                      fontSize: '0.7rem',
-                                      fontWeight: 800,
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    {c.toUpperCase()}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
                         </div>
                       </div>
 
@@ -7499,7 +7413,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                               <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                                Judul Siaran Pengumuman *
+                                Judul Pengumuman <span style={{ color: '#ef4444' }}>*</span>
                               </label>
                               <span style={{ fontSize: '0.7rem', color: broadcastForm.title.length > 90 ? '#ef4444' : 'var(--text-muted)' }}>
                                 {broadcastForm.title.length}/100
@@ -7507,6 +7421,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </div>
                             <input
                               type="text"
+                              required
                               maxLength={100}
                               value={broadcastForm.title}
                               onChange={e => setBroadcastForm(prev => ({ ...prev, title: e.target.value }))}
@@ -7528,7 +7443,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                               <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                                Ringkasan Pesan Singkat (Tampil di Notifikasi) *
+                                Pesan Ringkas Notifikasi <span style={{ color: '#ef4444' }}>*</span>
                               </label>
                               <span style={{ fontSize: '0.7rem', color: broadcastForm.message.length > 230 ? '#ef4444' : 'var(--text-muted)' }}>
                                 {broadcastForm.message.length}/250
@@ -7536,6 +7451,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </div>
                             <textarea
                               rows={3}
+                              required
                               maxLength={250}
                               value={broadcastForm.message}
                               onChange={e => setBroadcastForm(prev => ({ ...prev, message: e.target.value }))}
@@ -7794,21 +7710,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             flexDirection: 'column',
                             gap: '0.45rem'
                           }}>
-                            {/* Preview Top Banner if enabled */}
-                            {broadcastForm.show_top_banner && (
-                              <div style={{
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '0.4rem',
-                                backgroundColor: broadcastForm.banner_color === 'blue' ? '#3b82f6' : broadcastForm.banner_color === 'emerald' ? '#10b981' : broadcastForm.banner_color === 'amber' ? '#f59e0b' : '#ef4444',
-                                color: '#ffffff',
-                                fontSize: '0.68rem',
-                                fontWeight: 800,
-                                marginBottom: '0.25rem'
-                              }}>
-                                [Banner Katalog Aktif] {broadcastForm.title || 'Judul Pengumuman'}
-                              </div>
-                            )}
-
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               {(() => {
                                 const catStyle = getBroadcastCategoryStyle(broadcastForm.category);
