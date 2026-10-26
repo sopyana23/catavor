@@ -77,7 +77,8 @@ import {
   PhoneCall,
   Link as LinkIcon,
   Upload,
-  Server
+  Server,
+  ArrowLeft
 } from 'lucide-react';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
@@ -1091,6 +1092,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
   const [broadcastSubView, setBroadcastSubView] = useState<'list' | 'create'>('list');
   const [selectedBroadcastId, setSelectedBroadcastId] = useState<number | null>(null);
+  const [broadcastPage, setBroadcastPage] = useState<number>(1);
+  const [broadcastTotalPages, setBroadcastTotalPages] = useState<number>(1);
+  const [broadcastTotalItems, setBroadcastTotalItems] = useState<number>(0);
+  const broadcastPageSize = 10;
+  const broadcastCacheRef = useRef<Map<string, { data: any[]; pagination: any; metrics: any; timestamp: number }>>(new Map());
+
   const [broadcastMetrics, setBroadcastMetrics] = useState({
     total_broadcasts: 0,
     active_broadcasts: 0,
@@ -1206,13 +1213,27 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   }, [targetRecipientSearch, broadcastForm.target_type, token]);
 
-  const fetchBroadcasts = useCallback(async () => {
+  const fetchBroadcasts = useCallback(async (page = 1, force = false) => {
     if (!token) return;
+    const cacheKey = `p${page}_s${broadcastStatusFilter}_q${debouncedBroadcastSearch.trim()}`;
+    const cached = broadcastCacheRef.current.get(cacheKey);
+    const now = Date.now();
+    if (!force && cached && (now - cached.timestamp < 30000)) {
+      setBroadcasts(cached.data);
+      if (cached.pagination) {
+        setBroadcastPage(cached.pagination.page || page);
+        setBroadcastTotalPages(cached.pagination.total_pages || 1);
+        setBroadcastTotalItems(cached.pagination.total_items || cached.data.length);
+      }
+      if (cached.metrics) setBroadcastMetrics(cached.metrics);
+      return;
+    }
+
     setIsFetchingBroadcasts(true);
     try {
       const params = new URLSearchParams();
-      params.set('page', '1');
-      params.set('limit', '50');
+      params.set('page', String(page));
+      params.set('limit', String(broadcastPageSize));
       if (broadcastStatusFilter !== 'all') params.set('status', broadcastStatusFilter);
       if (debouncedBroadcastSearch.trim()) params.set('q', debouncedBroadcastSearch.trim());
 
@@ -1221,8 +1242,17 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       });
       if (res.ok) {
         const j = await res.json();
-        const list = Array.isArray(j) ? j : j.data || [];
+        const list = Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
         setBroadcasts(list);
+        if (j.pagination) {
+          setBroadcastPage(j.pagination.page || page);
+          setBroadcastTotalPages(j.pagination.total_pages || 1);
+          setBroadcastTotalItems(j.pagination.total_items || list.length);
+        } else {
+          setBroadcastPage(page);
+          setBroadcastTotalPages(1);
+          setBroadcastTotalItems(list.length);
+        }
         if (j.metrics) {
           setBroadcastMetrics(j.metrics);
         } else {
@@ -1232,11 +1262,29 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             targeted_broadcasts: list.filter((b: any) => b.target_type && b.target_type !== 'all').length
           });
         }
-        if (selectedBroadcastId) {
-          const found = list.find((b: any) => b.id === selectedBroadcastId);
-          if (!found && list.length > 0) setSelectedBroadcastId(list[0].id);
-        } else if (list.length > 0) {
-          setSelectedBroadcastId(list[0].id);
+
+        // Cache results
+        broadcastCacheRef.current.set(cacheKey, {
+          data: list,
+          pagination: j.pagination,
+          metrics: j.metrics,
+          timestamp: now
+        });
+
+        // Auto selection: only in wide tablet landscape (>= 880px)
+        // In mini tablet portrait (< 880px), keep selectedBroadcastId as null so user sees the list!
+        if (typeof window !== 'undefined' && window.innerWidth >= 880) {
+          if (selectedBroadcastId) {
+            const found = list.find((b: any) => b.id === selectedBroadcastId);
+            if (!found && list.length > 0) setSelectedBroadcastId(list[0].id);
+          } else if (list.length > 0) {
+            setSelectedBroadcastId(list[0].id);
+          }
+        } else {
+          if (selectedBroadcastId) {
+            const found = list.find((b: any) => b.id === selectedBroadcastId);
+            if (!found) setSelectedBroadcastId(null);
+          }
         }
       }
     } catch {
@@ -1248,9 +1296,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   useEffect(() => {
     if (activeView === 'broadcast') {
-      fetchBroadcasts();
+      fetchBroadcasts(1);
     }
-  }, [activeView, fetchBroadcasts]);
+  }, [activeView, broadcastStatusFilter, debouncedBroadcastSearch]);
 
   const selectedBroadcast = useMemo(() => {
     return broadcasts.find(b => b.id === selectedBroadcastId) || null;
@@ -1332,8 +1380,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         });
         setTargetRecipientSearch('');
         setRecipientSuggestions([]);
+        broadcastCacheRef.current.clear();
         setBroadcastSubView('list');
-        fetchBroadcasts();
+        setSelectedBroadcastId(null);
+        fetchBroadcasts(1, true);
       } else {
         const errData = await res.json().catch(() => ({}));
         showToast(errData.error || errData.message || 'Gagal menyebarkan siaran pengumuman', 'error');
@@ -1354,8 +1404,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       });
       if (res.ok) {
         showToast('Siaran pengumuman berhasil dihapus');
+        broadcastCacheRef.current.clear();
         setSelectedBroadcastId(null);
-        fetchBroadcasts();
+        fetchBroadcasts(broadcastPage, true);
       } else {
         showToast('Gagal menghapus siaran', 'error');
       }
@@ -2148,7 +2199,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       } else if (activeView === 'finance') {
         await fetchOrders();
       } else if (activeView === 'broadcast') {
-        await fetchBroadcasts();
+        broadcastCacheRef.current.clear();
+        await fetchBroadcasts(broadcastPage, true);
       } else if (activeView === 'automation') {
         await fetchAutomation();
       } else if (activeView === 'audit') {
@@ -6176,7 +6228,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <button
                     type="button"
-                    onClick={() => setBroadcastSubView('list')}
+                    onClick={() => {
+                      setBroadcastSubView('list');
+                      setSelectedBroadcastId(null);
+                    }}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -6202,13 +6257,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       fontSize: '0.72rem',
                       fontWeight: 800
                     }}>
-                      {broadcastMetrics.total_broadcasts || broadcasts.length}
+                      {broadcastTotalItems || broadcastMetrics.total_broadcasts || broadcasts.length}
                     </span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setBroadcastSubView('create')}
+                    onClick={() => {
+                      setBroadcastSubView('create');
+                      setSelectedBroadcastId(null);
+                    }}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -6230,28 +6288,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={fetchBroadcasts}
-                    disabled={isFetchingBroadcasts}
-                    title="Segarkan data siaran"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      padding: '0.55rem 0.95rem',
-                      borderRadius: '0.65rem',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-card)',
-                      color: 'var(--text-secondary)',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      cursor: isFetchingBroadcasts ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    <RefreshCw size={14} className={isFetchingBroadcasts ? 'animate-spin' : ''} />
-                    <span>Segarkan</span>
-                  </button>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    {broadcastTotalItems ? `${broadcastTotalItems} Siaran Diterbitkan` : ''}
+                  </span>
                 </div>
               </div>
 
@@ -6431,7 +6470,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <button
                               key={st.id}
                               type="button"
-                              onClick={() => setBroadcastStatusFilter(st.id as any)}
+                              onClick={() => {
+                                setBroadcastStatusFilter(st.id as any);
+                                setBroadcastPage(1);
+                              }}
                               style={{
                                 minHeight: '44px',
                                 minWidth: '44px',
@@ -6463,147 +6505,214 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   <div style={{ flex: 1, overflow: 'hidden' }}>
                     <TabletMasterDetailView
                       title="Riwayat Siaran"
-                      subtitle={`${broadcasts.length} pengumuman terdaftar`}
+                      subtitle={`${broadcastTotalItems || broadcasts.length} pengumuman terdaftar`}
                       hideHeaderTitle={true}
+                      hideBackButton={true}
                       selectedId={selectedBroadcastId}
                       onClearSelection={() => setSelectedBroadcastId(null)}
                       emptyDetailMessage="Pilih salah satu siaran pengumuman dari daftar di samping untuk melihat rincian isi, sasaran, artikel lengkap, dan tindakan."
                       masterPane={
-                        <div style={{ padding: '0.85rem', overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                          {isFetchingBroadcasts && broadcasts.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                              <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 0.65rem auto', color: 'var(--primary)' }} />
-                              <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Memuat daftar siaran...</div>
-                            </div>
-                          ) : broadcasts.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
-                              <Radio size={36} color="var(--primary)" style={{ margin: '0 auto 0.75rem auto', opacity: 0.8 }} />
-                              <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                {broadcastSearchQuery ? 'Tidak ada siaran yang cocok' : 'Belum ada siaran disebarkan'}
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                          <div style={{ flex: 1, padding: '0.85rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                            {isFetchingBroadcasts && broadcasts.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+                                <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 0.65rem auto', color: 'var(--primary)' }} />
+                                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Memuat daftar siaran...</div>
                               </div>
-                              <div style={{ fontSize: '0.78rem', marginTop: '0.35rem' }}>
-                                {broadcastSearchQuery ? 'Coba gunakan kata kunci pencarian yang berbeda.' : 'Tekan tombol "+ Buat Siaran Baru" di atas untuk menyebarkan pengumuman platform.'}
+                            ) : broadcasts.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
+                                <Radio size={36} color="var(--primary)" style={{ margin: '0 auto 0.75rem auto', opacity: 0.8 }} />
+                                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  {broadcastSearchQuery ? 'Tidak ada siaran yang cocok' : 'Belum ada siaran disebarkan'}
+                                </div>
+                                <div style={{ fontSize: '0.78rem', marginTop: '0.35rem' }}>
+                                  {broadcastSearchQuery ? 'Coba gunakan kata kunci pencarian yang berbeda.' : 'Tekan tombol "+ Buat Siaran Baru" di atas untuk menyebarkan pengumuman platform.'}
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            broadcasts.map(bc => {
-                              const isSelected = selectedBroadcastId === bc.id;
-                              const catStyle = getBroadcastCategoryStyle(bc.category);
-                              const isExpired = bc.expires_at && new Date(bc.expires_at) <= new Date();
-                              const isActive = bc.is_active !== false && !isExpired;
+                            ) : (
+                              broadcasts.map(bc => {
+                                const isSelected = selectedBroadcastId === bc.id;
+                                const catStyle = getBroadcastCategoryStyle(bc.category);
+                                const isExpired = bc.expires_at && new Date(bc.expires_at) <= new Date();
+                                const isActive = bc.is_active !== false && !isExpired;
 
-                              return (
-                                <div
-                                  key={bc.id}
-                                  onClick={() => setSelectedBroadcastId(bc.id)}
-                                  style={{
-                                    padding: '0.95rem 1rem',
-                                    borderRadius: '0.85rem',
-                                    backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-card)',
-                                    border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '0.45rem',
-                                    boxShadow: isSelected ? '0 4px 14px rgba(59, 130, 246, 0.12)' : 'none',
-                                    transition: 'all 0.15s ease'
-                                  }}
-                                >
-                                  {/* Top Badges */}
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                                      <span style={{
-                                        fontSize: '0.68rem',
-                                        fontWeight: 800,
-                                        padding: '0.15rem 0.5rem',
-                                        borderRadius: '0.4rem',
-                                        backgroundColor: catStyle.bg,
-                                        color: catStyle.text,
-                                        border: `1px solid ${catStyle.border}`
-                                      }}>
-                                        {bc.category || 'PENGUMUMAN'}
-                                      </span>
+                                return (
+                                  <div
+                                    key={bc.id}
+                                    onClick={() => setSelectedBroadcastId(bc.id)}
+                                    style={{
+                                      padding: '0.85rem 1rem',
+                                      borderRadius: '0.85rem',
+                                      backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-card)',
+                                      border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '0.45rem',
+                                      boxShadow: isSelected ? '0 4px 14px rgba(59, 130, 246, 0.12)' : 'none',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    {/* Top Badges */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                        <span style={{
+                                          fontSize: '0.68rem',
+                                          fontWeight: 800,
+                                          padding: '0.15rem 0.5rem',
+                                          borderRadius: '0.4rem',
+                                          backgroundColor: catStyle.bg,
+                                          color: catStyle.text,
+                                          border: `1px solid ${catStyle.border}`
+                                        }}>
+                                          {bc.category || 'PENGUMUMAN'}
+                                        </span>
+                                        <span style={{
+                                          fontSize: '0.66rem',
+                                          fontWeight: 700,
+                                          padding: '0.15rem 0.45rem',
+                                          borderRadius: '0.4rem',
+                                          backgroundColor: 'var(--bg-deep)',
+                                          color: 'var(--text-muted)'
+                                        }}>
+                                          {getBroadcastTargetLabel(bc)}
+                                        </span>
+                                      </div>
+
                                       <span style={{
                                         fontSize: '0.66rem',
-                                        fontWeight: 700,
-                                        padding: '0.15rem 0.45rem',
-                                        borderRadius: '0.4rem',
-                                        backgroundColor: 'var(--bg-deep)',
-                                        color: 'var(--text-muted)'
+                                        fontWeight: 800,
+                                        padding: '0.12rem 0.45rem',
+                                        borderRadius: '999px',
+                                        backgroundColor: isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                        color: isActive ? '#10b981' : '#94a3b8',
+                                        border: `1px solid ${isActive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(148, 163, 184, 0.25)'}`,
+                                        whiteSpace: 'nowrap'
                                       }}>
-                                        {getBroadcastTargetLabel(bc)}
+                                        {isActive ? 'Tayang' : 'Kedaluwarsa'}
                                       </span>
                                     </div>
 
-                                    {/* Active/Expired Pill */}
-                                    <span style={{
-                                      fontSize: '0.66rem',
+                                    {/* Title */}
+                                    <div style={{
+                                      fontSize: '0.88rem',
                                       fontWeight: 800,
-                                      padding: '0.12rem 0.45rem',
-                                      borderRadius: '999px',
-                                      backgroundColor: isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                                      color: isActive ? '#10b981' : '#94a3b8',
-                                      border: `1px solid ${isActive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(148, 163, 184, 0.25)'}`
+                                      color: 'var(--text-primary)',
+                                      lineHeight: 1.35,
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden'
                                     }}>
-                                      {isActive ? 'Tayang' : 'Kedaluwarsa'}
-                                    </span>
-                                  </div>
+                                      {bc.title}
+                                    </div>
 
-                                  {/* Title */}
-                                  <div style={{
-                                    fontSize: '0.88rem',
-                                    fontWeight: 800,
-                                    color: 'var(--text-primary)',
-                                    lineHeight: 1.35,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden'
-                                  }}>
-                                    {bc.title}
-                                  </div>
+                                    {/* Message Preview */}
+                                    <div style={{
+                                      fontSize: '0.76rem',
+                                      color: 'var(--text-muted)',
+                                      lineHeight: 1.45,
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden'
+                                    }}>
+                                      {bc.message}
+                                    </div>
 
-                                  {/* Message Preview */}
-                                  <div style={{
-                                    fontSize: '0.76rem',
-                                    color: 'var(--text-muted)',
-                                    lineHeight: 1.45,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden'
-                                  }}>
-                                    {bc.message}
+                                    {/* Footer: Date & Read Counter & Action Indicator */}
+                                    <div style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      paddingTop: '0.35rem',
+                                      borderTop: '1px solid var(--border-light)',
+                                      fontSize: '0.7rem',
+                                      color: 'var(--text-muted)'
+                                    }}>
+                                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <Clock size={12} />
+                                        {bc.created_at ? new Date(bc.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                      </span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                          <Eye size={12} />
+                                          {bc.read_count || 0} Pembaca
+                                        </span>
+                                        {bc.action_type && bc.action_type !== 'none' && (
+                                          <span style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.2rem',
+                                            fontSize: '0.65rem',
+                                            fontWeight: 700,
+                                            color: 'var(--primary)',
+                                            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                                            padding: '0.1rem 0.35rem',
+                                            borderRadius: '0.3rem'
+                                          }}>
+                                            <ExternalLink size={10} />
+                                            <span>Aksi</span>
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
+                                );
+                              })
+                            )}
+                          </div>
 
-                                  {/* Footer: Date & Read Counter */}
-                                  <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    paddingTop: '0.35rem',
-                                    borderTop: '1px solid var(--border-light)',
-                                    fontSize: '0.7rem',
-                                    color: 'var(--text-muted)'
-                                  }}>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                      <Clock size={12} />
-                                      {bc.created_at ? new Date(bc.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                                    </span>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                                      <Eye size={12} />
-                                      {bc.read_count || 0} Toko Membaca
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
+                          {/* Tablet Segmented Pagination */}
+                          <TabletSegmentedPagination
+                            currentPage={broadcastPage}
+                            totalPages={broadcastTotalPages}
+                            totalRecords={broadcastTotalItems}
+                            pageSize={broadcastPageSize}
+                            isLoading={isFetchingBroadcasts}
+                            onPageChange={(newPage) => {
+                              fetchBroadcasts(newPage);
+                            }}
+                          />
                         </div>
                       }
                       detailPane={
                         selectedBroadcast ? (
-                          <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+                          <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+                            {/* Top Navigation Row */}
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '0.75rem'
+                            }}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedBroadcastId(null)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  padding: '0.45rem 0.85rem',
+                                  minHeight: '40px',
+                                  borderRadius: '0.55rem',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: 'var(--bg-card)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <ArrowLeft size={16} />
+                                <span>Kembali</span>
+                              </button>
+
+                              <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                ID #{selectedBroadcast.id}
+                              </span>
+                            </div>
+
                             {/* Card Box Header */}
                             <div style={{
                               padding: '1.25rem',
