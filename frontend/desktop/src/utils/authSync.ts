@@ -95,6 +95,27 @@ export function saveUserActiveSlug(userId: number | string, slug: string): void 
 }
 
 /**
+ * Clears active catalog slug selections (both user-scoped and global) upon logout or reset
+ */
+export function clearUserActiveSlug(userId?: number | string): void {
+  try {
+    if (userId) {
+      localStorage.removeItem(getScopedStoreSlugKey(userId));
+    }
+    localStorage.removeItem('catavor_active_slug');
+    sessionStorage.removeItem('catavor_active_slug_selected');
+    if (typeof localStorage !== 'undefined') {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('catavor_active_slug') || key.startsWith('catavor_store_selected'))) {
+          localStorage.removeItem(key);
+        }
+      }
+    }
+  } catch {}
+}
+
+/**
  * Preserves active ?view= parameter (e.g. view=mobile or view=tablet) during cross-route redirects
  */
 export function appendViewParam(url: string): string {
@@ -127,6 +148,7 @@ export function resolveAuthenticatedRedirect(user?: any, preferredSlug?: string 
   } else if (preferredSlug && !isReservedStoreSlug(preferredSlug)) {
     dest = `/${preferredSlug.toLowerCase()}/admin`;
   } else {
+    // 1. Check if user already has an active chosen slug in this session!
     let foundSlug: string | null = null;
     if (resolvedUser?.id) {
       const userScoped = getSavedUserSlug(resolvedUser.id);
@@ -142,26 +164,44 @@ export function resolveAuthenticatedRedirect(user?: any, preferredSlug?: string 
         }
       } catch {}
     }
+
+    // 2. If NO active store has been selected yet for this session:
     if (!foundSlug) {
-      if (resolvedUser?.store_slug && !isReservedStoreSlug(resolvedUser.store_slug)) {
-        foundSlug = resolvedUser.store_slug;
-      } else if (resolvedUser?.active_store?.slug && !isReservedStoreSlug(resolvedUser.active_store.slug)) {
-        foundSlug = resolvedUser.active_store.slug;
-      } else if (Array.isArray(resolvedUser?.stores) && resolvedUser.stores.length > 0 && resolvedUser.stores[0]?.slug && !isReservedStoreSlug(resolvedUser.stores[0].slug)) {
-        foundSlug = resolvedUser.stores[0].slug;
+      let availableStores: any[] = [];
+      if (Array.isArray(resolvedUser?.stores) && resolvedUser.stores.length > 0) {
+        availableStores = resolvedUser.stores;
+      } else if (typeof localStorage !== 'undefined') {
+        try {
+          const rawStores = localStorage.getItem('catavor_stores');
+          if (rawStores) {
+            const parsed = JSON.parse(rawStores);
+            if (Array.isArray(parsed)) availableStores = parsed;
+          }
+        } catch {}
+      }
+
+      availableStores = availableStores.filter(s => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+
+      if (availableStores.length === 1) {
+        // User ONLY has 1 store! Automatically use this single store
+        const singleSlug = availableStores[0].slug;
+        foundSlug = singleSlug;
+        if (resolvedUser?.id && singleSlug) {
+          saveUserActiveSlug(resolvedUser.id, singleSlug);
+        }
+      } else if (availableStores.length === 0) {
+        if (resolvedUser?.store_slug && !isReservedStoreSlug(resolvedUser.store_slug)) {
+          foundSlug = resolvedUser.store_slug;
+        } else if (resolvedUser?.active_store?.slug && !isReservedStoreSlug(resolvedUser.active_store.slug)) {
+          foundSlug = resolvedUser.active_store.slug;
+        }
+      } else {
+        // User has multiple stores and has NOT selected one yet!
+        // Return /catalogs so user is prompted to choose
+        foundSlug = null;
       }
     }
-    if (!foundSlug && typeof localStorage !== 'undefined') {
-      try {
-        const rawStores = localStorage.getItem('catavor_stores');
-        if (rawStores) {
-          const parsed = JSON.parse(rawStores);
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.slug && !isReservedStoreSlug(parsed[0].slug)) {
-            foundSlug = parsed[0].slug;
-          }
-        }
-      } catch {}
-    }
+
     if (foundSlug) {
       dest = `/${foundSlug.toLowerCase()}/admin`;
     }

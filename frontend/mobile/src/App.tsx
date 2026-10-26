@@ -160,6 +160,7 @@ import { normalizeNotification, getMobileNotificationDescription } from './utils
 import { 
   getSavedUserSlug, 
   saveUserActiveSlug, 
+  clearUserActiveSlug,
   broadcastAuthEvent, 
   subscribeAuthSync,
   resolveAuthenticatedRedirect,
@@ -10970,6 +10971,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     localStorage.removeItem('catavor_settings');
     localStorage.removeItem('catavor_active_slug');
     sessionStorage.removeItem('catavor_active_slug_selected');
+    clearUserActiveSlug(adminUser?.id);
     document.documentElement.setAttribute('data-theme', 'navy');
     document.body.setAttribute('data-theme', 'navy');
     setToken(null);

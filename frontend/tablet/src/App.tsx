@@ -17,6 +17,7 @@ import {
   subscribeAuthSync,
   broadcastAuthEvent,
   saveUserActiveSlug,
+  clearUserActiveSlug,
   resolveAuthenticatedRedirect,
   hasValidSessionToken
 } from './utils/authSync';
@@ -184,6 +185,7 @@ export const App: React.FC = () => {
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
     localStorage.removeItem('catavor_active_slug');
+    clearUserActiveSlug(currentUser?.id);
     setToken(null);
     setCurrentUser(null);
     setLoginError(msg);
@@ -198,6 +200,7 @@ export const App: React.FC = () => {
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
     localStorage.removeItem('catavor_active_slug');
+    clearUserActiveSlug(currentUser?.id);
     setToken(null);
     setCurrentUser(null);
     setLoginError(null);
