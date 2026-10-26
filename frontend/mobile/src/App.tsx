@@ -7715,9 +7715,6 @@ Terima kasih.`;
         if (curToken) {
           fetchMyStores();
         }
-      } else {
-        setShowStoreSwitcherModal(false);
-        setStoreChooserComplianceAlert(null);
       }
     };
     handleRouteSync();
@@ -7729,9 +7726,6 @@ Terima kasih.`;
     setIsFirstTimeLogin(false);
     fetchMyStores();
     setShowStoreSwitcherModal(true);
-    if (typeof window !== 'undefined' && !isCatalogChooserRoute(window.location.pathname)) {
-      window.history.pushState({ chooser: true }, '', '/catalogs');
-    }
   };
 
   const handleCloseStoreChooserModal = () => {

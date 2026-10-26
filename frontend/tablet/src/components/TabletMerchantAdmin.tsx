@@ -1647,8 +1647,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setShowStoreChooserModal(true);
         fetchUserStores();
         return;
-      } else {
-        setShowStoreChooserModal(false);
       }
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab') as TabletMerchantTab;
