@@ -164,9 +164,11 @@ const DEFAULT_CANNED_TEMPLATES = [
 
 const BROADCAST_CATEGORY_OPTIONS: TabletSelectOption[] = [
   { value: 'PENGUMUMAN', label: 'Pengumuman Resmi', description: 'Informasi umum platform untuk seluruh merchant' },
-  { value: 'PEMELIHARAAN', label: 'Jadwal Maintenance', description: 'Pemberitahuan pemeliharaan sistem berkala' },
-  { value: 'PROMO', label: 'Promosi & Diskon', description: 'Program penawaran atau promo fitur baru' },
-  { value: 'URGENT', label: 'Peringatan Kepatuhan', description: 'Pemberitahuan kritis tata tertib platform' },
+  { value: 'SISTEM', label: 'Pembaruan Sistem', description: 'Pemberitahuan perubahan atau patch sistem' },
+  { value: 'PROMOSI', label: 'Promosi & Diskon', description: 'Penawaran diskon, voucher, dan event promo' },
+  { value: 'PEMELIHARAAN', label: 'Jadwal Pemeliharaan', description: 'Jadwal maintenance & perawatan server berkala' },
+  { value: 'PANDUAN', label: 'Panduan & Edukasi', description: 'Tutorial penggunaan dan tips fitur baru' },
+  { value: 'KEAMANAN', label: 'Keamanan & Privasi', description: 'Peringatan kritis dan keamanan platform' },
 ];
 
 const BROADCAST_TARGET_OPTIONS: TabletSelectOption[] = [
@@ -6892,7 +6894,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   </span>
                                 </div>
                                 <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                  Menu Tujuan: <strong style={{ color: 'var(--text-primary)' }}>{selectedBroadcast.link_sub_tab}</strong>
+                                  Menu Tujuan: <strong style={{ color: 'var(--text-primary)' }}>
+                                    {selectedBroadcast.link_sub_tab === 'settings' ? 'Pengaturan Merchant (settings)' :
+                                     selectedBroadcast.link_sub_tab === 'items' ? 'Inventaris & Produk (items)' :
+                                     selectedBroadcast.link_sub_tab === 'subscription' ? 'Paket & Langganan Pro (subscription)' :
+                                     selectedBroadcast.link_sub_tab === 'help' ? 'Pusat Bantuan & Tiket (help)' :
+                                     selectedBroadcast.link_sub_tab === 'share' ? 'Bagikan Katalog & QR (share)' :
+                                     selectedBroadcast.link_sub_tab === 'analytics' ? 'Dashboard Analitik (analytics)' :
+                                     `Menu ${selectedBroadcast.link_sub_tab}`}
+                                  </strong>
                                 </div>
                               </div>
                             )}
@@ -7579,10 +7589,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       }}
                                     >
                                       <option value="settings">Pengaturan Profil & Tampilan Toko (settings)</option>
-                                      <option value="products">Manajemen Produk & Etalase (products)</option>
-                                      <option value="orders">Daftar Transaksi & Pesanan (orders)</option>
-                                      <option value="finance">Laporan Keuangan & Rekber Syariah (finance)</option>
-                                      <option value="help">Pusat Bantuan & Tiket Support (help)</option>
+                                      <option value="items">Manajemen Inventaris & Produk (items)</option>
+                                      <option value="subscription">Paket Langganan & Billing (subscription)</option>
+                                      <option value="help">Pusat Bantuan & Tiket (help)</option>
+                                      <option value="share">Bagikan Katalog & QR Merchant (share)</option>
+                                      <option value="analytics">Dashboard Analitik Merchant (analytics)</option>
                                     </select>
                                   </div>
                                 )}

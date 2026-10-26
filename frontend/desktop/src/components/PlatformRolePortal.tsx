@@ -31,6 +31,8 @@ import {
   ChevronRight,
   ArrowLeft,
   Megaphone,
+  Target,
+  Compass,
   DollarSign,
   AlertCircle,
   HelpCircle,
@@ -1563,6 +1565,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   });
   const [broadcastPage, setBroadcastPage] = useState(1);
   const [broadcastTotalPages, setBroadcastTotalPages] = useState(1);
+  const [broadcastLimit, setBroadcastLimit] = useState(10);
+  const [broadcastTotalItems, setBroadcastTotalItems] = useState(0);
+  const [broadcastJumpPage, setBroadcastJumpPage] = useState('');
   const [broadcastMetrics, setBroadcastMetrics] = useState<{
     total_broadcasts: number;
     active_broadcasts: number;
@@ -1705,7 +1710,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setDropdownDragY(0);
       setIsDropdownDragging(false);
       setExpandedDropdownInfoValue(null);
+      return;
     }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setCrudDropdownPicker(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [crudDropdownPicker]);
 
   // Target Autocomplete Search for Broadcast (Supports Multiple Stores & Users)
@@ -2961,13 +2974,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   // Fetch Server-Side Broadcasts
-  const fetchBroadcasts = async (page = 1, silent = false) => {
+  const fetchBroadcasts = async (page = 1, currentLimit = broadcastLimit, silent = false) => {
     if (!token || !canAccessBroadcast) return;
     if (!silent) setIsFetchingBroadcasts(true);
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
-      params.set('limit', '10');
+      params.set('limit', String(currentLimit));
       if (broadcastStatusFilter !== 'all') params.set('status', broadcastStatusFilter);
       if (debouncedBroadcastSearch.trim()) params.set('q', debouncedBroadcastSearch.trim());
 
@@ -2981,6 +2994,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         if (d.pagination) {
           setBroadcastPage(d.pagination.page || 1);
           setBroadcastTotalPages(d.pagination.total_pages || 1);
+          setBroadcastTotalItems(d.pagination.total_items ?? bcastList.length);
+        } else {
+          setBroadcastTotalItems(bcastList.length);
         }
         if (d.metrics) {
           setBroadcastMetrics(d.metrics);
@@ -3013,9 +3029,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   useEffect(() => {
     if (activeView === 'broadcast' && canAccessBroadcast) {
-      fetchBroadcasts(1);
+      fetchBroadcasts(1, broadcastLimit);
     }
-  }, [activeView, canAccessBroadcast, broadcastStatusFilter, debouncedBroadcastSearch]);
+  }, [activeView, canAccessBroadcast, broadcastStatusFilter, debouncedBroadcastSearch, broadcastLimit]);
 
   // Broadcast Submit
   const handleSendBroadcast = async (e: React.FormEvent) => {
@@ -9636,10 +9652,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ===================================================================== */
           /* 4A. DEDICATED FULL SUB-PAGE: BUAT SIARAN PENGUMUMAN BARU             */
           /* ===================================================================== */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'fadeIn 0.25s ease-out', paddingBottom: '4.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.25s ease-out', maxWidth: '1280px', margin: '0 auto', width: '100%', paddingBottom: '2.5rem' }}>
             {/* Header / Intro Card */}
             <div style={{
-              padding: '0.95rem 1.1rem',
+              padding: '1rem 1.25rem',
               borderRadius: '1.1rem',
               background: isDark 
                 ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)' 
@@ -9651,10 +9667,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               justifyContent: 'space-between',
               gap: '0.85rem'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
                 <div style={{
-                  width: '40px',
-                  height: '40px',
+                  width: '42px',
+                  height: '42px',
                   borderRadius: '0.85rem',
                   backgroundColor: 'rgba(245, 158, 11, 0.15)',
                   border: '1px solid rgba(245, 158, 11, 0.3)',
@@ -9664,24 +9680,54 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   color: '#f59e0b',
                   flexShrink: 0
                 }}>
-                  <Megaphone size={20} />
+                  <Megaphone size={22} />
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                  <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
                     Publikasikan Siaran Platform
                   </h4>
-                  <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                  <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
                     Kirim pengumuman langsung ke banner &amp; bilah lonceng notifikasi pengguna
                   </p>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={handleCloseCreateBroadcast}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.55rem 0.95rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  color: theme.textSecondary,
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <ArrowLeft size={15} />
+                <span>Kembali ke Riwayat</span>
+              </button>
             </div>
 
             {/* Broadcast Creation Form */}
-            <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-              {/* SECTION 1: TARGET PENERIMA SIARAN */}
+            <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{
-                padding: '1.1rem',
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr)',
+                gap: '1.25rem',
+                alignItems: 'start'
+              }}>
+                {/* LEFT COLUMN: Target & Klasifikasi */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* SECTION 1: TARGET PENERIMA SIARAN */}
+                  <div style={{
+                    padding: '1.1rem',
                 borderRadius: '1.15rem',
                 backgroundColor: theme.surface,
                 border: `1px solid ${theme.border}`,
@@ -10151,7 +10197,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </div>
                 </div>
               </div>
+            </div>
 
+            {/* RIGHT COLUMN: Konten, Aksi & Live Preview */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               {/* SECTION 3: KONTEN PESAN SIARAN */}
               <div style={{
                 padding: '1.1rem',
@@ -10629,37 +10678,54 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   )}
                 </div>
               </div>
+            </div>
+          </div>
 
-              {/* Sticky Bottom Actions Bar */}
-              <div style={{
-                position: 'fixed',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                padding: '0.75rem 1rem',
-                backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                borderTop: `1px solid ${theme.border}`,
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                zIndex: 998,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem'
-              }}>
+            {/* IN-FLOW DESKTOP ACTION BAR */}
+            <div style={{
+              padding: '1rem 1.25rem',
+              borderRadius: '1.15rem',
+              backgroundColor: theme.surface,
+              border: `1px solid ${theme.border}`,
+              boxShadow: theme.cardShadow,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#f59e0b',
+                  flexShrink: 0
+                }}>
+                  <Info size={16} />
+                </div>
+                <span style={{ fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                  Siaran akan segera disebarkan ke lonceng dan banner audiens target yang dipilih.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                 <button
                   type="button"
                   onClick={handleCloseCreateBroadcast}
                   style={{
-                    flex: 1,
-                    padding: '0.8rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: theme.surface,
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
                     border: `1px solid ${theme.border}`,
                     color: theme.textSecondary,
                     fontSize: '0.82rem',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    textAlign: 'center'
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   Batal
@@ -10669,9 +10735,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   type="submit"
                   disabled={sendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()}
                   style={{
-                    flex: 2,
-                    padding: '0.8rem 1.2rem',
-                    borderRadius: '0.85rem',
+                    padding: '0.65rem 1.45rem',
+                    borderRadius: '0.75rem',
                     backgroundColor: '#f59e0b',
                     color: '#000000',
                     border: 'none',
@@ -10680,9 +10745,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     cursor: (sendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()) ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
                     gap: '0.45rem',
-                    boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)'
+                    boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   {sendingBroadcast ? (
@@ -10693,13 +10758,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   ) : (
                     <>
                       <Sparkles size={16} />
-                      <span>Publikasikan</span>
+                      <span>Publikasikan Siaran</span>
                     </>
                   )}
                 </button>
               </div>
-            </form>
-          </div>
+            </div>
+          </form>
+        </div>
         ) : broadcastSubView === 'detail' ? (
           isFetchingBroadcastDetail ? (
             <div style={{
@@ -10722,367 +10788,433 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             /* ===================================================================== */
             /* 4B. DEDICATED FULL SUB-PAGE: RINCIAN & DETAIL SIARAN PLATFORM         */
             /* ===================================================================== */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'fadeIn 0.25s ease-out', paddingBottom: '4.5rem' }}>
-            {/* Main Content Article Panel */}
-            <div style={{
-              padding: '1.25rem',
-              borderRadius: '1.15rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem'
-            }}>
-              {/* Category, Target, Status & Read Stats Row */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.85rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <span style={{
-                    fontSize: '0.66rem',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '0.4rem',
-                    fontWeight: 800,
-                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                    color: isDark ? '#fbbf24' : '#d97706',
-                    textTransform: 'uppercase'
-                  }}>
-                    {selectedBroadcastDetail.category || 'PENGUMUMAN'}
-                  </span>
-
-                  <span style={{
-                    fontSize: '0.66rem',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '0.4rem',
-                    fontWeight: 800,
-                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                    color: isDark ? '#a5b4fc' : '#4f46e5'
-                  }}>
-                    TARGET: {selectedBroadcastDetail.target_type === 'all' 
-                      ? 'SEMUA MERCHANT (GLOBAL)' 
-                      : selectedBroadcastDetail.target_type === 'plan' 
-                        ? `PAKET ${(selectedBroadcastDetail.target_plan_code || 'PRO').toUpperCase()}` 
-                        : (selectedBroadcastDetail.target_name || 'PENERIMA SPESIFIK')}
-                  </span>
-
-                  <span style={{
-                    fontSize: '0.66rem',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '0.4rem',
-                    fontWeight: 800,
-                    backgroundColor: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) 
-                      ? 'rgba(148, 163, 184, 0.15)' 
-                      : 'rgba(16, 185, 129, 0.15)',
-                    color: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) 
-                      ? '#94a3b8' 
-                      : '#10b981'
-                  }}>
-                    {(selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) ? '● Kedaluwarsa' : '● Sedang Tayang'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', color: '#3b82f6', fontWeight: 700 }}>
-                  <Eye size={14} />
-                  <span>{selectedBroadcastDetail.read_count || 0} Merchant Telah Membaca</span>
-                </div>
-              </div>
-
-              {/* Title */}
-              <h3 style={{
-                margin: 0,
-                fontSize: '1.18rem',
-                fontWeight: 800,
-                color: theme.textPrimary,
-                lineHeight: 1.35
-              }}>
-                {selectedBroadcastDetail.title}
-              </h3>
-
-              {/* Metadata Info Bar */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.25s ease-out', maxWidth: '1280px', margin: '0 auto', width: '100%', paddingBottom: '2.5rem' }}>
+              {/* Header / Intro Card */}
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: '0.5rem',
-                padding: '0.75rem',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                border: `1px solid ${theme.border}`
-              }}>
-                <div>
-                  <div style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
-                    Waktu Terbit
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.1rem' }}>
-                    {selectedBroadcastDetail.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : '-'}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
-                    Batas Kedaluwarsa
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.1rem' }}>
-                    {selectedBroadcastDetail.expires_at ? new Date(selectedBroadcastDetail.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : 'Permanen / Tanpa Batas'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Specific Recipients List if applicable */}
-              {(() => {
-                let recipients: any[] = [];
-                if (selectedBroadcastDetail.target_recipients) {
-                  try {
-                    recipients = JSON.parse(selectedBroadcastDetail.target_recipients);
-                  } catch (e) {
-                    recipients = [];
-                  }
-                }
-                if (recipients.length > 0) {
-                  return (
-                    <div style={{
-                      padding: '0.75rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
-                      border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)'}`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.45rem'
-                    }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Users size={13} color="#3b82f6" />
-                        <span>Daftar Penerima Spesifik ({recipients.length}):</span>
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                        {recipients.map((rec: any, rIdx: number) => (
-                          <span
-                            key={rIdx}
-                            style={{
-                              fontSize: '0.68rem',
-                              padding: '0.22rem 0.55rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: rec.type === 'store' ? (isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)') : (isDark ? 'rgba(236, 72, 153, 0.2)' : 'rgba(236, 72, 153, 0.1)'),
-                              color: rec.type === 'store' ? (isDark ? '#93c5fd' : '#1d4ed8') : (isDark ? '#f472b6' : '#be185d'),
-                              fontWeight: 700,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}
-                          >
-                            {rec.type === 'store' ? '🏬' : '👤'} {rec.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-
-              {/* Message Summary Box */}
-              <div style={{
-                padding: '0.85rem',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                border: `1px solid ${theme.border}`,
+                padding: '1rem 1.25rem',
+                borderRadius: '1.1rem',
+                background: isDark 
+                  ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)' 
+                  : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
+                border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.2)'}`,
+                boxShadow: theme.cardShadow,
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '0.35rem'
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.85rem'
               }}>
-                <div style={{ fontSize: '0.66rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
-                  Ringkasan Notifikasi Masuk:
-                </div>
-                <div style={{ fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.55 }}>
-                  {selectedBroadcastDetail.message}
-                </div>
-              </div>
-
-              {/* Detail Article Content (Rich) - Matched to Merchant Notification View */}
-              {(selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message) && (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem'
-                }}>
-                  <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <FileText size={16} />
-                    <span>Isi Rincian Pengumuman &amp; Artikel Siaran:</span>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
                   <div style={{
-                    fontSize: '0.86rem',
-                    color: theme.textPrimary,
-                    lineHeight: 1.7,
-                    padding: '1.25rem',
-                    borderRadius: '0.95rem',
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                    border: `1px solid ${theme.border}`,
-                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)'
-                  }}>
-                    <FormattedText text={selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message} />
-                  </div>
-                </div>
-              )}
-
-              {/* Action CTA Button Preview based on active action_type */}
-              {(() => {
-                const actionType = selectedBroadcastDetail.action_type;
-                if (!actionType || actionType === 'none' || (!selectedBroadcastDetail.action_enabled && !selectedBroadcastDetail.detail_content && !selectedBroadcastDetail.action_url)) {
-                  return null;
-                }
-
-                // If action is purely 'detail', the rich content is already presented in the detail box above
-                if (actionType === 'detail') {
-                  return (
-                    <div style={{
-                      padding: '0.85rem 1rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)',
-                      border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.18)'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.65rem'
-                    }}>
-                      <FileText size={18} color="#f59e0b" style={{ flexShrink: 0 }} />
-                      <div>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706' }}>
-                          Aksi Sentuh Notifikasi: Buka Rincian Artikel
-                        </div>
-                        <div style={{ fontSize: '0.72rem', color: theme.textSecondary, marginTop: '0.1rem' }}>
-                          Saat notifikasi disentuh oleh merchant, aplikasi akan membuka popup modal rincian artikel lengkap seperti di atas.
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (actionType === 'navigate') {
-                  const getMenuLabel = (tab: string) => {
-                    switch (tab) {
-                      case 'settings': return 'Pengaturan Profil & Tampilan Merchant (settings)';
-                      case 'items': return 'Manajemen Inventaris & Item (items)';
-                      case 'subscription': return 'Paket Langganan & Billing (subscription)';
-                      case 'help': return 'Pusat Bantuan & Tiket (help)';
-                      case 'share': return 'Bagikan Katalog & QR Merchant (share)';
-                      case 'analytics': return 'Dashboard Analitik Merchant (analytics)';
-                      default: return tab ? `Menu ${tab}` : 'Pengaturan Merchant';
-                    }
-                  };
-
-                  return (
-                    <div style={{
-                      padding: '0.95rem 1.1rem',
-                      borderRadius: '0.95rem',
-                      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
-                      border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.28)' : 'rgba(59, 130, 246, 0.2)'}`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.45rem'
-                    }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#93c5fd' : '#2563eb', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                        Aksi Navigasi Internal (Tampil di Merchant):
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.75rem',
-                        backgroundColor: '#3b82f6',
-                        color: '#ffffff',
-                        fontWeight: 800,
-                        fontSize: '0.84rem',
-                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
-                      }}>
-                        <span>{selectedBroadcastDetail.action_label || 'Buka Menu Terkait →'}</span>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, opacity: 0.9 }}>
-                          🧭 Navigasi Menu
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.72rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
-                        Menu Tujuan: <strong style={{ color: theme.textPrimary }}>{getMenuLabel(selectedBroadcastDetail.link_sub_tab || 'settings')}</strong>
-                      </span>
-                    </div>
-                  );
-                }
-
-                if (actionType === 'external_link') {
-                  return (
-                    <div style={{
-                      padding: '0.95rem 1.1rem',
-                      borderRadius: '0.95rem',
-                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.05)',
-                      border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)'}`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.45rem'
-                    }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#6ee7b7' : '#059669', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                        Aksi Tautan Eksternal (Tampil di Merchant):
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.75rem',
-                        backgroundColor: '#10b981',
-                        color: '#ffffff',
-                        fontWeight: 800,
-                        fontSize: '0.84rem',
-                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
-                      }}>
-                        <span>{selectedBroadcastDetail.action_label || 'Buka Tautan Luar →'}</span>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, opacity: 0.9 }}>
-                          🌐 Tautan Luar
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.72rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
-                        URL Target: <a href={selectedBroadcastDetail.action_url?.startsWith('http') ? selectedBroadcastDetail.action_url : `https://${selectedBroadcastDetail.action_url || '#'}`} target="_blank" rel="noopener noreferrer" style={{ color: '#10b981', textDecoration: 'underline', fontWeight: 700 }}>{selectedBroadcastDetail.action_url || '-'}</a>
-                      </span>
-                    </div>
-                  );
-                }
-
-                return null;
-              })()}
-
-              {/* Bottom Danger Action: Hapus Siaran (Replaces redundant back button) */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.45rem',
-                marginTop: '0.5rem',
-                paddingTop: '1rem',
-                borderTop: `1px solid ${theme.border}`
-              }}>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteBroadcast(selectedBroadcastDetail.id)}
-                  style={{
-                    width: '100%',
-                    padding: '0.85rem 1rem',
+                    width: '42px',
+                    height: '42px',
                     borderRadius: '0.85rem',
-                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
-                    border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)'}`,
-                    color: '#ef4444',
-                    fontSize: '0.84rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
+                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    color: '#f59e0b',
+                    flexShrink: 0
+                  }}>
+                    <Megaphone size={22} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
+                      Rincian Siaran Platform
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                      Detail lengkap konten, segmentasi target, dan analitik keterbacaan siaran
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCloseBroadcastDetail}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
                     gap: '0.45rem',
-                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.08)',
+                    padding: '0.55rem 0.95rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: theme.surface,
+                    border: `1px solid ${theme.border}`,
+                    color: theme.textSecondary,
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <Trash2 size={16} />
-                  <span>Hapus Publikasi Siaran Ini</span>
+                  <ArrowLeft size={15} />
+                  <span>Kembali ke Riwayat</span>
                 </button>
-                <span style={{ fontSize: '0.68rem', color: theme.textMuted, textAlign: 'center' }}>
-                  Menghapus siaran akan mencabut pengumuman ini dari riwayat notifikasi penerima.
-                </span>
+              </div>
+
+              {/* Main Content Article Panel */}
+              <div style={{
+                padding: '1.5rem',
+                borderRadius: '1.15rem',
+                backgroundColor: theme.surface,
+                border: `1px solid ${theme.border}`,
+                boxShadow: theme.cardShadow,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem'
+              }}>
+                {/* Category, Target, Status & Read Stats Row */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', borderBottom: `1px solid ${theme.border}`, paddingBottom: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '0.2rem 0.65rem',
+                      borderRadius: '0.45rem',
+                      fontWeight: 800,
+                      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                      color: isDark ? '#fbbf24' : '#d97706',
+                      textTransform: 'uppercase'
+                    }}>
+                      {selectedBroadcastDetail.category || 'PENGUMUMAN'}
+                    </span>
+
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '0.2rem 0.65rem',
+                      borderRadius: '0.45rem',
+                      fontWeight: 800,
+                      backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                      color: isDark ? '#a5b4fc' : '#4f46e5'
+                    }}>
+                      TARGET: {selectedBroadcastDetail.target_type === 'all' 
+                        ? 'SEMUA MERCHANT (GLOBAL)' 
+                        : selectedBroadcastDetail.target_type === 'plan' 
+                          ? `PAKET ${(selectedBroadcastDetail.target_plan_code || 'PRO').toUpperCase()}` 
+                          : (selectedBroadcastDetail.target_name || 'PENERIMA SPESIFIK')}
+                    </span>
+
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '0.2rem 0.65rem',
+                      borderRadius: '0.45rem',
+                      fontWeight: 800,
+                      backgroundColor: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) 
+                        ? 'rgba(148, 163, 184, 0.15)' 
+                        : 'rgba(16, 185, 129, 0.15)',
+                      color: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) 
+                        ? '#94a3b8' 
+                        : '#10b981'
+                    }}>
+                      {(selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) ? '● Kedaluwarsa' : '● Sedang Tayang'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#3b82f6', fontWeight: 800 }}>
+                    <Eye size={16} />
+                    <span>{selectedBroadcastDetail.read_count || 0} Merchant Telah Membaca</span>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <h3 style={{
+                  margin: 0,
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  color: theme.textPrimary,
+                  lineHeight: 1.4
+                }}>
+                  {selectedBroadcastDetail.title}
+                </h3>
+
+                {/* Metadata Info Bar */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '0.75rem',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+                  border: `1px solid ${theme.border}`
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.64rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
+                      Waktu Terbit
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.15rem' }}>
+                      {selectedBroadcastDetail.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : '-'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '0.64rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
+                      Batas Kedaluwarsa
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.15rem' }}>
+                      {selectedBroadcastDetail.expires_at ? new Date(selectedBroadcastDetail.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : 'Permanen / Tanpa Batas'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Specific Recipients List if applicable */}
+                {(() => {
+                  let recipients: any[] = [];
+                  if (selectedBroadcastDetail.target_recipients) {
+                    try {
+                      recipients = JSON.parse(selectedBroadcastDetail.target_recipients);
+                    } catch (e) {
+                      recipients = [];
+                    }
+                  }
+                  if (recipients.length > 0) {
+                    return (
+                      <div style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
+                        border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)'}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.55rem'
+                      }}>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <Users size={15} color="#3b82f6" />
+                          <span>Daftar Penerima Spesifik ({recipients.length}):</span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                          {recipients.map((rec: any, rIdx: number) => (
+                            <span
+                              key={rIdx}
+                              style={{
+                                fontSize: '0.72rem',
+                                padding: '0.25rem 0.65rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: rec.type === 'store' ? (isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)') : (isDark ? 'rgba(236, 72, 153, 0.2)' : 'rgba(236, 72, 153, 0.1)'),
+                                color: rec.type === 'store' ? (isDark ? '#93c5fd' : '#1d4ed8') : (isDark ? '#f472b6' : '#be185d'),
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              {rec.type === 'store' ? <Store size={13} style={{ flexShrink: 0 }} /> : <User size={13} style={{ flexShrink: 0 }} />}
+                              <span>{rec.name}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Message Summary Box */}
+                <div style={{
+                  padding: '1rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+                  border: `1px solid ${theme.border}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.45rem'
+                }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
+                    Ringkasan Notifikasi Masuk:
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: theme.textPrimary, lineHeight: 1.6 }}>
+                    {selectedBroadcastDetail.message}
+                  </div>
+                </div>
+
+                {/* Detail Article Content (Rich) - Matched to Merchant Notification View */}
+                {(selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message) && (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.55rem'
+                  }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <FileText size={17} />
+                      <span>Isi Rincian Pengumuman &amp; Artikel Siaran:</span>
+                    </div>
+                    <div style={{
+                      fontSize: '0.88rem',
+                      color: theme.textPrimary,
+                      lineHeight: 1.75,
+                      padding: '1.35rem',
+                      borderRadius: '0.95rem',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+                      border: `1px solid ${theme.border}`,
+                      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)'
+                    }}>
+                      <FormattedText text={selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Action CTA Button Preview based on active action_type */}
+                {(() => {
+                  const actionType = selectedBroadcastDetail.action_type;
+                  if (!actionType || actionType === 'none' || (!selectedBroadcastDetail.action_enabled && !selectedBroadcastDetail.detail_content && !selectedBroadcastDetail.action_url)) {
+                    return null;
+                  }
+
+                  // If action is purely 'detail', the rich content is already presented in the detail box above
+                  if (actionType === 'detail') {
+                    return (
+                      <div style={{
+                        padding: '0.95rem 1.15rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)',
+                        border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.18)'}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem'
+                      }}>
+                        <FileText size={18} color="#f59e0b" style={{ flexShrink: 0 }} />
+                        <div>
+                          <div style={{ fontSize: '0.76rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706' }}>
+                            Aksi Sentuh Notifikasi: Buka Rincian Artikel
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
+                            Saat notifikasi disentuh oleh merchant, aplikasi akan membuka popup modal rincian artikel lengkap seperti di atas.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (actionType === 'navigate') {
+                    const getMenuLabel = (tab: string) => {
+                      switch (tab) {
+                        case 'settings': return 'Pengaturan Profil & Tampilan Merchant (settings)';
+                        case 'items': return 'Manajemen Inventaris & Item (items)';
+                        case 'subscription': return 'Paket Langganan & Billing (subscription)';
+                        case 'help': return 'Pusat Bantuan & Tiket (help)';
+                        case 'share': return 'Bagikan Katalog & QR Merchant (share)';
+                        case 'analytics': return 'Dashboard Analitik Merchant (analytics)';
+                        default: return tab ? `Menu ${tab}` : 'Pengaturan Merchant';
+                      }
+                    };
+
+                    return (
+                      <div style={{
+                        padding: '1rem 1.15rem',
+                        borderRadius: '0.95rem',
+                        backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
+                        border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.28)' : 'rgba(59, 130, 246, 0.2)'}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.55rem'
+                      }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#93c5fd' : '#2563eb', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                          Aksi Navigasi Internal (Tampil di Merchant):
+                        </div>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.75rem 1rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: '#3b82f6',
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          fontSize: '0.84rem',
+                          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
+                        }}>
+                          <span>{selectedBroadcastDetail.action_label || 'Buka Menu Terkait →'}</span>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, opacity: 0.9, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Layers size={13} />
+                            <span>Navigasi Menu</span>
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.74rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
+                          Menu Tujuan: <strong style={{ color: theme.textPrimary }}>{getMenuLabel(selectedBroadcastDetail.link_sub_tab || 'settings')}</strong>
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (actionType === 'external_link') {
+                    return (
+                      <div style={{
+                        padding: '1rem 1.15rem',
+                        borderRadius: '0.95rem',
+                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.05)',
+                        border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)'}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.55rem'
+                      }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#6ee7b7' : '#059669', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                          Aksi Tautan Eksternal (Tampil di Merchant):
+                        </div>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.75rem 1rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: '#10b981',
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          fontSize: '0.84rem',
+                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                        }}>
+                          <span>{selectedBroadcastDetail.action_label || 'Buka Tautan Luar →'}</span>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, opacity: 0.9, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <ExternalLink size={13} />
+                            <span>Tautan Luar</span>
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.74rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
+                          URL Target: <a href={selectedBroadcastDetail.action_url?.startsWith('http') ? selectedBroadcastDetail.action_url : `https://${selectedBroadcastDetail.action_url || '#'}`} target="_blank" rel="noopener noreferrer" style={{ color: '#10b981', textDecoration: 'underline', fontWeight: 700 }}>{selectedBroadcastDetail.action_url || '-'}</a>
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })()}
+
+                {/* Bottom Danger Action: Hapus Siaran (Proportional desktop button) */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginTop: '0.5rem',
+                  paddingTop: '1.25rem',
+                  borderTop: `1px solid ${theme.border}`,
+                  flexWrap: 'wrap',
+                  gap: '0.75rem'
+                }}>
+                  <span style={{ fontSize: '0.74rem', color: theme.textMuted }}>
+                    Menghapus siaran akan mencabut pengumuman ini dari riwayat notifikasi penerima.
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteBroadcast(selectedBroadcastDetail.id)}
+                    style={{
+                      padding: '0.65rem 1.35rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+                      border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)'}`,
+                      color: '#ef4444',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      boxShadow: '0 2px 8px rgba(239, 68, 68, 0.08)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Trash2 size={15} />
+                    <span>Hapus Publikasi Siaran Ini</span>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
           ) : (
             <div style={{
               display: 'flex',
@@ -11137,42 +11269,106 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ===================================================================== */
           /* 4C. BROADCAST LIST VIEW (CLEAN & DEDICATED)                           */
           /* ===================================================================== */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.25s ease-out', maxWidth: '1280px', margin: '0 auto', width: '100%', paddingBottom: '2.5rem' }}>
+            {/* Header / Intro Card with Action */}
+            <div style={{
+              padding: '1rem 1.25rem',
+              borderRadius: '1.1rem',
+              background: isDark 
+                ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)' 
+                : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
+              border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.2)'}`,
+              boxShadow: theme.cardShadow,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.85rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '0.85rem',
+                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#f59e0b',
+                  flexShrink: 0
+                }}>
+                  <Megaphone size={22} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
+                    Riwayat &amp; Manajemen Siaran
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                    Kelola pengumuman massal, segmentasi target merchant, dan pantau keterbacaan
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenCreateBroadcast}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.6rem 1.15rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: '#f59e0b',
+                  color: '#000000',
+                  fontWeight: 800,
+                  fontSize: '0.82rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
+                  transition: 'all 0.15s ease',
+                  flexShrink: 0
+                }}
+              >
+                <Plus size={16} />
+                <span>Buat Siaran Baru</span>
+              </button>
+            </div>
+
             {/* Quick Metrics Bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.55rem' }}>
-              <div style={{ padding: '0.75rem 0.6rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, textAlign: 'center' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#f59e0b' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem' }}>
+              <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#f59e0b' }}>
                   {broadcastMetrics.total_broadcasts || broadcasts.length}
                 </div>
-                <div style={{ fontSize: '0.66rem', fontWeight: 700, color: theme.textSecondary }}>
-                  Total Siaran
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
+                  Total Riwayat Siaran
                 </div>
-                <div style={{ fontSize: '0.58rem', color: theme.textMuted, marginTop: '0.1rem' }}>
-                  Semua Riwayat
+                <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                  Semua pengumuman yang pernah diterbitkan
                 </div>
               </div>
 
-              <div style={{ padding: '0.75rem 0.6rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, textAlign: 'center' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#10b981' }}>
+              <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#10b981' }}>
                   {broadcastMetrics.active_broadcasts}
                 </div>
-                <div style={{ fontSize: '0.66rem', fontWeight: 700, color: theme.textSecondary }}>
-                  Siaran Aktif
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
+                  Siaran Aktif Saat Ini
                 </div>
-                <div style={{ fontSize: '0.58rem', color: theme.textMuted, marginTop: '0.1rem' }}>
-                  Tayang Realtime
+                <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                  Tayang di lonceng &amp; banner merchant
                 </div>
               </div>
 
-              <div style={{ padding: '0.75rem 0.6rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, textAlign: 'center' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#6366f1' }}>
+              <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#6366f1' }}>
                   {broadcastMetrics.targeted_broadcasts ?? broadcasts.filter(b => b.target_type && b.target_type !== 'all').length}
                 </div>
-                <div style={{ fontSize: '0.66rem', fontWeight: 700, color: theme.textSecondary }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
                   Target Khusus
                 </div>
-                <div style={{ fontSize: '0.58rem', color: theme.textMuted, marginTop: '0.1rem' }}>
-                  Paket / Spesifik
+                <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                  Berdasarkan paket tier atau akun spesifik
                 </div>
               </div>
             </div>
@@ -11180,60 +11376,111 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {/* Filter & Search Bar */}
             <div style={{
               display: 'flex',
-              flexDirection: 'column',
-              gap: '0.65rem',
-              padding: '0.85rem',
-              borderRadius: '0.95rem',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.85rem',
+              padding: '0.85rem 1rem',
+              borderRadius: '1rem',
               backgroundColor: theme.surface,
               border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow
+              boxShadow: theme.cardShadow,
+              flexWrap: 'wrap'
             }}>
               {/* Status Filter Chips */}
-              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
                 {(['all', 'active', 'expired'] as const).map(st => (
                   <button
                     key={st}
                     type="button"
-                    onClick={() => setBroadcastStatusFilter(st)}
+                    onClick={() => {
+                      setBroadcastStatusFilter(st);
+                      setBroadcastPage(1);
+                    }}
                     style={{
-                      padding: '0.35rem 0.75rem',
+                      padding: '0.45rem 0.85rem',
                       borderRadius: '0.65rem',
-                      fontSize: '0.74rem',
+                      fontSize: '0.76rem',
                       fontWeight: broadcastStatusFilter === st ? 800 : 600,
                       border: `1px solid ${broadcastStatusFilter === st ? '#f59e0b' : theme.border}`,
                       backgroundColor: broadcastStatusFilter === st ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
                       color: broadcastStatusFilter === st ? (isDark ? '#fbbf24' : '#d97706') : theme.textSecondary,
                       cursor: 'pointer',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    {st === 'all' && `Semua (${broadcasts.length})`}
+                    {st === 'all' && `Semua (${broadcastMetrics.total_broadcasts || broadcasts.length})`}
                     {st === 'active' && `Aktif (${broadcastMetrics.active_broadcasts || 0})`}
                     {st === 'expired' && 'Kedaluwarsa'}
                   </button>
                 ))}
               </div>
 
-              {/* Search Box */}
-              <div style={{ position: 'relative' }}>
-                <Search size={14} color={theme.textMuted} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="text"
-                  placeholder="Cari judul, pesan, atau kategori..."
-                  value={broadcastSearchQuery}
-                  onChange={e => setBroadcastSearchQuery(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem 0.55rem 2.2rem',
-                    borderRadius: '0.7rem',
-                    border: `1px solid ${theme.inputBorder}`,
-                    backgroundColor: theme.inputBg,
-                    color: theme.textPrimary,
-                    fontSize: '0.78rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
+              {/* Search & Limit Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: '320px', flex: 1, justifyContent: 'flex-end' }}>
+                {/* Search Box */}
+                <div style={{ position: 'relative', width: '100%', maxWidth: '340px' }}>
+                  <Search size={15} color={theme.textMuted} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    placeholder="Cari judul, pesan, atau kategori..."
+                    value={broadcastSearchQuery}
+                    onChange={e => {
+                      setBroadcastSearchQuery(e.target.value);
+                      setBroadcastPage(1);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.85rem 0.55rem 2.35rem',
+                      borderRadius: '0.75rem',
+                      border: `1px solid ${theme.inputBorder}`,
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                      fontSize: '0.8rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {broadcastSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setBroadcastSearchQuery('')}
+                      style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 0 }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Limit Selector */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                  <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Tampilkan:</span>
+                  <select
+                    value={broadcastLimit}
+                    onChange={e => {
+                      const newLimit = parseInt(e.target.value, 10) || 10;
+                      setBroadcastLimit(newLimit);
+                      setBroadcastPage(1);
+                      fetchBroadcasts(1, newLimit);
+                    }}
+                    style={{
+                      padding: '0.5rem 0.65rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: theme.inputBg,
+                      border: `1px solid ${theme.inputBorder}`,
+                      color: theme.textPrimary,
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -11306,170 +11553,364 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 )}
               </div>
             ) : (
-              broadcasts.map(b => {
-                const isTargetAll = !b.target_type || b.target_type === 'all';
-                const isTargetSpecific = b.target_type === 'single_store' || b.target_type === 'single_user';
-                const isTargetTier = b.target_type === 'tier_free' || b.target_type === 'tier_pro';
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))',
+                gap: '1rem',
+                alignItems: 'stretch'
+              }}>
+                {broadcasts.map(b => {
+                  const isTargetAll = !b.target_type || b.target_type === 'all';
+                  const isTargetSpecific = b.target_type === 'single_store' || b.target_type === 'single_user' || b.target_type === 'specific';
+                  const isTargetTier = b.target_type === 'tier_free' || b.target_type === 'tier_pro' || b.target_type === 'plan';
 
-                return (
-                  <div
-                    key={b.id}
-                    style={{
-                      padding: '0.95rem 1rem',
-                      borderRadius: '1rem',
-                      backgroundColor: theme.surface,
-                      border: `1px solid ${theme.border}`,
-                      boxShadow: theme.cardShadow,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.55rem'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                        <span style={{
-                          fontSize: '0.62rem',
-                          padding: '0.12rem 0.5rem',
-                          borderRadius: '0.4rem',
-                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                          color: isDark ? '#fbbf24' : '#d97706',
-                          fontWeight: 800
+                  return (
+                    <div
+                      key={b.id}
+                      style={{
+                        padding: '1.15rem',
+                        borderRadius: '1.05rem',
+                        backgroundColor: theme.surface,
+                        border: `1px solid ${theme.border}`,
+                        boxShadow: theme.cardShadow,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '0.66rem',
+                              padding: '0.15rem 0.55rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                              color: isDark ? '#fbbf24' : '#d97706',
+                              fontWeight: 800,
+                              textTransform: 'uppercase'
+                            }}>
+                              {b.category || 'PENGUMUMAN'}
+                            </span>
+
+                            <span style={{
+                              fontSize: '0.66rem',
+                              padding: '0.15rem 0.55rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: isTargetAll ? 'rgba(16, 185, 129, 0.12)' : (isTargetTier ? 'rgba(99, 102, 241, 0.12)' : 'rgba(236, 72, 153, 0.12)'),
+                              color: isTargetAll ? '#10b981' : (isTargetTier ? '#6366f1' : '#ec4899'),
+                              fontWeight: 800
+                            }}>
+                              {isTargetAll && 'SEMUA'}
+                              {(b.target_type === 'tier_free' || b.target_plan_code === 'free') && 'FREE TIER'}
+                              {(b.target_type === 'tier_pro' || b.target_plan_code === 'pro') && 'PRO TIER'}
+                              {(b.target_type === 'single_store' || b.target_type === 'single_user' || b.target_type === 'specific') && (b.target_name || 'SPESIFIK')}
+                            </span>
+
+                            <span style={{
+                              fontSize: '0.66rem',
+                              padding: '0.15rem 0.55rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: (b.expires_at && new Date(b.expires_at) <= new Date()) ? 'rgba(148, 163, 184, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                              color: (b.expires_at && new Date(b.expires_at) <= new Date()) ? '#94a3b8' : '#10b981',
+                              fontWeight: 800
+                            }}>
+                              {(b.expires_at && new Date(b.expires_at) <= new Date()) ? 'Kedaluwarsa' : 'Aktif'}
+                            </span>
+                          </div>
+
+                          <span style={{ fontSize: '0.68rem', color: theme.textMuted, whiteSpace: 'nowrap' }}>
+                            {formatSupportDateTime(b.created_at)}
+                          </span>
+                        </div>
+
+                        <h5 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.35 }}>
+                          {b.title}
+                        </h5>
+
+                        <p style={{
+                          margin: 0,
+                          fontSize: '0.78rem',
+                          color: theme.textSecondary,
+                          lineHeight: 1.5,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
                         }}>
-                          {b.category || 'PENGUMUMAN'}
-                        </span>
-
-                        <span style={{
-                          fontSize: '0.62rem',
-                          padding: '0.12rem 0.5rem',
-                          borderRadius: '0.4rem',
-                          backgroundColor: isTargetAll ? 'rgba(16, 185, 129, 0.12)' : (isTargetTier ? 'rgba(99, 102, 241, 0.12)' : 'rgba(236, 72, 153, 0.12)'),
-                          color: isTargetAll ? '#10b981' : (isTargetTier ? '#6366f1' : '#ec4899'),
-                          fontWeight: 800
-                        }}>
-                          {isTargetAll && 'SEMUA'}
-                          {b.target_type === 'tier_free' && 'FREE TIER'}
-                          {b.target_type === 'tier_pro' && 'PRO TIER'}
-                          {b.target_type === 'single_store' && (b.target_name || 'MERCHANT')}
-                          {b.target_type === 'single_user' && (b.target_name || 'USER')}
-                        </span>
+                          {b.message}
+                        </p>
                       </div>
 
-                      <span style={{ fontSize: '0.66rem', color: theme.textMuted, whiteSpace: 'nowrap' }}>
-                        {formatSupportDateTime(b.created_at)}
-                      </span>
-                    </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.65rem', borderTop: `1px solid ${theme.border}`, marginTop: '0.35rem' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700 }}>
+                          <Eye size={14} />
+                          <span>{b.read_count || 0} Pembaca</span>
+                        </div>
 
-                    <h5 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                      {b.title}
-                    </h5>
+                        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBroadcastDetail(b)}
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '0.6rem',
+                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                              border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
+                              color: isDark ? '#38bdf8' : '#0284c7',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <FileText size={13} />
+                            <span>Rincian</span>
+                          </button>
 
-                    <p style={{
-                      margin: 0,
-                      fontSize: '0.74rem',
-                      color: theme.textSecondary,
-                      lineHeight: 1.45,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
-                      {b.message}
-                    </p>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.35rem', borderTop: `1px solid ${theme.border}` }}>
-                      <div style={{ fontSize: '0.68rem', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span>Status: <strong style={{ color: b.is_active !== false ? '#10b981' : '#94a3b8' }}>{b.is_active !== false ? 'Tayang' : 'Nonaktif'}</strong></span>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button
-                          onClick={() => handleOpenBroadcastDetail(b)}
-                          style={{
-                            padding: '0.28rem 0.65rem',
-                            borderRadius: '0.55rem',
-                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
-                            color: isDark ? '#38bdf8' : '#0284c7',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.2rem'
-                          }}
-                        >
-                          <FileText size={12} />
-                          <span>Rincian</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleDeleteBroadcast(b.id)}
-                          style={{
-                            padding: '0.28rem 0.55rem',
-                            borderRadius: '0.55rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            border: '1px solid rgba(239, 68, 68, 0.25)',
-                            color: '#ef4444',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.2rem'
-                          }}
-                        >
-                          <Trash2 size={12} />
-                          <span>Hapus</span>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBroadcast(b.id)}
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '0.6rem',
+                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              color: '#ef4444',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <Trash2 size={13} />
+                            <span>Hapus</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
 
-            {/* Pagination Controls */}
-            {broadcastTotalPages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.4rem', padding: '0.35rem 0' }}>
+            {/* Enterprise Comprehensive Data Table Pagination Bar */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.95rem 1.15rem',
+              borderRadius: '1rem',
+              backgroundColor: theme.surface,
+              border: `1px solid ${theme.border}`,
+              boxShadow: theme.cardShadow,
+              flexWrap: 'wrap',
+              gap: '0.85rem'
+            }}>
+              {/* Left: Summary */}
+              <div style={{ fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600 }}>
+                Menampilkan{' '}
+                <strong style={{ color: theme.textPrimary }}>
+                  {broadcastTotalItems > 0 ? (broadcastPage - 1) * broadcastLimit + 1 : 0}
+                </strong>{' '}
+                –{' '}
+                <strong style={{ color: theme.textPrimary }}>
+                  {Math.min(broadcastPage * broadcastLimit, broadcastTotalItems)}
+                </strong>{' '}
+                dari{' '}
+                <strong style={{ color: theme.textPrimary }}>
+                  {broadcastTotalItems}
+                </strong>{' '}
+                siaran
+              </div>
+
+              {/* Center: Page Navigation Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                 <button
+                  type="button"
                   disabled={broadcastPage <= 1 || isFetchingBroadcasts}
-                  onClick={() => fetchBroadcasts(broadcastPage - 1)}
+                  onClick={() => fetchBroadcasts(1)}
                   style={{
-                    padding: '0.45rem 0.85rem',
+                    padding: '0.42rem 0.75rem',
                     borderRadius: '0.65rem',
-                    backgroundColor: theme.surface,
+                    backgroundColor: theme.cardAlt,
                     border: `1px solid ${theme.border}`,
                     color: broadcastPage <= 1 ? theme.textMuted : theme.textPrimary,
                     fontSize: '0.74rem',
                     fontWeight: 700,
                     cursor: broadcastPage <= 1 ? 'not-allowed' : 'pointer'
                   }}
+                  title="Halaman Pertama"
                 >
-                  ← Sebelumnya
+                  « Awal
                 </button>
 
-                <span style={{ fontSize: '0.74rem', color: theme.textSecondary, fontWeight: 700 }}>
-                  Halaman {broadcastPage} dari {broadcastTotalPages}
-                </span>
+                <button
+                  type="button"
+                  disabled={broadcastPage <= 1 || isFetchingBroadcasts}
+                  onClick={() => fetchBroadcasts(broadcastPage - 1)}
+                  style={{
+                    padding: '0.42rem 0.75rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: theme.cardAlt,
+                    border: `1px solid ${theme.border}`,
+                    color: broadcastPage <= 1 ? theme.textMuted : theme.textPrimary,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: broadcastPage <= 1 ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Halaman Sebelumnya"
+                >
+                  ‹ Prev
+                </button>
+
+                {(() => {
+                  const pages: (number | string)[] = [];
+                  if (broadcastTotalPages <= 7) {
+                    for (let i = 1; i <= broadcastTotalPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (broadcastPage > 3) pages.push('ellipsis-start');
+                    const start = Math.max(2, broadcastPage - 1);
+                    const end = Math.min(broadcastTotalPages - 1, broadcastPage + 1);
+                    for (let i = start; i <= end; i++) {
+                      if (!pages.includes(i)) pages.push(i);
+                    }
+                    if (broadcastPage < broadcastTotalPages - 2) pages.push('ellipsis-end');
+                    if (!pages.includes(broadcastTotalPages)) pages.push(broadcastTotalPages);
+                  }
+
+                  return pages.map((p, idx) => {
+                    if (typeof p === 'string') {
+                      return (
+                        <span key={`el-${idx}`} style={{ padding: '0 0.25rem', color: theme.textMuted, fontSize: '0.8rem' }}>
+                          …
+                        </span>
+                      );
+                    }
+                    const isActive = p === broadcastPage;
+                    return (
+                      <button
+                        key={`page-${p}`}
+                        type="button"
+                        onClick={() => fetchBroadcasts(p)}
+                        style={{
+                          minWidth: '32px',
+                          height: '32px',
+                          padding: '0 0.5rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: isActive ? '#f59e0b' : theme.cardAlt,
+                          border: `1px solid ${isActive ? '#f59e0b' : theme.border}`,
+                          color: isActive ? '#000000' : theme.textPrimary,
+                          fontSize: '0.76rem',
+                          fontWeight: isActive ? 800 : 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {p}
+                      </button>
+                    );
+                  });
+                })()}
 
                 <button
+                  type="button"
                   disabled={broadcastPage >= broadcastTotalPages || isFetchingBroadcasts}
                   onClick={() => fetchBroadcasts(broadcastPage + 1)}
                   style={{
-                    padding: '0.45rem 0.85rem',
+                    padding: '0.42rem 0.75rem',
                     borderRadius: '0.65rem',
-                    backgroundColor: theme.surface,
+                    backgroundColor: theme.cardAlt,
                     border: `1px solid ${theme.border}`,
                     color: broadcastPage >= broadcastTotalPages ? theme.textMuted : theme.textPrimary,
                     fontSize: '0.74rem',
                     fontWeight: 700,
                     cursor: broadcastPage >= broadcastTotalPages ? 'not-allowed' : 'pointer'
                   }}
+                  title="Halaman Selanjutnya"
                 >
-                  Selanjutnya →
+                  Next ›
+                </button>
+
+                <button
+                  type="button"
+                  disabled={broadcastPage >= broadcastTotalPages || isFetchingBroadcasts}
+                  onClick={() => fetchBroadcasts(broadcastTotalPages)}
+                  style={{
+                    padding: '0.42rem 0.75rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: theme.cardAlt,
+                    border: `1px solid ${theme.border}`,
+                    color: broadcastPage >= broadcastTotalPages ? theme.textMuted : theme.textPrimary,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: broadcastPage >= broadcastTotalPages ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Halaman Terakhir"
+                >
+                  Akhir »
                 </button>
               </div>
-            )}
+
+              {/* Right: Quick Jump */}
+              <form
+                onSubmit={e => {
+                  e.preventDefault();
+                  const p = parseInt(broadcastJumpPage, 10);
+                  if (!isNaN(p) && p >= 1 && p <= broadcastTotalPages) {
+                    fetchBroadcasts(p);
+                    setBroadcastJumpPage('');
+                  } else {
+                    showToast(`Halaman harus antara 1 dan ${broadcastTotalPages}`, 'error');
+                  }
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Lompat:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={broadcastTotalPages}
+                  placeholder={String(broadcastPage)}
+                  value={broadcastJumpPage}
+                  onChange={e => setBroadcastJumpPage(e.target.value)}
+                  style={{
+                    width: '46px',
+                    padding: '0.35rem 0.4rem',
+                    borderRadius: '0.55rem',
+                    border: `1px solid ${theme.inputBorder}`,
+                    backgroundColor: theme.inputBg,
+                    color: theme.textPrimary,
+                    fontSize: '0.76rem',
+                    textAlign: 'center',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  type="submit"
+                  style={{
+                    padding: '0.38rem 0.65rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                    border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Buka
+                </button>
+              </form>
+            </div>
           </div>
         )
       )}
@@ -15677,102 +16118,156 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         );
       })()}
 
-      {/* LUXURY MOBILE BOTTOM SHEET: CRUD FORM DROPDOWN PICKER */}
+      {/* LUXURY DESKTOP CENTERED MODAL: CRUD FORM DROPDOWN PICKER */}
       {crudDropdownPicker && (
         <div 
-          className="bottom-sheet-backdrop" 
+          id="desktop-crud-dropdown-overlay"
           style={{ 
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             zIndex: 11000,
             backgroundColor: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.5)',
-            backdropFilter: 'blur(4px)'
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            animation: 'fadeIn 0.18s ease-out'
           }}
           onClick={() => setCrudDropdownPicker(null)}
         >
           <div 
-            className="bottom-sheet-content" 
+            id="desktop-crud-dropdown-panel"
             onClick={(e) => e.stopPropagation()}
             style={{
               backgroundColor: theme.surface,
-              borderColor: theme.border,
-              color: theme.textPrimary,
-              transform: `translateY(${Math.max(0, dropdownDragY)}px)`,
-              transition: isDropdownDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+              border: `1px solid ${theme.borderStrong || theme.border}`,
+              borderRadius: '1.25rem',
+              boxShadow: isDark ? '0 25px 50px -12px rgba(0, 0, 0, 0.65)' : '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              width: '100%',
+              maxWidth: '560px',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              animation: 'scaleUp 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
           >
-            {/* Smooth Drag Handle Bar */}
-            <div 
-              className="bottom-sheet-handle-bar"
-              onTouchStart={(e) => handleDropdownDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleDropdownDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleDropdownDragEnd}
-              onMouseDown={(e) => handleDropdownDragStart(e.clientY)}
-              onMouseMove={(e) => handleDropdownDragMove(e.clientY)}
-              onMouseUp={handleDropdownDragEnd}
-            >
-              <div className="bottom-sheet-handle" style={{ backgroundColor: theme.borderStrong }} />
-            </div>
-
-            {/* Header (No Close X button as per design spec - dismiss by drag, click outside, or selection) */}
-            <div 
-              className="bottom-sheet-header"
-              onTouchStart={(e) => handleDropdownDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleDropdownDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleDropdownDragEnd}
-              onMouseDown={(e) => handleDropdownDragStart(e.clientY)}
-              onMouseMove={(e) => handleDropdownDragMove(e.clientY)}
-              onMouseUp={handleDropdownDragEnd}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${theme.border}`, padding: '0.5rem 1rem 0.75rem' }}
-            >
-              <div className="bottom-sheet-title-box">
+            {/* Header with Title, Icon, Subtitle, and Clean Close Button */}
+            <div style={{
+              padding: '1.1rem 1.25rem',
+              borderBottom: `1px solid ${theme.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
                 {crudDropdownPicker.icon ? (
-                  <crudDropdownPicker.icon size={18} style={{ color: 'var(--primary, #f59e0b)', flexShrink: 0 }} />
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#f59e0b',
+                    flexShrink: 0
+                  }}>
+                    <crudDropdownPicker.icon size={20} />
+                  </div>
                 ) : (
-                  <Layers size={18} style={{ color: 'var(--primary, #f59e0b)', flexShrink: 0 }} />
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#f59e0b',
+                    flexShrink: 0
+                  }}>
+                    <Layers size={20} />
+                  </div>
                 )}
-                <div>
-                  <h3 className="bottom-sheet-title" style={{ color: theme.textPrimary }}>{crudDropdownPicker.title}</h3>
+                <div style={{ minWidth: 0 }}>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.3 }}>
+                    {crudDropdownPicker.title}
+                  </h3>
                   {crudDropdownPicker.subtitle && (
-                    <span style={{ fontSize: '0.68rem', color: theme.textSecondary, fontWeight: 500 }}>
+                    <p style={{ margin: '0.15rem 0 0', fontSize: '0.75rem', color: theme.textSecondary, lineHeight: 1.35 }}>
                       {crudDropdownPicker.subtitle}
-                    </span>
+                    </p>
                   )}
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setCrudDropdownPicker(null)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '0.65rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                  color: theme.textSecondary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  flexShrink: 0
+                }}
+                title="Tutup (Esc)"
+              >
+                <X size={16} />
+              </button>
             </div>
 
             {/* Scrollable Body */}
-            <div className="bottom-sheet-scrollable-body" style={{ maxHeight: '60vh', padding: '0.5rem 1rem 1.25rem' }}>
+            <div style={{
+              padding: '0.85rem 1.15rem 1.15rem',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              maxHeight: 'calc(85vh - 90px)'
+            }}>
               {crudDropdownPicker.options.map((opt) => {
                 const isSelected = crudDropdownPicker.selectedValue === opt.value;
                 const isInfoExpanded = expandedDropdownInfoValue === opt.value;
                 const explanationText = opt.info || opt.desc;
+                const OptIcon = opt.icon;
 
                 return (
-                  <div key={String(opt.value)} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                  <div key={String(opt.value)} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <button
                       type="button"
-                      className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
                       style={{
-                        margin: 0,
+                        width: '100%',
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.85rem',
+                        border: `1.5px solid ${isSelected ? '#f59e0b' : (opt.isAction ? 'var(--primary, #f59e0b)' : theme.border)}`,
+                        borderStyle: opt.isAction ? 'dashed' : 'solid',
+                        backgroundColor: isSelected 
+                          ? (isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.08)')
+                          : (isDark ? 'rgba(255,255,255,0.02)' : '#ffffff'),
+                        color: theme.textPrimary,
+                        cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        gap: '0.75rem',
-                        backgroundColor: isSelected 
-                          ? (isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.08)')
-                          : opt.isAction 
-                            ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.04)')
-                            : (isDark ? 'rgba(255,255,255,0.02)' : '#ffffff'),
-                        borderColor: isSelected 
-                          ? 'var(--primary, #f59e0b)' 
-                          : opt.isAction 
-                            ? 'var(--primary, #f59e0b)' 
-                            : theme.border,
-                        borderStyle: opt.isAction ? 'dashed' : 'solid',
-                        color: theme.textPrimary,
-                        cursor: 'pointer',
-                        borderRadius: '0.75rem',
-                        padding: '0.8rem 1rem',
+                        gap: '0.85rem',
+                        textAlign: 'left',
                         transition: 'all 0.15s ease'
                       }}
                       onClick={() => {
@@ -15780,62 +16275,59 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         setCrudDropdownPicker(null);
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                        {opt.icon && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: 1 }}>
+                        {OptIcon && (
                           <div style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '0.55rem',
-                            backgroundColor: isSelected ? 'rgba(245, 158, 11, 0.2)' : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '0.65rem',
+                            backgroundColor: isSelected 
+                              ? 'rgba(245, 158, 11, 0.2)' 
+                              : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: isSelected ? '#f59e0b' : (opt.badgeColor || theme.textSecondary),
                             flexShrink: 0
                           }}>
-                            <opt.icon size={16} />
+                            <OptIcon size={18} />
                           </div>
                         )}
-                        <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', minWidth: 0, flex: 1, gap: '0.2rem' }}>
-                          <span style={{ 
-                            color: opt.isAction ? 'var(--primary, #f59e0b)' : (isSelected ? 'var(--primary, #f59e0b)' : theme.textPrimary), 
-                            fontWeight: isSelected || opt.isAction ? 800 : 700,
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, gap: '0.2rem' }}>
+                          <div style={{
                             fontSize: '0.88rem',
-                            lineHeight: 1.35,
-                            whiteSpace: 'normal',
-                            wordBreak: 'break-word'
+                            fontWeight: isSelected || opt.isAction ? 800 : 700,
+                            color: isSelected || opt.isAction ? '#f59e0b' : theme.textPrimary,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            flexWrap: 'wrap'
                           }}>
-                            {opt.label}
-                          </span>
+                            <span>{opt.label}</span>
+                            {opt.badge && (
+                              <span style={{
+                                fontSize: '0.64rem',
+                                padding: '0.12rem 0.45rem',
+                                borderRadius: '0.35rem',
+                                fontWeight: 800,
+                                backgroundColor: opt.badgeColor ? `${opt.badgeColor}22` : (isSelected ? 'rgba(245, 158, 11, 0.25)' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)')),
+                                color: opt.badgeColor || (isSelected ? '#f59e0b' : theme.textSecondary),
+                                border: `1px solid ${opt.badgeColor ? `${opt.badgeColor}44` : theme.border}`
+                              }}>
+                                {opt.badge}
+                              </span>
+                            )}
+                          </div>
                           {opt.desc && (
                             <span style={{
                               color: theme.textSecondary,
                               fontSize: '0.74rem',
-                              lineHeight: 1.4,
-                              whiteSpace: 'normal',
-                              wordBreak: 'break-word'
+                              lineHeight: 1.35
                             }}>
                               {opt.desc}
                             </span>
                           )}
                         </div>
-                        {opt.badge && (
-                          <span 
-                            style={{
-                              backgroundColor: opt.badgeColor ? `${opt.badgeColor}22` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'),
-                              color: opt.badgeColor || theme.textSecondary,
-                              border: `1px solid ${opt.badgeColor ? `${opt.badgeColor}44` : theme.border}`,
-                              fontSize: '0.62rem',
-                              padding: '0.1rem 0.45rem',
-                              borderRadius: '999px',
-                              fontWeight: 700,
-                              flexShrink: 0,
-                              letterSpacing: '0.02em'
-                            }}
-                          >
-                            {opt.badge}
-                          </span>
-                        )}
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexShrink: 0 }}>
@@ -15874,44 +16366,38 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           </div>
                         )}
 
-                        <div 
-                          className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}
-                          style={{
-                            width: '18px',
-                            height: '18px',
-                            borderRadius: '50%',
-                            border: `2px solid ${isSelected ? 'var(--primary, #f59e0b)' : theme.borderStrong}`,
-                            backgroundColor: isSelected ? 'var(--primary, #f59e0b)' : 'transparent',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}
-                        >
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          border: `2px solid ${isSelected ? '#f59e0b' : (theme.borderStrong || theme.border)}`,
+                          backgroundColor: isSelected ? '#f59e0b' : 'transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
                           {isSelected && (
-                            <Check size={11} strokeWidth={3.5} style={{ color: '#ffffff' }} />
+                            <Check size={12} strokeWidth={3.5} style={{ color: '#000000' }} />
                           )}
                         </div>
                       </div>
                     </button>
 
-                    {/* Elegant Expandable Info Explanation Card */}
                     {explanationText && isInfoExpanded && (
-                      <div
-                        style={{
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.7)' : 'rgba(241, 245, 249, 0.95)',
-                          border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '0.55rem',
-                          fontSize: '0.74rem',
-                          lineHeight: 1.45,
-                          color: theme.textSecondary,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
-                        }}
-                      >
+                      <div style={{
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.7)' : 'rgba(241, 245, 249, 0.95)',
+                        border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.55rem',
+                        fontSize: '0.74rem',
+                        lineHeight: 1.45,
+                        color: theme.textSecondary,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
+                      }}>
                         <Info size={15} style={{ color: isDark ? '#38bdf8' : '#0284c7', flexShrink: 0, marginTop: '2px' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 800, color: theme.textPrimary, marginBottom: '0.15rem' }}>
