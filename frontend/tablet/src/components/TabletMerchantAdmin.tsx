@@ -1593,6 +1593,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   useEffect(() => {
     const handlePopState = () => {
       if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      if (path === '/catalogs' || path === '/select-catalog' || path === '/stores') {
+        setShowStoreChooserModal(true);
+        fetchUserStores();
+        return;
+      } else {
+        setShowStoreChooserModal(false);
+      }
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab') as TabletMerchantTab;
       const validTabs: TabletMerchantTab[] = [
@@ -1625,7 +1633,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [fetchUserStores]);
 
   const updateProductAttribute = (field: string, value: any) => {
     setProductForm(prev => ({

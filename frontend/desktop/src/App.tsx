@@ -5483,6 +5483,15 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const desktopFetchTicketsPingRef = useRef<(() => void) | null>(null);
   // checkTokenValidity dideklarasikan setelah effect resync idle, jadi via ref
   const desktopCheckTokenValidityRef = useRef<((force?: boolean) => void) | null>(null);
+  const desktopVerifiedTokenRef = useRef<string | null>(null);
+  const desktopLastTokenCheckTimeRef = useRef<number>(0);
+  const desktopLastQuotaFetchTimeRef = useRef<number>(0);
+  const desktopLastLoadedSlugRef = useRef<string | null>(null);
+  const desktopLastLoadedTimeRef = useRef<number>(0);
+  const portalTabRef = useRef(portalTab);
+  portalTabRef.current = portalTab;
+  const storeSlugRef = useRef(storeSlug);
+  storeSlugRef.current = storeSlug;
   const desktopIsFetchingTicketsRef = useRef<boolean>(false);
   const desktopLastTicketsFetchTimeRef = useRef<number>(0);
   const desktopIsFetchingTicketDetailsRef = useRef<string | number | null>(null);
@@ -7515,6 +7524,8 @@ Terima kasih.`;
   const [adminUser, setAdminUser] = useState<{id?: number, name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[], has_custom_password?: boolean, is_password_changed?: boolean} | null>(
     localStorage.getItem('catavor_user') ? JSON.parse(localStorage.getItem('catavor_user')!) : null
   )
+  const adminUserRef = useRef(adminUser);
+  adminUserRef.current = adminUser;
   const [isPasswordChanged, setIsPasswordChanged] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     try {
@@ -10361,7 +10372,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setAdminUser(null)
       setIsPasswordChanged(false)
     }
-  }, [adminUser, token])
+  }, [token])
 
   // Auto-open fauna item modal if ?item=ID is in URL or /admin/items/edit/ID
   useEffect(() => {
@@ -10954,22 +10965,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Proactive token verification & expired session check (Throttled 60 detik untuk efisiensi resource)
   useEffect(() => {
-    let lastChecked = 0;
     const THROTTLE_MS = 60000; // Minimal jeda 60 detik antar verifikasi token di background
 
     const checkTokenValidity = async (force: boolean = false) => {
       const now = Date.now();
-      if (!force && now - lastChecked < THROTTLE_MS) return;
+      if (!force && now - desktopLastTokenCheckTimeRef.current < THROTTLE_MS) return;
 
-      const currentToken = localStorage.getItem('catavor_token');
+      const currentToken = localStorage.getItem('catavor_token') || token;
       if (!currentToken) return;
+
+      // Anti-loop safeguard: Hindari verifikasi berulang pada token yang sama jika baru diverifikasi < THROTTLE_MS
+      if (desktopVerifiedTokenRef.current === currentToken && !force && (now - desktopLastTokenCheckTimeRef.current < THROTTLE_MS)) {
+        return;
+      }
 
       if (isTokenExpired(currentToken)) {
         handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
         return;
       }
 
-      lastChecked = now;
+      desktopLastTokenCheckTimeRef.current = now;
+      desktopVerifiedTokenRef.current = currentToken;
       try {
         const res = await fetch(`${API_BASE}/auth/verify`, {
           headers: {
@@ -10990,18 +11006,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
           if (data.success) {
             if (data.stores && Array.isArray(data.stores)) {
               setUserStores(prev => {
-                return data.stores.map((st: any) => {
+                const mapped = data.stores.map((st: any) => {
                   const existing = prev.find((p: any) => p.id === st.id || p.slug === st.slug);
                   return {
                     ...st,
                     item_count: st.item_count ?? existing?.item_count ?? 0
                   };
                 });
+                if (prev.length === mapped.length && prev.every((p: any, idx: number) => p.id === mapped[idx].id && p.slug === mapped[idx].slug && p.item_count === mapped[idx].item_count && p.is_suspended === mapped[idx].is_suspended)) {
+                  return prev;
+                }
+                return mapped;
               });
               localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
             }
             if (data.user) {
-              setAdminUser(data.user);
+              setAdminUser(prev => {
+                if (prev && prev.id === data.user.id && prev.email === data.user.email && prev.platform_role === data.user.platform_role && prev.store_slug === data.user.store_slug && prev.is_password_changed === data.user.is_password_changed) {
+                  return prev;
+                }
+                return data.user;
+              });
               localStorage.setItem('catavor_user', JSON.stringify(data.user));
               const isPassChanged = Boolean(
                 data.user?.email === 'admin@catavor.local' && data.user?.is_password_changed === false
@@ -11025,7 +11050,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
     };
 
     if (token) {
-      checkTokenValidity(true);
+      const now = Date.now();
+      if (desktopVerifiedTokenRef.current !== token || now - desktopLastTokenCheckTimeRef.current >= THROTTLE_MS) {
+        checkTokenValidity(false);
+      }
     }
 
     // Ekspos ke effect resync idle (>5 menit) yang dideklarasikan lebih awal.
@@ -11049,9 +11077,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           }
           const currentP = window.location.pathname.toLowerCase();
-          if (currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login') {
+          if (currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login') {
             const rawUser = localStorage.getItem('catavor_user');
-            let parsedUser: any = adminUser;
+            let parsedUser: any = adminUserRef.current;
             if (!parsedUser && rawUser) {
               try { parsedUser = JSON.parse(rawUser); } catch {}
             }
@@ -11090,7 +11118,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('focus', handleVisibilityOrFocus);
     };
-  }, [token, adminUser, portalTab]);
+  }, [token]);
 
   // Industry Best Practice: Cross-Tab Session & Store Synchronization
   useEffect(() => {
@@ -11213,6 +11241,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
     const slug = overrideSlug || getStoreSlug() || storeSlug || adminUser?.store_slug;
     
+    // Deduplication guard: Hindari pemanggilan loadData berulang untuk slug yang sama dalam waktu singkat (< 1200ms)
+    const now = Date.now();
+    if (slug && slug.toLowerCase() === desktopLastLoadedSlugRef.current && (now - desktopLastLoadedTimeRef.current < 1200) && !overrideSlug) {
+      return;
+    }
+    if (slug) {
+      desktopLastLoadedSlugRef.current = slug.toLowerCase();
+      desktopLastLoadedTimeRef.current = now;
+    }
+
     try {
       if (slug && !isReservedStoreSlug(slug)) {
         try { localStorage.setItem('catavor_active_slug', slug); } catch {}
@@ -12712,6 +12750,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
       const data = await res.json()
       if (res.ok && data.success) {
+        desktopLastTokenCheckTimeRef.current = Date.now();
+        desktopVerifiedTokenRef.current = data.token;
         localStorage.setItem('catavor_token', data.token)
         localStorage.setItem('catavor_user', JSON.stringify(data.user))
         if (data.stores) {
