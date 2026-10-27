@@ -13551,30 +13551,30 @@ Terima kasih atas perhatian dan kerja samanya.`;
   }
 
   const handleSendProfileBackupOTP = async () => {
-    const emailToUse = ((profileForm.email || (adminUser as any)?.email) || '').trim().toLowerCase();
-    if (!emailToUse) {
-      setProfileOtpError('Alamat email akun tidak ditemukan.');
-      return;
-    }
     setProfileOtpLoading(true);
     setProfileOtpError(null);
     setProfileOtpSuccess(null);
     try {
-      const res = await fetch(`${API_BASE}/forgot-password`, {
+      const res = await fetch(`${API_BASE}/profile/request-password-otp`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailToUse })
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setProfileOtpSent(true);
         setProfileOtpCooldown(60);
-        setProfileOtpSuccess(`Kode OTP berhasil dikirimkan ke ${emailToUse}. Silakan periksa inbox/spam email Anda.`);
+        const sMsg = data.message || 'Kode verifikasi telah dikirim ke WhatsApp / Email akun Anda.';
+        setProfileOtpSuccess(sMsg);
+        showToast(sMsg, 'success');
       } else {
-        setProfileOtpError(data.message || 'Gagal mengirim kode OTP pemulihan.');
+        const errMsg = data.message || 'Gagal mengirim kode verifikasi.';
+        setProfileOtpError(errMsg);
+        showToast(errMsg, 'error');
       }
     } catch {
-      setProfileOtpError('Gagal menghubungi server. Silakan periksa koneksi internet Anda.');
+      const netErr = 'Gagal menghubungi server. Periksa koneksi internet Anda.';
+      setProfileOtpError(netErr);
+      showToast(netErr, 'error');
     } finally {
       setProfileOtpLoading(false);
     }
@@ -13582,35 +13582,64 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   const handleResetProfileBackupPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const emailToUse = ((profileForm.email || (adminUser as any)?.email) || '').trim().toLowerCase();
     const otp = profileOtpCode.trim();
     const pwd = backupPasswordForm.password;
     const confirmPwd = backupPasswordForm.confirm_password;
 
     if (otp.length !== 6) {
-      setProfileOtpError('Kode OTP harus berjumlah 6 digit angka.');
+      const msg = 'Kode OTP harus berjumlah 6 digit angka.';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (pwd.length < 8) {
-      setProfileOtpError('Kata sandi baru minimal 8 karakter.');
+      const msg = 'Kata sandi baru minimal 8 karakter.';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[A-Z]/.test(pwd)) {
+      const msg = 'Kata sandi baru harus mengandung minimal 1 huruf besar (A-Z).';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[a-z]/.test(pwd)) {
+      const msg = 'Kata sandi baru harus mengandung minimal 1 huruf kecil (a-z).';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[0-9]/.test(pwd)) {
+      const msg = 'Kata sandi baru harus mengandung minimal 1 angka (0-9).';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[^a-zA-Z0-9\s]/.test(pwd)) {
+      const msg = 'Kata sandi baru harus mengandung minimal 1 karakter khusus atau simbol.';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (pwd !== confirmPwd) {
-      setProfileOtpError('Konfirmasi kata sandi baru tidak cocok.');
+      const msg = 'Konfirmasi kata sandi baru tidak cocok.';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
       return;
     }
 
     setProfileOtpLoading(true);
     setProfileOtpError(null);
     try {
-      const res = await fetch(`${API_BASE}/reset-password`, {
+      const res = await fetch(`${API_BASE}/profile`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
-          email: emailToUse,
-          otp: otp,
-          new_password: pwd,
-          confirm_password: confirmPwd
+          name: profileForm.name || (adminUser as any)?.name || 'Admin',
+          password: pwd,
+          confirm_password: confirmPwd,
+          otp: otp
         })
       });
       const data = await res.json();
@@ -13619,8 +13648,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
           localStorage.setItem('catavor_token', data.token);
           setToken(data.token);
         }
-        if (adminUser) {
-          const updatedUser = { ...adminUser, has_custom_password: true };
+        if (data.user) {
+          const updatedUser = { ...(adminUser || {}), ...data.user, has_custom_password: true, is_password_changed: true };
+          setAdminUser(updatedUser as any);
+          localStorage.setItem('catavor_user', JSON.stringify(updatedUser));
+        } else if (adminUser) {
+          const updatedUser = { ...adminUser, has_custom_password: true, is_password_changed: true };
           setAdminUser(updatedUser as any);
           localStorage.setItem('catavor_user', JSON.stringify(updatedUser));
         }
@@ -13633,12 +13666,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setProfilePasswordMode('standard');
         setProfileOtpError(null);
         setProfileOtpSuccess(null);
-        showToast('Kata sandi akun Anda berhasil diperbarui via verifikasi OTP!', 'success');
+        const sMsg = 'Kata sandi akun Anda berhasil diperbarui via verifikasi OTP!';
+        setBackupPasswordSuccess(sMsg);
+        showToast(sMsg, 'success');
       } else {
-        setProfileOtpError(data.message || 'Gagal memperbarui kata sandi dengan OTP.');
+        const errMsg = data.message || 'Gagal memperbarui kata sandi dengan OTP.';
+        setProfileOtpError(errMsg);
+        showToast(errMsg, 'error');
       }
     } catch {
-      setProfileOtpError('Gagal menghubungi server. Silakan coba kembali.');
+      const netMsg = 'Gagal menghubungi server. Silakan coba kembali.';
+      setProfileOtpError(netMsg);
+      showToast(netMsg, 'error');
     } finally {
       setProfileOtpLoading(false);
     }
@@ -24905,9 +24944,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           padding: '0.85rem 1rem',
                           fontSize: '0.78rem',
                           color: 'var(--text-secondary)',
-                          lineHeight: 1.5
+                          lineHeight: 1.5,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.55rem'
                         }}>
-                          💡 <strong>Catatan Keamanan Akun:</strong> Kata sandi dan email akun Anda tersinkronisasi dengan sistem autentikasi pusat. Jika memerlukan pemulihan akses, gunakan fitur lupa sandi di halaman login utama.
+                          <Info size={16} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+                          <div>
+                            <strong style={{ color: 'var(--text-primary)' }}>Catatan Keamanan Akun:</strong> Kata sandi dan email akun Anda tersinkronisasi dengan sistem autentikasi pusat. Jika memerlukan pemulihan akses, gunakan fitur lupa sandi di halaman login utama.
+                          </div>
                         </div>
 
                         <div>

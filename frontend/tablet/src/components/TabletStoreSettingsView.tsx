@@ -1174,10 +1174,8 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
 
   return (
     <div style={{
-      height: '100vh',
-      overflowY: 'auto',
       padding: '1.75rem 2rem 5rem 2rem',
-      maxWidth: '980px',
+      maxWidth: '1040px',
       margin: '0 auto',
       width: '100%',
       boxSizing: 'border-box'
@@ -1193,11 +1191,11 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
         borderBottom: '1px solid var(--border-light)',
         paddingBottom: '1.25rem'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <div style={{
-            width: '42px',
-            height: '42px',
-            borderRadius: '11px',
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
             backgroundColor: 'var(--primary-glow)',
             border: '1px solid var(--primary)',
             display: 'flex',
@@ -1206,31 +1204,24 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
             color: 'var(--primary)',
             flexShrink: 0
           }}>
-            <SlidersHorizontal size={22} strokeWidth={2.2} />
+            <SlidersHorizontal size={20} strokeWidth={2.2} />
           </div>
           <div>
             <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
               Pengaturan Profil &amp; Tampilan Katalog
             </h2>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0', lineHeight: 1.4 }}>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0', lineHeight: 1.4 }}>
               Kelola identitas publik, branding visual, kontak resmi, dan preferensi etalase katalog Anda.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Segmented Sub-Tab Bar (Horizontal Touch Pills for Tablet) */}
-      <div style={{
-        display: 'flex',
-        gap: '0.45rem',
-        backgroundColor: 'var(--bg-deep)',
-        padding: '0.35rem',
-        borderRadius: '0.75rem',
-        border: '1px solid var(--border-light)',
-        marginBottom: '1.5rem',
-        overflowX: 'auto',
-        WebkitOverflowScrolling: 'touch'
-      }}>
+      {/* Desktop-Parity Settings Segmented Sub-Tab Bar (Tablet Adaptive Grid & Touch) */}
+      <div
+        className="desktop-settings-tabs-grid"
+        style={{ '--tab-count': settingsTabs.length } as React.CSSProperties}
+      >
         {settingsTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = settingsSubTab === tab.id;
@@ -1239,26 +1230,10 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
               key={tab.id}
               type="button"
               onClick={() => setSettingsSubTab(tab.id)}
-              style={{
-                minHeight: '42px',
-                padding: '0.6rem 1rem',
-                borderRadius: '0.55rem',
-                backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-                color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                border: 'none',
-                fontWeight: 800,
-                fontSize: '0.82rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                transition: 'all 0.15s ease'
-              }}
+              className={`desktop-settings-tab-btn ${isActive ? 'active' : ''}`}
             >
               <Icon size={16} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-              <span>{tab.label}</span>
+              <span className="tab-label">{tab.label}</span>
               {tab.isPro && (
                 <span style={{
                   fontSize: '0.62rem',
@@ -1267,7 +1242,8 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
                   borderRadius: '4px',
                   backgroundColor: isActive ? 'rgba(255,255,255,0.28)' : 'var(--primary)',
                   color: '#ffffff',
-                  letterSpacing: '0.03em'
+                  letterSpacing: '0.03em',
+                  flexShrink: 0
                 }}>PRO</span>
               )}
             </button>

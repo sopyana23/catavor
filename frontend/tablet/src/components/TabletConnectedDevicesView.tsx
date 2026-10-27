@@ -193,192 +193,307 @@ export const TabletConnectedDevicesView: React.FC<TabletConnectedDevicesViewProp
     }
   };
 
-  const otherSessionsCount = sessions.filter(s => !s.is_current).length;
+  const currentSession = sessions.find(s => s.is_current);
+  const otherSessions = sessions.filter(s => !s.is_current);
 
   return (
-    <div style={{
-      backgroundColor: 'var(--bg-card)',
-      borderRadius: '1rem',
-      border: '1px solid var(--border-light)',
-      padding: '1.5rem',
-      marginBottom: '1.5rem'
-    }}>
-      {/* Header */}
-      <div style={{
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box' }}>
+      {/* Top Header Card */}
+      <div className="glass-panel" style={{
+        padding: '1.5rem',
+        borderRadius: '1rem',
+        border: '1px solid var(--border-light)',
         display: 'flex',
-        alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: '1.25rem',
+        alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '0.75rem'
+        gap: '1rem',
+        background: 'var(--card-bg-gradient)'
       }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ShieldCheck size={20} color="var(--primary)" />
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
-              Sesi Perangkat Terhubung
-            </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{
+            width: '46px',
+            height: '46px',
+            borderRadius: '12px',
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#10b981',
+            flexShrink: 0
+          }}>
+            <ShieldCheck size={26} />
           </div>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
-            Pantau dan amankan seluruh akses login ke akun katalog Anda di berbagai perangkat.
-          </p>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              Perangkat Terhubung &amp; Sesi Login
+              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '999px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                NIST SP 800-63B SECURE
+              </span>
+            </h3>
+            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Pantau seluruh browser dan perangkat yang sedang aktif menggunakan akun Anda. Cabut akses perangkat yang tidak Anda kenali sewaktu-waktu.
+            </p>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            type="button"
-            onClick={() => fetchSessions(false)}
-            disabled={loading}
-            style={{
-              minHeight: '40px',
-              minWidth: '40px',
-              padding: '0.5rem',
-              borderRadius: '0.5rem',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'var(--bg-deep)',
-              color: 'var(--text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          </button>
-
-          {otherSessionsCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setConfirmRevokeOthers(true)}
-              style={{
-                minHeight: '40px',
-                padding: '0.5rem 1rem',
-                borderRadius: '0.5rem',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                color: '#ef4444',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                cursor: 'pointer'
-              }}
-            >
-              <LogOut size={15} />
-              Cabut {otherSessionsCount} Sesi Lain
-            </button>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => fetchSessions(false)}
+          disabled={loading}
+          className="btn-secondary"
+          style={{ minHeight: '44px', padding: '0.5rem 1rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.45rem', borderRadius: '0.6rem' }}
+          title="Segarkan daftar perangkat"
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          <span>{loading ? 'Menyinkronkan...' : 'Perbarui Sesi'}</span>
+        </button>
       </div>
 
-      {/* Sessions List */}
       {loading && sessions.length === 0 ? (
-        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-          Memuat sesi perangkat...
-        </div>
-      ) : sessions.length === 0 ? (
-        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-          Tidak ada sesi aktif terdeteksi.
+        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 0.75rem auto', color: 'var(--primary)' }} />
+          <p style={{ fontSize: '0.88rem', margin: 0 }}>Memuat daftar perangkat terhubung...</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {sessions.map(s => {
-            const Icon = getDeviceIcon(s.device_type || s.device_name || '');
-            return (
+        <>
+          {/* Section 1: Sesi Saat Ini (Perangkat Ini) */}
+          <div>
+            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Monitor size={15} style={{ color: 'var(--primary)' }} />
+              <span>Sesi Saat Ini (Perangkat Ini)</span>
+            </div>
+
+            {currentSession ? (
               <div
-                key={s.id}
+                className="glass-panel"
                 style={{
+                  padding: '1.25rem 1.5rem',
+                  borderRadius: '1rem',
+                  border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(15, 23, 42, 0.8) 100%)',
+                  boxShadow: '0 8px 25px rgba(16, 185, 129, 0.08)',
                   display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '1rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: s.is_current ? 'rgba(30, 58, 138, 0.08)' : 'var(--bg-deep)',
-                  border: s.is_current ? '1.5px solid var(--primary)' : '1px solid var(--border-light)'
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '1rem'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '0.65rem',
-                    backgroundColor: s.is_current ? 'rgba(30, 58, 138, 0.15)' : 'var(--bg-card)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: s.is_current ? 'var(--primary)' : 'var(--text-secondary)'
-                  }}>
-                    <Icon size={22} />
-                  </div>
-
+                  {(() => {
+                    const DevIcon = getDeviceIcon(currentSession.device_type || currentSession.device_name || '');
+                    return (
+                      <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                        <DevIcon size={24} />
+                      </div>
+                    );
+                  })()}
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-                      <span style={{ fontSize: '0.92rem', fontWeight: 700 }}>
-                        {s.device_name || `${s.browser || 'Browser'} di ${s.os || 'Perangkat'}`}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        {currentSession.device_name || `${currentSession.browser || 'Browser'} di ${currentSession.os || 'Perangkat'}`}
                       </span>
-                      {s.is_current && (
-                        <span style={{
-                          fontSize: '0.7rem',
-                          fontWeight: 800,
-                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                          color: '#10b981',
-                          padding: '0.1rem 0.45rem',
-                          borderRadius: '999px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem'
-                        }}>
-                          <CheckCircle2 size={12} />
-                          Perangkat Ini
-                        </span>
-                      )}
+                      <span style={{
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        color: '#10b981',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        padding: '0.15rem 0.55rem',
+                        borderRadius: '999px',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem'
+                      }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                        Aktif Sekarang &bull; Perangkat Ini
+                      </span>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <Globe size={13} />
-                        IP: {s.ip_address || 'Lokal'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginTop: '0.35rem', fontSize: '0.78rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Globe size={13} style={{ color: 'var(--primary)' }} />
+                        Alamat IP: <strong style={{ color: 'var(--text-primary)' }}>{currentSession.ip_address || 'Lokal'}</strong>
                       </span>
-                      {s.location && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <MapPin size={13} />
-                          {s.location}
-                        </span>
+                      {currentSession.location && (
+                        <>
+                          <span>&bull;</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <MapPin size={13} />
+                            {currentSession.location}
+                          </span>
+                        </>
                       )}
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <span>&bull;</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <Clock size={13} />
-                        Aktif: {formatDateTime(s.last_active_at)}
+                        Login: {formatDateTime(currentSession.created_at || currentSession.last_active_at)}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  {!s.is_current && (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmRevokeTarget(s)}
-                      style={{
-                        minHeight: '40px',
-                        padding: '0.45rem 0.85rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: 'var(--bg-card)',
-                        color: '#ef4444',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Cabut Sesi
-                    </button>
-                  )}
+                <div style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600, background: 'rgba(16, 185, 129, 0.08)', padding: '0.35rem 0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                  Perangkat Terverifikasi
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ) : (
+              <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                Sesi saat ini sedang aktif secara lokal.
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Perangkat Lain yang Terhubung */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Globe size={15} style={{ color: 'var(--primary)' }} />
+                <span>Perangkat Lain yang Terhubung ({otherSessions.length})</span>
+              </div>
+
+              {otherSessions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmRevokeOthers(true)}
+                  disabled={revokingAll}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#f87171',
+                    padding: '0.4rem 0.85rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <LogOut size={13} />
+                  <span>{revokingAll ? 'Memproses...' : 'Keluarkan dari Semua Perangkat Lain'}</span>
+                </button>
+              )}
+            </div>
+
+            {otherSessions.length === 0 ? (
+              <div
+                className="glass-panel"
+                style={{
+                  padding: '2.5rem 1.5rem',
+                  borderRadius: '1rem',
+                  border: '1px dashed var(--border-light)',
+                  textAlign: 'center',
+                  color: 'var(--text-muted)'
+                }}
+              >
+                <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto' }}>
+                  <CheckCircle2 size={22} style={{ color: '#10b981' }} />
+                </div>
+                <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Tidak Ada Sesi Lain yang Aktif
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '420px', marginInline: 'auto' }}>
+                  Akun Anda saat ini hanya terhubung dan aktif pada browser/perangkat ini. Tidak ada riwayat login terbuka di tempat lain.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {otherSessions.map(session => {
+                  const DevIcon = getDeviceIcon(session.device_type || session.device_name || '');
+                  const isRevokingThis = revokingId === session.id;
+                  return (
+                    <div
+                      key={session.id}
+                      className="glass-panel"
+                      style={{
+                        padding: '1.15rem 1.25rem',
+                        borderRadius: '0.85rem',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '0.85rem',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '10px',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--text-secondary)',
+                          flexShrink: 0
+                        }}>
+                          <DevIcon size={20} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
+                            {session.device_name || `${session.browser || 'Browser'} di ${session.os || 'Perangkat'}`}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Globe size={12} />
+                              IP: {session.ip_address || 'Lokal'}
+                            </span>
+                            {session.location && (
+                              <>
+                                <span>&bull;</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                  <MapPin size={12} />
+                                  {session.location}
+                                </span>
+                              </>
+                            )}
+                            <span>&bull;</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Clock size={12} />
+                              Aktif: {formatDateTime(session.last_active_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRevokeTarget(session)}
+                        disabled={isRevokingThis}
+                        style={{
+                          minHeight: '40px',
+                          padding: '0.45rem 0.9rem',
+                          borderRadius: '0.5rem',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                          color: '#ef4444',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: isRevokingThis ? 'not-allowed' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <LogOut size={14} />
+                        <span>{isRevokingThis ? 'Mencabut...' : 'Cabut Akses'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Confirmation Modal: Revoke Single Session */}
@@ -510,7 +625,7 @@ export const TabletConnectedDevicesView: React.FC<TabletConnectedDevicesViewProp
               </h4>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 1.25rem 0' }}>
-              Tindakan ini akan mengeluarkan <strong>{otherSessionsCount} perangkat lain</strong> secara seketika. Hanya sesi browser tablet saat ini yang akan tetap aktif.
+              Tindakan ini akan mengeluarkan <strong>{otherSessions.length} perangkat lain</strong> secara seketika. Hanya sesi browser tablet saat ini yang akan tetap aktif.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               <button
