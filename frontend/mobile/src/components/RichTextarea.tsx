@@ -1790,6 +1790,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       const range = sel.getRangeAt(0);
       savedRangeRef.current = range.cloneRange();
 
+      let hasCommandState = false;
       let isBold = false;
       let isItalic = false;
       let isBullet = false;
@@ -1799,8 +1800,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         isItalic = document.queryCommandState('italic');
         isBullet = document.queryCommandState('insertUnorderedList');
         isNum = document.queryCommandState('insertOrderedList');
+        hasCommandState = true;
       } catch {
-        // Fallback for environments where queryCommandState isn't available
+        hasCommandState = false;
       }
 
       let headingLevel: 1 | 2 | 3 | null = null;
@@ -1818,10 +1820,12 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           else if (tag === 'h3') headingLevel = 3;
           else if (tag === 'ul') listType = 'bullet';
           else if (tag === 'ol') listType = 'number';
-          else if (tag === 'strong' || tag === 'b') isBold = true;
-          else if (tag === 'em' || tag === 'i') isItalic = true;
-          else if (tag === 'a' || el.getAttribute('data-rich-type') === 'link') isLink = true;
+          else if (el.getAttribute('data-rich-type') === 'link' || tag === 'a') isLink = true;
           else if (el.getAttribute('data-rich-type') === 'button') isBtn = true;
+          else if (!hasCommandState) {
+            if (tag === 'strong' || tag === 'b') isBold = true;
+            else if (tag === 'em' || tag === 'i') isItalic = true;
+          }
         }
         cur = cur.parentNode;
       }
@@ -2061,10 +2065,17 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   const handleFormatBold = (editorType: 'standard' | 'fullscreen') => {
     if (editorMode === 'visual') {
       const ref = editorType === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
+      if (savedRangeRef.current) {
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(savedRangeRef.current);
+        }
+      }
       ref.current?.focus();
       document.execCommand('bold', false);
+      updateActiveFormats();
       handleVisualInput(ref);
-      setTimeout(() => updateActiveFormats(), 10);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       applyFormatToRef(ref, '**', '**', 'teks tebal');
@@ -2075,10 +2086,17 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   const handleFormatItalic = (editorType: 'standard' | 'fullscreen') => {
     if (editorMode === 'visual') {
       const ref = editorType === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
+      if (savedRangeRef.current) {
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(savedRangeRef.current);
+        }
+      }
       ref.current?.focus();
       document.execCommand('italic', false);
+      updateActiveFormats();
       handleVisualInput(ref);
-      setTimeout(() => updateActiveFormats(), 10);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       applyFormatToRef(ref, '*', '*', 'teks miring');
@@ -2987,75 +3005,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 </span>
               </div>
 
-              {/* Right: Segmented Edit/Preview Tabs + Close X Button */}
+              {/* Right: Close Button X */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
-                {showPreviewTab && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
-                    borderRadius: '0.65rem',
-                    padding: '0.2rem',
-                    border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
-                    flexShrink: 0
-                  }}>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setMobileTab('editor');
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        padding: '0.35rem 0.75rem',
-                        borderRadius: '0.5rem',
-                        border: 'none',
-                        background: mobileTab === 'editor' ? 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)' : 'transparent',
-                        color: mobileTab === 'editor' ? '#ffffff' : textSecondary,
-                        fontSize: '0.74rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        boxShadow: mobileTab === 'editor' ? '0 2px 6px var(--primary-glow, rgba(2, 132, 199, 0.3))' : 'none',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <Edit3 size={13} color={mobileTab === 'editor' ? '#ffffff' : textSecondary} />
-                      <span>Edit</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setMobileTab('preview');
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        padding: '0.35rem 0.75rem',
-                        borderRadius: '0.5rem',
-                        border: 'none',
-                        background: mobileTab === 'preview' ? 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)' : 'transparent',
-                        color: mobileTab === 'preview' ? '#ffffff' : textSecondary,
-                        fontSize: '0.74rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        boxShadow: mobileTab === 'preview' ? '0 2px 6px var(--primary-glow, rgba(2, 132, 199, 0.3))' : 'none',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <Eye size={13} color={mobileTab === 'preview' ? '#ffffff' : textSecondary} />
-                      <span>Pratinjau</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Close Button X */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -3084,10 +3035,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             </div>
 
             {/* Zen Editor Toolbar */}
-            {mobileTab === 'editor' && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
                 gap: '0.35rem',
                 padding: '0.45rem 1.1rem',
                 backgroundColor: theme?.cardAlt || (isDark ? '#090d16' : '#f8fafc'),
@@ -3265,103 +3215,82 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   <span>{editorMode === 'visual' ? 'Visual' : 'Markdown'}</span>
                 </button>
               </div>
-            )}
 
             {/* Fullscreen Body */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.1rem', overflowY: 'auto', backgroundColor: inputBg }}>
-              {mobileTab === 'editor' ? (
-                editorMode === 'visual' ? (
-                  <div
-                    ref={fullscreenVisualRef}
-                    contentEditable
-                    data-placeholder={placeholder || 'Tulis rincian pengumuman lengkap di sini...'}
-                    className="rich-wysiwyg-editor"
-                    onInput={() => handleVisualInput(fullscreenVisualRef)}
-                    onClick={(e) => {
-                      handleEditorClick(e, fullscreenVisualRef, 'fullscreen');
-                      updateActiveFormats();
-                    }}
-                    onKeyUp={updateActiveFormats}
-                    onMouseUp={updateActiveFormats}
-                    onSelect={updateActiveFormats}
-                    onTouchEnd={updateActiveFormats}
-                    onFocus={() => {
-                      activeEditorRef.current = 'fullscreen';
-                      updateActiveFormats();
-                    }}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      flex: 1,
-                      border: 'none',
-                      outline: 'none',
-                      backgroundColor: 'transparent',
-                      color: textPrimary,
-                      fontSize: '0.94rem',
-                      lineHeight: 1.7,
-                      fontFamily: 'inherit',
-                      padding: 0
-                    }}
-                  />
-                ) : (
-                  <textarea
-                    ref={fullscreenTextareaRef}
-                    placeholder={placeholder || 'Tulis rincian pengumuman lengkap di sini...'}
-                    value={value || ''}
-                    onChange={e => {
-                      onChange(e.target.value);
-                      if (fullscreenTextareaRef.current) {
-                        savedTextareaRangeRef.current = {
-                          start: fullscreenTextareaRef.current.selectionStart,
-                          end: fullscreenTextareaRef.current.selectionEnd
-                        };
-                      }
-                      updateActiveFormats();
-                    }}
-                    onKeyDown={e => handleKeyDownSmartList(fullscreenTextareaRef, e)}
-                    onClick={updateActiveFormats}
-                    onKeyUp={updateActiveFormats}
-                    onMouseUp={updateActiveFormats}
-                    onSelect={updateActiveFormats}
-                    onTouchEnd={updateActiveFormats}
-                    onFocus={() => {
-                      activeEditorRef.current = 'fullscreen';
-                      updateActiveFormats();
-                    }}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      flex: 1,
-                      border: 'none',
-                      outline: 'none',
-                      backgroundColor: 'transparent',
-                      color: textPrimary,
-                      fontSize: '0.94rem',
-                      lineHeight: 1.7,
-                      resize: 'none',
-                      fontFamily: 'inherit',
-                      padding: 0
-                    }}
-                  />
-                )
+              {editorMode === 'visual' ? (
+                <div
+                  ref={fullscreenVisualRef}
+                  contentEditable
+                  data-placeholder={placeholder || 'Tulis rincian pengumuman lengkap di sini...'}
+                  className="rich-wysiwyg-editor"
+                  onInput={() => handleVisualInput(fullscreenVisualRef)}
+                  onClick={(e) => {
+                    handleEditorClick(e, fullscreenVisualRef, 'fullscreen');
+                    updateActiveFormats();
+                  }}
+                  onKeyUp={updateActiveFormats}
+                  onMouseUp={updateActiveFormats}
+                  onSelect={updateActiveFormats}
+                  onTouchEnd={updateActiveFormats}
+                  onFocus={() => {
+                    activeEditorRef.current = 'fullscreen';
+                    updateActiveFormats();
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    flex: 1,
+                    border: 'none',
+                    outline: 'none',
+                    backgroundColor: 'transparent',
+                    color: textPrimary,
+                    fontSize: '0.94rem',
+                    lineHeight: 1.7,
+                    fontFamily: 'inherit',
+                    padding: 0
+                  }}
+                />
               ) : (
-                <div style={{
-                  padding: '1.25rem',
-                  borderRadius: '0.9rem',
-                  backgroundColor: theme?.surface || (isDark ? '#111827' : '#ffffff'),
-                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
-                  color: textPrimary,
-                  fontSize: '0.92rem',
-                  lineHeight: 1.7
-                }}>
-                  {value ? (
-                    <FormattedText text={value} />
-                  ) : (
-                    <div style={{ color: textMuted, fontStyle: 'italic', textAlign: 'center', padding: '2rem 0' }}>
-                      Belum ada teks yang ditulis untuk dipratinjau.
-                    </div>
-                  )}
-                </div>
+                <textarea
+                  ref={fullscreenTextareaRef}
+                  placeholder={placeholder || 'Tulis rincian pengumuman lengkap di sini...'}
+                  value={value || ''}
+                  onChange={e => {
+                    onChange(e.target.value);
+                    if (fullscreenTextareaRef.current) {
+                      savedTextareaRangeRef.current = {
+                        start: fullscreenTextareaRef.current.selectionStart,
+                        end: fullscreenTextareaRef.current.selectionEnd
+                      };
+                    }
+                    updateActiveFormats();
+                  }}
+                  onKeyDown={e => handleKeyDownSmartList(fullscreenTextareaRef, e)}
+                  onClick={updateActiveFormats}
+                  onKeyUp={updateActiveFormats}
+                  onMouseUp={updateActiveFormats}
+                  onSelect={updateActiveFormats}
+                  onTouchEnd={updateActiveFormats}
+                  onFocus={() => {
+                    activeEditorRef.current = 'fullscreen';
+                    updateActiveFormats();
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    flex: 1,
+                    border: 'none',
+                    outline: 'none',
+                    backgroundColor: 'transparent',
+                    color: textPrimary,
+                    fontSize: '0.94rem',
+                    lineHeight: 1.7,
+                    resize: 'none',
+                    fontFamily: 'inherit',
+                    padding: 0
+                  }}
+                />
               )}
             </div>
 
