@@ -180,10 +180,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
         {
           id: 'items',
           label: 'Daftar Item Katalog',
-          icon: <PackageCheck size={18} />,
-          badge: totalItemsCount > 0 ? totalItemsCount : null,
-          badgeColor: 'var(--primary-glow)',
-          badgeTextColor: 'var(--primary)'
+          icon: <PackageCheck size={18} />
         },
         {
           id: 'categories',
