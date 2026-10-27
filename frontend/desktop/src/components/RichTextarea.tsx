@@ -84,7 +84,8 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     rawUrl: string,
     variant: string = 'primary',
     key: string | number,
-    isBlock: boolean = false
+    isBlock: boolean = false,
+    size: string = 'md'
   ) => {
     const { isSafe, isExternal } = sanitizeUrl(rawUrl);
     if (!isSafe) return null;
@@ -113,6 +114,33 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       shadow = '0 2px 8px rgba(239, 68, 68, 0.3)';
     }
 
+    // Size tokens
+    let padding = isBlock ? '0.65rem 1.25rem' : '0.28rem 0.65rem';
+    let fontSize = isBlock ? '0.82rem' : '0.74rem';
+    let borderRadius = '0.65rem';
+    let iconSize = isBlock ? 13 : 11;
+    let gap = '0.35rem';
+
+    if (size === 'sm') {
+      padding = isBlock ? '0.45rem 0.95rem' : '0.2rem 0.5rem';
+      fontSize = isBlock ? '0.74rem' : '0.68rem';
+      borderRadius = '0.45rem';
+      iconSize = isBlock ? 11 : 10;
+      gap = '0.25rem';
+    } else if (size === 'lg') {
+      padding = isBlock ? '0.85rem 1.65rem' : '0.42rem 0.95rem';
+      fontSize = isBlock ? '0.94rem' : '0.85rem';
+      borderRadius = '0.75rem';
+      iconSize = isBlock ? 15 : 13;
+      gap = '0.45rem';
+    } else if (size === 'xl') {
+      padding = isBlock ? '1.05rem 2.15rem' : '0.58rem 1.25rem';
+      fontSize = isBlock ? '1.08rem' : '0.96rem';
+      borderRadius = '0.85rem';
+      iconSize = isBlock ? 18 : 15;
+      gap = '0.55rem';
+    }
+
     const buttonElement = (
       <button
         key={key}
@@ -122,13 +150,13 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '0.35rem',
-          padding: isBlock ? '0.65rem 1.25rem' : '0.28rem 0.65rem',
-          borderRadius: '0.65rem',
+          gap,
+          padding,
+          borderRadius,
           background: bg,
           color: textColor,
           border: `1px solid ${borderColor}`,
-          fontSize: isBlock ? '0.82rem' : '0.74rem',
+          fontSize,
           fontWeight: 800,
           cursor: 'pointer',
           boxShadow: shadow,
@@ -141,7 +169,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
         onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
       >
         <span>{label}</span>
-        {isExternal ? <ExternalLink size={isBlock ? 13 : 11} /> : <MousePointer size={isBlock ? 13 : 11} />}
+        {isExternal ? <ExternalLink size={iconSize} /> : <MousePointer size={iconSize} />}
       </button>
     );
 
@@ -165,7 +193,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     // 3. **bold** or __bold__
     // 4. *italic* or _italic_
     // 5. `code`
-    const regex = /(\[button:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]|\[cta:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+?)\*\*|\*([^*]+?)\*|__([^_]+?)__|_(.*?)_|`([^`]+?)`)/g;
+    const regex = /(\[button:([^|\]]+)\|([^|\]]+)(?:\|([^|\]]+))?(?:\|([^\]]+))?\]|\[cta:([^|\]]+)\|([^|\]]+)(?:\|([^|\]]+))?(?:\|([^\]]+))?\]|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+?)\*\*|\*([^*]+?)\*|__([^_]+?)__|_(.*?)_|`([^`]+?)`)/g;
     let lastIndex = 0;
     let match;
 
@@ -179,17 +207,19 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
         const btnLabel = match[2];
         const btnUrl = match[3];
         const btnVariant = match[4] || 'primary';
-        parts.push(renderButton(btnLabel, btnUrl, btnVariant, `btn-${idx++}`, false));
-      } else if (match[5] !== undefined && match[6] !== undefined) {
-        const btnLabel = match[5];
-        const btnUrl = match[6];
-        const btnVariant = match[7] || 'primary';
-        parts.push(renderButton(btnLabel, btnUrl, btnVariant, `cta-${idx++}`, false));
+        const btnSize = match[5] || 'md';
+        parts.push(renderButton(btnLabel, btnUrl, btnVariant, `btn-${idx++}`, false, btnSize));
+      } else if (match[6] !== undefined && match[7] !== undefined) {
+        const btnLabel = match[6];
+        const btnUrl = match[7];
+        const btnVariant = match[8] || 'primary';
+        const btnSize = match[9] || 'md';
+        parts.push(renderButton(btnLabel, btnUrl, btnVariant, `cta-${idx++}`, false, btnSize));
       }
       // 2. Markdown Link [Text](URL)
-      else if (match[8] !== undefined && match[9] !== undefined) {
-        const linkText = match[8];
-        const rawUrl = match[9];
+      else if (match[10] !== undefined && match[11] !== undefined) {
+        const linkText = match[10];
+        const rawUrl = match[11];
         const { isSafe, isExternal } = sanitizeUrl(rawUrl);
 
         if (isSafe) {
@@ -218,22 +248,22 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
         }
       }
       // 3. Bold
-      else if (match[10] !== undefined) {
-        parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[10]}</strong>);
-      } else if (match[12] !== undefined) {
-        parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[12]}</strong>);
+      else if (match[12] !== undefined) {
+        parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[12]}</strong>);
+      } else if (match[14] !== undefined) {
+        parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[14]}</strong>);
       }
       // 4. Italic
-      else if (match[11] !== undefined) {
-        parts.push(<em key={`i-${idx++}`}>{match[11]}</em>);
-      } else if (match[13] !== undefined) {
-        parts.push(<em key={`i2-${idx++}`}>{match[13]}</em>);
+      else if (match[13] !== undefined) {
+        parts.push(<em key={`i-${idx++}`}>{match[13]}</em>);
+      } else if (match[15] !== undefined) {
+        parts.push(<em key={`i2-${idx++}`}>{match[15]}</em>);
       }
       // 5. Code
-      else if (match[14] !== undefined) {
+      else if (match[16] !== undefined) {
         parts.push(
           <code key={`c-${idx++}`} style={{ backgroundColor: 'rgba(56, 189, 248, 0.12)', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em', color: 'var(--primary, #38bdf8)' }}>
-            {match[14]}
+            {match[16]}
           </code>
         );
       }
@@ -269,14 +299,15 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     const trimmed = line.trim();
 
     // Check if line is a standalone block CTA button
-    const blockButtonMatch = trimmed.match(/^\[(button|cta):([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]$/);
+    const blockButtonMatch = trimmed.match(/^\[(button|cta):([^|\]]+)\|([^|\]]+)(?:\|([^|\]]+))?(?:\|([^\]]+))?\]$/);
     if (blockButtonMatch) {
       const flushed = flushList(lineIdx);
       if (flushed) elements.push(flushed);
       const btnLabel = blockButtonMatch[2];
       const btnUrl = blockButtonMatch[3];
       const btnVariant = blockButtonMatch[4] || 'primary';
-      elements.push(renderButton(btnLabel, btnUrl, btnVariant, `blk-btn-${lineIdx}`, true));
+      const btnSize = blockButtonMatch[5] || 'md';
+      elements.push(renderButton(btnLabel, btnUrl, btnVariant, `blk-btn-${lineIdx}`, true, btnSize));
       return;
     }
 
@@ -695,11 +726,12 @@ export const LinkInsertModal: React.FC<{
 export const ButtonInsertModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onInsert: (label: string, url: string, variant: string) => void;
+  onInsert: (label: string, url: string, variant: string, size: string) => void;
   onDelete?: () => void;
   initialLabel?: string;
   initialUrl?: string;
   initialVariant?: 'primary' | 'amber' | 'emerald' | 'outline';
+  initialSize?: 'sm' | 'md' | 'lg' | 'xl';
   isEditing?: boolean;
   theme?: any;
   isDark?: boolean;
@@ -711,6 +743,7 @@ export const ButtonInsertModal: React.FC<{
   initialLabel = '',
   initialUrl = '',
   initialVariant = 'primary',
+  initialSize = 'md',
   isEditing = false,
   theme,
   isDark = true
@@ -718,14 +751,16 @@ export const ButtonInsertModal: React.FC<{
   const [label, setLabel] = useState(initialLabel);
   const [url, setUrl] = useState(initialUrl);
   const [variant, setVariant] = useState<'primary' | 'amber' | 'emerald' | 'outline'>(initialVariant);
+  const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(initialSize);
 
   useEffect(() => {
     if (isOpen) {
       setLabel(initialLabel || '');
       setUrl(initialUrl || '');
       setVariant(initialVariant || 'primary');
+      setSize(initialSize || 'md');
     }
-  }, [isOpen, initialLabel, initialUrl, initialVariant]);
+  }, [isOpen, initialLabel, initialUrl, initialVariant, initialSize]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -746,7 +781,7 @@ export const ButtonInsertModal: React.FC<{
       e.stopPropagation();
     }
     if (!label.trim() || !url.trim() || !isSafe) return;
-    onInsert(label.trim(), url.trim(), variant);
+    onInsert(label.trim(), url.trim(), variant, size);
     setLabel('');
     setUrl('');
     onClose();
@@ -783,7 +818,7 @@ export const ButtonInsertModal: React.FC<{
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '420px',
+          maxWidth: '430px',
           width: '100%',
           backgroundColor: bgModal,
           borderRadius: '1.25rem',
@@ -885,6 +920,49 @@ export const ButtonInsertModal: React.FC<{
 
           <div>
             <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
+              Ukuran Tombol
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
+              {[
+                { id: 'sm', label: 'Kecil', hint: 'sm' },
+                { id: 'md', label: 'Sedang', hint: 'md (default)' },
+                { id: 'lg', label: 'Besar', hint: 'lg' },
+                { id: 'xl', label: 'Sangat Besar', hint: 'xl' }
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSize(opt.id as any);
+                  }}
+                  style={{
+                    padding: '0.45rem 0.25rem',
+                    borderRadius: '0.55rem',
+                    border: size === opt.id ? `2px solid ${isDark ? '#38bdf8' : '#0284c7'}` : `1px solid ${borderCol}`,
+                    backgroundColor: size === opt.id ? (isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
+                    color: size === opt.id ? (isDark ? '#38bdf8' : '#0284c7') : textPrimary,
+                    fontSize: '0.72rem',
+                    fontWeight: size === opt.id ? 800 : 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '2px',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>{opt.label}</span>
+                  <span style={{ fontSize: '0.62rem', opacity: 0.75 }}>{opt.id.toUpperCase()}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
               Gaya Desain Tombol
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
@@ -922,6 +1000,44 @@ export const ButtonInsertModal: React.FC<{
               ))}
             </div>
           </div>
+
+          {/* Live Preview of Button */}
+          {label.trim() && (
+            <div style={{
+              padding: '0.65rem',
+              borderRadius: '0.65rem',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.03)',
+              border: `1px dashed ${borderCol}`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.3rem'
+            }}>
+              <span style={{ fontSize: '0.65rem', color: textSecondary, fontWeight: 600 }}>Pratinjau Tombol:</span>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: size === 'sm' ? '0.25rem' : size === 'lg' ? '0.45rem' : size === 'xl' ? '0.55rem' : '0.35rem',
+                  padding: size === 'sm' ? '0.25rem 0.6rem' : size === 'lg' ? '0.45rem 1.1rem' : size === 'xl' ? '0.6rem 1.4rem' : '0.35rem 0.85rem',
+                  borderRadius: size === 'sm' ? '0.45rem' : size === 'lg' ? '0.75rem' : size === 'xl' ? '0.85rem' : '0.6rem',
+                  fontSize: size === 'sm' ? '0.7rem' : size === 'lg' ? '0.88rem' : size === 'xl' ? '0.98rem' : '0.78rem',
+                  fontWeight: 800,
+                  background: variant === 'amber' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                    : variant === 'emerald' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                    : variant === 'outline' ? (isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.08)')
+                    : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  color: variant === 'amber' ? '#000000' : variant === 'outline' ? (isDark ? '#38bdf8' : '#0284c7') : '#ffffff',
+                  border: variant === 'outline' ? `1px solid ${isDark ? '#38bdf8' : '#0284c7'}` : 'none',
+                  boxShadow: variant === 'outline' ? 'none' : '0 2px 8px rgba(0,0,0,0.2)'
+                }}
+              >
+                <span>{label.trim()}</span>
+                {isExternal ? <ExternalLink size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} /> : <MousePointer size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} />}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', marginTop: '0.5rem' }}>
             {isEditing && onDelete && (
@@ -1460,12 +1576,13 @@ export function inlineMarkdownToHtml(str: string): string {
   if (!str) return '';
   let res = escapeHtml(str);
 
-  // 1. CTA Button Syntax: [button:Label|url|variant] or [cta:Label|url|variant]
-  res = res.replace(/\[(button|cta):([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]/g, (_, _t, label, url, variant) => {
+  // 1. CTA Button Syntax: [button:Label|url|variant|size] or [cta:Label|url|variant|size]
+  res = res.replace(/\[(button|cta):([^|\]]+)\|([^|\]]+)(?:\|([^|\]]+))?(?:\|([^\]]+))?\]/g, (_, _t, label, url, variant, size) => {
     const v = variant ? variant.trim() : 'primary';
+    const s = size ? size.trim() : 'md';
     const cleanLabel = (label || '').trim();
     const cleanUrl = (url || '').trim();
-    return `<span data-rich-type="button" data-label="${cleanLabel}" data-url="${cleanUrl}" data-variant="${v}" contenteditable="false" class="rich-visual-badge rich-btn-${v}"><span>${cleanLabel}</span></span>`;
+    return `<span data-rich-type="button" data-label="${cleanLabel}" data-url="${cleanUrl}" data-variant="${v}" data-size="${s}" contenteditable="false" class="rich-visual-badge rich-btn-${v} rich-btn-size-${s}"><span>${cleanLabel}</span></span>`;
   });
 
   // 2. Markdown Link: [text](url)
@@ -1571,7 +1688,8 @@ export function htmlToMarkdown(rootNode: Node): string {
       const label = el.getAttribute('data-label') || el.innerText || '';
       const url = el.getAttribute('data-url') || '';
       const variant = el.getAttribute('data-variant') || 'primary';
-      return `[button:${label.trim()}|${url.trim()}|${variant}]`;
+      const size = el.getAttribute('data-size') || 'md';
+      return `[button:${label.trim()}|${url.trim()}|${variant}|${size}]`;
     }
 
     if (richType === 'link' || el.tagName === 'A') {
@@ -1615,7 +1733,8 @@ export function htmlToMarkdown(rootNode: Node): string {
       const label = el.getAttribute('data-label') || el.innerText || '';
       const url = el.getAttribute('data-url') || '';
       const variant = el.getAttribute('data-variant') || 'primary';
-      return [`[button:${label.trim()}|${url.trim()}|${variant}]`];
+      const size = el.getAttribute('data-size') || 'md';
+      return [`[button:${label.trim()}|${url.trim()}|${variant}|${size}]`];
     }
 
     if (tag === 'h1') {
@@ -1828,6 +1947,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   const [modalInitialText, setModalInitialText] = useState('');
   const [modalInitialUrl, setModalInitialUrl] = useState('');
   const [modalInitialVariant, setModalInitialVariant] = useState<'primary' | 'amber' | 'emerald' | 'outline'>('primary');
+  const [modalInitialSize, setModalInitialSize] = useState<'sm' | 'md' | 'lg' | 'xl'>('md');
   const [isLinkEditing, setIsLinkEditing] = useState(false);
   const [isButtonEditing, setIsButtonEditing] = useState(false);
   const [editingLinkNode, setEditingLinkNode] = useState<HTMLAnchorElement | null>(null);
@@ -2052,12 +2172,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     modalId: isMobile ? 'rich-textarea-portal-mobile' : 'rich-textarea-portal-desktop'
   });
 
-  const handleVisualInput = (targetRef: React.RefObject<HTMLDivElement | null>) => {
+  const handleVisualInput = (targetRef: React.RefObject<HTMLDivElement | null>, skipFormatUpdate: boolean = false) => {
     if (!targetRef.current) return;
     isInternalUpdateRef.current = true;
     const newMd = htmlToMarkdown(targetRef.current);
     onChange(newMd);
-    updateActiveFormats();
+    if (!skipFormatUpdate) {
+      updateActiveFormats();
+    }
   };
 
   const handleEditorClick = (
@@ -2077,6 +2199,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       setModalInitialText(btnNode.getAttribute('data-label') || btnNode.innerText || '');
       setModalInitialUrl(btnNode.getAttribute('data-url') || '');
       setModalInitialVariant((btnNode.getAttribute('data-variant') as any) || 'primary');
+      setModalInitialSize((btnNode.getAttribute('data-size') as any) || 'md');
       setIsButtonEditing(true);
       setShowButtonModal(true);
       return;
@@ -2178,6 +2301,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   };
 
   const handleFormatBold = (editorType: 'standard' | 'fullscreen') => {
+    activeEditorRef.current = editorType;
     if (editorMode === 'visual') {
       const ref = editorType === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
       if (savedRangeRef.current) {
@@ -2188,9 +2312,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         }
       }
       ref.current?.focus();
+      const willBeBold = !activeFormats.bold;
       document.execCommand('bold', false);
-      updateActiveFormats();
-      handleVisualInput(ref);
+      setActiveFormats(prev => ({ ...prev, bold: willBeBold }));
+      handleVisualInput(ref, true);
+      setTimeout(() => updateActiveFormats(), 50);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       applyFormatToRef(ref, '**', '**', 'teks tebal');
@@ -2199,6 +2325,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   };
 
   const handleFormatItalic = (editorType: 'standard' | 'fullscreen') => {
+    activeEditorRef.current = editorType;
     if (editorMode === 'visual') {
       const ref = editorType === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
       if (savedRangeRef.current) {
@@ -2209,9 +2336,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         }
       }
       ref.current?.focus();
+      const willBeItalic = !activeFormats.italic;
       document.execCommand('italic', false);
-      updateActiveFormats();
-      handleVisualInput(ref);
+      setActiveFormats(prev => ({ ...prev, italic: willBeItalic }));
+      handleVisualInput(ref, true);
+      setTimeout(() => updateActiveFormats(), 50);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       applyFormatToRef(ref, '*', '*', 'teks miring');
@@ -2220,12 +2349,27 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   };
 
   const handleFormatHeading = (level: 1 | 2 | 3, editorType: 'standard' | 'fullscreen') => {
+    activeEditorRef.current = editorType;
     if (editorMode === 'visual') {
       const ref = editorType === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
+      if (savedRangeRef.current) {
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(savedRangeRef.current);
+        }
+      }
       ref.current?.focus();
-      document.execCommand('formatBlock', false, `<h${level}>`);
-      handleVisualInput(ref);
-      setTimeout(() => updateActiveFormats(), 10);
+      const isCurrent = activeFormats.heading === level;
+      if (isCurrent) {
+        document.execCommand('formatBlock', false, '<p>');
+        setActiveFormats(prev => ({ ...prev, heading: null }));
+      } else {
+        document.execCommand('formatBlock', false, `<h${level}>`);
+        setActiveFormats(prev => ({ ...prev, heading: level }));
+      }
+      handleVisualInput(ref, true);
+      setTimeout(() => updateActiveFormats(), 50);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       const prefix = level === 1 ? '\n# ' : level === 2 ? '\n## ' : '\n### ';
@@ -2235,16 +2379,26 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   };
 
   const handleFormatList = (type: 'bullet' | 'number', editorType: 'standard' | 'fullscreen') => {
+    activeEditorRef.current = editorType;
     if (editorMode === 'visual') {
       const ref = editorType === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
+      if (savedRangeRef.current) {
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(savedRangeRef.current);
+        }
+      }
       ref.current?.focus();
+      const isCurrent = activeFormats.list === type;
       if (type === 'bullet') {
         document.execCommand('insertUnorderedList', false);
       } else {
         document.execCommand('insertOrderedList', false);
       }
-      handleVisualInput(ref);
-      setTimeout(() => updateActiveFormats(), 10);
+      setActiveFormats(prev => ({ ...prev, list: isCurrent ? null : type }));
+      handleVisualInput(ref, true);
+      setTimeout(() => updateActiveFormats(), 50);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       const prefix = type === 'bullet' ? '- ' : '1. ';
@@ -2304,6 +2458,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       setModalInitialText(txt);
       setModalInitialUrl('');
       setModalInitialVariant('primary');
+      setModalInitialSize('md');
       setIsButtonEditing(false);
       setEditingButtonNode(null);
       setShowButtonModal(true);
@@ -2319,6 +2474,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       setModalInitialText(txt);
       setModalInitialUrl('');
       setModalInitialVariant('primary');
+      setModalInitialSize('md');
       setIsButtonEditing(false);
       setEditingButtonNode(null);
       setShowButtonModal(true);
@@ -2406,14 +2562,15 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     }
   };
 
-  const handleInsertOrUpdateButton = (btnLabel: string, btnUrl: string, btnVariant: string) => {
+  const handleInsertOrUpdateButton = (btnLabel: string, btnUrl: string, btnVariant: string, btnSize: string = 'md') => {
     const targetDivRef = activeEditorRef.current === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
     if (editorMode === 'visual') {
       if (isButtonEditing && editingButtonNode) {
         editingButtonNode.setAttribute('data-label', btnLabel);
         editingButtonNode.setAttribute('data-url', btnUrl);
         editingButtonNode.setAttribute('data-variant', btnVariant);
-        editingButtonNode.className = `rich-visual-badge rich-btn-${btnVariant}`;
+        editingButtonNode.setAttribute('data-size', btnSize);
+        editingButtonNode.className = `rich-visual-badge rich-btn-${btnVariant} rich-btn-size-${btnSize}`;
         editingButtonNode.innerHTML = `<span>${escapeHtml(btnLabel)}</span>`;
         isInternalUpdateRef.current = true;
         handleVisualInput(targetDivRef);
@@ -2423,8 +2580,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         btn.setAttribute('data-label', btnLabel);
         btn.setAttribute('data-url', btnUrl);
         btn.setAttribute('data-variant', btnVariant);
+        btn.setAttribute('data-size', btnSize);
         btn.setAttribute('contenteditable', 'false');
-        btn.className = `rich-visual-badge rich-btn-${btnVariant}`;
+        btn.className = `rich-visual-badge rich-btn-${btnVariant} rich-btn-size-${btnSize}`;
         btn.innerHTML = `<span>${escapeHtml(btnLabel)}</span>`;
 
         const container = targetDivRef.current;
@@ -2472,7 +2630,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       }
     } else {
       const ref = activeEditorRef.current === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
-      applyFormatToRef(ref, '\n', '\n', `[button:${btnLabel}|${btnUrl}|${btnVariant}]`);
+      applyFormatToRef(ref, '\n', '\n', `[button:${btnLabel}|${btnUrl}|${btnVariant}|${btnSize}]`);
     }
     setEditingButtonNode(null);
     setIsButtonEditing(false);
@@ -2678,6 +2836,26 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           background: ${activeIsDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.08)'};
           color: ${activeIsDark ? '#38bdf8' : '#0284c7'};
           border: 1px solid ${activeIsDark ? 'rgba(56, 189, 248, 0.4)' : 'rgba(2, 132, 199, 0.4)'};
+        }
+        .rich-btn-size-sm {
+          padding: 0.2rem 0.5rem;
+          font-size: 0.68rem;
+          border-radius: 0.45rem;
+        }
+        .rich-btn-size-md {
+          padding: 0.28rem 0.65rem;
+          font-size: 0.74rem;
+          border-radius: 0.6rem;
+        }
+        .rich-btn-size-lg {
+          padding: 0.42rem 0.95rem;
+          font-size: 0.85rem;
+          border-radius: 0.75rem;
+        }
+        .rich-btn-size-xl {
+          padding: 0.58rem 1.25rem;
+          font-size: 0.96rem;
+          border-radius: 0.85rem;
         }
       `}</style>
 
@@ -3515,13 +3693,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                     gap: '0.4rem',
                     padding: isMobile ? '0.5rem 1rem' : '0.55rem 1.35rem',
                     borderRadius: '0.65rem',
-                    background: 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)',
+                    background: 'linear-gradient(135deg, var(--primary, #10b981) 0%, var(--primary-hover, #059669) 100%)',
                     border: 'none',
                     color: '#ffffff',
                     fontSize: '0.82rem',
                     fontWeight: 800,
                     cursor: 'pointer',
-                    boxShadow: '0 2px 10px var(--primary-glow, rgba(2, 132, 199, 0.35))',
+                    boxShadow: '0 2px 10px var(--primary-glow, rgba(16, 185, 129, 0.35))',
                     flexShrink: 0,
                     transition: 'all 0.15s ease'
                   }}
@@ -3566,6 +3744,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         initialLabel={modalInitialText}
         initialUrl={modalInitialUrl}
         initialVariant={modalInitialVariant}
+        initialSize={modalInitialSize}
         isEditing={isButtonEditing}
         theme={effectiveTheme}
         isDark={activeIsDark}

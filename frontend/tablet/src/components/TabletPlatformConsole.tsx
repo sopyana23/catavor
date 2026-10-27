@@ -6540,9 +6540,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       gap: '0.45rem',
                       padding: '0.55rem 1.1rem',
                       borderRadius: '0.65rem',
-                      border: `1px solid ${broadcastSubView === 'list' ? 'var(--primary)' : 'var(--border-light)'}`,
-                      backgroundColor: broadcastSubView === 'list' ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
-                      color: broadcastSubView === 'list' ? 'var(--primary)' : 'var(--text-muted)',
+                      border: `1px solid ${broadcastSubView === 'list' ? '#f59e0b' : 'var(--border-light)'}`,
+                      backgroundColor: broadcastSubView === 'list' ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-card)',
+                      color: broadcastSubView === 'list' ? (isDark ? '#fbbf24' : '#d97706') : 'var(--text-muted)',
                       fontSize: '0.84rem',
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -6554,8 +6554,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     <span style={{
                       padding: '0.15rem 0.45rem',
                       borderRadius: '999px',
-                      backgroundColor: broadcastSubView === 'list' ? 'var(--primary)' : 'var(--bg-deep)',
-                      color: broadcastSubView === 'list' ? '#ffffff' : 'var(--text-muted)',
+                      backgroundColor: broadcastSubView === 'list' ? '#f59e0b' : 'var(--bg-deep)',
+                      color: broadcastSubView === 'list' ? '#000000' : 'var(--text-muted)',
                       fontSize: '0.72rem',
                       fontWeight: 800
                     }}>
@@ -6577,9 +6577,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       gap: '0.45rem',
                       padding: '0.55rem 1.1rem',
                       borderRadius: '0.65rem',
-                      border: `1px solid ${broadcastSubView === 'create' ? 'var(--primary)' : 'var(--border-light)'}`,
-                      backgroundColor: broadcastSubView === 'create' ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
-                      color: broadcastSubView === 'create' ? 'var(--primary)' : 'var(--text-muted)',
+                      border: `1px solid ${broadcastSubView === 'create' ? '#f59e0b' : 'var(--border-light)'}`,
+                      backgroundColor: broadcastSubView === 'create' ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-card)',
+                      color: broadcastSubView === 'create' ? (isDark ? '#fbbf24' : '#d97706') : 'var(--text-muted)',
                       fontSize: '0.84rem',
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -6626,8 +6626,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           width: '36px',
                           height: '36px',
                           borderRadius: '0.6rem',
-                          backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                          color: '#3b82f6',
+                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                          color: '#f59e0b',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -6639,7 +6639,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                             Total Siaran
                           </div>
-                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f59e0b', lineHeight: 1.2 }}>
                             {broadcastMetrics.total_broadcasts}
                           </div>
                         </div>
@@ -6690,8 +6690,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           width: '36px',
                           height: '36px',
                           borderRadius: '0.6rem',
-                          backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                          color: '#f59e0b',
+                          backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                          color: '#6366f1',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -6703,7 +6703,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                             Target Sasaran
                           </div>
-                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f59e0b', lineHeight: 1.2 }}>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#6366f1', lineHeight: 1.2 }}>
                             {broadcastMetrics.targeted_broadcasts}
                           </div>
                         </div>
@@ -6783,11 +6783,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 minWidth: '44px',
                                 padding: '0.4rem 0.85rem',
                                 borderRadius: '0.5rem',
-                                border: 'none',
-                                backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-                                color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                                border: `1px solid ${isActive ? '#f59e0b' : 'transparent'}`,
+                                backgroundColor: isActive ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                                color: isActive ? (isDark ? '#fbbf24' : '#d97706') : 'var(--text-secondary)',
                                 fontSize: '0.78rem',
-                                fontWeight: 700,
+                                fontWeight: isActive ? 800 : 600,
                                 cursor: 'pointer',
                                 transition: 'all 0.15s ease',
                                 whiteSpace: 'nowrap',
@@ -6820,12 +6820,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           <div style={{ flex: 1, padding: '0.85rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                             {isFetchingBroadcasts && broadcasts.length === 0 ? (
                               <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                                <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 0.65rem auto', color: 'var(--primary)' }} />
+                                <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 0.65rem auto', color: '#f59e0b' }} />
                                 <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Memuat daftar siaran...</div>
                               </div>
                             ) : broadcasts.length === 0 ? (
                               <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
-                                <Radio size={36} color="var(--primary)" style={{ margin: '0 auto 0.75rem auto', opacity: 0.8 }} />
+                                <Radio size={36} color="#f59e0b" style={{ margin: '0 auto 0.75rem auto', opacity: 0.8 }} />
                                 <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                                   {broadcastSearchQuery ? 'Tidak ada siaran yang cocok' : 'Belum ada siaran disebarkan'}
                                 </div>
@@ -6847,13 +6847,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     style={{
                                       padding: '0.85rem 1rem',
                                       borderRadius: '0.85rem',
-                                      backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-card)',
-                                      border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
+                                      backgroundColor: isSelected ? (isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)') : 'var(--bg-card)',
+                                      border: `1.5px solid ${isSelected ? '#f59e0b' : 'var(--border-light)'}`,
                                       cursor: 'pointer',
                                       display: 'flex',
                                       flexDirection: 'column',
                                       gap: '0.45rem',
-                                      boxShadow: isSelected ? '0 4px 14px rgba(59, 130, 246, 0.12)' : 'none',
+                                      boxShadow: isSelected ? (isDark ? '0 4px 14px rgba(245, 158, 11, 0.2)' : '0 4px 14px rgba(245, 158, 11, 0.12)') : 'none',
                                       transition: 'all 0.15s ease'
                                     }}
                                   >
@@ -6939,7 +6939,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                         {bc.created_at ? new Date(bc.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                                       </span>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700, color: '#3b82f6' }}>
                                           <Eye size={12} />
                                           {bc.read_count || 0} Pembaca
                                         </span>
@@ -6949,8 +6949,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           gap: '0.25rem',
                                           fontSize: '0.68rem',
                                           fontWeight: 700,
-                                          color: 'var(--primary)',
-                                          backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                                          color: isDark ? '#38bdf8' : '#0284c7',
+                                          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                                          border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
                                           padding: '0.15rem 0.45rem',
                                           borderRadius: '0.35rem'
                                         }}>
@@ -6989,7 +6990,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             height: '100%',
                             gap: '0.85rem'
                           }}>
-                            <RefreshCw size={28} className="animate-spin" color="var(--primary)" />
+                            <RefreshCw size={28} className="animate-spin" color="#f59e0b" />
                             <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)', fontWeight: 700 }}>
                               Memuat rincian siaran...
                             </span>
@@ -7115,11 +7116,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                   <span style={{
                                     fontSize: '0.74rem',
-                                    fontWeight: 700,
+                                    fontWeight: 800,
                                     padding: '0.35rem 0.75rem',
                                     borderRadius: '0.5rem',
-                                    backgroundColor: 'var(--bg-deep)',
-                                    color: 'var(--text-secondary)',
+                                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                                    color: isDark ? '#38bdf8' : '#0284c7',
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '0.35rem'
@@ -7178,7 +7179,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     Waktu Terbit:
                                   </div>
                                   <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                    <Calendar size={13} color="var(--primary)" />
+                                    <Calendar size={13} color="#f59e0b" />
                                     {selectedBroadcast.created_at ? new Date(selectedBroadcast.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '-'}
                                   </div>
                                 </div>
@@ -7188,7 +7189,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     Masa Berlaku:
                                   </div>
                                   <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                    <Clock size={13} color="var(--primary)" />
+                                    <Clock size={13} color="#f59e0b" />
                                     {selectedBroadcast.expires_at ? new Date(selectedBroadcast.expires_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : 'Permanen (Tanpa Batas)'}
                                   </div>
                                 </div>
@@ -7198,7 +7199,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     Target Sasaran:
                                   </div>
                                   <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                    <Target size={13} color="var(--primary)" />
+                                    <Target size={13} color="#f59e0b" />
                                     {getBroadcastTargetLabel(selectedBroadcast)}
                                   </div>
                                 </div>
@@ -7208,7 +7209,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     Tipe Aksi Lanjutan:
                                   </div>
                                   <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                    <Sparkles size={13} color="var(--primary)" />
+                                    <Sparkles size={13} color="#f59e0b" />
                                     {selectedBroadcast.action_type === 'detail' ? 'Artikel Lengkap (Detail)' : selectedBroadcast.action_type === 'navigate' ? 'Navigasi Menu Internal' : selectedBroadcast.action_type === 'external_link' ? 'Tautan Eksternal' : 'Pesan Pemberitahuan'}
                                   </div>
                                 </div>
@@ -7220,14 +7221,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               <div style={{
                                 padding: '1rem 1.15rem',
                                 borderRadius: '0.85rem',
-                                backgroundColor: 'rgba(59, 130, 246, 0.06)',
-                                border: '1px solid rgba(59, 130, 246, 0.2)',
+                                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)',
+                                border: isDark ? '1px solid rgba(245, 158, 11, 0.25)' : '1px solid rgba(245, 158, 11, 0.2)',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '0.5rem'
                               }}>
                                 <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                  <Users size={14} color="var(--primary)" />
+                                  <Users size={14} color="#f59e0b" />
                                   <span>Daftar Penerima Sasaran Khusus ({selectedBroadcastRecipients.length} Target):</span>
                                 </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
@@ -7337,7 +7338,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 flexDirection: 'column',
                                 gap: '0.45rem'
                               }}>
-                                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#93c5fd' : '#2563eb', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                                   Aksi Navigasi Internal Menu:
                                 </div>
                                 <div style={{
@@ -7346,10 +7347,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   justifyContent: 'space-between',
                                   padding: '0.75rem 1rem',
                                   borderRadius: '0.65rem',
-                                  backgroundColor: 'var(--primary)',
+                                  backgroundColor: '#3b82f6',
                                   color: '#ffffff',
                                   fontWeight: 800,
-                                  fontSize: '0.85rem'
+                                  fontSize: '0.85rem',
+                                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
                                 }}>
                                   <span>{selectedBroadcast.action_label || 'Buka Menu Terkait →'}</span>
                                   <span style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', opacity: 0.9 }}>
@@ -7484,7 +7486,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     boxSizing: 'border-box'
                   }}>
                     <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Target size={16} color="var(--primary)" />
+                      <Target size={16} color="#f59e0b" />
                       <span>1. Target Sasaran Penerima</span>
                     </div>
 
@@ -7552,7 +7554,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               }}
                             />
                             {isSearchingRecipients && (
-                              <RefreshCw size={14} className="animate-spin" style={{ position: 'absolute', right: '0.75rem', color: 'var(--primary)' }} />
+                              <RefreshCw size={14} className="animate-spin" style={{ position: 'absolute', right: '0.75rem', color: '#f59e0b' }} />
                             )}
                           </div>
 
@@ -7745,7 +7747,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     boxSizing: 'border-box'
                   }}>
                     <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Tag size={16} color="var(--primary)" />
+                      <Tag size={16} color="#f59e0b" />
                       <span>2. Klasifikasi & Prioritas</span>
                     </div>
 
@@ -7862,7 +7864,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           borderTop: '1px solid var(--border-light)',
                           fontSize: '0.74rem',
                           fontWeight: 700,
-                          color: 'var(--primary)',
+                          color: '#f59e0b',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '0.3rem',
@@ -7893,7 +7895,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     boxSizing: 'border-box'
                   }}>
                     <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <FileText size={16} color="var(--primary)" />
+                      <FileText size={16} color="#f59e0b" />
                       <span>3. Konten Pesan & Tindakan</span>
                     </div>
 
@@ -8217,8 +8219,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       <div style={{
                         padding: '1.25rem 1.5rem',
                         borderRadius: '1rem',
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px solid var(--border-light)',
+                        background: isDark 
+                          ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)' 
+                          : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
+                        border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.2)'}`,
+                        boxShadow: 'var(--card-shadow, 0 4px 16px rgba(0,0,0,0.06))',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.85rem',
@@ -8228,8 +8233,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           width: '44px',
                           height: '44px',
                           borderRadius: '0.85rem',
-                          backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                          border: '1px solid rgba(245, 158, 11, 0.25)',
+                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
