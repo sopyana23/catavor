@@ -899,28 +899,75 @@ export const HeadingDropdown: React.FC<{
   isDark?: boolean;
 }> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = true }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [alignDirection, setAlignDirection] = useState<'left' | 'right'>('left');
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const calculateCoords = () => {
+    if (!buttonRef.current) return { top: 0, left: 0 };
+    const rect = buttonRef.current.getBoundingClientRect();
+    const menuWidth = isZen ? 205 : 190;
+    const menuHeight = 150;
+    let top = rect.bottom + 5;
+    if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 10) {
+      top = Math.max(10, rect.top - menuHeight - 5);
+    }
+    let left = rect.left;
+    if (left + menuWidth > window.innerWidth - 10) {
+      left = Math.max(10, rect.right - menuWidth);
+    }
+    if (left < 10) left = 10;
+    return { top, left };
+  };
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isOpen) {
+      setCoords(calculateCoords());
+    }
+    setIsOpen(prev => !prev);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
-    if (dropdownRef.current) {
-      const rect = dropdownRef.current.getBoundingClientRect();
-      const menuWidth = isZen ? 205 : 190;
-      const spaceRight = window.innerWidth - rect.left;
-      if (spaceRight < menuWidth + 12) {
-        setAlignDirection('right');
-      } else {
-        setAlignDirection('left');
+    const handleScrollOrResize = () => {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setIsOpen(false);
+        return;
       }
-    }
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      setCoords(calculateCoords());
+    };
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (
+        buttonRef.current && !buttonRef.current.contains(target) &&
+        menuRef.current && !menuRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen, isZen]);
 
   const handleSelect = (level: 1 | 2 | 3) => {
@@ -934,12 +981,14 @@ export const HeadingDropdown: React.FC<{
   const textMutedCol = theme?.textMuted || 'var(--text-muted, #94a3b8)';
 
   return (
-    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 99999 : 1 }}>
+    <>
       <button
+        ref={buttonRef}
         type="button"
         className={btnClassName}
         title="Pilih Ukuran Judul (Heading H1, H2, H3)"
-        onClick={() => setIsOpen(!isOpen)}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={handleToggle}
         style={{
           minHeight: '36px',
           display: 'flex',
@@ -951,26 +1000,28 @@ export const HeadingDropdown: React.FC<{
           padding: '0.3rem 0.65rem',
           borderRadius: '0.45rem',
           fontSize: '0.78rem',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          flexShrink: 0
         }}
       >
         <span style={{ fontWeight: 700 }}>Judul</span>
         <ChevronDown size={12} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
+          ref={menuRef}
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 5px)',
-            ...(alignDirection === 'right' ? { right: 0, left: 'auto' } : { left: 0, right: 'auto' }),
-            zIndex: 999999,
+            position: 'fixed',
+            top: coords.top,
+            left: coords.left,
+            zIndex: 9999999,
             minWidth: isZen ? '205px' : '190px',
             maxWidth: 'calc(100vw - 20px)',
             backgroundColor: bgCard,
             border: `1px solid ${borderCol}`,
             borderRadius: '0.65rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.4)',
+            boxShadow: '0 14px 35px rgba(0,0,0,0.55)',
             padding: '0.4rem',
             display: 'flex',
             flexDirection: 'column',
@@ -980,6 +1031,7 @@ export const HeadingDropdown: React.FC<{
         >
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect(1)}
             style={{
               minHeight: '38px',
@@ -993,8 +1045,11 @@ export const HeadingDropdown: React.FC<{
               backgroundColor: 'transparent',
               color: textCol,
               cursor: 'pointer',
-              textAlign: 'left'
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
               <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary, #38bdf8)', width: '22px' }}>H1</span>
@@ -1005,6 +1060,7 @@ export const HeadingDropdown: React.FC<{
 
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect(2)}
             style={{
               minHeight: '38px',
@@ -1018,8 +1074,11 @@ export const HeadingDropdown: React.FC<{
               backgroundColor: 'transparent',
               color: textCol,
               cursor: 'pointer',
-              textAlign: 'left'
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
               <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary, #38bdf8)', width: '22px' }}>H2</span>
@@ -1030,6 +1089,7 @@ export const HeadingDropdown: React.FC<{
 
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect(3)}
             style={{
               minHeight: '38px',
@@ -1043,8 +1103,11 @@ export const HeadingDropdown: React.FC<{
               backgroundColor: 'transparent',
               color: textCol,
               cursor: 'pointer',
-              textAlign: 'left'
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
               <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--primary, #38bdf8)', width: '22px' }}>H3</span>
@@ -1052,9 +1115,10 @@ export const HeadingDropdown: React.FC<{
             </div>
             <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, rgba(0,0,0,0.06))', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>###</code>
           </button>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 };
 
@@ -1066,28 +1130,75 @@ export const ListDropdown: React.FC<{
   isDark?: boolean;
 }> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = true }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [alignDirection, setAlignDirection] = useState<'left' | 'right'>('left');
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const calculateCoords = () => {
+    if (!buttonRef.current) return { top: 0, left: 0 };
+    const rect = buttonRef.current.getBoundingClientRect();
+    const menuWidth = isZen ? 205 : 190;
+    const menuHeight = 110;
+    let top = rect.bottom + 5;
+    if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 10) {
+      top = Math.max(10, rect.top - menuHeight - 5);
+    }
+    let left = rect.left;
+    if (left + menuWidth > window.innerWidth - 10) {
+      left = Math.max(10, rect.right - menuWidth);
+    }
+    if (left < 10) left = 10;
+    return { top, left };
+  };
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isOpen) {
+      setCoords(calculateCoords());
+    }
+    setIsOpen(prev => !prev);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
-    if (dropdownRef.current) {
-      const rect = dropdownRef.current.getBoundingClientRect();
-      const menuWidth = isZen ? 205 : 190;
-      const spaceRight = window.innerWidth - rect.left;
-      if (spaceRight < menuWidth + 12) {
-        setAlignDirection('right');
-      } else {
-        setAlignDirection('left');
+    const handleScrollOrResize = () => {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setIsOpen(false);
+        return;
       }
-    }
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      setCoords(calculateCoords());
+    };
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (
+        buttonRef.current && !buttonRef.current.contains(target) &&
+        menuRef.current && !menuRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen, isZen]);
 
   const handleSelect = (type: 'bullet' | 'number') => {
@@ -1101,12 +1212,14 @@ export const ListDropdown: React.FC<{
   const textMutedCol = theme?.textMuted || 'var(--text-muted, #94a3b8)';
 
   return (
-    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 99999 : 1 }}>
+    <>
       <button
+        ref={buttonRef}
         type="button"
         className={btnClassName}
         title="Pilih Format Daftar (Daftar Poin, Nomor)"
-        onClick={() => setIsOpen(!isOpen)}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={handleToggle}
         style={{
           minHeight: '36px',
           display: 'flex',
@@ -1118,26 +1231,28 @@ export const ListDropdown: React.FC<{
           padding: '0.3rem 0.65rem',
           borderRadius: '0.45rem',
           fontSize: '0.78rem',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          flexShrink: 0
         }}
       >
         <span style={{ fontWeight: 700 }}>List</span>
         <ChevronDown size={12} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
+          ref={menuRef}
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 5px)',
-            ...(alignDirection === 'right' ? { right: 0, left: 'auto' } : { left: 0, right: 'auto' }),
-            zIndex: 999999,
+            position: 'fixed',
+            top: coords.top,
+            left: coords.left,
+            zIndex: 9999999,
             minWidth: isZen ? '205px' : '190px',
             maxWidth: 'calc(100vw - 20px)',
             backgroundColor: bgCard,
             border: `1px solid ${borderCol}`,
             borderRadius: '0.65rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.4)',
+            boxShadow: '0 14px 35px rgba(0,0,0,0.55)',
             padding: '0.4rem',
             display: 'flex',
             flexDirection: 'column',
@@ -1147,6 +1262,7 @@ export const ListDropdown: React.FC<{
         >
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect('bullet')}
             style={{
               minHeight: '38px',
@@ -1160,8 +1276,11 @@ export const ListDropdown: React.FC<{
               backgroundColor: 'transparent',
               color: textCol,
               cursor: 'pointer',
-              textAlign: 'left'
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
               <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary, #38bdf8)', width: '22px', textAlign: 'center', lineHeight: 1 }}>•</span>
@@ -1172,6 +1291,7 @@ export const ListDropdown: React.FC<{
 
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect('number')}
             style={{
               minHeight: '38px',
@@ -1185,8 +1305,11 @@ export const ListDropdown: React.FC<{
               backgroundColor: 'transparent',
               color: textCol,
               cursor: 'pointer',
-              textAlign: 'left'
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
               <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary, #38bdf8)', width: '22px', textAlign: 'center' }}>1.</span>
@@ -1194,9 +1317,10 @@ export const ListDropdown: React.FC<{
             </div>
             <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, rgba(0,0,0,0.06))', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>1.</code>
           </button>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 };
 
@@ -1320,12 +1444,21 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       }
     }
 
-    const replacement = selected ? `${prefix}${selected}${suffix}` : `${prefix}${defaultText}${suffix}`;
+    // Clean prefix for headings and block items if at start of string or following a newline
+    let actualPrefix = prefix;
+    if (prefix.startsWith('\n')) {
+      const textBefore = currentVal.substring(0, start);
+      if (start === 0 || textBefore.endsWith('\n')) {
+        actualPrefix = prefix.substring(1);
+      }
+    }
+
+    const replacement = selected ? `${actualPrefix}${selected}${suffix}` : `${actualPrefix}${defaultText}${suffix}`;
     const newValue = currentVal.substring(0, start) + replacement + currentVal.substring(end);
     onChange(newValue);
     setTimeout(() => {
       el.focus();
-      const newCursor = selected ? start + prefix.length + selected.length + suffix.length : start + prefix.length;
+      const newCursor = selected ? start + actualPrefix.length + selected.length + suffix.length : start + actualPrefix.length;
       el.setSelectionRange(newCursor, newCursor + (selected ? 0 : defaultText.length));
     }, 0);
   };
@@ -1473,6 +1606,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           type="button"
           className="rich-btn-format"
           title="Teks Tebal (Bold)"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -1502,6 +1636,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           type="button"
           className="rich-btn-format"
           title="Teks Miring (Italic)"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -1554,6 +1689,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           type="button"
           className="rich-btn-format"
           title="Sisipkan Tautan (Link)"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -1587,6 +1723,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           type="button"
           className="rich-btn-format"
           title="Sisipkan Tombol Aksi (CTA Button)"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -1621,6 +1758,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             type="button"
             className="rich-btn-fullscreen"
             title="Buka Layar Penuh (Fullscreen Zen Mode)"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1895,6 +2033,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 <button
                   type="button"
                   title="Teks Tebal"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1917,6 +2056,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 <button
                   type="button"
                   title="Teks Miring"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1960,6 +2100,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 <button
                   type="button"
                   title="Sisipkan Tautan (Link)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1991,6 +2132,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 <button
                   type="button"
                   title="Sisipkan Tombol Aksi (CTA Button)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
