@@ -1174,12 +1174,23 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
 
   return (
     <div style={{
-      padding: '1.75rem 2rem 5rem 2rem',
-      maxWidth: '1040px',
-      margin: '0 auto',
+      flex: 1,
+      minHeight: 0,
+      height: '100%',
+      maxHeight: '100%',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch',
+      overscrollBehavior: 'contain',
       width: '100%',
       boxSizing: 'border-box'
     }}>
+      <div style={{
+        maxWidth: '1040px',
+        margin: '0 auto',
+        padding: '1.75rem 2rem 8rem 2rem',
+        width: '100%',
+        boxSizing: 'border-box'
+      }}>
       {/* Header Banner */}
       <div style={{
         display: 'flex',
@@ -2560,6 +2571,7 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

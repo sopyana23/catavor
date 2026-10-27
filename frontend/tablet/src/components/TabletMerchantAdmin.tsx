@@ -7106,7 +7106,24 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 6: AKUN & KEAMANAN (Profile, Password, Sessions, Danger Zone)
             =================================================================== */}
         {activeTab === 'profile' && (
-          <div style={{ padding: '1.75rem 2rem', maxWidth: '1040px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+          <div style={{
+            flex: 1,
+            minHeight: 0,
+            height: '100%',
+            maxHeight: '100%',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{
+              maxWidth: '1040px',
+              margin: '0 auto',
+              padding: '1.75rem 2rem 8rem 2rem',
+              width: '100%',
+              boxSizing: 'border-box'
+            }}>
             {/* Segmented Control Header with Guaranteed Consistent Tab Bar Position (Desktop Parity with Tablet Ergonomics) */}
             <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
               {/* Top Row: Page Title on the Left, Tabs on the Right - Responsive single-line or clean tablet wrap */}
@@ -8112,6 +8129,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 />
               </div>
             )}
+            </div>
           </div>
         )}
 
@@ -8119,15 +8137,33 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB: AUDIT LOGS (JEJAK AKTIVITAS PENGELOLA)
             =================================================================== */}
         {activeTab === 'audit_logs' && (
-          <div style={{ padding: '1.75rem 2rem', maxWidth: '1040px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-            <TabletAuditLogsView
-              token={token}
-              currentUser={currentUser}
-              storeSlug={storeSlug}
-              showToast={showToast}
-              onLogout={onLogout}
-              onUnauthorized={onUnauthorized}
-            />
+          <div style={{
+            flex: 1,
+            minHeight: 0,
+            height: '100%',
+            maxHeight: '100%',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{
+              maxWidth: '1040px',
+              margin: '0 auto',
+              padding: '1.75rem 2rem 8rem 2rem',
+              width: '100%',
+              boxSizing: 'border-box'
+            }}>
+              <TabletAuditLogsView
+                token={token}
+                currentUser={currentUser}
+                storeSlug={storeSlug}
+                showToast={showToast}
+                onLogout={onLogout}
+                onUnauthorized={onUnauthorized}
+              />
+            </div>
           </div>
         )}
 

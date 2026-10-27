@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  ShieldCheck,
   Laptop,
   Smartphone,
   Tablet,
@@ -197,60 +196,7 @@ export const TabletConnectedDevicesView: React.FC<TabletConnectedDevicesViewProp
   const otherSessions = sessions.filter(s => !s.is_current);
 
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box' }}>
-      {/* Top Header Card */}
-      <div className="glass-panel" style={{
-        padding: '1.5rem',
-        borderRadius: '1rem',
-        border: '1px solid var(--border-light)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: '1rem',
-        background: 'var(--card-bg-gradient)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{
-            width: '46px',
-            height: '46px',
-            borderRadius: '12px',
-            background: 'rgba(16, 185, 129, 0.12)',
-            border: '1px solid rgba(16, 185, 129, 0.25)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#10b981',
-            flexShrink: 0
-          }}>
-            <ShieldCheck size={26} />
-          </div>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              Perangkat Terhubung &amp; Sesi Login
-              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '999px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                NIST SP 800-63B SECURE
-              </span>
-            </h3>
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Pantau seluruh browser dan perangkat yang sedang aktif menggunakan akun Anda. Cabut akses perangkat yang tidak Anda kenali sewaktu-waktu.
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => fetchSessions(false)}
-          disabled={loading}
-          className="btn-secondary"
-          style={{ minHeight: '44px', padding: '0.5rem 1rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.45rem', borderRadius: '0.6rem' }}
-          title="Segarkan daftar perangkat"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          <span>{loading ? 'Menyinkronkan...' : 'Perbarui Sesi'}</span>
-        </button>
-      </div>
-
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', width: '100%', boxSizing: 'border-box' }}>
       {loading && sessions.length === 0 ? (
         <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
           <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 0.75rem auto', color: 'var(--primary)' }} />
@@ -260,9 +206,22 @@ export const TabletConnectedDevicesView: React.FC<TabletConnectedDevicesViewProp
         <>
           {/* Section 1: Sesi Saat Ini (Perangkat Ini) */}
           <div>
-            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Monitor size={15} style={{ color: 'var(--primary)' }} />
-              <span>Sesi Saat Ini (Perangkat Ini)</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Monitor size={15} style={{ color: 'var(--primary)' }} />
+                <span>Sesi Saat Ini (Perangkat Ini)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchSessions(false)}
+                disabled={loading}
+                className="btn-secondary"
+                style={{ minHeight: '38px', padding: '0.45rem 0.95rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.45rem', borderRadius: '0.55rem' }}
+                title="Segarkan daftar perangkat"
+              >
+                <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+                <span>{loading ? 'Menyinkronkan...' : 'Perbarui Sesi'}</span>
+              </button>
             </div>
 
             {currentSession ? (

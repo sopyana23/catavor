@@ -196,55 +196,6 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Top Banner */}
-      <div style={{
-        padding: '1.25rem 1.5rem',
-        borderRadius: '1rem',
-        background: 'var(--card-bg-gradient, var(--bg-card))',
-        border: '1px solid var(--border-light)',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '1rem',
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <div style={{
-          width: '42px',
-          height: '42px',
-          borderRadius: '10px',
-          background: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
-          border: '1px solid var(--border-light)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--text-secondary)',
-          flexShrink: 0
-        }}>
-          <FolderMinus size={22} />
-        </div>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <span style={{
-              padding: '0.2rem 0.6rem',
-              borderRadius: '6px',
-              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.06))',
-              color: 'var(--text-secondary)',
-              fontWeight: 700,
-              fontSize: '0.72rem',
-              letterSpacing: '0.04em',
-              border: '1px solid var(--border-light)'
-            }}>
-              PENGATURAN LANJUTAN
-            </span>
-            <h3 style={{ fontSize: '1.15rem', margin: 0, fontWeight: 800, color: 'var(--text-primary)' }}>
-              Penutupan Akun dan Katalog
-            </h3>
-          </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', margin: '0.45rem 0 0 0', lineHeight: 1.55 }}>
-            Bagian ini memungkinkan Anda menghapus profil katalog yang sudah tidak digunakan atau mengajukan penutupan akun pengguna secara permanen. Seluruh tindakan memerlukan verifikasi kata sandi demi keamanan kepemilikan akun Anda.
-          </p>
-        </div>
-      </div>
-
       {/* PANEL 1: BACKUP / CADANGKAN DATA KATALOG (JSON) */}
       {onExportCatalogJSON && (
         <div style={{
