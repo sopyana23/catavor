@@ -6281,436 +6281,451 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         )}
 
         {/* ===================================================================
-            TAB 2: KATEGORI ETALASE (Two-Tier Master Data Hub - Master-Detail Split View)
+            TAB 2: KATEGORI ETALASE (Category Taxonomy Manager - Desktop Parity)
             =================================================================== */}
         {activeTab === 'categories' && (() => {
-          const activeTypeDef = MASTER_CATEGORY_DEFINITIONS.find(t => t.id === masterCategoryContextTab) || MASTER_CATEGORY_DEFINITIONS[0];
-          const ActiveTypeIcon = activeTypeDef.icon;
           const activeCategories = getCategoryOptionsForType(masterCategoryContextTab);
           const defaultList = DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || [];
           const systemCategories = activeCategories.filter(c => defaultList.includes(c));
           const customCategories = activeCategories.filter(c => !defaultList.includes(c));
+          const defaultCount = systemCategories.length;
+          const customCount = customCategories.length;
+          const activeTypeDef = MASTER_CATEGORY_DEFINITIONS.find(t => t.id === masterCategoryContextTab) || MASTER_CATEGORY_DEFINITIONS[0];
+          const ActiveTypeIcon = activeTypeDef.icon;
 
           return (
-            <TabletMasterDetailView
-              title="Master Kategori Etalase"
-              subtitle="Kelola taksonomi kategori etalase per format spesialisasi katalog"
-              selectedId={masterCategoryContextTab}
-              onClearSelection={() => {}}
-              masterPane={
-                <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', overflowY: 'auto' }}>
-                  <div style={{ padding: '0.25rem 0.5rem 0.5rem', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-                    Pilih Tipe Katalog
-                  </div>
-                  {MASTER_CATEGORY_DEFINITIONS.map(tab => {
-                    const isSelected = masterCategoryContextTab === tab.id;
-                    const TabIcon = tab.icon;
-                    const opts = getCategoryOptionsForType(tab.id);
-                    const defaults = DEFAULT_MASTER_CATEGORIES[tab.id] || [];
-                    const customCount = opts.filter(c => !defaults.includes(c)).length;
+            <div style={{
+              height: '100vh',
+              overflowY: 'auto',
+              padding: '1.5rem',
+              maxWidth: '1040px',
+              margin: '0 auto',
+              width: '100%',
+              boxSizing: 'border-box',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem'
+            }}>
+              {/* 1. Header & Stats Card */}
+              <div style={{
+                padding: '1.25rem 1.5rem',
+                borderRadius: '0.85rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                flexWrap: 'wrap',
+                gap: '0.85rem'
+              }}>
+                <div style={{ minWidth: '240px', flex: 1 }}>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Package size={22} style={{ color: 'var(--primary)' }} />
+                    Master Kategori Etalase
+                  </h2>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.35rem 0 0 0', lineHeight: 1.45 }}>
+                    Pilih spesialisasi katalog di bawah untuk mengelola taksonomi etalase toko Anda secara instan tanpa berpindah halaman.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    padding: '0.3rem 0.65rem',
+                    borderRadius: '6px',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-light)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}>
+                    <Lock size={12} strokeWidth={2.2} /> {defaultCount} Standar Terkunci
+                  </span>
+                  {customCount > 0 && (
+                    <span style={{
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      padding: '0.3rem 0.65rem',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      color: '#10b981',
+                      border: '1px solid rgba(16, 185, 129, 0.25)'
+                    }}>
+                      +{customCount} Kustom
+                    </span>
+                  )}
+                  <span style={{
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    padding: '0.3rem 0.75rem',
+                    borderRadius: '6px',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff'
+                  }}>
+                    Total {activeCategories.length} Kategori
+                  </span>
+                </div>
+              </div>
 
+              {/* 2. Direct Context Switcher Pills (Tablet Ergonomics: Touch Target >= 44px, Instant Type Toggle) */}
+              <div style={{
+                display: 'flex',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                alignItems: 'center'
+              }}>
+                {MASTER_CATEGORY_DEFINITIONS.map(tab => {
+                  const isSelected = masterCategoryContextTab === tab.id;
+                  const TabIcon = tab.icon;
+                  const opts = getCategoryOptionsForType(tab.id);
+
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setMasterCategoryContextTab(tab.id)}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0.45rem 0.95rem',
+                        borderRadius: '0.65rem',
+                        fontSize: '0.82rem',
+                        fontWeight: isSelected ? 800 : 600,
+                        whiteSpace: 'nowrap',
+                        border: isSelected ? `1.5px solid ${tab.color}` : '1px solid var(--border-light)',
+                        backgroundColor: isSelected ? tab.color : 'var(--bg-card)',
+                        color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSelected ? `0 2px 8px ${tab.color}35` : '0 1px 2px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      <TabIcon size={16} color={isSelected ? '#ffffff' : tab.color} />
+                      <span>{tab.label}</span>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        padding: '0.1rem 0.45rem',
+                        borderRadius: '999px',
+                        backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-deep)',
+                        color: isSelected ? '#ffffff' : 'var(--text-secondary)'
+                      }}>
+                        {opts.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 3. Active Type Description Banner */}
+              <div style={{
+                padding: '0.85rem 1.15rem',
+                borderRadius: '0.75rem',
+                backgroundColor: `${activeTypeDef.color}10`,
+                border: `1px solid ${activeTypeDef.color}28`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                fontSize: '0.82rem',
+                color: 'var(--text-secondary)',
+                lineHeight: 1.45
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  backgroundColor: `${activeTypeDef.color}20`,
+                  color: activeTypeDef.color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <ActiveTypeIcon size={19} />
+                </div>
+                <div>
+                  <strong style={{ color: 'var(--text-primary)', marginRight: '0.35rem' }}>{activeTypeDef.label}:</strong>
+                  <span>{activeTypeDef.desc}</span>
+                </div>
+              </div>
+
+              {/* 4. Section 1: Kategori Standar Sistem (Tags) */}
+              <div style={{
+                padding: '1.25rem',
+                borderRadius: '0.85rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Lock size={14} strokeWidth={2.2} style={{ color: 'var(--text-muted)' }} />
+                    <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
+                      Kategori Standar Sistem
+                    </span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }}>
+                      {defaultCount}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    Standar bawaan ekosistem (terkunci demi konsistensi etalase)
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                  {systemCategories.map(c => {
+                    const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
                     return (
                       <div
-                        key={tab.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setMasterCategoryContextTab(tab.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setMasterCategoryContextTab(tab.id);
-                          }
-                        }}
+                        key={c}
                         style={{
-                          padding: '0.85rem 1rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: isSelected ? `${tab.color}15` : 'var(--bg-card)',
-                          border: isSelected ? `1.5px solid ${tab.color}` : '1px solid var(--border-light)',
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          justifyContent: 'space-between',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
+                          gap: '0.45rem',
+                          padding: '0.45rem 0.85rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '0.84rem',
+                          color: 'var(--text-primary)'
                         }}
+                        title="Kategori bawaan standar sistem yang terkunci"
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <div style={{
-                            width: '38px',
-                            height: '38px',
-                            borderRadius: '0.5rem',
-                            backgroundColor: `${tab.color}20`,
-                            color: tab.color,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}>
-                            <TabIcon size={19} />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: isSelected ? 800 : 600, color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                              {tab.label}
-                            </div>
-                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                              {opts.length} Kategori
-                            </div>
-                          </div>
-                        </div>
-
-                        {customCount > 0 && (
+                        <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <span style={{ fontWeight: 500 }}>{c}</span>
+                        {count > 0 && (
                           <span style={{
-                            fontSize: '0.68rem',
+                            fontSize: '0.7rem',
                             fontWeight: 700,
-                            padding: '0.12rem 0.45rem',
+                            padding: '0.1rem 0.45rem',
                             borderRadius: '999px',
-                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                            color: '#10b981'
+                            backgroundColor: 'var(--bg-deep)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-light)'
                           }}>
-                            +{customCount} Kustom
+                            {count} item
                           </span>
                         )}
                       </div>
                     );
                   })}
                 </div>
-              }
-              detailPane={
-                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
-                  {/* Context Header Card */}
+              </div>
+
+              {/* 5. Section 2: Kategori Kustom Anda (Tags) */}
+              <div style={{
+                padding: '1.25rem',
+                borderRadius: '0.85rem',
+                backgroundColor: customCategories.length > 0 ? 'rgba(16, 185, 129, 0.03)' : 'var(--bg-deep)',
+                border: customCategories.length > 0 ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-light)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Tag size={15} style={{ color: 'var(--primary)' }} />
+                    <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--primary)' }}>
+                      Kategori Kustom Anda
+                    </span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.1rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                      {customCount}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    Dapat diubah nama atau dihapus kapan saja
+                  </span>
+                </div>
+
+                {customCategories.length === 0 ? (
                   <div style={{
-                    padding: '1.25rem 1.5rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: `${activeTypeDef.color}10`,
-                    border: `1px solid ${activeTypeDef.color}30`,
+                    padding: '1rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px dashed var(--border-light)',
+                    fontSize: '0.82rem',
+                    color: 'var(--text-muted)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '1rem'
+                    gap: '0.5rem'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                      <div style={{
-                        width: '46px',
-                        height: '46px',
-                        borderRadius: '0.75rem',
-                        backgroundColor: `${activeTypeDef.color}25`,
-                        color: activeTypeDef.color,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        <ActiveTypeIcon size={24} />
-                      </div>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                          {activeTypeDef.label}
-                        </h3>
-                        <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          {activeTypeDef.desc}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                      <span style={{
-                        fontSize: '0.74rem',
-                        fontWeight: 700,
-                        padding: '0.25rem 0.65rem',
-                        borderRadius: '6px',
-                        backgroundColor: 'var(--bg-card)',
-                        color: 'var(--text-secondary)',
-                        border: '1px solid var(--border-light)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem'
-                      }}>
-                        <Lock size={12} strokeWidth={2.2} /> {systemCategories.length} Standar
-                      </span>
-                      {customCategories.length > 0 && (
-                        <span style={{
-                          fontSize: '0.74rem',
-                          fontWeight: 700,
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '6px',
-                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                          color: '#10b981',
-                          border: '1px solid rgba(16, 185, 129, 0.3)'
-                        }}>
-                          +{customCategories.length} Kustom
-                        </span>
-                      )}
-                      <span style={{
-                        fontSize: '0.74rem',
-                        fontWeight: 800,
-                        padding: '0.25rem 0.65rem',
-                        borderRadius: '6px',
-                        backgroundColor: 'var(--primary)',
-                        color: '#ffffff'
-                      }}>
-                        Total {activeCategories.length} Kategori
-                      </span>
-                    </div>
+                    <Tag size={15} style={{ opacity: 0.5 }} />
+                    <span>Belum ada kategori kustom untuk <strong>{activeTypeDef.label}</strong>. Tambahkan melalui kolom di bawah.</span>
                   </div>
-
-                  {/* Section 1: Kategori Standar Sistem */}
-                  <div style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <Lock size={14} strokeWidth={2.2} style={{ color: 'var(--text-muted)' }} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
-                          Kategori Standar Sistem
-                        </span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }}>
-                          {systemCategories.length}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        Standar bawaan ekosistem (terkunci demi konsistensi etalase)
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
-                      {systemCategories.map(c => {
-                        const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
-                        return (
-                          <div
-                            key={c}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              padding: '0.45rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              backgroundColor: 'var(--bg-card)',
-                              border: '1px solid var(--border-light)',
-                              fontSize: '0.84rem',
-                              color: 'var(--text-primary)'
-                            }}
-                            title="Kategori bawaan standar sistem yang terkunci"
-                          >
-                            <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                            <span style={{ fontWeight: 500 }}>{c}</span>
-                            {count > 0 && (
-                              <span style={{
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                padding: '0.1rem 0.45rem',
-                                borderRadius: '999px',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-secondary)',
-                                border: '1px solid var(--border-light)'
-                              }}>
-                                {count} item
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Section 2: Kategori Kustom Anda */}
-                  <div style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: customCategories.length > 0 ? 'rgba(16, 185, 129, 0.03)' : 'var(--bg-deep)',
-                    border: customCategories.length > 0 ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-light)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <Tag size={15} style={{ color: 'var(--primary)' }} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--primary)' }}>
-                          Kategori Kustom Anda
-                        </span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.1rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
-                          {customCategories.length}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                        Dapat diubah nama atau dihapus kapan saja
-                      </span>
-                    </div>
-
-                    {customCategories.length === 0 ? (
-                      <div style={{
-                        padding: '1rem',
-                        borderRadius: '0.55rem',
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px dashed var(--border-light)',
-                        fontSize: '0.82rem',
-                        color: 'var(--text-muted)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                      }}>
-                        <Tag size={15} style={{ opacity: 0.5 }} />
-                        <span>Belum ada kategori kustom untuk <strong>{activeTypeDef.label}</strong>. Tambahkan melalui kolom di bawah.</span>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
-                        {customCategories.map(c => {
-                          const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
-                          return (
-                            <div
-                              key={c}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.45rem',
-                                padding: '0.4rem 0.55rem 0.4rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid rgba(16, 185, 129, 0.3)',
-                                fontSize: '0.84rem',
-                                color: 'var(--text-primary)'
-                              }}
-                            >
-                              <Tag size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                              <span style={{ fontWeight: 600 }}>{c}</span>
-                              {count > 0 && (
-                                <span style={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 700,
-                                  padding: '0.1rem 0.45rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                                  color: '#10b981'
-                                }}>
-                                  {count} item
-                                </span>
-                              )}
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setRenameMasterModalData({
-                                    field: 'class',
-                                    fieldLabel: `Kategori (${activeTypeDef.label})`,
-                                    oldValue: c,
-                                    newValue: c,
-                                    productType: masterCategoryContextTab
-                                  })}
-                                  style={{
-                                    width: '26px',
-                                    height: '26px',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--border-light)',
-                                    backgroundColor: 'transparent',
-                                    color: 'var(--text-secondary)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer'
-                                  }}
-                                  title={`Ubah nama kategori "${c}"`}
-                                >
-                                  <Edit3 size={13} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenDeleteMasterOption(c, masterCategoryContextTab)}
-                                  style={{
-                                    width: '26px',
-                                    height: '26px',
-                                    borderRadius: '4px',
-                                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                                    color: '#ef4444',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer'
-                                  }}
-                                  title={`Hapus kategori "${c}"`}
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Section 3: Add Custom Category Form */}
-                  <div style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-light)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem'
-                  }}>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      Tambah Kategori Kustom Baru ({activeTypeDef.label})
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                      <div style={{ position: 'relative', flex: 1 }}>
-                        <input
-                          type="text"
-                          placeholder={`Ketik nama kategori baru untuk ${activeTypeDef.label}... (tekan Enter untuk menyimpan)`}
-                          value={newCustomCategoryInput}
-                          onChange={(e) => setNewCustomCategoryInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput);
-                            }
-                          }}
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                    {customCategories.map(c => {
+                      const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
+                      return (
+                        <div
+                          key={c}
                           style={{
-                            width: '100%',
-                            minHeight: '42px',
-                            padding: '0.55rem 0.85rem 0.55rem 2.25rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            padding: '0.4rem 0.55rem 0.4rem 0.85rem',
                             borderRadius: '0.55rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
+                            backgroundColor: 'var(--bg-card)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            fontSize: '0.84rem',
+                            color: 'var(--text-primary)'
                           }}
-                        />
-                        <Plus size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                      </div>
-                      <button
-                        type="button"
-                        disabled={saving || !newCustomCategoryInput.trim()}
-                        onClick={() => handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput)}
-                        style={{
-                          minHeight: '42px',
-                          padding: '0 1.25rem',
-                          borderRadius: '0.55rem',
-                          backgroundColor: 'var(--primary)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontWeight: 700,
-                          fontSize: '0.84rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          cursor: saving || !newCustomCategoryInput.trim() ? 'not-allowed' : 'pointer',
-                          opacity: saving || !newCustomCategoryInput.trim() ? 0.6 : 1,
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        <Plus size={16} />
-                        <span>Tambah Kategori</span>
-                      </button>
-                    </div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Sparkles size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                      <span>Kategori yang Anda tambahkan di sini akan langsung tersedia di formulir input produk <strong>{activeTypeDef.label}</strong>.</span>
-                    </div>
+                        >
+                          <Tag size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 600 }}>{c}</span>
+                          {count > 0 && (
+                            <span style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '999px',
+                              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                              color: '#10b981'
+                            }}>
+                              {count} item
+                            </span>
+                          )}
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)' }}>
+                            <button
+                              type="button"
+                              onClick={() => setRenameMasterModalData({
+                                field: 'class',
+                                fieldLabel: `Kategori (${activeTypeDef.label})`,
+                                oldValue: c,
+                                newValue: c,
+                                productType: masterCategoryContextTab
+                              })}
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '4px',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'transparent',
+                                color: 'var(--text-secondary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer'
+                              }}
+                              title={`Ubah nama kategori "${c}"`}
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeleteMasterOption(c, masterCategoryContextTab)}
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '4px',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                color: '#ef4444',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer'
+                              }}
+                              title={`Hapus kategori "${c}"`}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+                )}
+              </div>
+
+              {/* 6. Section 3: Add Custom Category Form */}
+              <div style={{
+                padding: '1.25rem',
+                borderRadius: '0.85rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Tambah Kategori Kustom Baru ({activeTypeDef.label})
                 </div>
-              }
-            />
+                <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+                    <input
+                      type="text"
+                      placeholder={`Ketik nama kategori baru untuk ${activeTypeDef.label}... (tekan Enter untuk menyimpan)`}
+                      value={newCustomCategoryInput}
+                      onChange={(e) => setNewCustomCategoryInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput);
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        minHeight: '44px',
+                        padding: '0.55rem 0.85rem 0.55rem 2.25rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.88rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <Plus size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={saving || !newCustomCategoryInput.trim()}
+                    onClick={() => handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput)}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0 1.25rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.84rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: saving || !newCustomCategoryInput.trim() ? 'not-allowed' : 'pointer',
+                      opacity: saving || !newCustomCategoryInput.trim() ? 0.6 : 1,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Plus size={16} />
+                    <span>Tambah Kategori</span>
+                  </button>
+                </div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Sparkles size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                  <span>Kategori yang Anda tambahkan di sini akan langsung tersedia di formulir input produk <strong>{activeTypeDef.label}</strong>.</span>
+                </div>
+              </div>
+
+              {/* 7. Subtle Best Practice Callout */}
+              <div style={{
+                padding: '0.9rem 1.15rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem'
+              }}>
+                <Info size={17} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>Standar Taksonomi Modern:</strong> Master Data katalog difokuskan penuh pada <strong style={{ color: 'var(--text-primary)' }}>Kategori Etalase</strong> di atas. Bidang operasional seperti <strong style={{ color: 'var(--text-primary)' }}>Status Ketersediaan</strong> (<em>Tersedia, Pre-Order, Koleksi, Habis</em>) dan <strong style={{ color: 'var(--text-primary)' }}>Ketentuan Pengiriman</strong> telah distandarisasi langsung pada formulir produk dan filter pencarian katalog.
+                </div>
+              </div>
+            </div>
           );
         })()}
 
