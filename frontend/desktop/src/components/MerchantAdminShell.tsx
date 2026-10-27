@@ -302,10 +302,6 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
     }
   };
 
-  const planName = storeQuota?.plan?.name || (settings?.plan === 'pro_business' ? 'Pro Bisnis' : settings?.plan === 'pro_starter' ? 'Pro Starter' : 'Gratis Terbatas');
-  const activeItemsCount = storeQuota?.active_items_count ?? totalItemsCount;
-  const maxItems = storeQuota?.max_items ?? (settings?.plan === 'free' ? 15 : -1);
-
   return (
     <div 
       className="desktop-admin-shell"
@@ -875,6 +871,62 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           ))}
         </div>
 
+        {/* Sidebar Bottom Action: Public Storefront Link (Tablet Parity) */}
+        {!isSuspended && (
+          <div 
+            style={{
+              padding: isSidebarCollapsed ? '0.65rem 0.4rem' : '0.65rem 0.75rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem',
+              flexShrink: 0,
+              backgroundColor: 'var(--bg-card)'
+            }}
+          >
+            <button
+              type="button"
+              onClick={goToCatalog}
+              title="Buka tampilan katalog publik yang dilihat pengunjung"
+              style={{
+                width: '100%',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: isSidebarCollapsed ? '0' : '0 0.75rem',
+                justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                borderRadius: '0.55rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'transparent',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.82rem',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+                e.currentTarget.style.borderColor = 'var(--primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.borderColor = 'var(--border-light)';
+              }}
+            >
+              <ExternalLink size={16} style={{ flexShrink: 0, color: 'var(--primary)' }} />
+              {!isSidebarCollapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span>Katalog Publik</span>
+                  <Eye size={13} style={{ opacity: 0.55 }} />
+                </div>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Sidebar Footer: User Details & Logout */}
         <div 
           style={{
@@ -1081,166 +1133,113 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
 
               {/* Right: Quick Actions */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {/* Quick Quota Pill */}
-            <div 
-              onClick={() => {
-                setAdminTab('subscription');
-                if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/subscription`);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.3rem 0.75rem',
-                borderRadius: '999px',
-                backgroundColor: 'var(--bg-card-hover)',
-                border: '1px solid var(--border-light)',
-                cursor: 'pointer',
-                fontSize: '0.74rem',
-                fontWeight: 700,
-                color: 'var(--text-secondary)',
-                transition: 'all 0.15s ease'
-              }}
-              title="Lihat status kuota & upgrade paket"
-            >
-              <PackageCheck size={13} color="var(--primary)" />
-              <span>{activeItemsCount} / {maxItems === -1 ? '∞' : maxItems} Item</span>
-              <span style={{
-                fontSize: '0.62rem',
-                fontWeight: 800,
-                padding: '0.05rem 0.35rem',
-                borderRadius: '4px',
-                backgroundColor: settings?.plan === 'free' ? 'rgba(245, 158, 11, 0.2)' : 'var(--primary-glow)',
-                color: settings?.plan === 'free' ? '#f59e0b' : 'var(--primary)'
-              }}>
-                {planName}
-              </span>
-            </div>
-
-            {/* Cloud Storage Warning Pill if >= 80% */}
-            {storeQuota && storeQuota.storage_usage_percent >= 80 && (
-              <div
-                onClick={() => {
-                  setAdminTab('subscription');
-                  if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/subscription`);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.3rem 0.65rem',
-                  borderRadius: '999px',
-                  backgroundColor: storeQuota.is_storage_over_limit ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                  border: `1px solid ${storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b'}`,
-                  cursor: 'pointer',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  color: storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b',
-                  transition: 'all 0.15s ease'
-                }}
-                title={`Penyimpanan Cloud hampir penuh (${Math.round(storeQuota.storage_usage_percent)}%). Klik untuk upgrade kuota.`}
-              >
-                <HardDrive size={13} />
-                <span>{Math.round(storeQuota.storage_usage_percent)}% Storage</span>
-              </div>
-            )}
-
-            {/* Public Storefront Link Button */}
-            {!isSuspended && (
-              <button
-                type="button"
-                onClick={goToCatalog}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.45rem 0.95rem',
-                  borderRadius: '0.55rem',
-                  backgroundColor: 'var(--bg-card-hover)',
-                  border: '1px solid var(--border-light)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-                title="Buka tampilan katalog yang dilihat pengunjung"
-              >
-                <Eye size={14} />
-                <span>Lihat Katalog Publik</span>
-                <ExternalLink size={12} style={{ opacity: 0.6 }} />
-              </button>
-            )}
-
-            {/* Notification Bell & Popover (Desktop) */}
-            <div style={{ position: 'relative' }}>
-              <button
-                ref={notifTriggerRef}
-                type="button"
-                onClick={() => {
-                  if (onOpenNotifications) {
-                    onOpenNotifications();
-                  }
-                  setShowNotifPopover(prev => !prev);
-                }}
-                style={{
-                  position: 'relative',
-                  padding: '0.45rem 0.75rem',
-                  borderRadius: '0.55rem',
-                  backgroundColor: showNotifPopover ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
-                  border: showNotifPopover ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                  color: 'var(--text-primary)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-                title="Pusat Notifikasi Sistem"
-              >
-                <Bell size={15} color={unreadCount > 0 ? '#f59e0b' : 'var(--text-secondary)'} />
-                {unreadCount > 0 && (
-                  <span style={{
-                    backgroundColor: '#ef4444',
-                    color: '#ffffff',
-                    fontSize: '0.62rem',
-                    fontWeight: 900,
-                    padding: '0.08rem 0.4rem',
-                    borderRadius: '999px',
-                    lineHeight: 1
-                  }}>
-                    {unreadCount}
-                  </span>
+                {/* Cloud Storage Warning Pill if >= 80% */}
+                {storeQuota && storeQuota.storage_usage_percent >= 80 && (
+                  <div
+                    onClick={() => {
+                      setAdminTab('subscription');
+                      if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/subscription`);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.3rem 0.65rem',
+                      borderRadius: '999px',
+                      backgroundColor: storeQuota.is_storage_over_limit ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                      border: `1px solid ${storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b'}`,
+                      cursor: 'pointer',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      color: storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={`Penyimpanan Cloud hampir penuh (${Math.round(storeQuota.storage_usage_percent)}%). Klik untuk upgrade kuota.`}
+                  >
+                    <HardDrive size={13} />
+                    <span>{Math.round(storeQuota.storage_usage_percent)}% Storage</span>
+                  </div>
                 )}
-              </button>
 
-              <NotificationHeaderPopover
-                isOpen={showNotifPopover}
-                onClose={() => setShowNotifPopover(false)}
-                notifications={notifications}
-                unreadCount={unreadCount}
-                onMarkAsRead={(id) => onMarkAsRead?.(id)}
-                onMarkAllAsRead={() => onMarkAllAsRead?.()}
-                onSelectNotification={(notif) => {
-                  setShowNotifPopover(false);
-                  onSelectNotification?.(notif);
-                }}
-                onViewAllNotifications={() => {
-                  setShowNotifPopover(false);
-                  onClearSelectedNotification?.();
-                  setAdminTab('notifications');
-                  const slug = storeSlug;
-                  if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                }}
-                triggerRef={notifTriggerRef}
-              />
-            </div>
+                {/* Notification Bell & Popover (Desktop) */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    ref={notifTriggerRef}
+                    type="button"
+                    onClick={() => {
+                      if (onOpenNotifications) {
+                        onOpenNotifications();
+                      }
+                      setShowNotifPopover(prev => !prev);
+                    }}
+                    style={{
+                      position: 'relative',
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '0.55rem',
+                      backgroundColor: showNotifPopover ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
+                      border: showNotifPopover ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                      color: 'var(--text-primary)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Pusat Notifikasi Sistem"
+                  >
+                    <Bell size={15} color={unreadCount > 0 ? '#f59e0b' : 'var(--text-secondary)'} />
+                    {unreadCount > 0 && (
+                      <span style={{
+                        backgroundColor: '#ef4444',
+                        color: '#ffffff',
+                        fontSize: '0.62rem',
+                        fontWeight: 900,
+                        padding: '0.08rem 0.4rem',
+                        borderRadius: '999px',
+                        lineHeight: 1
+                      }}>
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
 
-            {/* Header Action Buttons for items & categories */}
-            {!isSuspended && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <NotificationHeaderPopover
+                    isOpen={showNotifPopover}
+                    onClose={() => setShowNotifPopover(false)}
+                    notifications={notifications}
+                    unreadCount={unreadCount}
+                    onMarkAsRead={(id) => onMarkAsRead?.(id)}
+                    onMarkAllAsRead={() => onMarkAllAsRead?.()}
+                    onSelectNotification={(notif) => {
+                      setShowNotifPopover(false);
+                      onSelectNotification?.(notif);
+                    }}
+                    onViewAllNotifications={() => {
+                      setShowNotifPopover(false);
+                      onClearSelectedNotification?.();
+                      setAdminTab('notifications');
+                      const slug = storeSlug;
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                    }}
+                    triggerRef={notifTriggerRef}
+                  />
+                </div>
+
+                {/* Subtle Divider between Utilities and Page Actions */}
+                {!isSuspended && (adminTab === 'items' || adminTab === 'categories') && (
+                  <div style={{
+                    width: '1px',
+                    height: '24px',
+                    backgroundColor: 'var(--border-light)',
+                    margin: '0 0.25rem'
+                  }} />
+                )}
+
+                {/* Header Action Buttons for items & categories */}
+                {!isSuspended && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {adminTab === 'items' && (
                   <button
                     type="button"
