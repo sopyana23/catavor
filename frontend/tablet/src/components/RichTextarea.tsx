@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronDown,
@@ -1703,7 +1703,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   showPreviewTab = true,
   showZenFullscreen = true,
   theme,
-  isDark = true
+  isDark
 }) => {
   const [editorMode, setEditorMode] = useState<'visual' | 'source'>('visual');
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1712,6 +1712,109 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   const fullscreenVisualRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileTab, setMobileTab] = useState<'editor' | 'preview'>('editor');
+
+  // Dynamic Theme Auto-Detection (from localStorage / DOM when not explicitly provided)
+  const [detectedIsDark, setDetectedIsDark] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const adminMode = localStorage.getItem('catavor_admin_theme_mode');
+      if (adminMode) return adminMode === 'dark';
+      const storeTheme = localStorage.getItem('catavor_theme');
+      if (storeTheme) return storeTheme !== 'light';
+      return document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      if (typeof window !== 'undefined') {
+        const adminMode = localStorage.getItem('catavor_admin_theme_mode');
+        if (adminMode) {
+          setDetectedIsDark(adminMode === 'dark');
+        } else {
+          const storeTheme = localStorage.getItem('catavor_theme');
+          if (storeTheme) {
+            setDetectedIsDark(storeTheme !== 'light');
+          }
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  const activeIsDark = isDark !== undefined ? isDark : detectedIsDark;
+
+  // Screen Width Tracking for Responsive Form-Factor Adaptation (Tablet Mini < 880px vs Tablet Lebar >= 880px)
+  const [isNarrowScreen, setIsNarrowScreen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 880;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined') {
+        setIsNarrowScreen(window.innerWidth < 880);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobile = isNarrowScreen;
+
+  // Robust Theme Tokens with Strict Light / Dark Fallback
+  const effectiveTheme = useMemo(() => {
+    if (theme) return theme;
+    return {
+      surface: activeIsDark ? '#0f172a' : '#ffffff',
+      card: activeIsDark ? '#1e293b' : '#ffffff',
+      cardAlt: activeIsDark ? '#141d2e' : '#f1f5f9',
+      cardHover: activeIsDark ? '#273549' : '#f8fafc',
+      border: activeIsDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0',
+      borderStrong: activeIsDark ? 'rgba(255, 255, 255, 0.16)' : '#cbd5e1',
+      textPrimary: activeIsDark ? '#f8fafc' : '#0f172a',
+      textSecondary: activeIsDark ? '#cbd5e1' : '#475569',
+      textMuted: activeIsDark ? '#94a3b8' : '#64748b',
+      inputBg: activeIsDark ? '#0f172a' : '#ffffff',
+      inputBorder: activeIsDark ? 'rgba(255, 255, 255, 0.14)' : '#cbd5e1',
+      modalBg: activeIsDark ? '#0f172a' : '#ffffff',
+      modalOverlay: activeIsDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.45)',
+      shadow: activeIsDark ? '0 8px 25px rgba(0, 0, 0, 0.35)' : '0 4px 20px rgba(0, 0, 0, 0.06)',
+      cardShadow: activeIsDark ? '0 4px 15px rgba(0, 0, 0, 0.2)' : '0 2px 10px rgba(0, 0, 0, 0.04)',
+      chipActiveBg: activeIsDark ? '#38bdf8' : '#0284c7',
+      chipActiveText: activeIsDark ? '#000000' : '#ffffff',
+      chipInactiveBg: activeIsDark ? '#1e293b' : '#f1f5f9',
+      chipInactiveText: activeIsDark ? '#94a3b8' : '#64748b'
+    };
+  }, [theme, activeIsDark]);
+
+  // Helper to place cursor at the end of content
+  const moveCursorToEnd = (element: HTMLElement | HTMLTextAreaElement) => {
+    try {
+      if (element instanceof HTMLTextAreaElement) {
+        element.focus();
+        const len = element.value.length;
+        element.setSelectionRange(len, len);
+      } else {
+        element.focus();
+        if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          range.collapse(false); // collapse to end
+          const sel = window.getSelection();
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }
+      }
+    } catch {
+      element.focus();
+    }
+  };
 
   // Modals & Selection Tracking
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -1745,19 +1848,19 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     button: false
   });
 
-  // Synchronize incoming markdown value into the visual editor canvas
+  // Synchronize incoming markdown value into the visual editor canvas (protecting active focus)
   useEffect(() => {
     if (isInternalUpdateRef.current) {
       isInternalUpdateRef.current = false;
       return;
     }
-    if (visualEditorRef.current) {
+    if (visualEditorRef.current && document.activeElement !== visualEditorRef.current) {
       const currentMd = htmlToMarkdown(visualEditorRef.current);
       if (currentMd !== (value || '').trim()) {
         visualEditorRef.current.innerHTML = markdownToHtml(value || '');
       }
     }
-    if (fullscreenVisualRef.current) {
+    if (fullscreenVisualRef.current && document.activeElement !== fullscreenVisualRef.current) {
       const currentMd = htmlToMarkdown(fullscreenVisualRef.current);
       if (currentMd !== (value || '').trim()) {
         fullscreenVisualRef.current.innerHTML = markdownToHtml(value || '');
@@ -1897,27 +2000,33 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     };
   }, [updateActiveFormats]);
 
-  // Lock body scroll when Fullscreen is active
+  // Lock body scroll when Fullscreen is active & autofocus cursor to end
   useEffect(() => {
     if (isFullscreen) {
       document.body.style.overflow = 'hidden';
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (editorMode === 'visual') {
           if (fullscreenVisualRef.current) {
             fullscreenVisualRef.current.innerHTML = markdownToHtml(value || '');
-            fullscreenVisualRef.current.focus();
+            moveCursorToEnd(fullscreenVisualRef.current);
           }
         } else {
-          fullscreenTextareaRef.current?.focus();
+          if (fullscreenTextareaRef.current) {
+            moveCursorToEnd(fullscreenTextareaRef.current);
+          }
         }
       }, 50);
+      return () => clearTimeout(timer);
     } else {
       document.body.style.overflow = '';
+      if (visualEditorRef.current) {
+        visualEditorRef.current.innerHTML = markdownToHtml(value || '');
+      }
     }
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isFullscreen, editorMode, value]);
+  }, [isFullscreen, editorMode]);
 
   // Handle ESC key to exit fullscreen
   useEffect(() => {
@@ -1934,7 +2043,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   useModalBackHandler({
     isOpen: isFullscreen,
     onClose: () => setIsFullscreen(false),
-    modalId: 'rich-textarea-portal-desktop'
+    modalId: isMobile ? 'rich-textarea-portal-tablet-mini' : 'rich-textarea-portal-tablet'
   });
 
   const handleVisualInput = (targetRef: React.RefObject<HTMLDivElement | null>) => {
@@ -2450,15 +2559,15 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   const wordCount = (value || '').trim() ? (value || '').trim().split(/\s+/).length : 0;
   const charCount = (value || '').length;
 
-  const bgSurface = theme?.surface || (isDark ? '#111827' : '#ffffff');
-  const borderDefault = theme?.border || (isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0');
-  const textPrimary = theme?.textPrimary || (isDark ? '#f8fafc' : '#0f172a');
-  const textSecondary = theme?.textSecondary || (isDark ? '#cbd5e1' : '#475569');
-  const textMuted = theme?.textMuted || (isDark ? '#94a3b8' : '#64748b');
-  const inputBg = theme?.inputBg || (isDark ? '#1e293b' : '#ffffff');
-  const inputBorder = theme?.inputBorder || (isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1');
-  const btnBg = theme?.surface || (isDark ? 'rgba(255, 255, 255, 0.06)' : '#ffffff');
-  const btnBorder = theme?.border || (isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0');
+  const bgSurface = effectiveTheme.surface;
+  const borderDefault = effectiveTheme.border;
+  const textPrimary = effectiveTheme.textPrimary;
+  const textSecondary = effectiveTheme.textSecondary;
+  const textMuted = effectiveTheme.textMuted;
+  const inputBg = effectiveTheme.inputBg;
+  const inputBorder = effectiveTheme.inputBorder;
+  const btnBg = effectiveTheme.surface;
+  const btnBorder = effectiveTheme.border;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', ...style }}>
@@ -2472,7 +2581,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         }
         .rich-wysiwyg-editor:empty:before {
           content: attr(data-placeholder);
-          color: #94a3b8;
+          color: ${activeIsDark ? '#94a3b8' : '#64748b'};
           pointer-events: none;
           font-style: italic;
         }
@@ -2511,7 +2620,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           margin: 0.3rem 0;
         }
         .rich-visual-link {
-          color: #38bdf8;
+          color: ${activeIsDark ? '#38bdf8' : '#0284c7'};
           text-decoration: underline;
           text-underline-offset: 3px;
           font-weight: 600;
@@ -2524,7 +2633,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           transition: background-color 0.15s ease;
         }
         .rich-visual-link:hover {
-          background-color: rgba(56, 189, 248, 0.15);
+          background-color: ${activeIsDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.12)'};
         }
         .rich-visual-badge {
           display: inline-flex;
@@ -2560,9 +2669,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
         }
         .rich-btn-outline {
-          background: rgba(56, 189, 248, 0.08);
-          color: #38bdf8;
-          border: 1px solid rgba(56, 189, 248, 0.4);
+          background: ${activeIsDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.08)'};
+          color: ${activeIsDark ? '#38bdf8' : '#0284c7'};
+          border: 1px solid ${activeIsDark ? 'rgba(56, 189, 248, 0.4)' : 'rgba(2, 132, 199, 0.4)'};
         }
       `}</style>
 
@@ -2609,7 +2718,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               ? (isDark ? '#38bdf8' : '#0284c7') 
               : btnBorder}`,
             color: activeFormats.bold 
-              ? (isDark ? '#38bdf8' : '#0284c7') 
+              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
               : textPrimary,
             fontSize: '0.78rem',
             fontWeight: activeFormats.bold ? 800 : 700,
@@ -2637,13 +2746,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             padding: '0.25rem 0.5rem',
             borderRadius: '0.35rem',
             backgroundColor: activeFormats.italic 
-              ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+              ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
               : btnBg,
             border: `1px solid ${activeFormats.italic 
-              ? (isDark ? '#38bdf8' : '#0284c7') 
+              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
               : btnBorder}`,
             color: activeFormats.italic 
-              ? (isDark ? '#38bdf8' : '#0284c7') 
+              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
               : textPrimary,
             fontSize: '0.78rem',
             fontWeight: activeFormats.italic ? 800 : 700,
@@ -2661,8 +2770,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           onSelect={(level) => handleFormatHeading(level, 'standard')}
           btnClassName="rich-btn-format"
           activeHeading={activeFormats.heading}
-          theme={theme}
-          isDark={isDark}
+          theme={effectiveTheme}
+          isDark={activeIsDark}
         />
 
         {/* List Dropdown */}
@@ -2670,8 +2779,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           onSelect={(type) => handleFormatList(type, 'standard')}
           btnClassName="rich-btn-format"
           activeList={activeFormats.list}
-          theme={theme}
-          isDark={isDark}
+          theme={effectiveTheme}
+          isDark={activeIsDark}
         />
 
         {/* Hyperlink Button */}
@@ -2689,14 +2798,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             padding: '0.25rem 0.5rem',
             borderRadius: '0.35rem',
             backgroundColor: activeFormats.link 
-              ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+              ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
               : btnBg,
             border: `1px solid ${activeFormats.link 
-              ? (isDark ? '#38bdf8' : '#0284c7') 
+              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
               : btnBorder}`,
             color: activeFormats.link 
-              ? (isDark ? '#38bdf8' : '#0284c7') 
-              : (isDark ? '#38bdf8' : '#0284c7'),
+              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
+              : (activeIsDark ? '#38bdf8' : '#0284c7'),
             fontSize: '0.78rem',
             fontWeight: activeFormats.link ? 800 : 700,
             cursor: 'pointer',
@@ -2727,8 +2836,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             padding: '0.25rem 0.55rem',
             borderRadius: '0.35rem',
             backgroundColor: activeFormats.button
-              ? (isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.22)')
-              : (isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)'),
+              ? (activeIsDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.22)')
+              : (activeIsDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)'),
             border: `1px solid ${activeFormats.button ? '#f59e0b' : 'rgba(245, 158, 11, 0.3)'}`,
             color: '#f59e0b',
             fontSize: '0.78rem',
@@ -2762,9 +2871,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             gap: '0.25rem',
             padding: '0.25rem 0.55rem',
             borderRadius: '0.35rem',
-            backgroundColor: editorMode === 'visual' ? (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)') : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
-            border: `1px solid ${editorMode === 'visual' ? (isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)') : btnBorder}`,
-            color: editorMode === 'visual' ? (isDark ? '#38bdf8' : '#0284c7') : textSecondary,
+            backgroundColor: editorMode === 'visual' ? (activeIsDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)') : (activeIsDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
+            border: `1px solid ${editorMode === 'visual' ? (activeIsDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)') : btnBorder}`,
+            color: editorMode === 'visual' ? (activeIsDark ? '#38bdf8' : '#0284c7') : textSecondary,
             fontSize: '0.74rem',
             fontWeight: 700,
             cursor: 'pointer',
@@ -2795,9 +2904,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               gap: '0.25rem',
               padding: '0.25rem 0.55rem',
               borderRadius: '0.35rem',
-              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-              border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
-              color: isDark ? '#38bdf8' : '#0284c7',
+              backgroundColor: activeIsDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+              border: `1px solid ${activeIsDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
+              color: activeIsDark ? '#38bdf8' : '#0284c7',
               fontSize: '0.74rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -2936,34 +3045,41 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             right: 0,
             bottom: 0,
             width: '100vw',
-            height: '100vh',
-            backgroundColor: theme?.modalOverlay || 'rgba(0, 0, 0, 0.72)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
+            height: isMobile ? '100dvh' : '100vh',
+            minHeight: isMobile ? '100dvh' : undefined,
+            backgroundColor: isMobile ? effectiveTheme.modalBg : (effectiveTheme.modalOverlay || 'rgba(0, 0, 0, 0.72)'),
+            backdropFilter: isMobile ? undefined : 'blur(8px)',
+            WebkitBackdropFilter: isMobile ? undefined : 'blur(8px)',
             zIndex: 1250,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: isMobile ? 'stretch' : 'center',
             justifyContent: 'center',
-            padding: '1.5rem',
+            padding: isMobile ? 0 : '1.5rem',
+            margin: 0,
             boxSizing: 'border-box'
           }}
         >
           <div 
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: '100%',
-              maxWidth: '940px',
-              height: 'min(800px, calc(100vh - 3.5rem))',
-              maxHeight: 'calc(100vh - 3.5rem)',
-              backgroundColor: theme?.modalBg || (isDark ? '#0b0f19' : '#ffffff'),
-              borderRadius: '1.25rem',
-              border: `1px solid ${theme?.border || (isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0')}`,
-              boxShadow: '0 25px 70px rgba(0, 0, 0, 0.6)',
+              width: isMobile ? '100vw' : '100%',
+              maxWidth: isMobile ? '100vw' : '940px',
+              height: isMobile ? '100dvh' : 'min(800px, calc(100vh - 3.5rem))',
+              maxHeight: isMobile ? '100dvh' : 'calc(100vh - 3.5rem)',
+              minHeight: isMobile ? '100dvh' : undefined,
+              backgroundColor: effectiveTheme.modalBg,
+              borderRadius: isMobile ? 0 : '1.25rem',
+              border: isMobile ? 'none' : `1px solid ${effectiveTheme.border}`,
+              boxShadow: isMobile ? 'none' : (activeIsDark ? '0 25px 70px rgba(0, 0, 0, 0.6)' : '0 20px 50px rgba(0, 0, 0, 0.12)'),
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
               position: 'relative',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              paddingTop: isMobile ? 'env(safe-area-inset-top, 0px)' : undefined,
+              paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : undefined,
+              paddingLeft: isMobile ? 'env(safe-area-inset-left, 0px)' : undefined,
+              paddingRight: isMobile ? 'env(safe-area-inset-right, 0px)' : undefined
             }}
           >
             {/* Zen Header */}
@@ -2971,9 +3087,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '0.8rem 1.15rem',
-              backgroundColor: theme?.surface || (isDark ? '#111827' : '#ffffff'),
-              borderBottom: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
+              padding: isMobile ? '0.75rem 1rem' : '0.8rem 1.15rem',
+              backgroundColor: effectiveTheme.surface,
+              borderBottom: `1px solid ${effectiveTheme.border}`,
               gap: '0.75rem',
               flexWrap: 'nowrap',
               flexShrink: 0
@@ -2981,9 +3097,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               {/* Left: Icon + Title */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
                 <div style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '0.7rem',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '0.65rem',
                   backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
                   display: 'flex',
                   alignItems: 'center',
@@ -2991,230 +3107,234 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   color: 'var(--primary, #10b981)',
                   flexShrink: 0
                 }}>
-                  <Edit3 size={16} />
+                  <Edit3 size={15} />
                 </div>
                 <span style={{
-                  fontSize: '0.92rem',
+                  fontSize: '0.9rem',
                   fontWeight: 800,
                   color: textPrimary,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis'
                 }}>
-                  {label || 'Editor Konten'}
+                  {label || 'Detail Artikel'}
                 </span>
               </div>
 
-              {/* Right: Close Button X */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsFullscreen(false);
-                  }}
-                  title="Tutup (Esc)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '0.5rem',
-                    border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0')}`,
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
-                    color: textSecondary,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
+              {/* Right: Close Button X (Shown on Desktop & Tablet only) */}
+              {!isMobile && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsFullscreen(false);
+                    }}
+                    title="Tutup (Esc)"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '0.5rem',
+                      border: `1px solid ${effectiveTheme.border}`,
+                      backgroundColor: activeIsDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                      color: textSecondary,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Zen Editor Toolbar */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.45rem 1.1rem',
-                backgroundColor: theme?.cardAlt || (isDark ? '#090d16' : '#f8fafc'),
-                borderBottom: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
-                overflowX: 'auto',
-                flexShrink: 0
-              }}>
-                <button
-                  type="button"
-                  title="Teks Tebal"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleFormatBold('fullscreen');
-                  }}
-                  style={{
-                    padding: '0.28rem 0.6rem',
-                    borderRadius: '0.4rem',
-                    backgroundColor: activeFormats.bold 
-                      ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
-                      : btnBg,
-                    border: `1px solid ${activeFormats.bold 
-                      ? (isDark ? '#38bdf8' : '#0284c7') 
-                      : btnBorder}`,
-                    color: activeFormats.bold 
-                      ? (isDark ? '#38bdf8' : '#0284c7') 
-                      : textPrimary,
-                    fontSize: '0.78rem',
-                    fontWeight: activeFormats.bold ? 800 : 700,
-                    cursor: 'pointer',
-                    boxShadow: activeFormats.bold ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <strong>B</strong>
-                </button>
-                <button
-                  type="button"
-                  title="Teks Miring"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleFormatItalic('fullscreen');
-                  }}
-                  style={{
-                    padding: '0.28rem 0.6rem',
-                    borderRadius: '0.4rem',
-                    backgroundColor: activeFormats.italic 
-                      ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
-                      : btnBg,
-                    border: `1px solid ${activeFormats.italic 
-                      ? (isDark ? '#38bdf8' : '#0284c7') 
-                      : btnBorder}`,
-                    color: activeFormats.italic 
-                      ? (isDark ? '#38bdf8' : '#0284c7') 
-                      : textPrimary,
-                    fontSize: '0.78rem',
-                    fontWeight: activeFormats.italic ? 800 : 700,
-                    cursor: 'pointer',
-                    boxShadow: activeFormats.italic ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <em>I</em>
-                </button>
-                <HeadingDropdown
-                  onSelect={(level) => handleFormatHeading(level, 'fullscreen')}
-                  isZen
-                  activeHeading={activeFormats.heading}
-                  theme={theme}
-                  isDark={isDark}
-                />
-                <ListDropdown
-                  onSelect={(type) => handleFormatList(type, 'fullscreen')}
-                  isZen
-                  activeList={activeFormats.list}
-                  theme={theme}
-                  isDark={isDark}
-                />
+              gap: '0.35rem',
+              padding: isMobile ? '0.4rem 0.75rem' : '0.45rem 1.1rem',
+              backgroundColor: effectiveTheme.cardAlt,
+              borderBottom: `1px solid ${effectiveTheme.border}`,
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
+              WebkitOverflowScrolling: 'touch',
+              flexShrink: 0
+            }}>
+              <button
+                type="button"
+                title="Teks Tebal"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleFormatBold('fullscreen');
+                }}
+                style={{
+                  padding: '0.28rem 0.6rem',
+                  borderRadius: '0.4rem',
+                  backgroundColor: activeFormats.bold 
+                    ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+                    : btnBg,
+                  border: `1px solid ${activeFormats.bold 
+                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
+                    : btnBorder}`,
+                  color: activeFormats.bold 
+                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
+                    : textPrimary,
+                  fontSize: '0.78rem',
+                  fontWeight: activeFormats.bold ? 800 : 700,
+                  cursor: 'pointer',
+                  boxShadow: activeFormats.bold ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <strong>B</strong>
+              </button>
+              <button
+                type="button"
+                title="Teks Miring"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleFormatItalic('fullscreen');
+                }}
+                style={{
+                  padding: '0.28rem 0.6rem',
+                  borderRadius: '0.4rem',
+                  backgroundColor: activeFormats.italic 
+                    ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+                    : btnBg,
+                  border: `1px solid ${activeFormats.italic 
+                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
+                    : btnBorder}`,
+                  color: activeFormats.italic 
+                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
+                    : textPrimary,
+                  fontSize: '0.78rem',
+                  fontWeight: activeFormats.italic ? 800 : 700,
+                  cursor: 'pointer',
+                  boxShadow: activeFormats.italic ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <em>I</em>
+              </button>
+              <HeadingDropdown
+                onSelect={(level) => handleFormatHeading(level, 'fullscreen')}
+                isZen
+                activeHeading={activeFormats.heading}
+                theme={effectiveTheme}
+                isDark={activeIsDark}
+              />
+              <ListDropdown
+                onSelect={(type) => handleFormatList(type, 'fullscreen')}
+                isZen
+                activeList={activeFormats.list}
+                theme={effectiveTheme}
+                isDark={activeIsDark}
+              />
 
-                {/* Hyperlink Button */}
-                <button
-                  type="button"
-                  title="Sisipkan Tautan (Link)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleOpenLinkModal('fullscreen');
-                  }}
-                  style={{
-                    padding: '0.28rem 0.6rem',
-                    borderRadius: '0.4rem',
-                    backgroundColor: activeFormats.link 
-                      ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
-                      : btnBg,
-                    border: `1px solid ${activeFormats.link 
-                      ? (isDark ? '#38bdf8' : '#0284c7') 
-                      : btnBorder}`,
-                    color: isDark ? '#38bdf8' : '#0284c7',
-                    fontSize: '0.78rem',
-                    fontWeight: activeFormats.link ? 800 : 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    boxShadow: activeFormats.link ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Link size={12} />
-                  <span style={{ fontWeight: 700 }}>Link</span>
-                </button>
+              {/* Hyperlink Button */}
+              <button
+                type="button"
+                title="Sisipkan Tautan (Link)"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleOpenLinkModal('fullscreen');
+                }}
+                style={{
+                  padding: '0.28rem 0.6rem',
+                  borderRadius: '0.4rem',
+                  backgroundColor: activeFormats.link 
+                    ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+                    : btnBg,
+                  border: `1px solid ${activeFormats.link 
+                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
+                    : btnBorder}`,
+                  color: activeIsDark ? '#38bdf8' : '#0284c7',
+                  fontSize: '0.78rem',
+                  fontWeight: activeFormats.link ? 800 : 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  boxShadow: activeFormats.link ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Link size={12} />
+                <span style={{ fontWeight: 700 }}>Link</span>
+              </button>
 
-                {/* CTA Button Inserter */}
-                <button
-                  type="button"
-                  title="Sisipkan Tombol Aksi (CTA Button)"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleOpenButtonModal('fullscreen');
-                  }}
-                  style={{
-                    padding: '0.28rem 0.6rem',
-                    borderRadius: '0.4rem',
-                    backgroundColor: activeFormats.button
-                      ? (isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.22)')
-                      : (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)'),
-                    border: `1px solid ${activeFormats.button ? '#f59e0b' : 'rgba(245, 158, 11, 0.3)'}`,
-                    color: '#f59e0b',
-                    fontSize: '0.78rem',
-                    fontWeight: activeFormats.button ? 800 : 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    boxShadow: activeFormats.button ? '0 0 0 1px rgba(245, 158, 11, 0.35)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Sparkles size={12} />
-                  <span style={{ fontWeight: 800 }}>Tombol</span>
-                </button>
+              {/* CTA Button Inserter */}
+              <button
+                type="button"
+                title="Sisipkan Tombol Aksi (CTA Button)"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleOpenButtonModal('fullscreen');
+                }}
+                style={{
+                  padding: '0.28rem 0.6rem',
+                  borderRadius: '0.4rem',
+                  backgroundColor: activeFormats.button
+                    ? (activeIsDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.22)')
+                    : (activeIsDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)'),
+                  border: `1px solid ${activeFormats.button ? '#f59e0b' : 'rgba(245, 158, 11, 0.3)'}`,
+                  color: '#f59e0b',
+                  fontSize: '0.78rem',
+                  fontWeight: activeFormats.button ? 800 : 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  boxShadow: activeFormats.button ? '0 0 0 1px rgba(245, 158, 11, 0.35)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Sparkles size={12} />
+                <span style={{ fontWeight: 800 }}>Tombol</span>
+              </button>
 
-                {/* Mode toggle */}
-                <button
-                  type="button"
-                  title={editorMode === 'visual' ? 'Beralih ke Teks Mentah (Markdown)' : 'Beralih ke Tampilan Visual (WYSIWYG)'}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setEditorMode(prev => prev === 'visual' ? 'source' : 'visual');
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    padding: '0.28rem 0.65rem',
-                    borderRadius: '0.4rem',
-                    backgroundColor: editorMode === 'visual' ? (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)') : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
-                    border: `1px solid ${editorMode === 'visual' ? (isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)') : btnBorder}`,
-                    color: editorMode === 'visual' ? (isDark ? '#38bdf8' : '#0284c7') : textSecondary,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    marginLeft: 'auto'
-                  }}
-                >
-                  {editorMode === 'visual' ? <Type size={12} /> : <FileText size={12} />}
-                  <span>{editorMode === 'visual' ? 'Visual' : 'Markdown'}</span>
-                </button>
-              </div>
+              {/* Mode toggle */}
+              <button
+                type="button"
+                title={editorMode === 'visual' ? 'Beralih ke Teks Mentah (Markdown)' : 'Beralih ke Tampilan Visual (WYSIWYG)'}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setEditorMode(prev => prev === 'visual' ? 'source' : 'visual');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  padding: '0.28rem 0.65rem',
+                  borderRadius: '0.4rem',
+                  backgroundColor: editorMode === 'visual' ? (activeIsDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)') : (activeIsDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
+                  border: `1px solid ${editorMode === 'visual' ? (activeIsDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)') : btnBorder}`,
+                  color: editorMode === 'visual' ? (activeIsDark ? '#38bdf8' : '#0284c7') : textSecondary,
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  marginLeft: 'auto'
+                }}
+              >
+                {editorMode === 'visual' ? <Type size={12} /> : <FileText size={12} />}
+                <span>{editorMode === 'visual' ? 'Visual' : 'Markdown'}</span>
+              </button>
+            </div>
 
             {/* Fullscreen Body */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.1rem', overflowY: 'auto', backgroundColor: inputBg }}>
@@ -3299,72 +3419,104 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '0.8rem 1.15rem',
-              backgroundColor: theme?.surface || (isDark ? '#111827' : '#ffffff'),
-              borderTop: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
-              gap: '0.85rem',
+              padding: isMobile ? '0.75rem 1rem env(safe-area-inset-bottom, 0.75rem) 1rem' : '0.8rem 1.15rem',
+              backgroundColor: effectiveTheme.surface,
+              borderTop: `1px solid ${effectiveTheme.border}`,
+              gap: '0.65rem',
               flexShrink: 0
             }}>
               {/* Left: Word and Character Counts */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.45rem',
-                fontSize: '0.74rem',
+                gap: '0.35rem',
+                fontSize: '0.72rem',
                 fontWeight: 600,
-                color: textMuted
+                color: textMuted,
+                overflow: 'hidden'
               }}>
                 <span style={{
-                  padding: '0.25rem 0.6rem',
+                  padding: '0.2rem 0.5rem',
                   borderRadius: '0.45rem',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
-                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
+                  backgroundColor: activeIsDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                  border: `1px solid ${effectiveTheme.border}`,
                   color: textSecondary,
-                  fontWeight: 700
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap'
                 }}>
                   {wordCount} kata
                 </span>
                 <span>•</span>
                 <span style={{
-                  padding: '0.25rem 0.6rem',
+                  padding: '0.2rem 0.5rem',
                   borderRadius: '0.45rem',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
-                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
+                  backgroundColor: activeIsDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                  border: `1px solid ${effectiveTheme.border}`,
                   color: textSecondary,
-                  fontWeight: 700
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap'
                 }}>
                   {charCount} karakter
                 </span>
               </div>
 
-              {/* Right: Selesai Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsFullscreen(false);
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  padding: '0.55rem 1.35rem',
-                  borderRadius: '0.65rem',
-                  background: 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)',
-                  border: 'none',
-                  color: '#ffffff',
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 10px var(--primary-glow, rgba(2, 132, 199, 0.35))',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <Check size={15} strokeWidth={2.5} color="#ffffff" />
-                <span>Selesai</span>
-              </button>
+              {/* Right: Actions */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                {isMobile && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsFullscreen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.5rem 0.85rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'transparent',
+                      border: `1px solid ${effectiveTheme.border}`,
+                      color: textSecondary,
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span>Tutup</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsFullscreen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: isMobile ? '0.5rem 1rem' : '0.55rem 1.35rem',
+                    borderRadius: '0.65rem',
+                    background: 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 10px var(--primary-glow, rgba(2, 132, 199, 0.35))',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Check size={15} strokeWidth={2.5} color="#ffffff" />
+                  <span>Selesai</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>,
@@ -3384,8 +3536,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         initialText={modalInitialText}
         initialUrl={modalInitialUrl}
         isEditing={isLinkEditing}
-        theme={theme}
-        isDark={isDark}
+        theme={effectiveTheme}
+        isDark={activeIsDark}
       />
 
       {/* CTA Button Insertion Modal */}
@@ -3402,8 +3554,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         initialUrl={modalInitialUrl}
         initialVariant={modalInitialVariant}
         isEditing={isButtonEditing}
-        theme={theme}
-        isDark={isDark}
+        theme={effectiveTheme}
+        isDark={activeIsDark}
       />
     </div>
   );

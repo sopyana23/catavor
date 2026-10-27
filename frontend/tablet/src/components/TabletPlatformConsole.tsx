@@ -243,6 +243,17 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   const isDark = themeMode === 'dark';
 
+  const theme = useMemo(() => ({
+    surface: isDark ? '#111827' : '#ffffff',
+    border: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
+    inputBg: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc',
+    textPrimary: isDark ? '#f8fafc' : '#0f172a',
+    textSecondary: isDark ? '#94a3b8' : '#475569',
+    textMuted: isDark ? '#64748b' : '#94a3b8',
+    primary: 'var(--primary, #0284c7)',
+    card: isDark ? '#1e293b' : '#ffffff'
+  }), [isDark]);
+
   // Responsive Tablet Form-Factor Tracking (Tablet Mini < 880px vs Tablet Lebar >= 880px)
   const [isNarrowScreen, setIsNarrowScreen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -7992,14 +8003,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           {/* Option 1: Detail RichTextarea */}
                           {broadcastForm.action_type === 'detail' && (
                             <div style={{ width: '100%', boxSizing: 'border-box' }}>
-                              <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                                Tuliskan Isi Artikel / Rincian Pengumuman Lengkap (Rich Text):
-                              </label>
                               <RichTextarea
+                                label="Detail Artikel"
                                 value={broadcastForm.detail_content}
                                 onChange={val => setBroadcastForm(prev => ({ ...prev, detail_content: val }))}
                                 placeholder="Tuliskan pedoman lengkap, instruksi teknis, atau catatan rilis fitur baru..."
-                                minHeight="140px"
+                                minHeight="160px"
+                                showPreviewTab={true}
+                                showZenFullscreen={true}
+                                theme={theme}
+                                isDark={isDark}
                               />
                             </div>
                           )}
