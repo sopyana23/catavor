@@ -11,7 +11,6 @@ import {
   RefreshCw, 
   Clock, 
   MapPin, 
-  X, 
   Monitor
 } from 'lucide-react';
 import { setupModalBackInterceptor } from '../utils/navigation';
@@ -134,7 +133,8 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setSessions(data.sessions || []);
+        const sessionList = Array.isArray(data.data) ? data.data : (Array.isArray(data.sessions) ? data.sessions : []);
+        setSessions(sessionList);
       } else {
         if (showToast) showToast('error', data.message || 'Gagal memuat sesi terhubung');
       }
@@ -245,7 +245,7 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
         padding: '1rem',
         borderRadius: '0.85rem',
         border: '1px solid var(--border-light)',
-        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)'
+        background: 'linear-gradient(135deg, var(--primary-glow) 0%, var(--card-bg-gradient, rgba(255, 255, 255, 0.02)) 100%)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -294,7 +294,8 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
               padding: '1rem',
               borderRadius: '0.85rem',
               border: '1.5px solid var(--primary)',
-              background: 'rgba(16, 185, 129, 0.04)'
+              background: 'linear-gradient(135deg, var(--primary-glow) 0%, var(--card-bg-gradient, rgba(255, 255, 255, 0.02)) 100%)',
+              boxShadow: '0 4px 16px var(--primary-glow)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                 <span style={{
@@ -310,8 +311,8 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
                 }}>
                   <CheckCircle2 size={11} /> Perangkat Saat Ini
                 </span>
-                <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'inline-block' }} />
                   Sedang Aktif
                 </span>
               </div>
@@ -386,7 +387,7 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
                 color: 'var(--text-muted)',
                 fontSize: '0.78rem'
               }}>
-                <ShieldCheck size={28} style={{ color: '#10b981', margin: '0 auto 0.4rem auto', opacity: 0.8 }} />
+                <ShieldCheck size={28} style={{ color: 'var(--primary)', margin: '0 auto 0.4rem auto', opacity: 0.9 }} />
                 <p style={{ margin: 0, fontWeight: 600 }}>Tidak ada sesi login dari perangkat lain</p>
                 <span style={{ fontSize: '0.7rem' }}>Akun Anda saat ini hanya terhubung di perangkat ini saja.</span>
               </div>
