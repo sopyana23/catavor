@@ -169,11 +169,11 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
   const getDeviceIcon = (deviceType: string) => {
     switch (deviceType.toLowerCase()) {
       case 'mobile':
-        return <Smartphone size={22} className="text-primary" />;
+        return <Smartphone size={22} style={{ color: 'var(--primary)' }} />;
       case 'tablet':
-        return <Tablet size={22} className="text-primary" />;
+        return <Tablet size={22} style={{ color: 'var(--primary)' }} />;
       default:
-        return <Laptop size={22} className="text-primary" />;
+        return <Laptop size={22} style={{ color: 'var(--primary)' }} />;
     }
   };
 
@@ -185,13 +185,13 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
       {/* Top Header Card */}
       <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--card-bg-gradient)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', flexShrink: 0 }}>
+          <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
             <ShieldCheck size={26} />
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               Perangkat Terhubung &amp; Sesi Login
-              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '999px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '999px', background: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--primary-glow)' }}>
                 NIST SP 800-63B SECURE
               </span>
             </h3>
@@ -234,18 +234,29 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
                 style={{ 
                   padding: '1.25rem 1.5rem', 
                   borderRadius: '1rem', 
-                  border: '1.5px solid rgba(16, 185, 129, 0.4)', 
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(15, 23, 42, 0.8) 100%)',
-                  boxShadow: '0 8px 25px rgba(16, 185, 129, 0.08)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '1rem'
+                  border: '1.5px solid var(--primary)', 
+                  background: 'linear-gradient(135deg, var(--primary-glow) 0%, var(--card-bg-gradient, var(--bg-card)) 100%)', 
+                  boxShadow: '0 8px 24px var(--primary-glow)', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  flexWrap: 'wrap', 
+                  gap: '1rem' 
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    background: 'var(--primary-glow)',
+                    border: '1.5px solid var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--primary)',
+                    flexShrink: 0
+                  }}>
                     {getDeviceIcon(currentSession.device_type)}
                   </div>
                   <div>
@@ -256,17 +267,25 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
                       <span style={{ 
                         fontSize: '0.68rem', 
                         fontWeight: 800, 
-                        color: '#10b981', 
-                        background: 'rgba(16, 185, 129, 0.15)', 
-                        padding: '0.15rem 0.55rem', 
-                        borderRadius: '999px',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem'
+                        color: 'var(--primary)', 
+                        background: 'var(--primary-glow)', 
+                        padding: '0.18rem 0.6rem', 
+                        borderRadius: '999px', 
+                        border: '1px solid var(--primary)', 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        gap: '0.4rem',
+                        letterSpacing: '0.02em'
                       }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-                        Aktif Sekarang • Perangkat Ini
+                        <span style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          background: 'var(--primary)',
+                          boxShadow: '0 0 8px var(--primary)',
+                          display: 'inline-block'
+                        }} />
+                        Aktif Sekarang &bull; Perangkat Ini
                       </span>
                     </div>
 
@@ -275,21 +294,34 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
                         <Globe size={13} style={{ color: 'var(--primary)' }} />
                         Alamat IP: <strong style={{ color: 'var(--text-primary)' }}>{currentSession.ip_address}</strong>
                       </span>
-                      <span>•</span>
+                      <span>&bull;</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Clock size={13} />
+                        <Clock size={13} style={{ color: 'var(--text-muted)' }} />
                         Login: {formatRelativeTime(currentSession.created_at)}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600, background: 'rgba(16, 185, 129, 0.08)', padding: '0.35rem 0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                  Perangkat Terverifikasi
+                <div style={{
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  color: 'var(--primary)',
+                  background: 'var(--primary-glow)',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  border: '1px solid var(--primary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  boxShadow: '0 2px 8px var(--primary-glow)'
+                }}>
+                  <ShieldCheck size={14} style={{ color: 'var(--primary)' }} />
+                  <span>Perangkat Terverifikasi</span>
                 </div>
               </div>
             ) : (
-              <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+              <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', color: 'var(--text-secondary)', fontSize: '0.82rem', border: '1px solid var(--border-light)' }}>
                 Sesi saat ini sedang aktif secara lokal.
               </div>
             )}

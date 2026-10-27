@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
+  ShieldCheck,
   Laptop,
   Smartphone,
   Tablet,
@@ -230,9 +231,9 @@ export const TabletConnectedDevicesView: React.FC<TabletConnectedDevicesViewProp
                 style={{
                   padding: '1.25rem 1.5rem',
                   borderRadius: '1rem',
-                  border: '1.5px solid rgba(16, 185, 129, 0.4)',
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(15, 23, 42, 0.8) 100%)',
-                  boxShadow: '0 8px 25px rgba(16, 185, 129, 0.08)',
+                  border: '1.5px solid var(--primary)',
+                  background: 'linear-gradient(135deg, var(--primary-glow) 0%, var(--card-bg-gradient, var(--bg-card)) 100%)',
+                  boxShadow: '0 8px 24px var(--primary-glow)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
@@ -244,7 +245,18 @@ export const TabletConnectedDevicesView: React.FC<TabletConnectedDevicesViewProp
                   {(() => {
                     const DevIcon = getDeviceIcon(currentSession.device_type || currentSession.device_name || '');
                     return (
-                      <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'var(--primary-glow)',
+                        border: '1.5px solid var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary)',
+                        flexShrink: 0
+                      }}>
                         <DevIcon size={24} />
                       </div>
                     );
@@ -257,16 +269,24 @@ export const TabletConnectedDevicesView: React.FC<TabletConnectedDevicesViewProp
                       <span style={{
                         fontSize: '0.68rem',
                         fontWeight: 800,
-                        color: '#10b981',
-                        background: 'rgba(16, 185, 129, 0.15)',
-                        padding: '0.15rem 0.55rem',
+                        color: 'var(--primary)',
+                        background: 'var(--primary-glow)',
+                        padding: '0.18rem 0.6rem',
                         borderRadius: '999px',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        border: '1px solid var(--primary)',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.35rem'
+                        gap: '0.4rem',
+                        letterSpacing: '0.02em'
                       }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                        <span style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          background: 'var(--primary)',
+                          boxShadow: '0 0 8px var(--primary)',
+                          display: 'inline-block'
+                        }} />
                         Aktif Sekarang &bull; Perangkat Ini
                       </span>
                     </div>
@@ -294,12 +314,25 @@ export const TabletConnectedDevicesView: React.FC<TabletConnectedDevicesViewProp
                   </div>
                 </div>
 
-                <div style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600, background: 'rgba(16, 185, 129, 0.08)', padding: '0.35rem 0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                  Perangkat Terverifikasi
+                <div style={{
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  color: 'var(--primary)',
+                  background: 'var(--primary-glow)',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  border: '1px solid var(--primary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  boxShadow: '0 2px 8px var(--primary-glow)'
+                }}>
+                  <ShieldCheck size={14} style={{ color: 'var(--primary)' }} />
+                  <span>Perangkat Terverifikasi</span>
                 </div>
               </div>
             ) : (
-              <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+              <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', color: 'var(--text-secondary)', fontSize: '0.82rem', border: '1px solid var(--border-light)' }}>
                 Sesi saat ini sedang aktif secara lokal.
               </div>
             )}
