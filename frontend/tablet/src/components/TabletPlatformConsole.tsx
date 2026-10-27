@@ -245,13 +245,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   const theme = useMemo(() => ({
     surface: isDark ? '#111827' : '#ffffff',
+    card: isDark ? '#1e293b' : '#ffffff',
+    cardAlt: isDark ? '#0f172a' : '#f8fafc',
     border: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
-    inputBg: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc',
+    inputBg: isDark ? '#0f172a' : '#ffffff',
+    modalBg: isDark ? '#111827' : '#ffffff',
+    modalOverlay: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.55)',
     textPrimary: isDark ? '#f8fafc' : '#0f172a',
     textSecondary: isDark ? '#94a3b8' : '#475569',
     textMuted: isDark ? '#64748b' : '#94a3b8',
-    primary: 'var(--primary, #0284c7)',
-    card: isDark ? '#1e293b' : '#ffffff'
+    primary: 'var(--primary, #0284c7)'
   }), [isDark]);
 
   // Responsive Tablet Form-Factor Tracking (Tablet Mini < 880px vs Tablet Lebar >= 880px)

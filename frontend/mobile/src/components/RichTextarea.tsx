@@ -1750,27 +1750,33 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
 
   // Robust Theme Tokens with Strict Light / Dark Fallback
   const effectiveTheme = useMemo(() => {
-    if (theme) return theme;
+    const fallbackModalBg = activeIsDark ? '#0f172a' : '#ffffff';
+    const fallbackSurface = activeIsDark ? '#111827' : '#ffffff';
+    const fallbackCardAlt = activeIsDark ? '#0b1120' : '#f8fafc';
+    const fallbackInputBg = activeIsDark ? '#0b1120' : '#ffffff';
+    const fallbackOverlay = activeIsDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.55)';
+
     return {
-      surface: activeIsDark ? '#0f172a' : '#ffffff',
-      card: activeIsDark ? '#1e293b' : '#ffffff',
-      cardAlt: activeIsDark ? '#141d2e' : '#f1f5f9',
-      cardHover: activeIsDark ? '#273549' : '#f8fafc',
-      border: activeIsDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0',
-      borderStrong: activeIsDark ? 'rgba(255, 255, 255, 0.16)' : '#cbd5e1',
-      textPrimary: activeIsDark ? '#f8fafc' : '#0f172a',
-      textSecondary: activeIsDark ? '#cbd5e1' : '#475569',
-      textMuted: activeIsDark ? '#94a3b8' : '#64748b',
-      inputBg: activeIsDark ? '#0f172a' : '#ffffff',
-      inputBorder: activeIsDark ? 'rgba(255, 255, 255, 0.14)' : '#cbd5e1',
-      modalBg: activeIsDark ? '#0f172a' : '#ffffff',
-      modalOverlay: activeIsDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.45)',
-      shadow: activeIsDark ? '0 8px 25px rgba(0, 0, 0, 0.35)' : '0 4px 20px rgba(0, 0, 0, 0.06)',
-      cardShadow: activeIsDark ? '0 4px 15px rgba(0, 0, 0, 0.2)' : '0 2px 10px rgba(0, 0, 0, 0.04)',
-      chipActiveBg: activeIsDark ? '#38bdf8' : '#0284c7',
-      chipActiveText: activeIsDark ? '#000000' : '#ffffff',
-      chipInactiveBg: activeIsDark ? '#1e293b' : '#f1f5f9',
-      chipInactiveText: activeIsDark ? '#94a3b8' : '#64748b'
+      surface: theme?.surface || fallbackSurface,
+      card: theme?.card || (activeIsDark ? '#1e293b' : '#ffffff'),
+      cardAlt: theme?.cardAlt || fallbackCardAlt,
+      cardHover: theme?.cardHover || (activeIsDark ? '#273549' : '#f8fafc'),
+      border: theme?.border || (activeIsDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0'),
+      borderStrong: theme?.borderStrong || (activeIsDark ? 'rgba(255, 255, 255, 0.16)' : '#cbd5e1'),
+      textPrimary: theme?.textPrimary || (activeIsDark ? '#f8fafc' : '#0f172a'),
+      textSecondary: theme?.textSecondary || (activeIsDark ? '#cbd5e1' : '#475569'),
+      textMuted: theme?.textMuted || (activeIsDark ? '#94a3b8' : '#64748b'),
+      inputBg: theme?.inputBg || fallbackInputBg,
+      inputBorder: theme?.inputBorder || (activeIsDark ? 'rgba(255, 255, 255, 0.14)' : '#cbd5e1'),
+      modalBg: theme?.modalBg || fallbackModalBg,
+      modalOverlay: theme?.modalOverlay || fallbackOverlay,
+      editorBg: activeIsDark ? '#0b1120' : '#ffffff',
+      shadow: theme?.shadow || (activeIsDark ? '0 8px 25px rgba(0, 0, 0, 0.35)' : '0 4px 20px rgba(0, 0, 0, 0.06)'),
+      cardShadow: theme?.cardShadow || (activeIsDark ? '0 4px 15px rgba(0, 0, 0, 0.2)' : '0 2px 10px rgba(0, 0, 0, 0.04)'),
+      chipActiveBg: theme?.chipActiveBg || (activeIsDark ? '#38bdf8' : '#0284c7'),
+      chipActiveText: theme?.chipActiveText || (activeIsDark ? '#000000' : '#ffffff'),
+      chipInactiveBg: theme?.chipInactiveBg || (activeIsDark ? '#1e293b' : '#f1f5f9'),
+      chipInactiveText: theme?.chipInactiveText || (activeIsDark ? '#94a3b8' : '#64748b')
     };
   }, [theme, activeIsDark]);
 
@@ -3059,10 +3065,10 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               overflow: 'hidden',
               position: 'relative',
               boxSizing: 'border-box',
-              paddingTop: isMobile ? 'env(safe-area-inset-top, 0px)' : undefined,
-              paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : undefined,
-              paddingLeft: isMobile ? 'env(safe-area-inset-left, 0px)' : undefined,
-              paddingRight: isMobile ? 'env(safe-area-inset-right, 0px)' : undefined
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+              paddingBottom: 0,
+              paddingLeft: 'env(safe-area-inset-left, 0px)',
+              paddingRight: 'env(safe-area-inset-right, 0px)'
             }}
           >
             {/* Zen Header */}
@@ -3320,7 +3326,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             </div>
 
             {/* Fullscreen Body */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.1rem', overflowY: 'auto', backgroundColor: inputBg }}>
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '1.1rem',
+              overflowY: 'auto',
+              backgroundColor: effectiveTheme.editorBg || effectiveTheme.modalBg || (activeIsDark ? '#0b1120' : '#ffffff')
+            }}>
               {editorMode === 'visual' ? (
                 <div
                   ref={fullscreenVisualRef}
@@ -3402,11 +3415,15 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: isMobile ? '0.75rem 1rem env(safe-area-inset-bottom, 0.75rem) 1rem' : '0.8rem 1.15rem',
+              paddingTop: '0.85rem',
+              paddingLeft: '1rem',
+              paddingRight: '1rem',
+              paddingBottom: 'max(1.35rem, calc(0.85rem + env(safe-area-inset-bottom, 0px)))',
               backgroundColor: effectiveTheme.surface,
               borderTop: `1px solid ${effectiveTheme.border}`,
               gap: '0.65rem',
-              flexShrink: 0
+              flexShrink: 0,
+              boxSizing: 'border-box'
             }}>
               {/* Left: Word and Character Counts */}
               <div style={{
@@ -3445,32 +3462,31 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
 
               {/* Right: Actions */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                {isMobile && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsFullscreen(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.5rem 0.85rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'transparent',
-                      border: `1px solid ${effectiveTheme.border}`,
-                      color: textSecondary,
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <span>Tutup</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsFullscreen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.55rem 0.95rem',
+                    minHeight: '38px',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'transparent',
+                    border: `1px solid ${effectiveTheme.border}`,
+                    color: textSecondary,
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>Tutup</span>
+                </button>
 
                 <button
                   type="button"
@@ -3483,7 +3499,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.4rem',
-                    padding: isMobile ? '0.5rem 1rem' : '0.55rem 1.35rem',
+                    padding: '0.55rem 1.25rem',
+                    minHeight: '38px',
                     borderRadius: '0.65rem',
                     background: 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)',
                     border: 'none',
