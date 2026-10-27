@@ -53,7 +53,7 @@ func main() {
 		BodyLimit:               12 * 1024 * 1024, // 12 MB max payload
 		ReadTimeout:             0,                // Unlimited for streaming & SSE
 		WriteTimeout:            0,                // Unlimited write deadline for persistent SSE streams (prevents net::ERR_INCOMPLETE_CHUNKED_ENCODING)
-		IdleTimeout:             120 * time.Second,
+		IdleTimeout:             300 * time.Second, // 5 menit (mencegah socket hangup saat tab idle)
 		DisableStartupMessage:   false,
 		ProxyHeader:             fiber.HeaderXForwardedFor,
 		EnableTrustedProxyCheck: true,

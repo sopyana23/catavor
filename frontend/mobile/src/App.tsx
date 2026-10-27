@@ -7724,6 +7724,17 @@ Terima kasih.`;
 
   const openStoreChooserModal = () => {
     setIsFirstTimeLogin(false);
+    if (!userStores || userStores.length === 0) {
+      try {
+        const raw = localStorage.getItem('catavor_stores');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setUserStores(parsed);
+          }
+        }
+      } catch {}
+    }
     fetchMyStores();
     setShowStoreSwitcherModal(true);
   };
@@ -10855,8 +10866,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setStoreSlug(slug);
 
       if (slug) {
-        setShowStoreSwitcherModal(false);
-        setStoreChooserComplianceAlert(null);
+        if (!showStoreSwitcherModal) {
+          setStoreChooserComplianceAlert(null);
+        }
 
         // Check if item detail query exists
         const popItemId = urlParams.get('item');

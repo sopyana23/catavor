@@ -493,9 +493,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   }, [fetchUserStores]);
 
   const openStoreChooserModal = useCallback(() => {
+    if (!userStores || userStores.length === 0) {
+      try {
+        const raw = localStorage.getItem('catavor_stores');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setUserStores(parsed);
+          }
+        }
+      } catch {}
+    }
     fetchUserStores();
     setShowStoreChooserModal(true);
-  }, [fetchUserStores]);
+  }, [fetchUserStores, userStores]);
 
   const handleCloseStoreChooserModal = useCallback(() => {
     setShowStoreChooserModal(false);
