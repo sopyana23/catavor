@@ -3103,20 +3103,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{storeSettings.name || 'Admin Toko'}</span>
                       <Layers size={13} color="var(--primary)" style={{ flexShrink: 0 }} />
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600 }}>
                       <span>Pusat Katalog</span>
-                      {userStores.length > 0 && (
-                        <span style={{
-                          backgroundColor: 'var(--primary)',
-                          color: '#fff',
-                          fontSize: '0.62rem',
-                          fontWeight: 800,
-                          padding: '0.05rem 0.35rem',
-                          borderRadius: '999px'
-                        }}>
-                          {userStores.length}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -3306,23 +3294,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               }}
             >
               <Layers size={18} style={{ flexShrink: 0 }} />
-              {isNavExpanded && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                  <span>Pusat Katalog</span>
-                  {userStores.length > 0 && (
-                    <span style={{
-                      backgroundColor: 'var(--primary)',
-                      color: '#ffffff',
-                      fontSize: '0.68rem',
-                      fontWeight: 800,
-                      padding: '0.1rem 0.45rem',
-                      borderRadius: '999px'
-                    }}>
-                      {userStores.length}
-                    </span>
-                  )}
-                </div>
-              )}
+              {isNavExpanded && <span>Pusat Katalog</span>}
             </button>
 
             <button
@@ -3497,41 +3469,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             subtitle={isCatalogCompletelyEmpty ? undefined : `${productTotalRecords} total item`}
             headerAction={
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <button
-                  type="button"
-                  onClick={openStoreChooserModal}
-                  title="Pusat Pengelolaan Katalog"
-                  style={{
-                    minHeight: '44px',
-                    padding: '0.55rem 0.95rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-light)',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Layers size={16} color="var(--primary)" />
-                  <span>Pusat Katalog</span>
-                  {userStores.length > 0 && (
-                    <span style={{
-                      backgroundColor: 'var(--primary)',
-                      color: '#fff',
-                      fontSize: '0.68rem',
-                      fontWeight: 800,
-                      padding: '0.1rem 0.45rem',
-                      borderRadius: '999px'
-                    }}>
-                      {userStores.length}
-                    </span>
-                  )}
-                </button>
-
                 {selectedProductId === 'new' ? (
                   <button
                     id="btn-reset-form-produk"
