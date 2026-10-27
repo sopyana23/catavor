@@ -6,6 +6,7 @@ import {
   UserX,
   X,
   HardDriveDownload,
+  FileSpreadsheet,
   FolderMinus,
   CheckCircle2,
   RefreshCw
@@ -33,6 +34,7 @@ export interface TabletDangerZoneViewProps {
   onStoreDeleted: (deletedSlug: string, remainingStores: any[]) => void;
   onAccountDeleted: () => void;
   showToast: (msg: string, type?: 'success' | 'error') => void;
+  onExportCatalog?: (format: 'csv' | 'json') => void;
   onExportCatalogJSON?: () => void;
 }
 
@@ -45,6 +47,7 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
   onStoreDeleted,
   onAccountDeleted,
   showToast,
+  onExportCatalog,
   onExportCatalogJSON
 }) => {
   // Modal dialog states
@@ -196,8 +199,8 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* PANEL 1: BACKUP / CADANGKAN DATA KATALOG (JSON) */}
-      {onExportCatalogJSON && (
+      {/* PANEL 1: BACKUP / CADANGKAN DATA KATALOG */}
+      {(onExportCatalog || onExportCatalogJSON) && (
         <div style={{
           backgroundColor: 'var(--card-bg-gradient, var(--bg-card))',
           padding: '1.5rem 1.75rem',
@@ -225,35 +228,64 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
                 <HardDriveDownload size={18} />
               </div>
               <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                Cadangkan Seluruh Data Katalog (JSON)
+                Cadangkan Seluruh Data Katalog
               </h4>
             </div>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-              Unduh salinan arsip lengkap profil toko, seluruh item produk, varian, kategori, dan kontak resmi dalam satu berkas terstruktur sebelum melakukan tindakan penghapusan.
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 0.35rem 0', lineHeight: 1.5 }}>
+              Unduh salinan arsip lengkap profil toko, seluruh item produk, varian, kategori, spesifikasi domain, dan kontak resmi sebelum melakukan tindakan penutupan atau penghapusan permanen.
+            </p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, fontStyle: 'italic' }}>
+              Catatan: Berkas ekspor memuat seluruh metadata produk dan spesifikasi 7 domain katalog. Berkas foto fisik pada server toko ini akan dibersihkan permanen saat katalog dihapus.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onExportCatalogJSON}
-            style={{
-              minHeight: '44px',
-              padding: '0.65rem 1.25rem',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
-              border: '1px solid var(--border-light)',
-              color: 'var(--text-primary)',
-              fontWeight: 700,
-              fontSize: '0.88rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <HardDriveDownload size={16} style={{ color: 'var(--primary)' }} />
-            <span>Unduh Arsip JSON</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+            {onExportCatalog && (
+              <button
+                type="button"
+                onClick={() => onExportCatalog('csv')}
+                style={{
+                  minHeight: '44px',
+                  padding: '0.65rem 1.15rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <FileSpreadsheet size={16} style={{ color: 'var(--primary)' }} />
+                <span>Unduh CSV (Excel)</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onExportCatalog ? onExportCatalog('json') : onExportCatalogJSON?.()}
+              style={{
+                minHeight: '44px',
+                padding: '0.65rem 1.15rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+                border: '1px solid var(--border-light)',
+                color: 'var(--text-primary)',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <HardDriveDownload size={16} style={{ color: 'var(--primary)' }} />
+              <span>Unduh JSON (Backup)</span>
+            </button>
+          </div>
         </div>
       )}
 

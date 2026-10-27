@@ -131,7 +131,9 @@ import {
   TrendingUp,
   Activity,
   History,
-  Users
+  Users,
+  HardDriveDownload,
+  FileSpreadsheet
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -9931,6 +9933,92 @@ Terima kasih atas perhatian dan kerja samanya.`;
     onClose: () => setArchiveConfirmModal(null),
     modalId: 'mobile-archive-confirmation'
   });
+
+  // Mobile Catalog Data Export Sheet State & Gesture
+  const [showExportSheet, setShowExportSheet] = useState<boolean>(false);
+  const [isExportingCatalog, setIsExportingCatalog] = useState<boolean>(false);
+  const [exportDragY, setExportDragY] = useState(0);
+  const [isExportDragging, setIsExportDragging] = useState(false);
+  const exportTouchStartY = useRef(0);
+
+  const handleExportDragStart = (clientY: number) => {
+    if (isExportingCatalog) return;
+    exportTouchStartY.current = clientY;
+    setIsExportDragging(true);
+  };
+
+  const handleExportDragMove = (clientY: number) => {
+    if (!isExportDragging || isExportingCatalog) return;
+    const delta = clientY - exportTouchStartY.current;
+    if (delta > 0) {
+      setExportDragY(delta);
+    } else {
+      setExportDragY(delta * 0.18);
+    }
+  };
+
+  const handleExportDragEnd = () => {
+    if (!isExportDragging || isExportingCatalog) return;
+    setIsExportDragging(false);
+    if (exportDragY > 70) {
+      setShowExportSheet(false);
+    }
+    setExportDragY(0);
+  };
+
+  useModalBackHandler({
+    isOpen: showExportSheet,
+    onClose: () => {
+      setShowExportSheet(false);
+      setExportDragY(0);
+    },
+    modalId: 'mobile-catalog-export-sheet'
+  });
+
+  const handleExportCatalog = useCallback(async (format: 'csv' | 'json' = 'csv') => {
+    const slug = storeSlug || getStoreSlug() || '';
+    if (!token) {
+      showToast('Sesi login tidak ditemukan', 'error');
+      return;
+    }
+    if (isExportingCatalog) return;
+    setIsExportingCatalog(true);
+    showToast(`Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
+    try {
+      const res = await fetch(`${API_BASE}/admin/catalog/export?format=${format}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': slug
+        }
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        showToast(errJson.message || 'Gagal mengekspor data katalog', 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = `katalog-${slug}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setShowExportSheet(false);
+      showToast(`Katalog (${format.toUpperCase()}) berhasil diunduh!`);
+    } catch {
+      showToast(`Gagal mengunduh berkas ekspor ${format.toUpperCase()}`, 'error');
+    } finally {
+      setIsExportingCatalog(false);
+    }
+  }, [storeSlug, token, isExportingCatalog]);
 
   const openArchiveConfirmModal = (item: Fauna, targetActive: boolean) => {
     if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
@@ -25847,6 +25935,26 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             </button>
                           )}
                         </div>
+
+                        {/* Ekspor Catalog Trigger Button */}
+                        <button
+                          type="button"
+                          className="advanced-filter-trigger-btn"
+                          onClick={() => setShowExportSheet(true)}
+                          title="Ekspor Data Katalog (CSV / JSON)"
+                          style={{
+                            minHeight: '44px',
+                            minWidth: '44px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.3rem',
+                            padding: '0 0.65rem'
+                          }}
+                        >
+                          <HardDriveDownload size={14} />
+                          <span>Ekspor</span>
+                        </button>
 
                         {/* Unified Industry-Standard Filter Lanjutan & Urutkan Trigger Button */}
                         <button

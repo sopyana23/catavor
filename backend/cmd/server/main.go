@@ -97,6 +97,7 @@ func main() {
 	rbacHandler := handlers.NewRBACHandler(database.DB)
 	dormancyHandler := handlers.NewDormancyHandler(database.DB)
 	safeDomainHandler := handlers.NewSafeDomainHandler(database.DB)
+	catalogExportHandler := handlers.NewCatalogExportHandler(cfg, database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg, database.DB)
 	// Initialize Automation Tracker
 	services.InitAutomationTracker(database.DB, storageService)
@@ -352,6 +353,10 @@ func main() {
 		guardedMutations.Put("/categories/:id", categoryHandler.Update)
 		guardedMutations.Delete("/categories/:id", categoryHandler.Destroy)
 
+		// Catalog Data Portability & Export (CSV Excel & JSON Backup)
+		guarded.Get("/catalog/export", catalogExportHandler.ExportCatalog)
+		guarded.Get("/admin/catalog/export", catalogExportHandler.ExportCatalog)
+
 		// Support Tickets & Live Chat Conversations (with normalized attachments)
 		guarded.Get("/support/tickets", supportHandler.ListMyTickets)
 		guarded.Get("/support/tickets/:id", supportHandler.GetTicketDetails)
@@ -399,6 +404,10 @@ func main() {
 		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
 		guarded.Get("/admin/analytics/export", analyticsHandler.ExportStoreAnalytics)
 		guarded.Get("/analytics/export", analyticsHandler.ExportStoreAnalytics)
+
+		// Merchant Catalog Data Portability & Export (GDPR Art. 20 / UU PDP)
+		guarded.Get("/admin/catalog/export", catalogExportHandler.ExportCatalog)
+		guarded.Get("/catalog/export", catalogExportHandler.ExportCatalog)
 
 		// Settings & Policies
 		// SECURITY (N-18): menulis pengaturan platform adalah wewenang "system",

@@ -14008,6 +14008,47 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   };
 
+  // Catalog Data Export Handler (CSV / JSON)
+  const handleExportCatalog = useCallback(async (format: 'csv' | 'json' = 'csv') => {
+    const slug = storeSlug || getStoreSlug() || '';
+    if (!token) {
+      showToast('Sesi autentikasi tidak ditemukan', 'error');
+      return;
+    }
+    showToast(`Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
+    try {
+      const res = await fetch(`${API_BASE}/admin/catalog/export?format=${format}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': slug
+        }
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        showToast(errJson.message || 'Gagal mengekspor data katalog', 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = `katalog-${slug}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Katalog (${format.toUpperCase()}) berhasil diunduh!`);
+    } catch {
+      showToast(`Gagal mengunduh berkas ekspor ${format.toUpperCase()}`, 'error');
+    }
+  }, [storeSlug, token]);
+
   // Open CRUD modal for create with dynamic quota guard
   const openCreateModal = (initialType: ItemCategoryType = 'physical') => {
     if (token && isStoreOwner) {
@@ -21895,6 +21936,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 }
               }}
               onOpenCreateItem={() => openCreateModal('physical')}
+              onExportCatalog={handleExportCatalog}
               isPlatformAdminUser={isPlatformAdmin(adminUser)}
               isSuperAdminUser={isSuperAdmin(adminUser)}
             >
@@ -26004,6 +26046,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         handleLogout();
                       }}
                       showToast={(type, msg) => showToast(msg, type)}
+                      onExportCatalog={handleExportCatalog}
                     />
                   )}
                 </div>

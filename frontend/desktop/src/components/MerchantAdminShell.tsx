@@ -30,7 +30,9 @@ import {
   Package,
   X,
   MessageSquare,
-  ArrowRight
+  ArrowRight,
+  FileSpreadsheet,
+  HardDriveDownload
 } from 'lucide-react';
 
 export interface MerchantAdminShellProps {
@@ -54,6 +56,7 @@ export interface MerchantAdminShellProps {
   onOpenNotifications: () => void;
   onClearSelectedNotification?: () => void;
   onOpenCreateItem?: () => void;
+  onExportCatalog?: (format: 'csv' | 'json') => void;
   isSuspended?: boolean;
   isPlatformAdminUser?: boolean;
   isSuperAdminUser?: boolean;
@@ -85,6 +88,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   onOpenNotifications,
   onClearSelectedNotification,
   onOpenCreateItem,
+  onExportCatalog,
   isSuspended: propIsSuspended,
   isPlatformAdminUser = false,
   isSuperAdminUser = false,
@@ -103,6 +107,9 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
     ? propIsSuspended
     : Boolean(settings?.dormancy_status === 'suspended' || settings?.is_suspended);
 
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const exportDropdownRef = React.useRef<HTMLDivElement>(null);
+
   // Close dropdown on click outside
   React.useEffect(() => {
     if (!showStoreDropdown) {
@@ -117,6 +124,18 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showStoreDropdown, setShowStoreDropdown]);
+
+  // Close export dropdown on click outside
+  React.useEffect(() => {
+    if (!showExportDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
+        setShowExportDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportDropdown]);
 
   // Filter stores when search is typed and keep active store at the very top
   const filteredStores = React.useMemo(() => {
@@ -1287,6 +1306,134 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                     <Package size={15} style={{ color: 'var(--primary)' }} />
                     <span>Kelola Daftar Item</span>
                   </button>
+                )}
+
+                {adminTab === 'items' && onExportCatalog && (
+                  <div ref={exportDropdownRef} style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setShowExportDropdown(!showExportDropdown)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        padding: '0.45rem 0.95rem',
+                        borderRadius: '0.55rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: showExportDropdown ? 'var(--bg-card-hover)' : 'transparent',
+                        color: 'var(--text-primary)'
+                      }}
+                      title="Ekspor Seluruh Data Produk & Portabilitas Katalog"
+                    >
+                      <HardDriveDownload size={15} style={{ color: 'var(--primary)' }} />
+                      <span>Ekspor Data</span>
+                      <ChevronDown size={13} style={{ opacity: 0.7 }} />
+                    </button>
+
+                    {showExportDropdown && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 'calc(100% + 6px)',
+                          width: '240px',
+                          backgroundColor: 'var(--bg-surface, #1e293b)',
+                          border: '1px solid var(--border-light)',
+                          borderRadius: '0.75rem',
+                          boxShadow: 'var(--shadow-xl, 0 10px 25px rgba(0,0,0,0.35))',
+                          padding: '0.45rem',
+                          zIndex: 9999,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem'
+                        }}
+                      >
+                        <div style={{ padding: '0.35rem 0.55rem 0.25rem', borderBottom: '1px solid var(--border-light)', marginBottom: '0.2rem' }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Format Ekspor
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowExportDropdown(false);
+                            onExportCatalog('csv');
+                          }}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.6rem',
+                            padding: '0.55rem 0.65rem',
+                            borderRadius: '0.5rem',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                            e.currentTarget.style.color = 'var(--primary)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = 'var(--text-primary)';
+                          }}
+                        >
+                          <FileSpreadsheet size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                          <div>
+                            <div style={{ fontWeight: 700 }}>Unduh CSV (Excel)</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Tabel Spreadsheet UTF-8 BOM</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowExportDropdown(false);
+                            onExportCatalog('json');
+                          }}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.6rem',
+                            padding: '0.55rem 0.65rem',
+                            borderRadius: '0.5rem',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                            e.currentTarget.style.color = 'var(--primary)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = 'var(--text-primary)';
+                          }}
+                        >
+                          <HardDriveDownload size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <div>
+                            <div style={{ fontWeight: 700 }}>Unduh JSON (Backup)</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Salinan Struktur Relasional</div>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {onOpenCreateItem && adminTab === 'items' && (

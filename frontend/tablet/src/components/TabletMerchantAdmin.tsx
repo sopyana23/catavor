@@ -78,8 +78,11 @@ import {
   CheckCircle2,
   Mail,
   ArrowLeft,
-  FolderMinus
+  FolderMinus,
+  HardDriveDownload,
+  FileSpreadsheet
 } from 'lucide-react';
+import { setupModalBackInterceptor } from '../utils/navigation';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { TabletAnalyticsView } from './TabletAnalyticsView';
@@ -788,25 +791,57 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
-  // Download Catalog JSON
-  const handleExportCatalogJSON = async () => {
+  // Export Catalog Data (CSV Excel or JSON Lossless Backup)
+  const [isExportingCatalog, setIsExportingCatalog] = useState<boolean>(false);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (showExportModal) {
+      return setupModalBackInterceptor(() => setShowExportModal(false));
+    }
+  }, [showExportModal]);
+
+  const handleExportCatalog = async (format: 'csv' | 'json' = 'csv') => {
+    if (isExportingCatalog) return;
+    setIsExportingCatalog(true);
+    showToast(`Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
     try {
-      const res = await fetch(`/api/u/${storeSlug}`);
-      if (res.ok) {
-        const json = await res.json();
-        const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `katalog-${storeSlug}-backup.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast('Backup data katalog berhasil diunduh!');
+      const res = await fetch(`/api/admin/catalog/export?format=${format}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Store-Slug': storeSlug
+        }
+      });
+      if (!res.ok) {
+        throw new Error('Gagal mengekspor katalog');
       }
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = `katalog-${storeSlug}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setShowExportModal(false);
+      showToast(`Katalog berhasil diekspor (${format.toUpperCase()})!`, 'success');
     } catch {
-      showToast('Gagal mengunduh backup katalog', 'error');
+      showToast(`Gagal mengunduh berkas ${format.toUpperCase()}`, 'error');
+    } finally {
+      setIsExportingCatalog(false);
     }
   };
+
+  const handleExportCatalogJSON = () => handleExportCatalog('json');
 
   // =========================================================================
   // 2. PRODUCT MANAGEMENT STATE (Server-Side Filtered & Paginated)
@@ -3537,30 +3572,57 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     <span>Reset Form</span>
                   </button>
                 ) : (
-                  <button
-                    id="btn-tambah-produk"
-                    data-testid="btn-tambah-produk"
-                    type="button"
-                    onClick={() => handleCancelToProductTypeSelection()}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0.55rem 1.15rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--primary)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px var(--primary-glow)'
-                    }}
-                  >
-                    <Plus size={17} />
-                    <span>Tambah Produk</span>
-                  </button>
+                  <>
+                    <button
+                      id="btn-ekspor-katalog"
+                      data-testid="btn-ekspor-katalog"
+                      type="button"
+                      onClick={() => setShowExportModal(true)}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0.55rem 1rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-light)',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Ekspor Data Katalog (CSV / JSON)"
+                    >
+                      <HardDriveDownload size={16} style={{ color: 'var(--primary)' }} />
+                      <span>Ekspor</span>
+                    </button>
+                    <button
+                      id="btn-tambah-produk"
+                      data-testid="btn-tambah-produk"
+                      type="button"
+                      onClick={() => handleCancelToProductTypeSelection()}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0.55rem 1.15rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--primary)',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px var(--primary-glow)'
+                      }}
+                    >
+                      <Plus size={17} />
+                      <span>Tambah Produk</span>
+                    </button>
+                  </>
                 )}
               </div>
             }
@@ -8125,6 +8187,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   onStoreDeleted={handleStoreDeleted}
                   onAccountDeleted={handleAccountDeleted}
                   showToast={showToast}
+                  onExportCatalog={handleExportCatalog}
                   onExportCatalogJSON={handleExportCatalogJSON}
                 />
               </div>
@@ -9963,6 +10026,218 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         switchingSlug={switchingSlug}
         activeTheme={storeSettings.store_theme || 'navy'}
       />
+
+      {/* ==========================================================
+          CATALOG DATA EXPORT MODAL (TABLET NATIVE)
+          ========================================================== */}
+      {showExportModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem'
+          }}
+          onClick={() => setShowExportModal(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              backgroundColor: 'var(--bg-surface, #1e293b)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: 'var(--shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.5))',
+              overflow: 'hidden'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: 'var(--bg-card)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <HardDriveDownload size={19} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Ekspor Data Katalog
+                  </h3>
+                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    Pilih format berkas untuk mengunduh seluruh data katalog Anda.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '0.35rem',
+                  display: 'flex',
+                  borderRadius: '6px'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Option 1: CSV */}
+              <div
+                style={{
+                  padding: '1rem 1.15rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem'
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <FileSpreadsheet size={17} style={{ color: 'var(--primary)' }} />
+                    <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Format CSV (Microsoft Excel)
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    Tabel data terstruktur (ID, nama, SKU, kategori, harga, stok, spesifikasi, dan total klik WhatsApp). Cocok untuk pembukuan di Excel/Spreadsheet.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isExportingCatalog}
+                  onClick={() => handleExportCatalog('csv')}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
+                    opacity: isExportingCatalog ? 0.7 : 1,
+                    flexShrink: 0
+                  }}
+                >
+                  <FileSpreadsheet size={15} />
+                  <span>Unduh CSV</span>
+                </button>
+              </div>
+
+              {/* Option 2: JSON */}
+              <div
+                style={{
+                  padding: '1rem 1.15rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem'
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <HardDriveDownload size={17} style={{ color: 'var(--primary)' }} />
+                    <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Format JSON (Cadangan Utuh)
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    Salinan digital teknis lengkap memuat hierarki relasi galeri foto, seluruh varian harga, serta atribut dinamis 7 domain industri untuk kebutuhan migrasi/arsip.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isExportingCatalog}
+                  onClick={() => handleExportCatalog('json')}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-light)',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
+                    opacity: isExportingCatalog ? 0.7 : 1,
+                    flexShrink: 0
+                  }}
+                >
+                  <HardDriveDownload size={15} />
+                  <span>Unduh JSON</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '0.85rem 1.5rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  minHeight: '40px',
+                  padding: '0 1.25rem',
+                  borderRadius: '0.55rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
