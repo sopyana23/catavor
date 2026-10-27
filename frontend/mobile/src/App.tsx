@@ -27790,6 +27790,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               handleLogout();
                             }}
                             showToast={(type, msg) => showToast(msg, type)}
+                            onExportCatalog={handleExportCatalog}
                           />
                         </div>
                       )}
@@ -28031,6 +28032,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       handleLogout();
                                     }}
                                     showToast={(type, msg) => showToast(msg, type)}
+                                    onExportCatalog={handleExportCatalog}
                                   />
                                 </div>
                               )}
@@ -35679,6 +35681,338 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 type="button"
                 onClick={() => { setShowForgotPasswordModal(false); setForgotError(null); setForgotSuccess(null); }}
                 style={{ background: 'none', border: 'none', padding: 0, color: '#64748b', fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================================
+          MOBILE CATALOG DATA EXPORT BOTTOM SHEET (NATIVE ERGONOMIC)
+          ========================================================== */}
+      {showExportSheet && (
+        <div
+          id="modal-export-catalog-mobile"
+          className="bottom-sheet-backdrop"
+          onClick={() => {
+            if (!isExportingCatalog) {
+              setShowExportSheet(false);
+              setExportDragY(0);
+            }
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center'
+          }}
+        >
+          <div
+            className="bottom-sheet-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '540px',
+              backgroundColor: 'var(--bg-surface, #1e293b)',
+              borderTopLeftRadius: '1.25rem',
+              borderTopRightRadius: '1.25rem',
+              border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+              borderBottom: 'none',
+              boxShadow: '0 -10px 30px rgba(0, 0, 0, 0.45)',
+              transform: `translateY(${Math.max(0, exportDragY)}px)`,
+              transition: isExportDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Drag Handle Bar (touch-action none) */}
+            <div
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleExportDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleExportDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleExportDragEnd}
+              onMouseDown={(e) => handleExportDragStart(e.clientY)}
+              onMouseMove={(e) => handleExportDragMove(e.clientY)}
+              onMouseUp={handleExportDragEnd}
+              style={{
+                touchAction: 'none',
+                padding: '0.75rem 0 0.35rem',
+                display: 'flex',
+                justifyContent: 'center',
+                cursor: 'grab'
+              }}
+            >
+              <div
+                className="bottom-sheet-handle"
+                style={{
+                  width: '42px',
+                  height: '4px',
+                  borderRadius: '999px',
+                  backgroundColor: 'var(--border-light, rgba(255, 255, 255, 0.25))'
+                }}
+              />
+            </div>
+
+            {/* Header: Clean & professional, NO 'X' button per Rule 7.A.3 */}
+            <div
+              className="bottom-sheet-header"
+              onTouchStart={(e) => handleExportDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleExportDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleExportDragEnd}
+              onMouseDown={(e) => handleExportDragStart(e.clientY)}
+              onMouseMove={(e) => handleExportDragMove(e.clientY)}
+              onMouseUp={handleExportDragEnd}
+              style={{
+                touchAction: 'none',
+                padding: '0.5rem 1.25rem 0.85rem',
+                borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--primary, #3b82f6)',
+                    flexShrink: 0
+                  }}
+                >
+                  <HardDriveDownload size={18} />
+                </div>
+                <div>
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: '1rem',
+                      fontWeight: 800,
+                      color: 'var(--text-primary, #ffffff)',
+                      lineHeight: 1.2
+                    }}
+                  >
+                    Ekspor Data & Portabilitas
+                  </h3>
+                  <p
+                    style={{
+                      margin: '0.2rem 0 0',
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary, #94a3b8)',
+                      lineHeight: 1.3
+                    }}
+                  >
+                    Unduh data katalog aktif untuk laporan Excel atau arsip digital
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body: Scrollable with touch containment */}
+            <div
+              style={{
+                padding: '1rem 1.15rem',
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehavior: 'contain',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem'
+              }}
+            >
+              {/* Option 1: CSV / Excel */}
+              <div
+                style={{
+                  padding: '1rem',
+                  borderRadius: '0.85rem',
+                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
+                  backgroundColor: 'var(--bg-card, rgba(255, 255, 255, 0.03))',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: 'rgba(34, 197, 94, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#22c55e',
+                      flexShrink: 0,
+                      marginTop: '0.1rem'
+                    }}
+                  >
+                    <FileSpreadsheet size={16} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
+                      Format CSV (Microsoft Excel)
+                    </div>
+                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: 'var(--text-secondary, #94a3b8)', lineHeight: 1.4 }}>
+                      Tabel terstruktur (ID, nama, SKU, kategori, harga, stok, spesifikasi). Dilengkapi UTF-8 BOM agar rapi saat dibuka langsung di Microsoft Excel & Google Sheets.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  id="btn-download-csv-mobile"
+                  disabled={isExportingCatalog}
+                  onClick={() => handleExportCatalog('csv')}
+                  style={{
+                    width: '100%',
+                    minHeight: '44px',
+                    padding: '0.65rem 1rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--primary, #3b82f6)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.84rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
+                    opacity: isExportingCatalog ? 0.7 : 1,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {isExportingCatalog ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Mengunduh Berkas...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet size={16} />
+                      <span>Unduh Berkas Excel (CSV)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Option 2: JSON / Full Backup */}
+              <div
+                style={{
+                  padding: '1rem',
+                  borderRadius: '0.85rem',
+                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
+                  backgroundColor: 'var(--bg-card, rgba(255, 255, 255, 0.03))',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--primary, #3b82f6)',
+                      flexShrink: 0,
+                      marginTop: '0.1rem'
+                    }}
+                  >
+                    <HardDriveDownload size={16} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
+                      Format JSON (Cadangan Utuh)
+                    </div>
+                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: 'var(--text-secondary, #94a3b8)', lineHeight: 1.4 }}>
+                      Salinan teknis lossless memuat hierarki relasi galeri media, varian opsi harga, dan atribut dinamis 7 domain industri untuk portabilitas & arsip.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  id="btn-download-json-mobile"
+                  disabled={isExportingCatalog}
+                  onClick={() => handleExportCatalog('json')}
+                  style={{
+                    width: '100%',
+                    minHeight: '44px',
+                    padding: '0.65rem 1rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                    color: 'var(--text-primary, #ffffff)',
+                    border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
+                    fontWeight: 700,
+                    fontSize: '0.84rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
+                    opacity: isExportingCatalog ? 0.7 : 1,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {isExportingCatalog ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Mengunduh Berkas...</span>
+                    </>
+                  ) : (
+                    <>
+                      <HardDriveDownload size={16} />
+                      <span>Unduh Salinan Lengkap (JSON)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Footer with touch-friendly Dismiss/Close button */}
+            <div
+              style={{
+                padding: '0.75rem 1.15rem 1.25rem',
+                borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
+                backgroundColor: 'var(--bg-deep, rgba(0, 0, 0, 0.2))'
+              }}
+            >
+              <button
+                type="button"
+                disabled={isExportingCatalog}
+                onClick={() => {
+                  setShowExportSheet(false);
+                  setExportDragY(0);
+                }}
+                style={{
+                  width: '100%',
+                  minHeight: '44px',
+                  padding: '0.65rem 1rem',
+                  borderRadius: '0.65rem',
+                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary, #94a3b8)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: isExportingCatalog ? 'not-allowed' : 'pointer'
+                }}
               >
                 Tutup
               </button>
