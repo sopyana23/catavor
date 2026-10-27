@@ -23670,12 +23670,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                   {/* Desktop Settings Segmented Sub-Tab Bar (Full-Width Responsive Grid) */}
                   {(() => {
-                    const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain'; label: string; icon: any; isPro?: boolean }> = [
+                    const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'domain'; label: string; icon: any; isPro?: boolean }> = [
                       { id: 'general', label: 'Profil & Identitas Utama', icon: Store },
                       { id: 'contact', label: 'Kontak & Saluran Resmi', icon: MessageCircle },
                       { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
                       { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
-                      { id: 'master', label: 'Master Data Katalog', icon: Database },
                       ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', icon: Globe, isPro: true }] : [])
                     ];
 
@@ -24638,35 +24637,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   )}
 
-                  {/* Master Data Management Section */}
-                  {settingsSubTab === 'master' && (
-                    <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
-                      {/* Top Header Banner */}
-                      <div style={{
-                        padding: '1.25rem 1.5rem',
-                        borderRadius: '0.85rem',
-                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(59, 130, 246, 0.04) 100%)',
-                        border: '1px solid var(--border-light)',
-                        marginBottom: '1.25rem'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          <span style={{ padding: '0.3rem 0.6rem', borderRadius: '0.45rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', fontWeight: 800, fontSize: '0.72rem' }}>
-                            SISTEM TAKSONOMI KATALOG
-                          </span>
-                          <h3 style={{ fontSize: '1.15rem', margin: 0, fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Kelola Master Kategori Etalase
-                          </h3>
-                        </div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0.35rem 0 0 0' }}>
-                          Kelola taksonomi kategori etalase katalog per model bisnis. Kategori standar sistem terkunci permanen untuk konsistensi platform, sedangkan kategori kustom dapat Anda tambah, ubah nama, atau hapus secara mandiri.
-                        </p>
-                      </div>
-
-                      {/* Dedicated Category Taxonomy Manager */}
-                      {renderCategoryTaxonomyManager()}
-                    </div>
-                  )}
-
+                  {/* End of Settings Content */}
                 </>
               )}
 
