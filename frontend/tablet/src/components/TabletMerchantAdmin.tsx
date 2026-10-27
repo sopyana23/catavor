@@ -82,7 +82,7 @@ import {
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { TabletAnalyticsView } from './TabletAnalyticsView';
-import { TabletSubscriptionModal, type StoreQuotaData } from './TabletSubscriptionModal';
+import { TabletSubscriptionModal, TabletQuotaWidget, type StoreQuotaData } from './TabletSubscriptionModal';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
 import { TabletDangerZoneView } from './TabletDangerZoneView';
@@ -2878,6 +2878,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     productStockFilter
   ]);
 
+  // Initial Quota Fetch for Live Quota Widget
+  useEffect(() => {
+    if (token && storeSlug) {
+      fetchQuota();
+    }
+  }, [token, storeSlug, fetchQuota]);
+
   // 3. Lazy Tab Loading (Only fetch on-demand when switching to the relevant tab)
   const loadedTabsRef = useRef<Set<string>>(new Set(['items']));
   useEffect(() => {
@@ -3541,95 +3548,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             }}
             masterPane={
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                {/* Catalog Metrics Pills Summary - Hidden if catalog has no items */}
+                {/* Live Quota & Storage Dashboard Widget (Tablet Parity with Desktop & Mobile) */}
                 {!isCatalogCompletelyEmpty && (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: '0.35rem',
-                    padding: '0.65rem 0.75rem 0.45rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    borderBottom: '1px solid var(--border-light)'
-                  }}>
-                    <div
-                      onClick={() => {
-                        setProductStatusFilter('all');
-                        setProductStockFilter('all');
-                        setProductPage(1);
-                      }}
-                      style={{
-                        padding: '0.35rem 0.45rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: productStatusFilter === 'all' && productStockFilter === 'all' ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                        border: productStatusFilter === 'all' && productStockFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                        {catalogMetrics?.total_items ?? productTotalRecords}
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => {
-                        setProductStatusFilter('active');
-                        setProductStockFilter('all');
-                        setProductPage(1);
-                      }}
-                      style={{
-                        padding: '0.35rem 0.45rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: productStatusFilter === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-card)',
-                        border: productStatusFilter === 'active' ? '1px solid #10b981' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 600 }}>Aktif</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>
-                        {catalogMetrics?.active_items ?? (products.filter(p => p.is_active !== false).length || '-')}
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => {
-                        setProductStockFilter('low');
-                        setProductPage(1);
-                      }}
-                      style={{
-                        padding: '0.35rem 0.45rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: productStockFilter === 'low' ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg-card)',
-                        border: productStockFilter === 'low' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600 }}>Menipis</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b' }}>
-                        {catalogMetrics?.low_stock_items ?? (products.filter(p => (p.stock ?? 1) > 0 && (p.stock ?? 1) <= 5).length || '-')}
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => {
-                        setProductStockFilter('out');
-                        setProductPage(1);
-                      }}
-                      style={{
-                        padding: '0.35rem 0.45rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: productStockFilter === 'out' ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-card)',
-                        border: productStockFilter === 'out' ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 600 }}>Habis</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ef4444' }}>
-                        {catalogMetrics?.out_of_stock_items ?? (products.filter(p => (p.stock ?? 1) === 0).length || '-')}
-                      </div>
-                    </div>
-                  </div>
+                  <TabletQuotaWidget
+                    quota={quota}
+                    onOpenUpgrade={() => setIsSubModalOpen(true)}
+                    isNavExpanded={isNavExpanded}
+                  />
                 )}
 
                 {/* Search & Tablet Ergonomic Filter Header - Hidden if catalog has no items */}
@@ -7102,21 +7027,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               )}
             </div>
 
-            {/* Tablet Subscription Modal Mount */}
-            <TabletSubscriptionModal
-              isOpen={isSubModalOpen}
-              onClose={() => setIsSubModalOpen(false)}
-              token={token}
-              storeSlug={storeSlug}
-              currentQuota={quota}
-              onSuccessUpgrade={() => {
-                fetchQuota();
-                fetchSubscriptionOrders();
-              }}
-              showToast={showToast}
-              onLogout={onLogout}
-              onUnauthorized={onUnauthorized}
-            />
           </div>
         )}
 
@@ -8942,12 +8852,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
                 {/* 1. Summary Metric Cards (Total Masuk, Belum Dibaca, Terbaca) */}
                 <div style={{
+                  margin: '0.85rem 0.85rem 0.5rem 0.85rem',
                   padding: '1rem',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.75rem',
-                  borderBottom: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-card)'
+                  borderRadius: '0.85rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
                 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                     <div
@@ -10611,6 +10524,24 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           </div>
         </div>
       )}
+
+      {/* ==========================================================
+          TABLET SUBSCRIPTION & UPGRADE MODAL (GLOBAL MOUNT)
+          ========================================================== */}
+      <TabletSubscriptionModal
+        isOpen={isSubModalOpen}
+        onClose={() => setIsSubModalOpen(false)}
+        token={token}
+        storeSlug={storeSlug}
+        currentQuota={quota}
+        onSuccessUpgrade={() => {
+          fetchQuota();
+          fetchSubscriptionOrders();
+        }}
+        showToast={showToast}
+        onLogout={onLogout}
+        onUnauthorized={onUnauthorized}
+      />
 
       {/* ==========================================================
           STORE CHOOSER & SWITCHER MODAL (TABLET NATIVE)
