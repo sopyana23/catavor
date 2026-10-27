@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronDown,
@@ -8,17 +8,17 @@ import {
   Check,
   Link,
   ExternalLink,
+  AlertTriangle,
   X,
   Sparkles,
   MousePointer,
-  AlertTriangle,
   Globe,
   Copy,
   Trash2,
   Type,
   FileText
 } from 'lucide-react';
-import { sanitizeUrl, checkUrlSecurity } from '../utils/urlSecurity';
+import { sanitizeUrl, safeOpenUrl, checkUrlSecurity } from '../utils/urlSecurity';
 import { ExternalLinkWarningModal, type ExternalLinkWarningModalProps } from './ExternalLinkWarningModal';
 import { useModalBackHandler } from '../utils/navigation';
 
@@ -68,6 +68,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       if (onNavigate) {
         onNavigate(sec.sanitizedUrl);
       } else {
+        // Safe internal push / location change
         if (sec.sanitizedUrl.startsWith('/')) {
           window.history.pushState({}, '', sec.sanitizedUrl);
           window.dispatchEvent(new PopStateEvent('popstate'));
@@ -158,6 +159,12 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
   const renderInlineMarkdown = (str: string): React.ReactNode => {
     const parts: React.ReactNode[] = [];
     let idx = 0;
+    // Regex matches:
+    // 1. [button:Label|url|variant] or [cta:Label|url|variant]
+    // 2. [Link Text](url)
+    // 3. **bold** or __bold__
+    // 4. *italic* or _italic_
+    // 5. `code`
     const regex = /(\[button:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]|\[cta:([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+?)\*\*|\*([^*]+?)\*|__([^_]+?)__|_(.*?)_|`([^`]+?)`)/g;
     let lastIndex = 0;
     let match;
@@ -192,7 +199,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
               href={rawUrl}
               onClick={(e) => handleLinkClick(rawUrl, e)}
               style={{
-                color: 'var(--primary, #38bdf8)',
+                color: '#38bdf8',
                 textDecoration: 'underline',
                 textUnderlineOffset: '3px',
                 fontWeight: 600,
@@ -261,7 +268,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
   lines.forEach((line, lineIdx) => {
     const trimmed = line.trim();
 
-    // Standalone block CTA button
+    // Check if line is a standalone block CTA button
     const blockButtonMatch = trimmed.match(/^\[(button|cta):([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]$/);
     if (blockButtonMatch) {
       const flushed = flushList(lineIdx);
@@ -383,6 +390,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
         {elements}
       </div>
 
+      {/* External Link Safety Prompt */}
       {externalUrlToPrompt && (
         <ExternalLinkWarningModal
           url={externalUrlToPrompt}
@@ -452,12 +460,12 @@ export const LinkInsertModal: React.FC<{
     onClose();
   };
 
-  const bgModal = theme?.modalBg || 'var(--bg-card, #0f172a)';
-  const borderCol = theme?.borderStrong || 'var(--border-light, #334155)';
-  const textPrimary = theme?.textPrimary || 'var(--text-primary, #f8fafc)';
-  const textSecondary = theme?.textSecondary || 'var(--text-secondary, #cbd5e1)';
-  const inputBg = theme?.inputBg || 'var(--bg-deep, #1e293b)';
-  const inputBorder = theme?.inputBorder || 'var(--border-light, rgba(255,255,255,0.12))';
+  const bgModal = theme?.modalBg || (isDark ? '#0f172a' : '#ffffff');
+  const borderCol = theme?.borderStrong || (isDark ? '#334155' : '#cbd5e1');
+  const textPrimary = theme?.textPrimary || (isDark ? '#f8fafc' : '#0f172a');
+  const textSecondary = theme?.textSecondary || (isDark ? '#cbd5e1' : '#475569');
+  const inputBg = theme?.inputBg || (isDark ? '#1e293b' : '#f8fafc');
+  const inputBorder = theme?.inputBorder || (isDark ? 'rgba(255,255,255,0.12)' : '#cbd5e1');
 
   return createPortal(
     <div
@@ -483,12 +491,12 @@ export const LinkInsertModal: React.FC<{
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '420px',
+          maxWidth: '400px',
           width: '100%',
           backgroundColor: bgModal,
           borderRadius: '1.25rem',
           border: `1px solid ${borderCol}`,
-          boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+          boxShadow: isDark ? '0 20px 50px rgba(0,0,0,0.6)' : '0 15px 35px rgba(0,0,0,0.15)',
           padding: '1.35rem',
           display: 'flex',
           flexDirection: 'column',
@@ -506,7 +514,7 @@ export const LinkInsertModal: React.FC<{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--primary, #38bdf8)'
+              color: '#38bdf8'
             }}>
               <Link size={16} />
             </div>
@@ -538,7 +546,7 @@ export const LinkInsertModal: React.FC<{
           style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
         >
           <div>
-            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
               Teks Tautan
             </label>
             <input
@@ -548,12 +556,12 @@ export const LinkInsertModal: React.FC<{
               onChange={e => setText(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.6rem 0.8rem',
+                padding: '0.55rem 0.75rem',
                 borderRadius: '0.65rem',
                 backgroundColor: inputBg,
                 border: `1px solid ${inputBorder}`,
                 color: textPrimary,
-                fontSize: '0.82rem',
+                fontSize: '0.8rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
@@ -561,7 +569,7 @@ export const LinkInsertModal: React.FC<{
           </div>
 
           <div>
-            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
               URL Tujuan (Web atau Rute Internal)
             </label>
             <input
@@ -571,31 +579,31 @@ export const LinkInsertModal: React.FC<{
               onChange={e => setUrl(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.6rem 0.8rem',
+                padding: '0.55rem 0.75rem',
                 borderRadius: '0.65rem',
                 backgroundColor: inputBg,
                 border: `1px solid ${url ? (isSafe ? (isExternal ? '#3b82f6' : '#10b981') : '#ef4444') : inputBorder}`,
                 color: textPrimary,
-                fontSize: '0.82rem',
+                fontSize: '0.8rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
             />
             {url && (
-              <div style={{ fontSize: '0.68rem', marginTop: '0.35rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <div style={{ fontSize: '0.66rem', marginTop: '0.3rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 {!isSafe ? (
                   <>
-                    <AlertTriangle size={13} color="#ef4444" />
+                    <AlertTriangle size={12} color="#ef4444" />
                     <span style={{ color: '#ef4444' }}>Protokol tidak aman / dilarang (XSS Protection)</span>
                   </>
                 ) : isExternal ? (
                   <>
-                    <Globe size={13} color="#3b82f6" />
+                    <Globe size={12} color="#3b82f6" />
                     <span style={{ color: '#3b82f6' }}>Tautan Eksternal Aman (Akan dibuka di tab baru)</span>
                   </>
                 ) : (
                   <>
-                    <Check size={13} color="#10b981" />
+                    <Check size={12} color="#10b981" />
                     <span style={{ color: '#10b981' }}>Rute Internal Platform (Navigasi cepat)</span>
                   </>
                 )}
@@ -603,7 +611,7 @@ export const LinkInsertModal: React.FC<{
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', marginTop: '0.5rem' }}>
             {isEditing && onDelete && (
               <button
                 type="button"
@@ -614,22 +622,21 @@ export const LinkInsertModal: React.FC<{
                   onClose();
                 }}
                 style={{
-                  minHeight: '40px',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.5rem 0.95rem',
+                  gap: '0.3rem',
+                  padding: '0.5rem 0.85rem',
                   borderRadius: '0.65rem',
                   backgroundColor: 'rgba(239, 68, 68, 0.12)',
                   border: '1px solid rgba(239, 68, 68, 0.28)',
                   color: '#ef4444',
-                  fontSize: '0.78rem',
+                  fontSize: '0.76rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   marginRight: 'auto'
                 }}
               >
-                <Trash2 size={14} />
+                <Trash2 size={13} />
                 <span>Hapus Tautan</span>
               </button>
             )}
@@ -641,13 +648,12 @@ export const LinkInsertModal: React.FC<{
                 onClose();
               }}
               style={{
-                minHeight: '40px',
-                padding: '0.5rem 0.95rem',
+                padding: '0.5rem 0.85rem',
                 borderRadius: '0.65rem',
                 backgroundColor: 'transparent',
                 border: `1px solid ${borderCol}`,
                 color: textSecondary,
-                fontSize: '0.78rem',
+                fontSize: '0.76rem',
                 fontWeight: 700,
                 cursor: 'pointer'
               }}
@@ -659,21 +665,20 @@ export const LinkInsertModal: React.FC<{
               onClick={handleConfirm}
               disabled={!text.trim() || !url.trim() || !isSafe}
               style={{
-                minHeight: '40px',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.5rem 1.25rem',
+                gap: '0.3rem',
+                padding: '0.5rem 1.1rem',
                 borderRadius: '0.65rem',
-                backgroundColor: (!text.trim() || !url.trim() || !isSafe) ? 'rgba(56, 189, 248, 0.3)' : 'var(--primary, #38bdf8)',
-                color: '#ffffff',
+                backgroundColor: (!text.trim() || !url.trim() || !isSafe) ? 'rgba(56, 189, 248, 0.3)' : '#38bdf8',
+                color: '#000000',
                 border: 'none',
-                fontSize: '0.78rem',
+                fontSize: '0.76rem',
                 fontWeight: 800,
                 cursor: (!text.trim() || !url.trim() || !isSafe) ? 'not-allowed' : 'pointer'
               }}
             >
-              {isEditing && <Check size={14} />}
+              {isEditing && <Check size={13} />}
               <span>{isEditing ? 'Simpan' : 'Sisipkan'}</span>
             </button>
           </div>
@@ -733,7 +738,7 @@ export const ButtonInsertModal: React.FC<{
 
   if (!isOpen) return null;
 
-  const { isSafe } = sanitizeUrl(url);
+  const { isSafe, isExternal } = sanitizeUrl(url);
 
   const handleConfirm = (e?: React.SyntheticEvent) => {
     if (e) {
@@ -747,12 +752,12 @@ export const ButtonInsertModal: React.FC<{
     onClose();
   };
 
-  const bgModal = theme?.modalBg || 'var(--bg-card, #0f172a)';
-  const borderCol = theme?.borderStrong || 'var(--border-light, #334155)';
-  const textPrimary = theme?.textPrimary || 'var(--text-primary, #f8fafc)';
-  const textSecondary = theme?.textSecondary || 'var(--text-secondary, #cbd5e1)';
-  const inputBg = theme?.inputBg || 'var(--bg-deep, #1e293b)';
-  const inputBorder = theme?.inputBorder || 'var(--border-light, rgba(255,255,255,0.12))';
+  const bgModal = theme?.modalBg || (isDark ? '#0f172a' : '#ffffff');
+  const borderCol = theme?.borderStrong || (isDark ? '#334155' : '#cbd5e1');
+  const textPrimary = theme?.textPrimary || (isDark ? '#f8fafc' : '#0f172a');
+  const textSecondary = theme?.textSecondary || (isDark ? '#cbd5e1' : '#475569');
+  const inputBg = theme?.inputBg || (isDark ? '#1e293b' : '#f8fafc');
+  const inputBorder = theme?.inputBorder || (isDark ? 'rgba(255,255,255,0.12)' : '#cbd5e1');
 
   return createPortal(
     <div
@@ -778,12 +783,12 @@ export const ButtonInsertModal: React.FC<{
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '430px',
+          maxWidth: '420px',
           width: '100%',
           backgroundColor: bgModal,
           borderRadius: '1.25rem',
           border: `1px solid ${borderCol}`,
-          boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+          boxShadow: isDark ? '0 20px 50px rgba(0,0,0,0.6)' : '0 15px 35px rgba(0,0,0,0.15)',
           padding: '1.35rem',
           display: 'flex',
           flexDirection: 'column',
@@ -806,7 +811,7 @@ export const ButtonInsertModal: React.FC<{
               <Sparkles size={16} />
             </div>
             <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: textPrimary }}>
-              {isEditing ? 'Edit Tombol Aksi (CTA)' : 'Sisipkan Tombol Aksi (CTA)'}
+              {isEditing ? 'Edit Tombol Aksi (CTA)' : 'Sisipkan Tombol Aksi (CTA Button)'}
             </h4>
           </div>
           <button
@@ -833,22 +838,22 @@ export const ButtonInsertModal: React.FC<{
           style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
         >
           <div>
-            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
               Label Tombol
             </label>
             <input
               type="text"
-              placeholder="Contoh: Pesan via WhatsApp / Lihat Menu"
+              placeholder="Contoh: Klaim Promo Sekarang / Buka Pengaturan"
               value={label}
               onChange={e => setLabel(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.6rem 0.8rem',
+                padding: '0.55rem 0.75rem',
                 borderRadius: '0.65rem',
                 backgroundColor: inputBg,
                 border: `1px solid ${inputBorder}`,
                 color: textPrimary,
-                fontSize: '0.82rem',
+                fontSize: '0.8rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
@@ -856,22 +861,22 @@ export const ButtonInsertModal: React.FC<{
           </div>
 
           <div>
-            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
-              URL / Tautan Aksi
+            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+              URL / Rute Aksi
             </label>
             <input
               type="text"
-              placeholder="https://example.com atau /menu"
+              placeholder="https://example.com atau /admin/promotions"
               value={url}
               onChange={e => setUrl(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.6rem 0.8rem',
+                padding: '0.55rem 0.75rem',
                 borderRadius: '0.65rem',
                 backgroundColor: inputBg,
                 border: `1px solid ${url ? (isSafe ? '#3b82f6' : '#ef4444') : inputBorder}`,
                 color: textPrimary,
-                fontSize: '0.82rem',
+                fontSize: '0.8rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
@@ -879,15 +884,15 @@ export const ButtonInsertModal: React.FC<{
           </div>
 
           <div>
-            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
               Gaya Desain Tombol
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
               {[
-                { id: 'primary', label: 'Biru Utama', color: '#3b82f6' },
-                { id: 'amber', label: 'Amber Emas', color: '#f59e0b' },
-                { id: 'emerald', label: 'Hijau Sukses', color: '#10b981' },
-                { id: 'outline', label: 'Garis Tepi', color: '#38bdf8' }
+                { id: 'primary', label: 'Biru Utama (Primary)', color: '#3b82f6' },
+                { id: 'amber', label: 'Amber Emas (Warning)', color: '#f59e0b' },
+                { id: 'emerald', label: 'Hijau Sukses (Success)', color: '#10b981' },
+                { id: 'outline', label: 'Garis Tepi (Outline)', color: '#38bdf8' }
               ].map(opt => (
                 <button
                   key={opt.id}
@@ -898,28 +903,27 @@ export const ButtonInsertModal: React.FC<{
                     setVariant(opt.id as any);
                   }}
                   style={{
-                    minHeight: '38px',
-                    padding: '0.45rem 0.65rem',
+                    padding: '0.45rem 0.6rem',
                     borderRadius: '0.55rem',
                     border: variant === opt.id ? `2px solid ${opt.color}` : `1px solid ${borderCol}`,
-                    backgroundColor: variant === opt.id ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                    backgroundColor: variant === opt.id ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)') : 'transparent',
                     color: textPrimary,
-                    fontSize: '0.74rem',
+                    fontSize: '0.72rem',
                     fontWeight: variant === opt.id ? 800 : 600,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.4rem'
+                    gap: '0.35rem'
                   }}
                 >
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color }} />
-                  <span>{opt.label}</span>
+                  <span>{opt.label.split(' ')[0]}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', marginTop: '0.5rem' }}>
             {isEditing && onDelete && (
               <button
                 type="button"
@@ -930,22 +934,21 @@ export const ButtonInsertModal: React.FC<{
                   onClose();
                 }}
                 style={{
-                  minHeight: '40px',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.5rem 0.95rem',
+                  gap: '0.3rem',
+                  padding: '0.5rem 0.85rem',
                   borderRadius: '0.65rem',
                   backgroundColor: 'rgba(239, 68, 68, 0.12)',
                   border: '1px solid rgba(239, 68, 68, 0.28)',
                   color: '#ef4444',
-                  fontSize: '0.78rem',
+                  fontSize: '0.76rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   marginRight: 'auto'
                 }}
               >
-                <Trash2 size={14} />
+                <Trash2 size={13} />
                 <span>Hapus Tombol</span>
               </button>
             )}
@@ -957,13 +960,12 @@ export const ButtonInsertModal: React.FC<{
                 onClose();
               }}
               style={{
-                minHeight: '40px',
-                padding: '0.5rem 0.95rem',
+                padding: '0.5rem 0.85rem',
                 borderRadius: '0.65rem',
                 backgroundColor: 'transparent',
                 border: `1px solid ${borderCol}`,
                 color: textSecondary,
-                fontSize: '0.78rem',
+                fontSize: '0.76rem',
                 fontWeight: 700,
                 cursor: 'pointer'
               }}
@@ -975,21 +977,20 @@ export const ButtonInsertModal: React.FC<{
               onClick={handleConfirm}
               disabled={!label.trim() || !url.trim() || !isSafe}
               style={{
-                minHeight: '40px',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.5rem 1.25rem',
+                gap: '0.3rem',
+                padding: '0.5rem 1.1rem',
                 borderRadius: '0.65rem',
                 backgroundColor: (!label.trim() || !url.trim() || !isSafe) ? 'rgba(245, 158, 11, 0.3)' : '#f59e0b',
                 color: '#000000',
                 border: 'none',
-                fontSize: '0.78rem',
+                fontSize: '0.76rem',
                 fontWeight: 800,
                 cursor: (!label.trim() || !url.trim() || !isSafe) ? 'not-allowed' : 'pointer'
               }}
             >
-              {isEditing && <Check size={14} />}
+              {isEditing && <Check size={13} />}
               <span>{isEditing ? 'Simpan' : 'Sisipkan Tombol'}</span>
             </button>
           </div>
@@ -1006,7 +1007,8 @@ export const HeadingDropdown: React.FC<{
   isZen?: boolean;
   theme?: any;
   isDark?: boolean;
-}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = true }) => {
+  activeHeading?: 1 | 2 | 3 | null;
+}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = true, activeHeading = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -1084,10 +1086,11 @@ export const HeadingDropdown: React.FC<{
     setIsOpen(false);
   };
 
-  const bgCard = theme?.modalBg || 'var(--bg-card, #1e293b)';
-  const borderCol = theme?.borderStrong || 'var(--border-light, #334155)';
-  const textCol = theme?.textPrimary || 'var(--text-primary, #ffffff)';
-  const textMutedCol = theme?.textMuted || 'var(--text-muted, #94a3b8)';
+  const isHighlighted = isOpen || Boolean(activeHeading);
+  const bgCard = theme?.modalBg || theme?.surface || (isDark ? '#1e293b' : '#ffffff');
+  const borderCol = theme?.borderStrong || theme?.border || (isDark ? '#334155' : '#cbd5e1');
+  const textCol = theme?.textPrimary || (isDark ? '#ffffff' : '#0f172a');
+  const textMutedCol = theme?.textMuted || (isDark ? '#94a3b8' : '#64748b');
 
   return (
     <>
@@ -1099,22 +1102,24 @@ export const HeadingDropdown: React.FC<{
         onMouseDown={(e) => e.preventDefault()}
         onClick={handleToggle}
         style={{
-          minHeight: '36px',
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
-          backgroundColor: isOpen ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-deep, rgba(255,255,255,0.06))',
-          border: `1px solid ${isOpen ? 'var(--primary, #38bdf8)' : 'var(--border-light, rgba(255,255,255,0.1))'}`,
-          color: isOpen ? 'var(--primary, #38bdf8)' : 'var(--text-primary, #ffffff)',
-          padding: '0.3rem 0.65rem',
-          borderRadius: '0.45rem',
+          gap: '3px',
+          backgroundColor: isHighlighted ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') : (theme?.surface || (isDark ? 'rgba(255,255,255,0.06)' : '#ffffff')),
+          borderColor: isHighlighted ? (isDark ? '#38bdf8' : '#0284c7') : (theme?.border || (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0')),
+          color: isHighlighted ? (isDark ? '#38bdf8' : '#0284c7') : (theme?.textPrimary || (isDark ? '#ffffff' : '#0f172a')),
+          padding: '0.25rem 0.55rem',
+          borderRadius: '0.35rem',
           fontSize: '0.78rem',
+          fontWeight: isHighlighted ? 800 : 700,
           cursor: 'pointer',
-          flexShrink: 0
+          flexShrink: 0,
+          boxShadow: isHighlighted ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+          transition: 'all 0.15s ease'
         }}
       >
-        <span style={{ fontWeight: 700 }}>Judul</span>
-        <ChevronDown size={12} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+        <span style={{ fontWeight: 700 }}>{activeHeading ? `Judul (H${activeHeading})` : 'Judul'}</span>
+        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
       </button>
 
       {isOpen && createPortal(
@@ -1130,7 +1135,7 @@ export const HeadingDropdown: React.FC<{
             backgroundColor: bgCard,
             border: `1px solid ${borderCol}`,
             borderRadius: '0.65rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.55)',
+            boxShadow: isDark ? '0 14px 35px rgba(0,0,0,0.55)' : '0 10px 25px rgba(0,0,0,0.12)',
             padding: '0.4rem',
             display: 'flex',
             flexDirection: 'column',
@@ -1143,7 +1148,6 @@ export const HeadingDropdown: React.FC<{
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect(1)}
             style={{
-              minHeight: '38px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -1151,20 +1155,21 @@ export const HeadingDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: 'transparent',
-              color: textCol,
+              backgroundColor: activeHeading === 1 ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
+              color: activeHeading === 1 ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            onMouseEnter={(e) => { if (activeHeading !== 1) e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { if (activeHeading !== 1) e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary, #38bdf8)', width: '22px' }}>H1</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>Judul Utama</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
+              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#38bdf8', width: '20px' }}>H1</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: activeHeading === 1 ? 800 : 700 }}>Judul Utama</span>
+              {activeHeading === 1 && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, rgba(0,0,0,0.06))', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>#</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>#</code>
           </button>
 
           <button
@@ -1172,7 +1177,6 @@ export const HeadingDropdown: React.FC<{
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect(2)}
             style={{
-              minHeight: '38px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -1180,20 +1184,21 @@ export const HeadingDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: 'transparent',
-              color: textCol,
+              backgroundColor: activeHeading === 2 ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
+              color: activeHeading === 2 ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            onMouseEnter={(e) => { if (activeHeading !== 2) e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { if (activeHeading !== 2) e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary, #38bdf8)', width: '22px' }}>H2</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Judul Bab</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
+              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#38bdf8', width: '20px' }}>H2</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: activeHeading === 2 ? 800 : 600 }}>Judul Bab</span>
+              {activeHeading === 2 && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, rgba(0,0,0,0.06))', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>##</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>##</code>
           </button>
 
           <button
@@ -1201,7 +1206,6 @@ export const HeadingDropdown: React.FC<{
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect(3)}
             style={{
-              minHeight: '38px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -1209,20 +1213,21 @@ export const HeadingDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: 'transparent',
-              color: textCol,
+              backgroundColor: activeHeading === 3 ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
+              color: activeHeading === 3 ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            onMouseEnter={(e) => { if (activeHeading !== 3) e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { if (activeHeading !== 3) e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--primary, #38bdf8)', width: '22px' }}>H3</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>Sub-Judul</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
+              <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#38bdf8', width: '20px' }}>H3</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: activeHeading === 3 ? 800 : 500 }}>Sub-Judul</span>
+              {activeHeading === 3 && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, rgba(0,0,0,0.06))', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>###</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>###</code>
           </button>
         </div>,
         document.body
@@ -1237,7 +1242,8 @@ export const ListDropdown: React.FC<{
   isZen?: boolean;
   theme?: any;
   isDark?: boolean;
-}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = true }) => {
+  activeList?: 'bullet' | 'number' | null;
+}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = true, activeList = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -1315,10 +1321,11 @@ export const ListDropdown: React.FC<{
     setIsOpen(false);
   };
 
-  const bgCard = theme?.modalBg || 'var(--bg-card, #1e293b)';
-  const borderCol = theme?.borderStrong || 'var(--border-light, #334155)';
-  const textCol = theme?.textPrimary || 'var(--text-primary, #ffffff)';
-  const textMutedCol = theme?.textMuted || 'var(--text-muted, #94a3b8)';
+  const isHighlighted = isOpen || Boolean(activeList);
+  const bgCard = theme?.modalBg || theme?.surface || (isDark ? '#1e293b' : '#ffffff');
+  const borderCol = theme?.borderStrong || theme?.border || (isDark ? '#334155' : '#cbd5e1');
+  const textCol = theme?.textPrimary || (isDark ? '#ffffff' : '#0f172a');
+  const textMutedCol = theme?.textMuted || (isDark ? '#94a3b8' : '#64748b');
 
   return (
     <>
@@ -1330,22 +1337,24 @@ export const ListDropdown: React.FC<{
         onMouseDown={(e) => e.preventDefault()}
         onClick={handleToggle}
         style={{
-          minHeight: '36px',
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
-          backgroundColor: isOpen ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-deep, rgba(255,255,255,0.06))',
-          border: `1px solid ${isOpen ? 'var(--primary, #38bdf8)' : 'var(--border-light, rgba(255,255,255,0.1))'}`,
-          color: isOpen ? 'var(--primary, #38bdf8)' : 'var(--text-primary, #ffffff)',
-          padding: '0.3rem 0.65rem',
-          borderRadius: '0.45rem',
+          gap: '3px',
+          backgroundColor: isHighlighted ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') : (theme?.surface || (isDark ? 'rgba(255,255,255,0.06)' : '#ffffff')),
+          borderColor: isHighlighted ? (isDark ? '#38bdf8' : '#0284c7') : (theme?.border || (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0')),
+          color: isHighlighted ? (isDark ? '#38bdf8' : '#0284c7') : (theme?.textPrimary || (isDark ? '#ffffff' : '#0f172a')),
+          padding: '0.25rem 0.55rem',
+          borderRadius: '0.35rem',
           fontSize: '0.78rem',
+          fontWeight: isHighlighted ? 800 : 700,
           cursor: 'pointer',
-          flexShrink: 0
+          flexShrink: 0,
+          boxShadow: isHighlighted ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+          transition: 'all 0.15s ease'
         }}
       >
-        <span style={{ fontWeight: 700 }}>List</span>
-        <ChevronDown size={12} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+        <span style={{ fontWeight: 700 }}>{activeList === 'bullet' ? 'List (Poin)' : activeList === 'number' ? 'List (Nomor)' : 'List'}</span>
+        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
       </button>
 
       {isOpen && createPortal(
@@ -1361,7 +1370,7 @@ export const ListDropdown: React.FC<{
             backgroundColor: bgCard,
             border: `1px solid ${borderCol}`,
             borderRadius: '0.65rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.55)',
+            boxShadow: isDark ? '0 14px 35px rgba(0,0,0,0.55)' : '0 10px 25px rgba(0,0,0,0.12)',
             padding: '0.4rem',
             display: 'flex',
             flexDirection: 'column',
@@ -1374,7 +1383,6 @@ export const ListDropdown: React.FC<{
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect('bullet')}
             style={{
-              minHeight: '38px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -1382,20 +1390,21 @@ export const ListDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: 'transparent',
-              color: textCol,
+              backgroundColor: activeList === 'bullet' ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
+              color: activeList === 'bullet' ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            onMouseEnter={(e) => { if (activeList !== 'bullet') e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { if (activeList !== 'bullet') e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary, #38bdf8)', width: '22px', textAlign: 'center', lineHeight: 1 }}>•</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Daftar Poin</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
+              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#38bdf8', width: '20px', textAlign: 'center', lineHeight: 1 }}>•</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: activeList === 'bullet' ? 800 : 600 }}>Daftar Poin</span>
+              {activeList === 'bullet' && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, rgba(0,0,0,0.06))', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>-</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>-</code>
           </button>
 
           <button
@@ -1403,7 +1412,6 @@ export const ListDropdown: React.FC<{
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect('number')}
             style={{
-              minHeight: '38px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -1411,20 +1419,21 @@ export const ListDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: 'transparent',
-              color: textCol,
+              backgroundColor: activeList === 'number' ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
+              color: activeList === 'number' ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            onMouseEnter={(e) => { if (activeList !== 'number') e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { if (activeList !== 'number') e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary, #38bdf8)', width: '22px', textAlign: 'center' }}>1.</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Daftar Nomor</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
+              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#38bdf8', width: '20px', textAlign: 'center' }}>1.</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: activeList === 'number' ? 800 : 600 }}>Daftar Nomor</span>
+              {activeList === 'number' && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, rgba(0,0,0,0.06))', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>1.</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>1.</code>
           </button>
         </div>,
         document.body
@@ -1715,10 +1724,33 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   const [editingLinkNode, setEditingLinkNode] = useState<HTMLAnchorElement | null>(null);
   const [editingButtonNode, setEditingButtonNode] = useState<HTMLElement | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
+  const savedTextareaRangeRef = useRef<{ start: number; end: number } | null>(null);
   const activeEditorRef = useRef<'standard' | 'fullscreen'>('standard');
+  const isInternalUpdateRef = useRef(false);
+
+  // Active Formatting State (for visual selected indicators in toolbar)
+  const [activeFormats, setActiveFormats] = useState<{
+    bold: boolean;
+    italic: boolean;
+    heading: 1 | 2 | 3 | null;
+    list: 'bullet' | 'number' | null;
+    link: boolean;
+    button: boolean;
+  }>({
+    bold: false,
+    italic: false,
+    heading: null,
+    list: null,
+    link: false,
+    button: false
+  });
 
   // Synchronize incoming markdown value into the visual editor canvas
   useEffect(() => {
+    if (isInternalUpdateRef.current) {
+      isInternalUpdateRef.current = false;
+      return;
+    }
     if (visualEditorRef.current) {
       const currentMd = htmlToMarkdown(visualEditorRef.current);
       if (currentMd !== (value || '').trim()) {
@@ -1739,6 +1771,127 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       visualEditorRef.current.innerHTML = markdownToHtml(value || '');
     }
   }, []);
+
+  // Real-time active format detector and selection recorder
+  const updateActiveFormats = useCallback(() => {
+    if (editorMode === 'visual') {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+
+      const targetDiv = activeEditorRef.current === 'fullscreen'
+        ? fullscreenVisualRef.current
+        : visualEditorRef.current;
+
+      if (!targetDiv) return;
+
+      const anchor = sel.anchorNode;
+      if (!anchor || !targetDiv.contains(anchor)) return;
+
+      const range = sel.getRangeAt(0);
+      savedRangeRef.current = range.cloneRange();
+
+      let isBold = false;
+      let isItalic = false;
+      let isBullet = false;
+      let isNum = false;
+      try {
+        isBold = document.queryCommandState('bold');
+        isItalic = document.queryCommandState('italic');
+        isBullet = document.queryCommandState('insertUnorderedList');
+        isNum = document.queryCommandState('insertOrderedList');
+      } catch {
+        // Fallback for environments where queryCommandState isn't available
+      }
+
+      let headingLevel: 1 | 2 | 3 | null = null;
+      let listType: 'bullet' | 'number' | null = isBullet ? 'bullet' : isNum ? 'number' : null;
+      let isLink = false;
+      let isBtn = false;
+
+      let cur: Node | null = anchor;
+      while (cur && cur !== targetDiv) {
+        if (cur.nodeType === Node.ELEMENT_NODE) {
+          const el = cur as HTMLElement;
+          const tag = el.tagName.toLowerCase();
+          if (tag === 'h1') headingLevel = 1;
+          else if (tag === 'h2') headingLevel = 2;
+          else if (tag === 'h3') headingLevel = 3;
+          else if (tag === 'ul') listType = 'bullet';
+          else if (tag === 'ol') listType = 'number';
+          else if (tag === 'strong' || tag === 'b') isBold = true;
+          else if (tag === 'em' || tag === 'i') isItalic = true;
+          else if (tag === 'a' || el.getAttribute('data-rich-type') === 'link') isLink = true;
+          else if (el.getAttribute('data-rich-type') === 'button') isBtn = true;
+        }
+        cur = cur.parentNode;
+      }
+
+      setActiveFormats({
+        bold: isBold,
+        italic: isItalic,
+        heading: headingLevel,
+        list: listType,
+        link: isLink,
+        button: isBtn
+      });
+    } else {
+      const ref = activeEditorRef.current === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
+      const el = ref.current;
+      if (!el) return;
+
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      savedTextareaRangeRef.current = { start, end };
+
+      const txt = value || '';
+      const textBefore = txt.substring(0, start);
+      const textAfter = txt.substring(end);
+      const lastNewline = textBefore.lastIndexOf('\n');
+      const nextNewline = textAfter.indexOf('\n');
+      const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
+      const lineEnd = nextNewline === -1 ? txt.length : end + nextNewline;
+      const currentLine = txt.substring(lineStart, lineEnd);
+
+      let heading: 1 | 2 | 3 | null = null;
+      if (/^#\s+/.test(currentLine)) heading = 1;
+      else if (/^##\s+/.test(currentLine)) heading = 2;
+      else if (/^###\s+/.test(currentLine)) heading = 3;
+
+      let list: 'bullet' | 'number' | null = null;
+      if (/^[-*•]\s+/.test(currentLine)) list = 'bullet';
+      else if (/^\d+\.\s+/.test(currentLine)) list = 'number';
+
+      const lineBeforeCursor = txt.substring(lineStart, start);
+      const boldCount = (lineBeforeCursor.match(/\*\*/g) || []).length;
+      const isBold = boldCount % 2 === 1;
+
+      const lineBeforeNoBold = lineBeforeCursor.replace(/\*\*/g, '');
+      const italicCount = (lineBeforeNoBold.match(/\*/g) || []).length;
+      const isItalic = italicCount % 2 === 1;
+
+      const isLink = /\[[^\]]*$/.test(lineBeforeCursor) || /\([^)]*$/.test(lineBeforeCursor);
+      const isBtn = /\[button:[^\]]*$/.test(lineBeforeCursor);
+
+      setActiveFormats({
+        bold: isBold,
+        italic: isItalic,
+        heading,
+        list,
+        link: isLink,
+        button: isBtn
+      });
+    }
+  }, [editorMode, value]);
+
+  useEffect(() => {
+    const handleDocSelectionChange = () => {
+      updateActiveFormats();
+    };
+    document.addEventListener('selectionchange', handleDocSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleDocSelectionChange);
+    };
+  }, [updateActiveFormats]);
 
   // Lock body scroll when Fullscreen is active
   useEffect(() => {
@@ -1773,17 +1926,19 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDownGlobal);
   }, [isFullscreen]);
 
-  // Handle hardware / browser back to close Zen Fullscreen editor (Rule 2)
+  // Handle hardware / browser back to close Zen Fullscreen editor
   useModalBackHandler({
     isOpen: isFullscreen,
     onClose: () => setIsFullscreen(false),
-    modalId: 'rich-textarea-portal-tablet'
+    modalId: 'rich-textarea-portal-desktop'
   });
 
   const handleVisualInput = (targetRef: React.RefObject<HTMLDivElement | null>) => {
     if (!targetRef.current) return;
+    isInternalUpdateRef.current = true;
     const newMd = htmlToMarkdown(targetRef.current);
     onChange(newMd);
+    updateActiveFormats();
   };
 
   const handleEditorClick = (
@@ -1820,6 +1975,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       setShowLinkModal(true);
       return;
     }
+
+    updateActiveFormats();
   };
 
   const applyFormatToRef = (
@@ -1834,8 +1991,19 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       onChange(currentVal + `${prefix}${defaultText}${suffix}`);
       return;
     }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
+
+    // Use savedTextareaRangeRef if valid, fallback to selectionStart, fallback to end of text
+    let start = typeof savedTextareaRangeRef.current?.start === 'number'
+      ? savedTextareaRangeRef.current.start
+      : el.selectionStart;
+    let end = typeof savedTextareaRangeRef.current?.end === 'number'
+      ? savedTextareaRangeRef.current.end
+      : el.selectionEnd;
+
+    // Boundary check
+    if (start < 0 || start > currentVal.length) start = currentVal.length;
+    if (end < start || end > currentVal.length) end = start;
+
     const selected = currentVal.substring(start, end);
 
     if (prefix === '- ' || prefix === '1. ') {
@@ -1851,6 +2019,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           el.focus();
           const newPos = lineStart + prefix.length;
           el.setSelectionRange(newPos, newPos);
+          savedTextareaRangeRef.current = { start: newPos, end: newPos };
+          updateActiveFormats();
         }, 0);
         return;
       } else {
@@ -1861,6 +2031,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           el.focus();
           const newPos = start + insertText.length;
           el.setSelectionRange(newPos, newPos);
+          savedTextareaRangeRef.current = { start: newPos, end: newPos };
+          updateActiveFormats();
         }, 0);
         return;
       }
@@ -1881,6 +2053,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       el.focus();
       const newCursor = selected ? start + actualPrefix.length + selected.length + suffix.length : start + actualPrefix.length;
       el.setSelectionRange(newCursor, newCursor + (selected ? 0 : defaultText.length));
+      savedTextareaRangeRef.current = { start: newCursor, end: newCursor + (selected ? 0 : defaultText.length) };
+      updateActiveFormats();
     }, 0);
   };
 
@@ -1890,9 +2064,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       ref.current?.focus();
       document.execCommand('bold', false);
       handleVisualInput(ref);
+      setTimeout(() => updateActiveFormats(), 10);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       applyFormatToRef(ref, '**', '**', 'teks tebal');
+      setTimeout(() => updateActiveFormats(), 10);
     }
   };
 
@@ -1902,9 +2078,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       ref.current?.focus();
       document.execCommand('italic', false);
       handleVisualInput(ref);
+      setTimeout(() => updateActiveFormats(), 10);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       applyFormatToRef(ref, '*', '*', 'teks miring');
+      setTimeout(() => updateActiveFormats(), 10);
     }
   };
 
@@ -1914,10 +2092,12 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       ref.current?.focus();
       document.execCommand('formatBlock', false, `<h${level}>`);
       handleVisualInput(ref);
+      setTimeout(() => updateActiveFormats(), 10);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       const prefix = level === 1 ? '\n# ' : level === 2 ? '\n## ' : '\n### ';
       applyFormatToRef(ref, prefix, '\n', `Judul H${level}`);
+      setTimeout(() => updateActiveFormats(), 10);
     }
   };
 
@@ -1931,22 +2111,27 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         document.execCommand('insertOrderedList', false);
       }
       handleVisualInput(ref);
+      setTimeout(() => updateActiveFormats(), 10);
     } else {
       const ref = editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef;
       const prefix = type === 'bullet' ? '- ' : '1. ';
       applyFormatToRef(ref, prefix, '', type === 'bullet' ? 'Poin list' : 'Langkah');
+      setTimeout(() => updateActiveFormats(), 10);
     }
   };
 
   const handleOpenLinkModal = (editorType: 'standard' | 'fullscreen') => {
     activeEditorRef.current = editorType;
     if (editorMode === 'visual') {
+      const targetDiv = editorType === 'fullscreen' ? fullscreenVisualRef.current : visualEditorRef.current;
       const sel = window.getSelection();
-      const txt = sel ? sel.toString().trim() : '';
-      if (sel && sel.rangeCount > 0) {
-        savedRangeRef.current = sel.getRangeAt(0).cloneRange();
-      } else {
-        savedRangeRef.current = null;
+      let txt = '';
+      if (sel && sel.rangeCount > 0 && targetDiv) {
+        const range = sel.getRangeAt(0);
+        if (targetDiv.contains(range.commonAncestorContainer) || targetDiv.contains(range.startContainer)) {
+          savedRangeRef.current = range.cloneRange();
+          txt = range.toString().trim();
+        }
       }
       setModalInitialText(txt);
       setModalInitialUrl('');
@@ -1955,8 +2140,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       setShowLinkModal(true);
     } else {
       const el = (editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef).current;
-      const selected = el ? el.value.substring(el.selectionStart, el.selectionEnd) : '';
-      setModalInitialText(selected);
+      let txt = '';
+      if (el) {
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        savedTextareaRangeRef.current = { start, end };
+        txt = el.value.substring(start, end).trim();
+      }
+      setModalInitialText(txt);
       setModalInitialUrl('');
       setIsLinkEditing(false);
       setEditingLinkNode(null);
@@ -1967,12 +2158,15 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   const handleOpenButtonModal = (editorType: 'standard' | 'fullscreen') => {
     activeEditorRef.current = editorType;
     if (editorMode === 'visual') {
+      const targetDiv = editorType === 'fullscreen' ? fullscreenVisualRef.current : visualEditorRef.current;
       const sel = window.getSelection();
-      const txt = sel ? sel.toString().trim() : '';
-      if (sel && sel.rangeCount > 0) {
-        savedRangeRef.current = sel.getRangeAt(0).cloneRange();
-      } else {
-        savedRangeRef.current = null;
+      let txt = '';
+      if (sel && sel.rangeCount > 0 && targetDiv) {
+        const range = sel.getRangeAt(0);
+        if (targetDiv.contains(range.commonAncestorContainer) || targetDiv.contains(range.startContainer)) {
+          savedRangeRef.current = range.cloneRange();
+          txt = range.toString().trim();
+        }
       }
       setModalInitialText(txt);
       setModalInitialUrl('');
@@ -1982,8 +2176,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       setShowButtonModal(true);
     } else {
       const el = (editorType === 'fullscreen' ? fullscreenTextareaRef : textareaRef).current;
-      const selected = el ? el.value.substring(el.selectionStart, el.selectionEnd) : '';
-      setModalInitialText(selected);
+      let txt = '';
+      if (el) {
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        savedTextareaRangeRef.current = { start, end };
+        txt = el.value.substring(start, end).trim();
+      }
+      setModalInitialText(txt);
       setModalInitialUrl('');
       setModalInitialVariant('primary');
       setIsButtonEditing(false);
@@ -1993,12 +2193,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   };
 
   const handleInsertOrUpdateLink = (linkText: string, linkUrl: string) => {
+    const targetDivRef = activeEditorRef.current === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
     if (editorMode === 'visual') {
-      const targetDivRef = activeEditorRef.current === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
       if (isLinkEditing && editingLinkNode) {
         editingLinkNode.innerText = linkText;
         editingLinkNode.setAttribute('data-url', linkUrl);
         editingLinkNode.setAttribute('href', linkUrl);
+        isInternalUpdateRef.current = true;
         handleVisualInput(targetDivRef);
       } else {
         const link = document.createElement('a');
@@ -2008,20 +2209,47 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         link.className = 'rich-visual-link';
         link.innerText = linkText;
 
-        if (savedRangeRef.current) {
-          savedRangeRef.current.deleteContents();
-          savedRangeRef.current.insertNode(link);
-          const newRange = document.createRange();
-          newRange.setStartAfter(link);
-          newRange.collapse(true);
-          const sel = window.getSelection();
-          if (sel) {
-            sel.removeAllRanges();
-            sel.addRange(newRange);
+        const container = targetDivRef.current;
+        let inserted = false;
+
+        if (savedRangeRef.current && container && (container.contains(savedRangeRef.current.commonAncestorContainer) || container.contains(savedRangeRef.current.startContainer))) {
+          try {
+            savedRangeRef.current.deleteContents();
+            savedRangeRef.current.insertNode(link);
+            inserted = true;
+
+            const space = document.createTextNode('\u00A0');
+            if (link.parentNode) {
+              link.parentNode.insertBefore(space, link.nextSibling);
+            }
+
+            const newRange = document.createRange();
+            newRange.setStartAfter(space);
+            newRange.collapse(true);
+            const sel = window.getSelection();
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+              savedRangeRef.current = newRange.cloneRange();
+            }
+          } catch {
+            inserted = false;
           }
-        } else if (targetDivRef.current) {
-          targetDivRef.current.appendChild(link);
         }
+
+        if (!inserted && container) {
+          const lastEl = container.lastElementChild;
+          if (lastEl && lastEl.tagName.toLowerCase() === 'p') {
+            lastEl.appendChild(document.createTextNode(' '));
+            lastEl.appendChild(link);
+          } else {
+            const p = document.createElement('p');
+            p.appendChild(link);
+            container.appendChild(p);
+          }
+        }
+
+        isInternalUpdateRef.current = true;
         handleVisualInput(targetDivRef);
       }
     } else {
@@ -2030,6 +2258,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     }
     setEditingLinkNode(null);
     setIsLinkEditing(false);
+    setTimeout(() => updateActiveFormats(), 10);
   };
 
   const handleDeleteLink = () => {
@@ -2038,19 +2267,22 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       editingLinkNode.remove();
       setEditingLinkNode(null);
       setIsLinkEditing(false);
+      isInternalUpdateRef.current = true;
       handleVisualInput(targetDivRef);
+      setTimeout(() => updateActiveFormats(), 10);
     }
   };
 
   const handleInsertOrUpdateButton = (btnLabel: string, btnUrl: string, btnVariant: string) => {
+    const targetDivRef = activeEditorRef.current === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
     if (editorMode === 'visual') {
-      const targetDivRef = activeEditorRef.current === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
       if (isButtonEditing && editingButtonNode) {
         editingButtonNode.setAttribute('data-label', btnLabel);
         editingButtonNode.setAttribute('data-url', btnUrl);
         editingButtonNode.setAttribute('data-variant', btnVariant);
         editingButtonNode.className = `rich-visual-badge rich-btn-${btnVariant}`;
         editingButtonNode.innerHTML = `<span>${escapeHtml(btnLabel)}</span>`;
+        isInternalUpdateRef.current = true;
         handleVisualInput(targetDivRef);
       } else {
         const btn = document.createElement('span');
@@ -2062,20 +2294,47 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         btn.className = `rich-visual-badge rich-btn-${btnVariant}`;
         btn.innerHTML = `<span>${escapeHtml(btnLabel)}</span>`;
 
-        if (savedRangeRef.current) {
-          savedRangeRef.current.deleteContents();
-          savedRangeRef.current.insertNode(btn);
-          const newRange = document.createRange();
-          newRange.setStartAfter(btn);
-          newRange.collapse(true);
-          const sel = window.getSelection();
-          if (sel) {
-            sel.removeAllRanges();
-            sel.addRange(newRange);
+        const container = targetDivRef.current;
+        let inserted = false;
+
+        if (savedRangeRef.current && container && (container.contains(savedRangeRef.current.commonAncestorContainer) || container.contains(savedRangeRef.current.startContainer))) {
+          try {
+            savedRangeRef.current.deleteContents();
+            savedRangeRef.current.insertNode(btn);
+            inserted = true;
+
+            const space = document.createTextNode('\u00A0');
+            if (btn.parentNode) {
+              btn.parentNode.insertBefore(space, btn.nextSibling);
+            }
+
+            const newRange = document.createRange();
+            newRange.setStartAfter(space);
+            newRange.collapse(true);
+            const sel = window.getSelection();
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+              savedRangeRef.current = newRange.cloneRange();
+            }
+          } catch {
+            inserted = false;
           }
-        } else if (targetDivRef.current) {
-          targetDivRef.current.appendChild(btn);
         }
+
+        if (!inserted && container) {
+          const lastEl = container.lastElementChild;
+          if (lastEl && lastEl.tagName.toLowerCase() === 'p') {
+            lastEl.appendChild(document.createTextNode(' '));
+            lastEl.appendChild(btn);
+          } else {
+            const p = document.createElement('p');
+            p.appendChild(btn);
+            container.appendChild(p);
+          }
+        }
+
+        isInternalUpdateRef.current = true;
         handleVisualInput(targetDivRef);
       }
     } else {
@@ -2084,6 +2343,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     }
     setEditingButtonNode(null);
     setIsButtonEditing(false);
+    setTimeout(() => updateActiveFormats(), 10);
   };
 
   const handleDeleteButton = () => {
@@ -2092,7 +2352,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       editingButtonNode.remove();
       setEditingButtonNode(null);
       setIsButtonEditing(false);
+      isInternalUpdateRef.current = true;
       handleVisualInput(targetDivRef);
+      setTimeout(() => updateActiveFormats(), 10);
     }
   };
 
@@ -2113,32 +2375,10 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       const lastNewlineIdx = textBefore.lastIndexOf('\n');
       const currentLine = textBefore.substring(lastNewlineIdx + 1);
 
-      const checklistMatch = currentLine.match(/^([-*•]?\s*\[[ xX]?\]\s+)(.*)$/);
-      const bulletMatch = !checklistMatch ? currentLine.match(/^([-*•]\s+)(.*)$/) : null;
+      const bulletMatch = currentLine.match(/^([-*•]\s+)(.*)$/);
       const numberMatch = currentLine.match(/^(\d+)(\.\s+)(.*)$/);
 
-      if (checklistMatch) {
-        e.preventDefault();
-        const content = checklistMatch[2];
-        if (content.trim() === '') {
-          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
-          const newText = currentVal.substring(0, lineStart) + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            el.setSelectionRange(lineStart, lineStart);
-          }, 0);
-        } else {
-          const nextChecklist = '\n- [ ] ';
-          const newText = textBefore + nextChecklist + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            const newPos = start + nextChecklist.length;
-            el.setSelectionRange(newPos, newPos);
-          }, 0);
-        }
-      } else if (bulletMatch) {
+      if (bulletMatch) {
         e.preventDefault();
         const prefix = bulletMatch[1];
         const content = bulletMatch[2];
@@ -2192,15 +2432,15 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   const wordCount = (value || '').trim() ? (value || '').trim().split(/\s+/).length : 0;
   const charCount = (value || '').length;
 
-  const bgSurface = theme?.surface || 'var(--bg-card, #111827)';
-  const borderDefault = theme?.border || 'var(--border-light, rgba(255, 255, 255, 0.1))';
-  const textPrimary = theme?.textPrimary || 'var(--text-primary, #f8fafc)';
-  const textSecondary = theme?.textSecondary || 'var(--text-secondary, #cbd5e1)';
-  const textMuted = theme?.textMuted || 'var(--text-muted, #94a3b8)';
-  const inputBg = theme?.inputBg || 'var(--bg-deep, #1e293b)';
-  const inputBorder = theme?.inputBorder || 'var(--border-light, rgba(255, 255, 255, 0.12))';
-  const btnBg = theme?.surface || 'var(--bg-card, rgba(255, 255, 255, 0.06))';
-  const btnBorder = theme?.border || 'var(--border-light, rgba(255, 255, 255, 0.1))';
+  const bgSurface = theme?.surface || (isDark ? '#111827' : '#ffffff');
+  const borderDefault = theme?.border || (isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0');
+  const textPrimary = theme?.textPrimary || (isDark ? '#f8fafc' : '#0f172a');
+  const textSecondary = theme?.textSecondary || (isDark ? '#cbd5e1' : '#475569');
+  const textMuted = theme?.textMuted || (isDark ? '#94a3b8' : '#64748b');
+  const inputBg = theme?.inputBg || (isDark ? '#1e293b' : '#ffffff');
+  const inputBorder = theme?.inputBorder || (isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1');
+  const btnBg = theme?.surface || (isDark ? 'rgba(255, 255, 255, 0.06)' : '#ffffff');
+  const btnBorder = theme?.border || (isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', ...style }}>
@@ -2208,7 +2448,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       <style>{`
         .rich-wysiwyg-editor {
           outline: none;
-          min-height: 120px;
+          min-height: 110px;
           line-height: 1.6;
           font-family: inherit;
         }
@@ -2309,7 +2549,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       `}</style>
 
       {label && (
-        <label style={{ fontSize: '0.82rem', fontWeight: 600, color: textPrimary, marginBottom: '0.2rem' }}>
+        <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, marginBottom: '0.1rem' }}>
           {label}
         </label>
       )}
@@ -2318,13 +2558,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       <div className="rich-toolbar-wrapper" style={{
         display: 'flex',
         alignItems: 'center',
-        padding: '0.4rem 0.6rem',
+        padding: '0.35rem 0.5rem',
         backgroundColor: bgSurface,
         border: `1px solid ${borderDefault}`,
         borderBottom: 'none',
         borderTopLeftRadius: '0.75rem',
         borderTopRightRadius: '0.75rem',
-        gap: '0.35rem',
+        gap: '0.3rem',
         flexWrap: 'nowrap',
         overflowX: 'auto',
         scrollbarWidth: 'none',
@@ -2342,19 +2582,23 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             handleFormatBold('standard');
           }}
           style={{
-            minHeight: '38px',
-            minWidth: '38px',
-            padding: '0.3rem 0.65rem',
-            borderRadius: '0.45rem',
-            backgroundColor: btnBg,
-            border: `1px solid ${btnBorder}`,
-            color: textPrimary,
-            fontSize: '0.82rem',
+            padding: '0.25rem 0.5rem',
+            borderRadius: '0.35rem',
+            backgroundColor: activeFormats.bold 
+              ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+              : btnBg,
+            border: `1px solid ${activeFormats.bold 
+              ? (isDark ? '#38bdf8' : '#0284c7') 
+              : btnBorder}`,
+            color: activeFormats.bold 
+              ? (isDark ? '#38bdf8' : '#0284c7') 
+              : textPrimary,
+            fontSize: '0.78rem',
+            fontWeight: activeFormats.bold ? 800 : 700,
             cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0
+            flexShrink: 0,
+            boxShadow: activeFormats.bold ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+            transition: 'all 0.15s ease'
           }}
         >
           <strong>B</strong>
@@ -2372,19 +2616,23 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             handleFormatItalic('standard');
           }}
           style={{
-            minHeight: '38px',
-            minWidth: '38px',
-            padding: '0.3rem 0.65rem',
-            borderRadius: '0.45rem',
-            backgroundColor: btnBg,
-            border: `1px solid ${btnBorder}`,
-            color: textPrimary,
-            fontSize: '0.82rem',
+            padding: '0.25rem 0.5rem',
+            borderRadius: '0.35rem',
+            backgroundColor: activeFormats.italic 
+              ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+              : btnBg,
+            border: `1px solid ${activeFormats.italic 
+              ? (isDark ? '#38bdf8' : '#0284c7') 
+              : btnBorder}`,
+            color: activeFormats.italic 
+              ? (isDark ? '#38bdf8' : '#0284c7') 
+              : textPrimary,
+            fontSize: '0.78rem',
+            fontWeight: activeFormats.italic ? 800 : 700,
             cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0
+            flexShrink: 0,
+            boxShadow: activeFormats.italic ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+            transition: 'all 0.15s ease'
           }}
         >
           <em>I</em>
@@ -2394,6 +2642,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         <HeadingDropdown
           onSelect={(level) => handleFormatHeading(level, 'standard')}
           btnClassName="rich-btn-format"
+          activeHeading={activeFormats.heading}
           theme={theme}
           isDark={isDark}
         />
@@ -2402,6 +2651,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         <ListDropdown
           onSelect={(type) => handleFormatList(type, 'standard')}
           btnClassName="rich-btn-format"
+          activeList={activeFormats.list}
           theme={theme}
           isDark={isDark}
         />
@@ -2418,21 +2668,29 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             handleOpenLinkModal('standard');
           }}
           style={{
-            minHeight: '38px',
-            padding: '0.3rem 0.65rem',
-            borderRadius: '0.45rem',
-            backgroundColor: btnBg,
-            border: `1px solid ${btnBorder}`,
-            color: 'var(--primary, #38bdf8)',
-            fontSize: '0.82rem',
+            padding: '0.25rem 0.5rem',
+            borderRadius: '0.35rem',
+            backgroundColor: activeFormats.link 
+              ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+              : btnBg,
+            border: `1px solid ${activeFormats.link 
+              ? (isDark ? '#38bdf8' : '#0284c7') 
+              : btnBorder}`,
+            color: activeFormats.link 
+              ? (isDark ? '#38bdf8' : '#0284c7') 
+              : (isDark ? '#38bdf8' : '#0284c7'),
+            fontSize: '0.78rem',
+            fontWeight: activeFormats.link ? 800 : 700,
             cursor: 'pointer',
-            display: 'inline-flex',
+            display: 'flex',
             alignItems: 'center',
-            gap: '0.3rem',
-            flexShrink: 0
+            gap: '0.25rem',
+            flexShrink: 0,
+            boxShadow: activeFormats.link ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+            transition: 'all 0.15s ease'
           }}
         >
-          <Link size={13} />
+          <Link size={12} />
           <span style={{ fontWeight: 700 }}>Link</span>
         </button>
 
@@ -2448,21 +2706,25 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             handleOpenButtonModal('standard');
           }}
           style={{
-            minHeight: '38px',
-            padding: '0.3rem 0.7rem',
-            borderRadius: '0.45rem',
-            backgroundColor: 'rgba(245, 158, 11, 0.12)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
+            padding: '0.25rem 0.55rem',
+            borderRadius: '0.35rem',
+            backgroundColor: activeFormats.button
+              ? (isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.22)')
+              : (isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)'),
+            border: `1px solid ${activeFormats.button ? '#f59e0b' : 'rgba(245, 158, 11, 0.3)'}`,
             color: '#f59e0b',
-            fontSize: '0.82rem',
+            fontSize: '0.78rem',
+            fontWeight: activeFormats.button ? 800 : 700,
             cursor: 'pointer',
-            display: 'inline-flex',
+            display: 'flex',
             alignItems: 'center',
-            gap: '0.3rem',
-            flexShrink: 0
+            gap: '0.25rem',
+            flexShrink: 0,
+            boxShadow: activeFormats.button ? '0 0 0 1px rgba(245, 158, 11, 0.35)' : 'none',
+            transition: 'all 0.15s ease'
           }}
         >
-          <Sparkles size={13} />
+          <Sparkles size={12} />
           <span style={{ fontWeight: 800 }}>Tombol</span>
         </button>
 
@@ -2477,27 +2739,26 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             setEditorMode(prev => prev === 'visual' ? 'source' : 'visual');
           }}
           style={{
-            minHeight: '38px',
-            display: 'inline-flex',
+            display: 'flex',
             alignItems: 'center',
-            gap: '0.3rem',
-            padding: '0.3rem 0.7rem',
-            borderRadius: '0.45rem',
-            backgroundColor: editorMode === 'visual' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.08)',
-            border: `1px solid ${editorMode === 'visual' ? 'rgba(56, 189, 248, 0.3)' : btnBorder}`,
-            color: editorMode === 'visual' ? 'var(--primary, #38bdf8)' : textSecondary,
-            fontSize: '0.78rem',
+            gap: '0.25rem',
+            padding: '0.25rem 0.55rem',
+            borderRadius: '0.35rem',
+            backgroundColor: editorMode === 'visual' ? (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)') : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
+            border: `1px solid ${editorMode === 'visual' ? (isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)') : btnBorder}`,
+            color: editorMode === 'visual' ? (isDark ? '#38bdf8' : '#0284c7') : textSecondary,
+            fontSize: '0.74rem',
             fontWeight: 700,
             cursor: 'pointer',
             flexShrink: 0,
             marginLeft: 'auto'
           }}
         >
-          {editorMode === 'visual' ? <Type size={13} /> : <FileText size={13} />}
+          {editorMode === 'visual' ? <Type size={12} /> : <FileText size={12} />}
           <span>{editorMode === 'visual' ? 'Visual' : 'Markdown'}</span>
         </button>
 
-        {/* Fullscreen Button */}
+        {/* Fullscreen Zen Mode Button */}
         {showZenFullscreen && (
           <button
             type="button"
@@ -2511,22 +2772,21 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               setMobileTab('editor');
             }}
             style={{
-              minHeight: '38px',
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
-              gap: '0.35rem',
-              padding: '0.3rem 0.75rem',
-              borderRadius: '0.45rem',
-              backgroundColor: 'rgba(56, 189, 248, 0.14)',
-              border: '1px solid rgba(56, 189, 248, 0.3)',
-              color: 'var(--primary, #38bdf8)',
-              fontSize: '0.78rem',
+              gap: '0.25rem',
+              padding: '0.25rem 0.55rem',
+              borderRadius: '0.35rem',
+              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+              border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
+              color: isDark ? '#38bdf8' : '#0284c7',
+              fontSize: '0.74rem',
               fontWeight: 700,
               cursor: 'pointer',
               flexShrink: 0
             }}
           >
-            <Maximize2 size={13} />
+            <Maximize2 size={12} />
             <span style={{ whiteSpace: 'nowrap' }}>Zen</span>
           </button>
         )}
@@ -2540,10 +2800,21 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           data-placeholder={placeholder || 'Tulis deskripsi atau konten lengkap di sini...'}
           className="rich-wysiwyg-editor"
           onInput={() => handleVisualInput(visualEditorRef)}
-          onClick={(e) => handleEditorClick(e, visualEditorRef, 'standard')}
+          onClick={(e) => {
+            handleEditorClick(e, visualEditorRef, 'standard');
+            updateActiveFormats();
+          }}
+          onKeyUp={updateActiveFormats}
+          onMouseUp={updateActiveFormats}
+          onSelect={updateActiveFormats}
+          onTouchEnd={updateActiveFormats}
+          onFocus={() => {
+            activeEditorRef.current = 'standard';
+            updateActiveFormats();
+          }}
           style={{
             width: '100%',
-            minHeight: minHeight || '130px',
+            minHeight: minHeight || '110px',
             borderTopLeftRadius: 0,
             borderTopRightRadius: 0,
             borderBottomLeftRadius: '0.75rem',
@@ -2551,9 +2822,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             backgroundColor: inputBg,
             border: `1px solid ${inputBorder}`,
             color: textPrimary,
-            fontSize: '0.88rem',
+            fontSize: '0.84rem',
             lineHeight: 1.6,
-            padding: '0.75rem 0.85rem',
+            padding: '0.7rem 0.85rem',
             boxSizing: 'border-box',
             overflowY: 'auto'
           }}
@@ -2565,12 +2836,30 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           className={className}
           placeholder={placeholder}
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={e => {
+            onChange(e.target.value);
+            if (textareaRef.current) {
+              savedTextareaRangeRef.current = {
+                start: textareaRef.current.selectionStart,
+                end: textareaRef.current.selectionEnd
+              };
+            }
+            updateActiveFormats();
+          }}
           onKeyDown={e => handleKeyDownSmartList(textareaRef, e)}
+          onClick={updateActiveFormats}
+          onKeyUp={updateActiveFormats}
+          onMouseUp={updateActiveFormats}
+          onSelect={updateActiveFormats}
+          onTouchEnd={updateActiveFormats}
+          onFocus={() => {
+            activeEditorRef.current = 'standard';
+            updateActiveFormats();
+          }}
           required={required}
           style={{
             width: '100%',
-            minHeight: minHeight || '130px',
+            minHeight: minHeight || '110px',
             borderTopLeftRadius: 0,
             borderTopRightRadius: 0,
             borderBottomLeftRadius: '0.75rem',
@@ -2578,12 +2867,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             backgroundColor: inputBg,
             borderColor: inputBorder,
             color: textPrimary,
-            fontSize: '0.88rem',
-            lineHeight: 1.6,
-            padding: '0.75rem 0.85rem',
+            fontSize: '0.82rem',
+            lineHeight: 1.5,
+            padding: '0.65rem 0.75rem',
             boxSizing: 'border-box',
-            resize: 'vertical',
-            outline: 'none'
+            resize: 'vertical'
           }}
         />
       )}
@@ -2593,8 +2881,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '0.25rem 0.35rem 0 0.35rem',
-        fontSize: '0.72rem',
+        padding: '0.2rem 0.35rem 0 0.35rem',
+        fontSize: '0.68rem',
         color: textMuted,
         gap: '0.5rem'
       }}>
@@ -2617,7 +2905,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         </span>
       </div>
 
-      {/* ZEN FULLSCREEN OVERLAY MODAL */}
+      {/* ========================================================================= */}
+      {/* ZEN FULLSCREEN OVERLAY MODAL (Rendered in Portal)                         */}
+      {/* ========================================================================= */}
       {isFullscreen && createPortal(
         <div 
           onClick={() => setIsFullscreen(false)}
@@ -2629,14 +2919,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             bottom: 0,
             width: '100vw',
             height: '100vh',
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backgroundColor: theme?.modalOverlay || 'rgba(0, 0, 0, 0.72)',
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
             zIndex: 1250,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '1.25rem',
+            padding: '1.5rem',
             boxSizing: 'border-box'
           }}
         >
@@ -2644,12 +2934,12 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
-              maxWidth: '900px',
-              height: 'min(780px, calc(100vh - 2.5rem))',
-              maxHeight: 'calc(100vh - 2.5rem)',
-              backgroundColor: theme?.modalBg || 'var(--bg-card, #0b0f19)',
+              maxWidth: '940px',
+              height: 'min(800px, calc(100vh - 3.5rem))',
+              maxHeight: 'calc(100vh - 3.5rem)',
+              backgroundColor: theme?.modalBg || (isDark ? '#0b0f19' : '#ffffff'),
               borderRadius: '1.25rem',
-              border: `1px solid ${theme?.border || 'var(--border-light, rgba(255, 255, 255, 0.1))'}`,
+              border: `1px solid ${theme?.border || (isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0')}`,
               boxShadow: '0 25px 70px rgba(0, 0, 0, 0.6)',
               display: 'flex',
               flexDirection: 'column',
@@ -2658,14 +2948,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               boxSizing: 'border-box'
             }}
           >
-            {/* Zen Header: Icon + Title, Edit/Preview Tabs, Close X */}
+            {/* Zen Header */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '0.85rem 1.25rem',
-              backgroundColor: theme?.surface || 'var(--bg-card, #111827)',
-              borderBottom: `1px solid ${theme?.border || 'var(--border-light, rgba(255,255,255,0.08))'}`,
+              padding: '0.8rem 1.15rem',
+              backgroundColor: theme?.surface || (isDark ? '#111827' : '#ffffff'),
+              borderBottom: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
               gap: '0.75rem',
               flexWrap: 'nowrap',
               flexShrink: 0
@@ -2673,9 +2963,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               {/* Left: Icon + Title */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
                 <div style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '0.75rem',
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '0.7rem',
                   backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
                   display: 'flex',
                   alignItems: 'center',
@@ -2683,85 +2973,87 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   color: 'var(--primary, #10b981)',
                   flexShrink: 0
                 }}>
-                  <Edit3 size={17} />
+                  <Edit3 size={16} />
                 </div>
                 <span style={{
-                  fontSize: '0.96rem',
+                  fontSize: '0.92rem',
                   fontWeight: 800,
                   color: textPrimary,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis'
                 }}>
-                  {label || 'Deskripsi Produk (Zen Mode)'}
+                  {label || 'Editor Konten'}
                 </span>
               </div>
 
               {/* Right: Segmented Edit/Preview Tabs + Close X Button */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  backgroundColor: 'var(--bg-deep, rgba(255,255,255,0.06))',
-                  borderRadius: '0.65rem',
-                  padding: '0.2rem',
-                  border: `1px solid ${theme?.border || 'var(--border-light, rgba(255,255,255,0.08))'}`,
-                  flexShrink: 0
-                }}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMobileTab('editor');
-                    }}
-                    style={{
-                      minHeight: '36px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.35rem 0.85rem',
-                      borderRadius: '0.5rem',
-                      border: 'none',
-                      background: mobileTab === 'editor' ? 'var(--primary, #0284c7)' : 'transparent',
-                      color: mobileTab === 'editor' ? '#ffffff' : textSecondary,
-                      fontSize: '0.78rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <Edit3 size={14} color={mobileTab === 'editor' ? '#ffffff' : textSecondary} />
-                    <span>Edit</span>
-                  </button>
+                {showPreviewTab && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                    borderRadius: '0.65rem',
+                    padding: '0.2rem',
+                    border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
+                    flexShrink: 0
+                  }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setMobileTab('editor');
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        padding: '0.35rem 0.75rem',
+                        borderRadius: '0.5rem',
+                        border: 'none',
+                        background: mobileTab === 'editor' ? 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)' : 'transparent',
+                        color: mobileTab === 'editor' ? '#ffffff' : textSecondary,
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: mobileTab === 'editor' ? '0 2px 6px var(--primary-glow, rgba(2, 132, 199, 0.3))' : 'none',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Edit3 size={13} color={mobileTab === 'editor' ? '#ffffff' : textSecondary} />
+                      <span>Edit</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMobileTab('preview');
-                    }}
-                    style={{
-                      minHeight: '36px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.35rem 0.85rem',
-                      borderRadius: '0.5rem',
-                      border: 'none',
-                      background: mobileTab === 'preview' ? 'var(--primary, #0284c7)' : 'transparent',
-                      color: mobileTab === 'preview' ? '#ffffff' : textSecondary,
-                      fontSize: '0.78rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <Eye size={14} color={mobileTab === 'preview' ? '#ffffff' : textSecondary} />
-                    <span>Pratinjau</span>
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setMobileTab('preview');
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        padding: '0.35rem 0.75rem',
+                        borderRadius: '0.5rem',
+                        border: 'none',
+                        background: mobileTab === 'preview' ? 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)' : 'transparent',
+                        color: mobileTab === 'preview' ? '#ffffff' : textSecondary,
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: mobileTab === 'preview' ? '0 2px 6px var(--primary-glow, rgba(2, 132, 199, 0.3))' : 'none',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Eye size={13} color={mobileTab === 'preview' ? '#ffffff' : textSecondary} />
+                      <span>Pratinjau</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Close Button X */}
                 <button
@@ -2776,30 +3068,30 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: '36px',
-                    height: '36px',
+                    width: '32px',
+                    height: '32px',
                     borderRadius: '0.5rem',
-                    border: `1px solid ${theme?.border || 'var(--border-light, rgba(255,255,255,0.1))'}`,
-                    backgroundColor: 'var(--bg-deep, rgba(255,255,255,0.06))',
+                    border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0')}`,
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
                     color: textSecondary,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <X size={17} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
 
-            {/* Zen Editor Toolbar (Only in Editor Tab) */}
+            {/* Zen Editor Toolbar */}
             {mobileTab === 'editor' && (
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.5rem 1.25rem',
-                backgroundColor: 'var(--bg-deep, #090d16)',
-                borderBottom: `1px solid ${theme?.border || 'var(--border-light, rgba(255,255,255,0.08))'}`,
+                gap: '0.35rem',
+                padding: '0.45rem 1.1rem',
+                backgroundColor: theme?.cardAlt || (isDark ? '#090d16' : '#f8fafc'),
+                borderBottom: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
                 overflowX: 'auto',
                 flexShrink: 0
               }}>
@@ -2813,18 +3105,22 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                     handleFormatBold('fullscreen');
                   }}
                   style={{
-                    minHeight: '38px',
-                    minWidth: '38px',
-                    padding: '0.3rem 0.65rem',
-                    borderRadius: '0.45rem',
-                    backgroundColor: btnBg,
-                    border: `1px solid ${btnBorder}`,
-                    color: textPrimary,
-                    fontSize: '0.82rem',
+                    padding: '0.28rem 0.6rem',
+                    borderRadius: '0.4rem',
+                    backgroundColor: activeFormats.bold 
+                      ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+                      : btnBg,
+                    border: `1px solid ${activeFormats.bold 
+                      ? (isDark ? '#38bdf8' : '#0284c7') 
+                      : btnBorder}`,
+                    color: activeFormats.bold 
+                      ? (isDark ? '#38bdf8' : '#0284c7') 
+                      : textPrimary,
+                    fontSize: '0.78rem',
+                    fontWeight: activeFormats.bold ? 800 : 700,
                     cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    boxShadow: activeFormats.bold ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   <strong>B</strong>
@@ -2839,18 +3135,22 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                     handleFormatItalic('fullscreen');
                   }}
                   style={{
-                    minHeight: '38px',
-                    minWidth: '38px',
-                    padding: '0.3rem 0.65rem',
-                    borderRadius: '0.45rem',
-                    backgroundColor: btnBg,
-                    border: `1px solid ${btnBorder}`,
-                    color: textPrimary,
-                    fontSize: '0.82rem',
+                    padding: '0.28rem 0.6rem',
+                    borderRadius: '0.4rem',
+                    backgroundColor: activeFormats.italic 
+                      ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+                      : btnBg,
+                    border: `1px solid ${activeFormats.italic 
+                      ? (isDark ? '#38bdf8' : '#0284c7') 
+                      : btnBorder}`,
+                    color: activeFormats.italic 
+                      ? (isDark ? '#38bdf8' : '#0284c7') 
+                      : textPrimary,
+                    fontSize: '0.78rem',
+                    fontWeight: activeFormats.italic ? 800 : 700,
                     cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    boxShadow: activeFormats.italic ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   <em>I</em>
@@ -2858,12 +3158,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 <HeadingDropdown
                   onSelect={(level) => handleFormatHeading(level, 'fullscreen')}
                   isZen
+                  activeHeading={activeFormats.heading}
                   theme={theme}
                   isDark={isDark}
                 />
                 <ListDropdown
                   onSelect={(type) => handleFormatList(type, 'fullscreen')}
                   isZen
+                  activeList={activeFormats.list}
                   theme={theme}
                   isDark={isDark}
                 />
@@ -2879,20 +3181,26 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                     handleOpenLinkModal('fullscreen');
                   }}
                   style={{
-                    minHeight: '38px',
-                    padding: '0.3rem 0.7rem',
-                    borderRadius: '0.45rem',
-                    backgroundColor: btnBg,
-                    border: `1px solid ${btnBorder}`,
-                    color: 'var(--primary, #38bdf8)',
-                    fontSize: '0.8rem',
+                    padding: '0.28rem 0.6rem',
+                    borderRadius: '0.4rem',
+                    backgroundColor: activeFormats.link 
+                      ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
+                      : btnBg,
+                    border: `1px solid ${activeFormats.link 
+                      ? (isDark ? '#38bdf8' : '#0284c7') 
+                      : btnBorder}`,
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    fontSize: '0.78rem',
+                    fontWeight: activeFormats.link ? 800 : 700,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.3rem'
+                    gap: '0.25rem',
+                    boxShadow: activeFormats.link ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <Link size={13} />
+                  <Link size={12} />
                   <span style={{ fontWeight: 700 }}>Link</span>
                 </button>
 
@@ -2907,20 +3215,24 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                     handleOpenButtonModal('fullscreen');
                   }}
                   style={{
-                    minHeight: '38px',
-                    padding: '0.3rem 0.75rem',
-                    borderRadius: '0.45rem',
-                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    padding: '0.28rem 0.6rem',
+                    borderRadius: '0.4rem',
+                    backgroundColor: activeFormats.button
+                      ? (isDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.22)')
+                      : (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)'),
+                    border: `1px solid ${activeFormats.button ? '#f59e0b' : 'rgba(245, 158, 11, 0.3)'}`,
                     color: '#f59e0b',
-                    fontSize: '0.8rem',
+                    fontSize: '0.78rem',
+                    fontWeight: activeFormats.button ? 800 : 700,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.3rem'
+                    gap: '0.25rem',
+                    boxShadow: activeFormats.button ? '0 0 0 1px rgba(245, 158, 11, 0.35)' : 'none',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <Sparkles size={13} />
+                  <Sparkles size={12} />
                   <span style={{ fontWeight: 800 }}>Tombol</span>
                 </button>
 
@@ -2935,38 +3247,48 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                     setEditorMode(prev => prev === 'visual' ? 'source' : 'visual');
                   }}
                   style={{
-                    minHeight: '38px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.3rem',
-                    padding: '0.3rem 0.75rem',
-                    borderRadius: '0.45rem',
-                    backgroundColor: editorMode === 'visual' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.08)',
-                    border: `1px solid ${editorMode === 'visual' ? 'rgba(56, 189, 248, 0.3)' : btnBorder}`,
-                    color: editorMode === 'visual' ? 'var(--primary, #38bdf8)' : textSecondary,
-                    fontSize: '0.76rem',
+                    gap: '0.25rem',
+                    padding: '0.28rem 0.65rem',
+                    borderRadius: '0.4rem',
+                    backgroundColor: editorMode === 'visual' ? (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)') : (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
+                    border: `1px solid ${editorMode === 'visual' ? (isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)') : btnBorder}`,
+                    color: editorMode === 'visual' ? (isDark ? '#38bdf8' : '#0284c7') : textSecondary,
+                    fontSize: '0.74rem',
                     fontWeight: 700,
                     cursor: 'pointer',
                     marginLeft: 'auto'
                   }}
                 >
-                  {editorMode === 'visual' ? <Type size={13} /> : <FileText size={13} />}
+                  {editorMode === 'visual' ? <Type size={12} /> : <FileText size={12} />}
                   <span>{editorMode === 'visual' ? 'Visual' : 'Markdown'}</span>
                 </button>
               </div>
             )}
 
             {/* Fullscreen Body */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.25rem', overflowY: 'auto', backgroundColor: inputBg }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.1rem', overflowY: 'auto', backgroundColor: inputBg }}>
               {mobileTab === 'editor' ? (
                 editorMode === 'visual' ? (
                   <div
                     ref={fullscreenVisualRef}
                     contentEditable
-                    data-placeholder={placeholder || 'Tulis deskripsi dan rincian spesifikasi lengkap di sini...'}
+                    data-placeholder={placeholder || 'Tulis rincian pengumuman lengkap di sini...'}
                     className="rich-wysiwyg-editor"
                     onInput={() => handleVisualInput(fullscreenVisualRef)}
-                    onClick={(e) => handleEditorClick(e, fullscreenVisualRef, 'fullscreen')}
+                    onClick={(e) => {
+                      handleEditorClick(e, fullscreenVisualRef, 'fullscreen');
+                      updateActiveFormats();
+                    }}
+                    onKeyUp={updateActiveFormats}
+                    onMouseUp={updateActiveFormats}
+                    onSelect={updateActiveFormats}
+                    onTouchEnd={updateActiveFormats}
+                    onFocus={() => {
+                      activeEditorRef.current = 'fullscreen';
+                      updateActiveFormats();
+                    }}
                     style={{
                       width: '100%',
                       height: '100%',
@@ -2975,7 +3297,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                       outline: 'none',
                       backgroundColor: 'transparent',
                       color: textPrimary,
-                      fontSize: '0.96rem',
+                      fontSize: '0.94rem',
                       lineHeight: 1.7,
                       fontFamily: 'inherit',
                       padding: 0
@@ -2984,10 +3306,28 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 ) : (
                   <textarea
                     ref={fullscreenTextareaRef}
-                    placeholder={placeholder || 'Tulis deskripsi dan rincian spesifikasi lengkap di sini...'}
+                    placeholder={placeholder || 'Tulis rincian pengumuman lengkap di sini...'}
                     value={value || ''}
-                    onChange={e => onChange(e.target.value)}
+                    onChange={e => {
+                      onChange(e.target.value);
+                      if (fullscreenTextareaRef.current) {
+                        savedTextareaRangeRef.current = {
+                          start: fullscreenTextareaRef.current.selectionStart,
+                          end: fullscreenTextareaRef.current.selectionEnd
+                        };
+                      }
+                      updateActiveFormats();
+                    }}
                     onKeyDown={e => handleKeyDownSmartList(fullscreenTextareaRef, e)}
+                    onClick={updateActiveFormats}
+                    onKeyUp={updateActiveFormats}
+                    onMouseUp={updateActiveFormats}
+                    onSelect={updateActiveFormats}
+                    onTouchEnd={updateActiveFormats}
+                    onFocus={() => {
+                      activeEditorRef.current = 'fullscreen';
+                      updateActiveFormats();
+                    }}
                     style={{
                       width: '100%',
                       height: '100%',
@@ -2996,7 +3336,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                       outline: 'none',
                       backgroundColor: 'transparent',
                       color: textPrimary,
-                      fontSize: '0.95rem',
+                      fontSize: '0.94rem',
                       lineHeight: 1.7,
                       resize: 'none',
                       fontFamily: 'inherit',
@@ -3008,8 +3348,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 <div style={{
                   padding: '1.25rem',
                   borderRadius: '0.9rem',
-                  backgroundColor: theme?.surface || 'var(--bg-card, #111827)',
-                  border: `1px solid ${theme?.border || 'var(--border-light, rgba(255,255,255,0.08))'}`,
+                  backgroundColor: theme?.surface || (isDark ? '#111827' : '#ffffff'),
+                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
                   color: textPrimary,
                   fontSize: '0.92rem',
                   lineHeight: 1.7
@@ -3025,14 +3365,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               )}
             </div>
 
-            {/* Zen Footer: Word Accumulation Badges & Primary Selesai Button */}
+            {/* Zen Footer */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '0.85rem 1.25rem',
-              backgroundColor: theme?.surface || 'var(--bg-card, #111827)',
-              borderTop: `1px solid ${theme?.border || 'var(--border-light, rgba(255,255,255,0.08))'}`,
+              padding: '0.8rem 1.15rem',
+              backgroundColor: theme?.surface || (isDark ? '#111827' : '#ffffff'),
+              borderTop: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
               gap: '0.85rem',
               flexShrink: 0
             }}>
@@ -3041,15 +3381,15 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.45rem',
-                fontSize: '0.78rem',
+                fontSize: '0.74rem',
                 fontWeight: 600,
                 color: textMuted
               }}>
                 <span style={{
-                  padding: '0.3rem 0.65rem',
+                  padding: '0.25rem 0.6rem',
                   borderRadius: '0.45rem',
-                  backgroundColor: 'var(--bg-deep, rgba(255,255,255,0.05))',
-                  border: `1px solid ${theme?.border || 'var(--border-light, rgba(255,255,255,0.08))'}`,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
                   color: textSecondary,
                   fontWeight: 700
                 }}>
@@ -3057,10 +3397,10 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 </span>
                 <span>•</span>
                 <span style={{
-                  padding: '0.3rem 0.65rem',
+                  padding: '0.25rem 0.6rem',
                   borderRadius: '0.45rem',
-                  backgroundColor: 'var(--bg-deep, rgba(255,255,255,0.05))',
-                  border: `1px solid ${theme?.border || 'var(--border-light, rgba(255,255,255,0.08))'}`,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
                   color: textSecondary,
                   fontWeight: 700
                 }}>
@@ -3068,7 +3408,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 </span>
               </div>
 
-              {/* Right: Selesai Button (Touch Target >= 44px) */}
+              {/* Right: Selesai Button */}
               <button
                 type="button"
                 onClick={(e) => {
@@ -3077,16 +3417,15 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   setIsFullscreen(false);
                 }}
                 style={{
-                  minHeight: '44px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.6rem 1.4rem',
+                  gap: '0.4rem',
+                  padding: '0.55rem 1.35rem',
                   borderRadius: '0.65rem',
-                  background: 'var(--primary, #0284c7)',
+                  background: 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)',
                   border: 'none',
                   color: '#ffffff',
-                  fontSize: '0.85rem',
+                  fontSize: '0.82rem',
                   fontWeight: 800,
                   cursor: 'pointer',
                   boxShadow: '0 2px 10px var(--primary-glow, rgba(2, 132, 199, 0.35))',
@@ -3094,7 +3433,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   transition: 'all 0.15s ease'
                 }}
               >
-                <Check size={16} strokeWidth={2.5} color="#ffffff" />
+                <Check size={15} strokeWidth={2.5} color="#ffffff" />
                 <span>Selesai</span>
               </button>
             </div>
