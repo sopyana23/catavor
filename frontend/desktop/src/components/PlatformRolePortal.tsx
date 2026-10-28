@@ -11999,8 +11999,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <div style={{ fontSize: '1.25rem', fontWeight: 900, color: theme.textPrimary }}>
                       24 / 7
                     </div>
-                    <div style={{ fontSize: '0.6rem', color: '#10b981', marginTop: '0.1rem' }}>
-                      🟢 Realtime Loop Active
+                    <div style={{ fontSize: '0.6rem', color: '#10b981', marginTop: '0.1rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                      <span>Realtime Loop Active</span>
                     </div>
                   </div>
                 </div>

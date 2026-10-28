@@ -1785,6 +1785,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: AUTOMATION & BOT SENTINEL (11 BOTS MATRIX)
   // =========================================================================
+  const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const [automationStatus, setAutomationStatus] = useState<any>(null);
   const [automationLogs, setAutomationLogs] = useState<any[]>([]);
   const [automationLogsTotal, setAutomationLogsTotal] = useState<number>(0);
@@ -1796,8 +1797,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [isFetchingAutomation, setIsFetchingAutomation] = useState(false);
   const [isTestingSandbox, setIsTestingSandbox] = useState(false);
 
-  const fetchAutomation = useCallback(async (botFilter = automationLogsBotFilter, statusFilter = automationLogsStatusFilter, search = automationLogsSearch) => {
-    if (!token) return;
+  const fetchAutomationData = useCallback(async (botFilter = automationLogsBotFilter, statusFilter = automationLogsStatusFilter, search = automationLogsSearch) => {
+    if (!token || !canAccessAutomation) return;
     setIsFetchingAutomation(true);
     try {
       const params = new URLSearchParams();
@@ -1819,21 +1820,23 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         setAutomationLogs(Array.isArray(lj.data) ? lj.data : Array.isArray(lj) ? lj : []);
         setAutomationLogsTotal(typeof lj.total === 'number' ? lj.total : (Array.isArray(lj.data) ? lj.data.length : 0));
       }
-    } catch {
-      // Fail silently
+    } catch (err) {
+      console.error('Failed to fetch automation data:', err);
     } finally {
       setIsFetchingAutomation(false);
     }
-  }, [token, authFetch, automationLogsBotFilter, automationLogsStatusFilter, automationLogsSearch]);
+  }, [token, canAccessAutomation, authFetch, automationLogsBotFilter, automationLogsStatusFilter, automationLogsSearch]);
+
+  const fetchAutomation = fetchAutomationData;
 
   useEffect(() => {
-    if (activeView === 'automation') {
-      fetchAutomation();
+    if (activeView === 'automation' && canAccessAutomation) {
+      fetchAutomationData();
     }
-  }, [activeView, fetchAutomation]);
+  }, [activeView, canAccessAutomation, fetchAutomationData]);
 
-  const handleTriggerSpecificBot = async (botType: string, label?: string) => {
-    if (!token) return;
+  const handleTriggerBot = async (botType: string, label: string) => {
+    if (!token || !canAccessAutomation) return;
     setIsTriggeringBot(botType);
     try {
       const res = await authFetch('/api/admin/automation/trigger', {
@@ -1846,20 +1849,22 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       });
       const data = await res.json();
       if (res.ok) {
-        showToast(data.message || `Bot "${label || botType}" berhasil dieksekusi!`, 'success');
-        await fetchAutomation();
+        showToast(data.message || `Bot "${label}" berhasil dieksekusi!`, 'success');
+        await fetchAutomationData();
       } else {
-        showToast(data.error || data.message || `Gagal menjalankan bot "${label || botType}"`, 'error');
+        showToast(data.error || data.message || `Gagal menjalankan bot "${label}"`, 'error');
       }
-    } catch {
-      showToast('Terjadi kesalahan saat memicu bot', 'error');
+    } catch (err: any) {
+      showToast(err?.message || 'Terjadi kesalahan saat memicu bot', 'error');
     } finally {
       setIsTriggeringBot(null);
     }
   };
 
+  const handleTriggerSpecificBot = handleTriggerBot;
+
   const handleRunSandboxTest = async () => {
-    if (!token) return;
+    if (!token || !canAccessAutomation) return;
     setIsTestingSandbox(true);
     try {
       const res = await authFetch('/api/admin/automation/trigger', {
@@ -1873,12 +1878,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const data = await res.json();
       if (res.ok) {
         showToast('Notifikasi simulasi panduan berhasil dikirim via SSE!', 'success');
-        await fetchAutomation();
+        await fetchAutomationData();
       } else {
         showToast(data.error || 'Gagal mengirim simulasi', 'error');
       }
-    } catch {
-      showToast('Gagal memproses sandbox', 'error');
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal memproses sandbox', 'error');
     } finally {
       setIsTestingSandbox(false);
     }
@@ -6551,16 +6556,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   >
                     <Megaphone size={16} />
                     <span>Daftar & Riwayat Siaran</span>
-                    <span style={{
-                      padding: '0.15rem 0.45rem',
-                      borderRadius: '999px',
-                      backgroundColor: broadcastSubView === 'list' ? '#f59e0b' : 'var(--bg-deep)',
-                      color: broadcastSubView === 'list' ? '#000000' : 'var(--text-muted)',
-                      fontSize: '0.72rem',
-                      fontWeight: 800
-                    }}>
-                      {broadcastTotalItems || broadcastMetrics.total_broadcasts || broadcasts.length}
-                    </span>
                   </button>
 
                   <button
@@ -8293,7 +8288,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 8: AUTOMATION (MESIN OTOMATISASI & 11 BOTS) */}
-          {activeView === 'automation' && (
+          {activeView === 'automation' && canAccessAutomation && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
               {/* Module Header Sub-Tabs Switcher */}
               <div style={{
@@ -8301,12 +8296,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 borderBottom: '1px solid var(--border-light)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
                 backgroundColor: 'var(--bg-deep)',
                 gap: '0.75rem',
                 flexWrap: 'wrap'
               }}>
-                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.2rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.2rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch', width: '100%' }}>
                   {[
                     { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
                     { id: 'bots', label: `${automationStatus?.total_workers || 11} Bot Platform`, icon: Bot, badge: String(automationStatus?.total_workers || 11) },
@@ -8361,29 +8355,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     );
                   })}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => fetchAutomation()}
-                  disabled={isFetchingAutomation}
-                  style={{
-                    minHeight: '44px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.55rem 1rem',
-                    borderRadius: '0.65rem',
-                    border: '1px solid var(--border-light)',
-                    backgroundColor: 'var(--bg-card)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: isFetchingAutomation ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <RefreshCw size={15} className={isFetchingAutomation ? 'spin' : ''} />
-                  <span>{isFetchingAutomation ? 'Menyinkronkan...' : 'Segarkan Data'}</span>
-                </button>
               </div>
 
               {/* SUB-VIEW 1: OVERVIEW & SYSTEM HEALTH TELEMETRY */}
