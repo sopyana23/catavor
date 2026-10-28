@@ -8189,15 +8189,6 @@ Terima kasih.`;
   const [ticketLimit] = useState<number>(15);
   const [ticketMetrics, setTicketMetrics] = useState<{ total: number; active: number; resolved: number }>({ total: 0, active: 0, resolved: 0 });
 
-  // Debounce ticketSearch input by 350ms to prevent server overload
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedTicketSearch(ticketSearch);
-      setTicketPage(1);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [ticketSearch]);
-
   // Reset to page 1 on filter tab change
   useEffect(() => {
     setTicketPage(1);
@@ -8474,8 +8465,8 @@ Terima kasih.`;
   // Auto-populate appeal draft template whenever create ticket modal is opened for a suspended store
   useEffect(() => {
     if (showCreateTicketModal && (settings.dormancy_status === 'suspended' || settings.is_suspended)) {
-      const appealSub = `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`;
-      const appealMsg = `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`;
+      const appealSub = `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`;
+      const appealMsg = `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`;
 
       setNewTicketForm(prev => ({
         subject: (!prev.subject || !prev.subject.trim() || prev.subject.includes('Banding Kepatuhan')) ? appealSub : prev.subject,
@@ -28282,7 +28273,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Pusat Banding Kepatuhan & Tiket' : 'Pusat Tiket Support Catavor'}
                         </h3>
                         <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                          {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Layanan Klarifikasi dan Pemulihan Akun Toko' : 'Layanan Bantuan & Monitoring Kendala Pengelolaan Katalog'}
+                          {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Layanan Klarifikasi dan Pemulihan Profil Katalog' : 'Layanan Bantuan & Monitoring Kendala Pengelolaan Katalog'}
                         </span>
                       </div>
                     </div>
@@ -28307,10 +28298,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           onClick={() => {
                             if (isSuspendedAccount) {
                               setNewTicketForm({
-                                subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
+                                subject: `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`,
                                 category: 'compliance',
                                 priority: 'high',
-                                message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                                message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                               });
                             }
                             setShowCreateTicketModal(true);
@@ -28377,6 +28368,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             </button>
                           )}
                         </div>
+
 
                         {/* Filter Tabs */}
                         <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--bg-deep)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)' }}>
@@ -29552,10 +29544,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               onClick={() => {
                                 if (isSuspendedAccount) {
                                   setNewTicketForm({
-                                    subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
+                                    subject: `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`,
                                     category: 'compliance',
                                     priority: 'high',
-                                    message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                                    message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                                   });
                                 }
                                 setTicketNewAttachments([]);
@@ -29657,10 +29649,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           e.preventDefault();
                           const isSuspendedAccount = settings.dormancy_status === 'suspended' || settings.is_suspended;
                           const finalSubject = (isSuspendedAccount && !newTicketForm.subject.trim())
-                            ? `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`
+                            ? `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`
                             : newTicketForm.subject.trim();
                           const finalMessage = (isSuspendedAccount && !newTicketForm.message.trim())
-                            ? `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                            ? `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                             : newTicketForm.message.trim();
 
                           if (!finalSubject || !finalMessage) {
@@ -29674,6 +29666,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               method: 'POST',
                               headers: getAuthHeaders(),
                               body: JSON.stringify({
+                                store_slug: (storeSlug || getStoreSlug() || resolveActiveStoreSlug()) || undefined,
                                 subject: finalSubject,
                                 category: isSuspendedAccount ? 'compliance' : newTicketForm.category,
                                 priority: isSuspendedAccount ? 'high' : newTicketForm.priority,
@@ -29719,7 +29712,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               placeholder="Contoh: Pembayaran Upgrade Paket Pro Belum Terverifikasi"
                               value={
                                 (settings.dormancy_status === 'suspended' || settings.is_suspended)
-                                  ? (newTicketForm.subject || `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`)
+                                  ? (newTicketForm.subject || `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`)
                                   : newTicketForm.subject
                               }
                               onChange={(e) => {

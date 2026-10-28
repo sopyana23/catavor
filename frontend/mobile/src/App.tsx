@@ -8193,7 +8193,6 @@ Terima kasih.`;
   const [showCategorySelectModal, setShowCategorySelectModal] = useState<boolean>(false);
   const [showPrioritySelectModal, setShowPrioritySelectModal] = useState<boolean>(false);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
-  const [ticketStoreScope, setTicketStoreScope] = useState<'store' | 'all'>('store');
   const [ticketSearch, setTicketSearch] = useState<string>('');
   const [debouncedTicketSearch, setDebouncedTicketSearch] = useState<string>('');
   const [ticketPage, setTicketPage] = useState<number>(1);
@@ -8449,8 +8448,8 @@ Terima kasih.`;
   // Auto-populate appeal draft template whenever create ticket form is opened for a suspended store
   useEffect(() => {
     if (isCreatingTicket && (settings.dormancy_status === 'suspended' || settings.is_suspended)) {
-      const appealSub = `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`;
-      const appealMsg = `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`;
+      const appealSub = `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Profil Katalog'})`;
+      const appealMsg = `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`;
 
       setNewTicketForm(prev => ({
         subject: (!prev.subject || !prev.subject.trim() || prev.subject.includes('Banding Kepatuhan')) ? appealSub : prev.subject,
@@ -8510,10 +8509,9 @@ Terima kasih.`;
       if (debouncedTicketSearch.trim()) {
         queryParams.set('q', debouncedTicketSearch.trim());
       }
-      if (ticketStoreScope === 'store' && getStoreSlug()) {
-        queryParams.set('store_slug', getStoreSlug()!);
-      } else {
-        queryParams.set('scope', 'all');
+      const activeSlug = getStoreSlug();
+      if (activeSlug) {
+        queryParams.set('store_slug', activeSlug);
       }
 
       const res = await fetch(`${API_BASE}/support/tickets?${queryParams.toString()}`, {
@@ -9338,7 +9336,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     if (adminSubTab === 'help' || isSuspendedAccountState) {
       fetchSupportTickets(tickets.length > 0, ticketPage);
     }
-  }, [adminSubTab, isSuspendedAccountState, token, debouncedTicketSearch, ticketFilter, ticketStoreScope, ticketPage]);
+  }, [adminSubTab, isSuspendedAccountState, token, debouncedTicketSearch, ticketFilter, ticketPage]);
 
   // Mobile Strict URL Guard: Suspended account can only access overview (/admin) or appeal chat (/admin/appeal)
   useEffect(() => {
@@ -9402,7 +9400,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       clearInterval(timer);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [adminSubTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter, ticketStoreScope]);
+  }, [adminSubTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter]);
 
   // Auto-scroll ke pesan percakapan terbaru saat tiket baru dibuka atau pesan baru tiba
   useEffect(() => {
@@ -30949,10 +30947,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           e.preventDefault();
                           const isSuspendedAccount = settings.dormancy_status === 'suspended' || settings.is_suspended;
                           const finalSubject = (isSuspendedAccount && !newTicketForm.subject.trim())
-                            ? `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`
+                            ? `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`
                             : newTicketForm.subject.trim();
                           const finalMessage = (isSuspendedAccount && !newTicketForm.message.trim())
-                            ? `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                            ? `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                             : newTicketForm.message.trim();
 
                           if (!finalSubject || !finalMessage) {
@@ -31017,7 +31015,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               placeholder="Contoh: Pembayaran Upgrade Paket Pro Belum Terverifikasi"
                               value={
                                 (settings.dormancy_status === 'suspended' || settings.is_suspended)
-                                  ? (newTicketForm.subject || `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`)
+                                  ? (newTicketForm.subject || `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`)
                                   : newTicketForm.subject
                               }
                               onChange={(e) => {
@@ -31401,10 +31399,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         type="button"
                         onClick={() => {
                           setNewTicketForm({
-                            subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || 'Toko'})`,
+                            subject: `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || 'Profil Katalog'})`,
                             category: 'compliance',
                             priority: 'high',
-                            message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                            message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                           });
                           setIsCreatingTicket(true);
                         }}
@@ -31462,61 +31460,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <Search size={14} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                           </div>
 
-                          {/* Store Scope Switcher (Best Practice: Toko Ini vs Semua Toko) */}
-                          <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(0,0,0,0.2)', padding: '0.2rem', borderRadius: '0.55rem', border: '1px solid var(--border-light)' }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTicketStoreScope('store');
-                                setTicketPage(1);
-                              }}
-                              style={{
-                                flex: 1,
-                                padding: '0.32rem 0.5rem',
-                                borderRadius: '0.45rem',
-                                border: 'none',
-                                fontSize: '0.73rem',
-                                fontWeight: 700,
-                                backgroundColor: ticketStoreScope === 'store' ? 'var(--primary)' : 'transparent',
-                                color: ticketStoreScope === 'store' ? '#ffffff' : 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.35rem',
-                                transition: 'all 0.2s ease'
-                              }}
-                            >
-                              <Store size={13} />
-                              <span>Toko Ini</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTicketStoreScope('all');
-                                setTicketPage(1);
-                              }}
-                              style={{
-                                flex: 1,
-                                padding: '0.32rem 0.5rem',
-                                borderRadius: '0.45rem',
-                                border: 'none',
-                                fontSize: '0.73rem',
-                                fontWeight: 700,
-                                backgroundColor: ticketStoreScope === 'all' ? 'var(--primary)' : 'transparent',
-                                color: ticketStoreScope === 'all' ? '#ffffff' : 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.35rem',
-                                transition: 'all 0.2s ease'
-                              }}
-                            >
-                              <Globe size={13} />
-                              <span>Semua Toko</span>
-                            </button>
-                          </div>
 
                           <div style={{ display: 'flex', width: '100%', background: 'rgba(0,0,0,0.3)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', boxSizing: 'border-box' }}>
                             {(() => {
