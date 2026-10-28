@@ -91,6 +91,7 @@ import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
 import { TabletDangerZoneView } from './TabletDangerZoneView';
 import { TabletHelpdeskView } from './TabletHelpdeskView';
+import { TabletPoliciesView } from './TabletPoliciesView';
 import { TabletProductFilterSheet, type TabletProductFilterValues } from './TabletProductFilterSheet';
 import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
 import { TabletCustomSelect } from './TabletCustomSelect';
@@ -9076,37 +9077,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 9: LEGAL & KEBIJAKAN PLATFORM
             =================================================================== */}
         {activeTab === 'policies' && (
-          <div style={{ padding: '2rem', maxWidth: '960px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-              Legal, Syarat & Kebijakan Platform
-            </h2>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Ketentuan hukum, perlindungan privasi data, dan pedoman kepatuhan ekosistem Catavor.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>1. Syarat & Ketentuan Layanan (Terms of Service)</h3>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Pengelola katalog bertanggung jawab penuh atas keabsahan, keaslian produk, dan kepatuhan hukum atas seluruh item yang dipublikasikan. Catavor berhak menangguhkan akun yang melanggar aturan satwa dilindungi atau barang terlarang.
-                </p>
-              </div>
-
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>2. Kebijakan Privasi (Privacy Policy)</h3>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Data pengguna dan data kontak WhatsApp dilindungi dengan enkripsi standar industri dan tidak akan dibagikan kepada pihak ketiga tanpa persetujuan sah dari pemilik akun.
-                </p>
-              </div>
-
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>3. Kebijakan Penggunaan Wajar (Acceptable Use Policy)</h3>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Penggunaan bandwidth, cloud storage, dan integrasi WhatsApp diwajibkan sesuai batasan paket aktif untuk menjaga stabilitas ekosistem bagi seluruh merchant.
-                </p>
-              </div>
-            </div>
-          </div>
+          <TabletPoliciesView
+            onOpenHelpdesk={() => {
+              setActiveTab('help');
+              if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/help`);
+            }}
+          />
         )}
 
         {/* ===================================================================
