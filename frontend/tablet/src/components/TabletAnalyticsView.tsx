@@ -2552,19 +2552,25 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
+              flexDirection: 'column',
               gap: '0.75rem',
               paddingTop: '0.85rem',
               borderTop: '1px solid var(--border-light)'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              <span>
-                Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{(safePage - 1) * pageSize + 1}</strong> - <strong style={{ color: 'var(--text-primary)' }}>{Math.min(safePage * pageSize, totalItems)}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{totalItems}</strong> item
+            {/* Row 1: Balanced Info & Limit Selector */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.65rem',
+              width: '100%'
+            }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Menampilkan <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{(safePage - 1) * pageSize + 1}</strong> - <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{Math.min(safePage * pageSize, totalItems)}</strong> dari <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{totalItems}</strong> item
               </span>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                 <span>Tampilkan:</span>
                 <select
                   value={pageSize}
@@ -2590,7 +2596,16 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
             </div>
 
             {totalPages > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexWrap: 'wrap',
+                gap: '0.4rem',
+                paddingTop: '0.5rem',
+                borderTop: '1px solid var(--border-light)',
+                width: '100%'
+              }}>
                 <button
                   type="button"
                   disabled={safePage === 1}

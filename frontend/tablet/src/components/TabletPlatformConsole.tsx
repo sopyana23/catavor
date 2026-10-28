@@ -11715,20 +11715,35 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   </table>
                 </div>
 
-                {/* Tablet Responsive Pagination Bar */}
+                {/* Tablet Ergonomic Pagination Bar & Footer Information */}
                 <div style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.85rem 1.25rem',
+                  flexDirection: 'column',
+                  gap: '0.85rem',
+                  padding: '1rem 1.25rem',
                   borderTop: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-deep)',
-                  flexWrap: 'wrap',
-                  gap: '0.75rem'
+                  backgroundColor: 'var(--bg-deep)'
                 }}>
-                  {/* Rows Per Page Selector & Counter */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  {/* Row 1: Balanced Information Bar (Data Counter on Left, Rows-Per-Page Selector on Right) */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem',
+                    width: '100%'
+                  }}>
+                    {/* Information Counter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Menampilkan <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{auditLogs.length ? (auditPage - 1) * auditLimit + 1 : 0}</strong> –{' '}
+                        <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{Math.min(auditPage * auditLimit, auditTotal)}</strong> dari{' '}
+                        <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{auditTotal}</strong> rekaman data
+                      </span>
+                    </div>
+
+                    {/* Rows Per Page Selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                       <span>Tampilkan:</span>
                       <select
                         value={auditLimit}
@@ -11738,9 +11753,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           setAuditPage(1);
                         }}
                         style={{
-                          minHeight: '36px',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.45rem',
+                          minHeight: '38px',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '0.5rem',
                           border: '1px solid var(--border-light)',
                           backgroundColor: 'var(--bg-card)',
                           color: 'var(--text-primary)',
@@ -11756,36 +11771,40 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         <option value={100}>100 baris</option>
                       </select>
                     </div>
-
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{auditLogs.length ? (auditPage - 1) * auditLimit + 1 : 0}</strong> –{' '}
-                      <strong style={{ color: 'var(--text-primary)' }}>{Math.min(auditPage * auditLimit, auditTotal)}</strong> dari{' '}
-                      <strong style={{ color: 'var(--text-primary)' }}>{auditTotal}</strong> rekaman data
-                    </span>
                   </div>
 
-                  {/* Numbered Page Buttons & Quick Jump */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {/* Row 2: Centered Tablet Navigation Controls & Quick Jump */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexWrap: 'wrap',
+                    gap: '0.45rem',
+                    paddingTop: '0.75rem',
+                    borderTop: '1px solid var(--border-light)',
+                    width: '100%'
+                  }}>
                     {/* First Page */}
                     <button
                       type="button"
                       disabled={auditPage <= 1 || isLoadingAudit}
                       onClick={() => setAuditPage(1)}
                       style={{
-                        minHeight: '36px',
-                        minWidth: '36px',
-                        padding: '0.35rem 0.55rem',
-                        borderRadius: '0.5rem',
+                        minHeight: '40px',
+                        minWidth: '40px',
+                        padding: '0.4rem 0.65rem',
+                        borderRadius: '0.55rem',
                         border: '1px solid var(--border-light)',
-                        backgroundColor: 'transparent',
+                        backgroundColor: 'var(--bg-card)',
                         color: 'var(--text-primary)',
-                        fontSize: '0.74rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         cursor: auditPage <= 1 ? 'not-allowed' : 'pointer',
                         opacity: auditPage <= 1 ? 0.35 : 1,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        transition: 'all 0.15s ease'
                       }}
                       title="Halaman Pertama"
                     >
@@ -11798,20 +11817,21 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       disabled={auditPage <= 1 || isLoadingAudit}
                       onClick={() => setAuditPage(auditPage - 1)}
                       style={{
-                        minHeight: '36px',
-                        minWidth: '36px',
-                        padding: '0.35rem 0.55rem',
-                        borderRadius: '0.5rem',
+                        minHeight: '40px',
+                        minWidth: '40px',
+                        padding: '0.4rem 0.65rem',
+                        borderRadius: '0.55rem',
                         border: '1px solid var(--border-light)',
-                        backgroundColor: 'transparent',
+                        backgroundColor: 'var(--bg-card)',
                         color: 'var(--text-primary)',
-                        fontSize: '0.74rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         cursor: auditPage <= 1 ? 'not-allowed' : 'pointer',
                         opacity: auditPage <= 1 ? 0.35 : 1,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        transition: 'all 0.15s ease'
                       }}
                       title="Halaman Sebelumnya"
                     >
@@ -11837,7 +11857,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       return pages.map((p, pIdx) => {
                         if (typeof p === 'string') {
                           return (
-                            <span key={`el-${pIdx}`} style={{ padding: '0 0.25rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                            <span key={`el-${pIdx}`} style={{ padding: '0 0.35rem', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>
                               ...
                             </span>
                           );
@@ -11849,18 +11869,19 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             type="button"
                             onClick={() => setAuditPage(p)}
                             style={{
-                              minWidth: '36px',
-                              height: '36px',
-                              borderRadius: '0.5rem',
+                              minWidth: '40px',
+                              height: '40px',
+                              borderRadius: '0.55rem',
                               border: `1px solid ${isCur ? 'var(--primary)' : 'var(--border-light)'}`,
-                              backgroundColor: isCur ? 'var(--primary)' : 'transparent',
+                              backgroundColor: isCur ? 'var(--primary)' : 'var(--bg-card)',
                               color: isCur ? '#ffffff' : 'var(--text-primary)',
-                              fontSize: '0.76rem',
+                              fontSize: '0.78rem',
                               fontWeight: isCur ? 800 : 600,
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              justifyContent: 'center'
+                              justifyContent: 'center',
+                              transition: 'all 0.15s ease'
                             }}
                           >
                             {p}
@@ -11875,20 +11896,21 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       disabled={auditPage >= Math.ceil(auditTotal / auditLimit) || isLoadingAudit}
                       onClick={() => setAuditPage(auditPage + 1)}
                       style={{
-                        minHeight: '36px',
-                        minWidth: '36px',
-                        padding: '0.35rem 0.55rem',
-                        borderRadius: '0.5rem',
+                        minHeight: '40px',
+                        minWidth: '40px',
+                        padding: '0.4rem 0.65rem',
+                        borderRadius: '0.55rem',
                         border: '1px solid var(--border-light)',
-                        backgroundColor: 'transparent',
+                        backgroundColor: 'var(--bg-card)',
                         color: 'var(--text-primary)',
-                        fontSize: '0.74rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         cursor: auditPage >= Math.ceil(auditTotal / auditLimit) ? 'not-allowed' : 'pointer',
                         opacity: auditPage >= Math.ceil(auditTotal / auditLimit) ? 0.35 : 1,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        transition: 'all 0.15s ease'
                       }}
                       title="Halaman Selanjutnya"
                     >
@@ -11901,29 +11923,33 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       disabled={auditPage >= Math.ceil(auditTotal / auditLimit) || isLoadingAudit}
                       onClick={() => setAuditPage(Math.max(1, Math.ceil(auditTotal / auditLimit)))}
                       style={{
-                        minHeight: '36px',
-                        minWidth: '36px',
-                        padding: '0.35rem 0.55rem',
-                        borderRadius: '0.5rem',
+                        minHeight: '40px',
+                        minWidth: '40px',
+                        padding: '0.4rem 0.65rem',
+                        borderRadius: '0.55rem',
                         border: '1px solid var(--border-light)',
-                        backgroundColor: 'transparent',
+                        backgroundColor: 'var(--bg-card)',
                         color: 'var(--text-primary)',
-                        fontSize: '0.74rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         cursor: auditPage >= Math.ceil(auditTotal / auditLimit) ? 'not-allowed' : 'pointer',
                         opacity: auditPage >= Math.ceil(auditTotal / auditLimit) ? 0.35 : 1,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        transition: 'all 0.15s ease'
                       }}
                       title="Halaman Terakhir"
                     >
                       <ChevronsRight size={16} />
                     </button>
 
+                    {/* Subtle Divider */}
+                    <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-light)', margin: '0 0.35rem' }} />
+
                     {/* Quick Jump Input */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.35rem' }}>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Lompat:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 500 }}>Lompat:</span>
                       <input
                         type="number"
                         min={1}
@@ -11942,14 +11968,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         }}
                         placeholder="Hal"
                         style={{
-                          width: '44px',
-                          minHeight: '36px',
+                          width: '48px',
+                          minHeight: '40px',
                           padding: '0.25rem 0.4rem',
-                          borderRadius: '0.45rem',
+                          borderRadius: '0.55rem',
                           border: '1px solid var(--border-light)',
                           backgroundColor: 'var(--bg-card)',
                           color: 'var(--text-primary)',
-                          fontSize: '0.76rem',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
                           textAlign: 'center',
                           outline: 'none'
                         }}
