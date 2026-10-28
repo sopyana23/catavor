@@ -94,25 +94,27 @@ export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProp
           borderRadius: '1.25rem',
           border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
           boxShadow: '0 20px 50px rgba(0, 0, 0, 0.65)',
-          padding: '1.5rem 1.75rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1.2rem',
           position: 'relative',
           color: 'var(--text-primary, #ffffff)',
-          overflowY: 'auto',
+          overflow: 'hidden',
           boxSizing: 'border-box'
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Floating Top Header (Pinned at top - Never sinks on scroll) */}
         <div
           style={{
+            flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingBottom: '0.85rem',
-            borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))'
+            padding: '1.25rem 1.75rem',
+            backgroundColor: 'var(--bg-card, #1e293b)',
+            borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
+            zIndex: 10
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
@@ -152,7 +154,7 @@ export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProp
                   display: 'block'
                 }}
               >
-                Saluran bantuan & komunikasi resmi terverifikasi
+                Saluran bantuan &amp; komunikasi resmi terverifikasi
               </span>
             </div>
           </div>
@@ -177,6 +179,22 @@ export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProp
             <X size={18} />
           </button>
         </div>
+
+        {/* Scrollable Content Body (Content scrolls underneath the floating header) */}
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            padding: '1.4rem 1.75rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.2rem',
+            boxSizing: 'border-box'
+          }}
+        >
 
         {/* Channel 1: WhatsApp Resmi */}
         <div
@@ -446,8 +464,21 @@ export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProp
           </p>
         </div>
 
-        {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.25rem' }}>
+        </div>
+
+        {/* Floating / Pinned Bottom Footer Bar */}
+        <div
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '0.85rem 1.75rem 1.15rem',
+            backgroundColor: 'var(--bg-card, #1e293b)',
+            borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+            boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.15)',
+            zIndex: 10
+          }}
+        >
           <button
             type="button"
             onClick={onClose}

@@ -134,28 +134,24 @@ export const OfficialContactSheet: React.FC<OfficialContactSheetProps> = ({
       <div
         style={{
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: '88vh',
           backgroundColor: 'var(--bg-card, #1e293b)',
           borderRadius: '1.25rem 1.25rem 0 0',
           border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
           borderBottom: 'none',
           boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.45)',
-          padding: '0.75rem 1.25rem 1.5rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1rem',
           position: 'relative',
           color: 'var(--text-primary, #ffffff)',
           transform: isClosing ? 'translateY(100%)' : `translateY(${Math.max(0, dragY)}px)`,
           transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
           boxSizing: 'border-box',
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch',
-          overscrollBehavior: 'contain'
+          overflow: 'hidden'
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag Handle Bar */}
+        {/* Floating Top Header (Always Floating / Mengambang - Bebas Tenggelam) */}
         <div
           onMouseDown={e => handleDragStart(e.clientY)}
           onMouseMove={e => handleDragMove(e.clientY)}
@@ -164,83 +160,104 @@ export const OfficialContactSheet: React.FC<OfficialContactSheetProps> = ({
           onTouchMove={e => handleDragMove(e.touches[0].clientY)}
           onTouchEnd={handleDragEnd}
           style={{
-            padding: '0.2rem 0 0.5rem',
+            flexShrink: 0,
+            padding: '0.65rem 1.25rem 0.85rem',
+            backgroundColor: 'var(--bg-card, #1e293b)',
+            borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
             display: 'flex',
-            justifyContent: 'center',
-            cursor: 'grab',
-            touchAction: 'none'
-          }}
-        >
-          <div
-            style={{
-              width: '44px',
-              height: '4px',
-              backgroundColor: 'var(--border-light, rgba(255, 255, 255, 0.25))',
-              borderRadius: '9999px'
-            }}
-          />
-        </div>
-
-        {/* Header (Clean: Icon + Title + Subtitle, No "X" Button as per Rule 7.A) */}
-        <div
-          onMouseDown={e => handleDragStart(e.clientY)}
-          onMouseMove={e => handleDragMove(e.clientY)}
-          onMouseUp={handleDragEnd}
-          onTouchStart={e => handleDragStart(e.touches[0].clientY)}
-          onTouchMove={e => handleDragMove(e.touches[0].clientY)}
-          onTouchEnd={handleDragEnd}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.85rem',
+            flexDirection: 'column',
+            gap: '0.65rem',
             touchAction: 'none',
-            paddingBottom: '0.25rem',
-            borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))'
+            zIndex: 10,
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.18)'
           }}
         >
+          {/* Drag Handle Bar */}
           <div
             style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '0.75rem',
-              backgroundColor: 'var(--primary-glow, rgba(2, 132, 199, 0.15))',
-              border: '1px solid var(--border-light, rgba(2, 132, 199, 0.3))',
+              padding: '0.15rem 0 0.35rem',
               display: 'flex',
-              alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--primary, #0284c7)',
-              flexShrink: 0
+              cursor: 'grab'
             }}
           >
-            <Headphones size={22} strokeWidth={1.75} />
+            <div
+              style={{
+                width: '44px',
+                height: '4px',
+                backgroundColor: 'var(--border-light, rgba(255, 255, 255, 0.25))',
+                borderRadius: '9999px'
+              }}
+            />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h3
+
+          {/* Header Row (Clean: Icon + Title + Subtitle, No "X" Button as per Rule 7.A) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.85rem'
+            }}
+          >
+            <div
               style={{
-                margin: 0,
-                fontSize: '1.05rem',
-                fontWeight: 800,
-                color: 'var(--text-primary, #ffffff)',
-                letterSpacing: '-0.01em'
+                width: '42px',
+                height: '42px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'var(--primary-glow, rgba(2, 132, 199, 0.15))',
+                border: '1px solid var(--border-light, rgba(2, 132, 199, 0.3))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary, #0284c7)',
+                flexShrink: 0
               }}
             >
-              Kontak Resmi Catavor
-            </h3>
-            <span
-              style={{
-                fontSize: '0.75rem',
-                color: 'var(--text-secondary, #94a3b8)',
-                marginTop: '0.15rem',
-                display: 'block'
-              }}
-            >
-              Saluran bantuan & komunikasi resmi terverifikasi
-            </span>
+              <Headphones size={22} strokeWidth={1.75} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: '1.05rem',
+                  fontWeight: 800,
+                  color: 'var(--text-primary, #ffffff)',
+                  letterSpacing: '-0.01em'
+                }}
+              >
+                Kontak Resmi Catavor
+              </h3>
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--text-secondary, #94a3b8)',
+                  marginTop: '0.15rem',
+                  display: 'block'
+                }}
+              >
+                Saluran bantuan &amp; komunikasi resmi terverifikasi
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Channel 1: WhatsApp Resmi */}
+        {/* Scrollable Content Body (Content scrolls underneath the floating header) */}
         <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            padding: '1.15rem 1.25rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            boxSizing: 'border-box'
+          }}
+        >
+          {/* Channel 1: WhatsApp Resmi */}
+          <div
           style={{
             padding: '1rem',
             borderRadius: '0.85rem',
@@ -506,28 +523,39 @@ export const OfficialContactSheet: React.FC<OfficialContactSheetProps> = ({
             <strong style={{ color: 'var(--text-primary, #ffffff)' }}>Perlindungan Keamanan:</strong> Tim Catavor tidak pernah meminta kata sandi akun Anda. Pastikan selalu berkomunikasi hanya melalui kontak terverifikasi di atas.
           </p>
         </div>
+        </div>
 
-        {/* Footer Dismiss Button */}
-        <button
-          type="button"
-          onClick={closeWithAnimation}
+        {/* Floating / Pinned Bottom Action Bar */}
+        <div
           style={{
-            minHeight: '44px',
-            width: '100%',
-            padding: '0.65rem 1rem',
-            borderRadius: '0.65rem',
-            backgroundColor: 'var(--bg-deep, rgba(255, 255, 255, 0.06))',
-            color: 'var(--text-primary, #ffffff)',
-            border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',
-            fontSize: '0.84rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            marginTop: '0.25rem',
-            transition: 'all 0.15s ease'
+            flexShrink: 0,
+            padding: '0.75rem 1.25rem 1.15rem',
+            backgroundColor: 'var(--bg-card, #1e293b)',
+            borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+            boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.15)',
+            zIndex: 10
           }}
         >
-          Tutup
-        </button>
+          <button
+            type="button"
+            onClick={closeWithAnimation}
+            style={{
+              minHeight: '44px',
+              width: '100%',
+              padding: '0.65rem 1rem',
+              borderRadius: '0.65rem',
+              backgroundColor: 'var(--bg-deep, rgba(255, 255, 255, 0.06))',
+              color: 'var(--text-primary, #ffffff)',
+              border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Tutup
+          </button>
+        </div>
       </div>
     </div>,
     document.body
