@@ -12847,149 +12847,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {activeView === 'audit' && canAccessAudit && (
         <div style={{ maxWidth: '1440px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Executive Quick Metrics Bar */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '1rem'
-          }}>
-            <div style={{
-              padding: '1.1rem 1.25rem',
-              borderRadius: '1rem',
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem'
-            }}>
-              <div style={{
-                width: '46px',
-                height: '46px',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.16)' : 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#3b82f6',
-                flexShrink: 0
-              }}>
-                <History size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Total Rekaman Audit
-                </div>
-                <div style={{ fontSize: '1.45rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
-                  {auditTotal.toLocaleString('id-ID')}
-                </div>
-              </div>
-            </div>
-
-            <div style={{
-              padding: '1.1rem 1.25rem',
-              borderRadius: '1rem',
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem'
-            }}>
-              <div style={{
-                width: '46px',
-                height: '46px',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.1)',
-                border: '1px solid rgba(245, 158, 11, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#f59e0b',
-                flexShrink: 0
-              }}>
-                <Shield size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Keamanan & Akses
-                </div>
-                <div style={{ fontSize: '1.45rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
-                  Autentikasi & Staf
-                </div>
-              </div>
-            </div>
-
-            <div style={{
-              padding: '1.1rem 1.25rem',
-              borderRadius: '1rem',
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem'
-            }}>
-              <div style={{
-                width: '46px',
-                height: '46px',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#10b981',
-                flexShrink: 0
-              }}>
-                <Store size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Mutasi Katalog & Toko
-                </div>
-                <div style={{ fontSize: '1.45rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
-                  Operasional
-                </div>
-              </div>
-            </div>
-
-            <div style={{
-              padding: '1.1rem 1.25rem',
-              borderRadius: '1rem',
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem'
-            }}>
-              <div style={{
-                width: '46px',
-                height: '46px',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ef4444',
-                flexShrink: 0
-              }}>
-                <AlertTriangle size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Kepatuhan Hukum
-                </div>
-                <div style={{ fontSize: '1.45rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
-                  PP 71 / 2019
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Integrated Filter Toolbar */}
           <div style={{
             padding: '1rem 1.25rem',
@@ -13047,63 +12904,65 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
             {/* Select Filter Dropdowns */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-              {/* Category Select */}
+              {/* Category Select (Standardized DesktopCustomSelect) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <span style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textMuted }}>Kategori:</span>
-                <select
+                <DesktopCustomSelect
                   value={auditCategoryFilter}
-                  onChange={(e) => {
-                    setAuditCategoryFilter(e.target.value);
+                  onChange={(val) => {
+                    setAuditCategoryFilter(val);
                     setAuditPage(1);
                   }}
-                  style={{
-                    padding: '0.55rem 0.85rem',
-                    borderRadius: '0.65rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: theme.surface,
-                    color: theme.textPrimary,
-                    fontSize: '0.8rem',
+                  highlight={auditCategoryFilter !== 'all'}
+                  options={[
+                    { value: 'all', label: 'Semua Kategori' },
+                    { value: 'security', label: 'Keamanan & Akses' },
+                    { value: 'catalog', label: 'Katalog & Produk' },
+                    { value: 'store', label: 'Toko & Merchant' },
+                    { value: 'billing', label: 'Finansial & Billing' },
+                    { value: 'moderation', label: 'Moderasi & Laporan' },
+                    { value: 'system', label: 'Sistem & Otomasi' }
+                  ]}
+                  placeholder="Semua Kategori"
+                  style={{ width: 'auto', minWidth: '175px' }}
+                  triggerStyle={{
+                    height: '36px',
+                    padding: '0 0.75rem',
+                    fontSize: '0.78rem',
                     fontWeight: 600,
-                    outline: 'none',
-                    cursor: 'pointer'
+                    borderRadius: '0.65rem'
                   }}
-                >
-                  <option value="all">Semua Kategori</option>
-                  <option value="security">Keamanan & Akses</option>
-                  <option value="catalog">Katalog & Produk</option>
-                  <option value="store">Toko & Merchant</option>
-                  <option value="billing">Finansial & Billing</option>
-                  <option value="moderation">Moderasi & Laporan</option>
-                  <option value="system">Sistem & Otomasi</option>
-                </select>
+                  dropdownStyle={{ minWidth: '200px' }}
+                />
               </div>
 
-              {/* Role Select */}
+              {/* Role Select (Standardized DesktopCustomSelect) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <span style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textMuted }}>Aktor:</span>
-                <select
+                <DesktopCustomSelect
                   value={auditRoleFilter}
-                  onChange={(e) => {
-                    setAuditRoleFilter(e.target.value);
+                  onChange={(val) => {
+                    setAuditRoleFilter(val);
                     setAuditPage(1);
                   }}
-                  style={{
-                    padding: '0.55rem 0.85rem',
-                    borderRadius: '0.65rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: theme.surface,
-                    color: theme.textPrimary,
-                    fontSize: '0.8rem',
+                  highlight={auditRoleFilter !== 'all'}
+                  options={[
+                    { value: 'all', label: 'Semua Aktor' },
+                    { value: 'superadmin', label: 'Superadmin' },
+                    { value: 'merchant', label: 'Merchant' },
+                    { value: 'system', label: 'Sistem Otomatis' }
+                  ]}
+                  placeholder="Semua Aktor"
+                  style={{ width: 'auto', minWidth: '155px' }}
+                  triggerStyle={{
+                    height: '36px',
+                    padding: '0 0.75rem',
+                    fontSize: '0.78rem',
                     fontWeight: 600,
-                    outline: 'none',
-                    cursor: 'pointer'
+                    borderRadius: '0.65rem'
                   }}
-                >
-                  <option value="all">Semua Aktor</option>
-                  <option value="superadmin">Superadmin</option>
-                  <option value="merchant">Merchant</option>
-                  <option value="system">Sistem Otomatis</option>
-                </select>
+                  dropdownStyle={{ minWidth: '175px' }}
+                />
               </div>
 
               {/* Refresh Button */}
@@ -13398,30 +13257,29 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: theme.textSecondary }}>
                   <span>Tampilkan:</span>
-                  <select
-                    value={auditLimit}
-                    onChange={(e) => {
-                      const newLim = Number(e.target.value);
+                  <DesktopCustomSelect
+                    value={String(auditLimit)}
+                    onChange={(val) => {
+                      const newLim = Number(val);
                       setAuditLimit(newLim);
                       setAuditPage(1);
                     }}
-                    style={{
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '0.45rem',
-                      border: `1px solid ${theme.border}`,
-                      backgroundColor: theme.surface,
-                      color: theme.textPrimary,
+                    options={[
+                      { value: '15', label: '15 baris' },
+                      { value: '25', label: '25 baris' },
+                      { value: '50', label: '50 baris' },
+                      { value: '100', label: '100 baris' }
+                    ]}
+                    style={{ width: 'auto', minWidth: '115px' }}
+                    triggerStyle={{
+                      height: '32px',
+                      padding: '0 0.65rem',
                       fontSize: '0.78rem',
                       fontWeight: 700,
-                      outline: 'none',
-                      cursor: 'pointer'
+                      borderRadius: '0.45rem'
                     }}
-                  >
-                    <option value={15}>15 baris</option>
-                    <option value={25}>25 baris</option>
-                    <option value={50}>50 baris</option>
-                    <option value={100}>100 baris</option>
-                  </select>
+                    dropdownStyle={{ minWidth: '120px' }}
+                  />
                 </div>
 
                 <span style={{ fontSize: '0.78rem', color: theme.textMuted }}>

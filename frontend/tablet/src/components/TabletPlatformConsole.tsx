@@ -11182,149 +11182,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               boxSizing: 'border-box',
               WebkitOverflowScrolling: 'touch'
             }}>
-              {/* Executive Quick Metrics Bar */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '0.85rem'
-              }}>
-                <div style={{
-                  padding: '1rem 1.15rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.85rem'
-                }}>
-                  <div style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                    border: '1px solid rgba(59, 130, 246, 0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#3b82f6',
-                    flexShrink: 0
-                  }}>
-                    <History size={20} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      Total Rekaman Audit
-                    </div>
-                    <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-                      {auditTotal.toLocaleString('id-ID')}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '1rem 1.15rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.85rem'
-                }}>
-                  <div style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                    border: '1px solid rgba(245, 158, 11, 0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#f59e0b',
-                    flexShrink: 0
-                  }}>
-                    <Shield size={20} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      Keamanan & Akses
-                    </div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-                      Autentikasi & Staf
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '1rem 1.15rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.85rem'
-                }}>
-                  <div style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                    border: '1px solid rgba(16, 185, 129, 0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#10b981',
-                    flexShrink: 0
-                  }}>
-                    <StoreIcon size={20} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      Mutasi Katalog & Toko
-                    </div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-                      Operasional
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '1rem 1.15rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.85rem'
-                }}>
-                  <div style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#ef4444',
-                    flexShrink: 0
-                  }}>
-                    <AlertTriangle size={20} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      Kepatuhan Hukum
-                    </div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-                      PP 71 / 2019
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Integrated Filter Toolbar */}
               <div style={{
                 padding: '0.85rem 1.15rem',
@@ -11383,65 +11240,63 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
                 {/* Dropdown Filters & Refresh Button */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                  {/* Category Select */}
+                  {/* Category Select (Standardized TabletCustomSelect) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>Kategori:</span>
-                    <select
+                    <TabletCustomSelect
                       value={auditCategoryFilter}
-                      onChange={(e) => {
-                        setAuditCategoryFilter(e.target.value);
+                      onChange={(val) => {
+                        setAuditCategoryFilter(val);
                         setAuditPage(1);
                       }}
-                      style={{
+                      options={[
+                        { value: 'all', label: 'Semua Kategori' },
+                        { value: 'security', label: 'Keamanan & Akses' },
+                        { value: 'catalog', label: 'Katalog & Produk' },
+                        { value: 'store', label: 'Toko & Merchant' },
+                        { value: 'billing', label: 'Finansial & Billing' },
+                        { value: 'moderation', label: 'Moderasi & Laporan' },
+                        { value: 'system', label: 'Sistem & Otomasi' }
+                      ]}
+                      variant="filter"
+                      highlight={auditCategoryFilter !== 'all'}
+                      placeholder="Semua Kategori"
+                      triggerStyle={{
                         minHeight: '44px',
-                        padding: '0.45rem 0.85rem',
-                        borderRadius: '0.65rem',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: 'var(--bg-deep)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                        outline: 'none',
-                        cursor: 'pointer'
+                        width: 'auto',
+                        minWidth: '155px'
                       }}
-                    >
-                      <option value="all">Semua Kategori</option>
-                      <option value="security">Keamanan & Akses</option>
-                      <option value="catalog">Katalog & Produk</option>
-                      <option value="store">Toko & Merchant</option>
-                      <option value="billing">Finansial & Billing</option>
-                      <option value="moderation">Moderasi & Laporan</option>
-                      <option value="system">Sistem & Otomasi</option>
-                    </select>
+                      menuWidth={210}
+                      ariaLabel="Filter Kategori Audit"
+                    />
                   </div>
 
-                  {/* Role Select */}
+                  {/* Role Select (Standardized TabletCustomSelect) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>Aktor:</span>
-                    <select
+                    <TabletCustomSelect
                       value={auditRoleFilter}
-                      onChange={(e) => {
-                        setAuditRoleFilter(e.target.value);
+                      onChange={(val) => {
+                        setAuditRoleFilter(val);
                         setAuditPage(1);
                       }}
-                      style={{
+                      options={[
+                        { value: 'all', label: 'Semua Aktor' },
+                        { value: 'superadmin', label: 'Superadmin' },
+                        { value: 'merchant', label: 'Merchant' },
+                        { value: 'system', label: 'Sistem Otomatis' }
+                      ]}
+                      variant="filter"
+                      highlight={auditRoleFilter !== 'all'}
+                      placeholder="Semua Aktor"
+                      triggerStyle={{
                         minHeight: '44px',
-                        padding: '0.45rem 0.85rem',
-                        borderRadius: '0.65rem',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: 'var(--bg-deep)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                        outline: 'none',
-                        cursor: 'pointer'
+                        width: 'auto',
+                        minWidth: '140px'
                       }}
-                    >
-                      <option value="all">Semua Aktor</option>
-                      <option value="superadmin">Superadmin</option>
-                      <option value="merchant">Merchant</option>
-                      <option value="system">Sistem Otomatis</option>
-                    </select>
+                      menuWidth={180}
+                      ariaLabel="Filter Aktor Audit"
+                    />
                   </div>
 
                   {/* Refresh Button */}
@@ -11742,34 +11597,32 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       </span>
                     </div>
 
-                    {/* Rows Per Page Selector */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    {/* Rows Per Page Selector (Standardized TabletCustomSelect) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                       <span>Tampilkan:</span>
-                      <select
-                        value={auditLimit}
-                        onChange={(e) => {
-                          const newLim = Number(e.target.value);
+                      <TabletCustomSelect
+                        value={String(auditLimit)}
+                        onChange={(val) => {
+                          const newLim = Number(val);
                           setAuditLimit(newLim);
                           setAuditPage(1);
                         }}
-                        style={{
+                        options={[
+                          { value: '15', label: '15 baris' },
+                          { value: '25', label: '25 baris' },
+                          { value: '50', label: '50 baris' },
+                          { value: '100', label: '100 baris' }
+                        ]}
+                        variant="compact"
+                        triggerStyle={{
                           minHeight: '38px',
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '0.5rem',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-card)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          outline: 'none',
-                          cursor: 'pointer'
+                          padding: '0 0.65rem',
+                          width: 'auto',
+                          minWidth: '110px'
                         }}
-                      >
-                        <option value={15}>15 baris</option>
-                        <option value={25}>25 baris</option>
-                        <option value={50}>50 baris</option>
-                        <option value={100}>100 baris</option>
-                      </select>
+                        menuWidth={130}
+                        ariaLabel="Baris Per Halaman"
+                      />
                     </div>
                   </div>
 
