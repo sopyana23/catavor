@@ -2374,6 +2374,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [activeView, canAccessAudit, auditPage, auditLimit, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch, fetchAuditLogs]);
 
+  useModalBackHandler({
+    isOpen: showAuditDetailModal,
+    onClose: () => setShowAuditDetailModal(false),
+    modalId: 'desktop_audit_detail_modal'
+  });
+
   const fetchAutomationData = async (botFilter = automationLogsBotFilter, statusFilter = automationLogsStatusFilter, search = automationLogsSearch) => {
     if (!token || !canAccessAutomation) return;
     setIsFetchingAutomation(true);

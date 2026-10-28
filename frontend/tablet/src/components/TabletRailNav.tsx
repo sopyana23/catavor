@@ -51,6 +51,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
   const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
+  const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
 
   const navItems = [
     { key: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard },
@@ -75,7 +76,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
     { key: 'automation', label: 'Mesin Otomatisasi', icon: Cpu },
     { key: 'monetization', label: 'Monetisasi & Iklan', icon: DollarSign, visible: canAccessMonetization },
     { key: 'master-data', label: 'Master Data', icon: Layers, visible: canAccessMasterData },
-    { key: 'audit', label: 'Audit Trail', icon: History },
+    { key: 'audit', label: 'Audit Trail', icon: History, visible: canAccessAudit },
   ];
 
   const visibleNavItems = navItems.filter(item => item.visible !== false);

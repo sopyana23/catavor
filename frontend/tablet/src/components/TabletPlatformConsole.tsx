@@ -2008,6 +2008,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
+  const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
   const [monetizationSubTab, setMonetizationSubTab] = useState<'adsense' | 'analytics'>('adsense');
   const [googleSettings, setGoogleSettings] = useState<Record<string, string>>({
     ads_enabled: '0',
@@ -2510,7 +2511,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   }, [auditSearch]);
 
   const fetchAuditLogs = useCallback(async (pageToFetch: number = auditPage) => {
-    if (!token) return;
+    if (!token || !canAccessAudit) return;
     setIsLoadingAudit(true);
     try {
       const params = new URLSearchParams({
@@ -2547,10 +2548,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   }, [token, authFetch, auditLimit, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch, auditPage]);
 
   useEffect(() => {
-    if (activeView === 'audit') {
+    if (activeView === 'audit' && canAccessAudit) {
       fetchAuditLogs(auditPage);
     }
-  }, [activeView, auditPage, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch, fetchAuditLogs]);
+  }, [activeView, canAccessAudit, auditPage, auditCategoryFilter, auditRoleFilter, debouncedAuditSearch, fetchAuditLogs]);
 
   const selectedAuditLog = useMemo(() => {
     return auditLogs.find(l => (l.id || l.created_at) === selectedAuditLogId) || null;
@@ -3724,7 +3725,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316' },
                       { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308', visible: canAccessMonetization },
                       { key: 'master-data', label: 'Master Data', desc: 'Whitelist domain aman, template CS, dan proteksi rekber', icon: Layers, color: '#10b981', visible: canAccessMasterData },
-                      { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b' }
+                      { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b', visible: canAccessAudit }
                     ].filter(mod => (mod as any).visible !== false).map(mod => {
                       const Icon = mod.icon;
                       return (
@@ -11160,7 +11161,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 11: AUDIT TRAIL (FORENSIK SISTEM) */}
-          {activeView === 'audit' && (
+          {activeView === 'audit' && canAccessAudit && (
             <TabletMasterDetailView
               title="Forensik Audit Trail"
               subtitle={`${auditTotal || auditLogs.length} rekaman audit`}
@@ -11247,17 +11248,18 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     </div>
 
                     {/* Category Filter Horizontal Pills */}
-                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0.25rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
+                    <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.25rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
                       {[
-                        { id: 'all', label: 'SEMUA', icon: History },
-                        { id: 'security', label: 'KEAMANAN', icon: Shield },
-                        { id: 'catalog', label: 'KATALOG', icon: ShoppingBag },
-                        { id: 'store', label: 'TOKO', icon: StoreIcon },
-                        { id: 'billing', label: 'FINANSIAL', icon: CreditCard },
-                        { id: 'moderation', label: 'MODERASI', icon: AlertTriangle },
-                        { id: 'system', label: 'SISTEM', icon: Server }
+                        { id: 'all', label: 'Semua Kategori', icon: History },
+                        { id: 'security', label: 'Keamanan', icon: Shield },
+                        { id: 'catalog', label: 'Katalog', icon: ShoppingBag },
+                        { id: 'store', label: 'Toko', icon: StoreIcon },
+                        { id: 'billing', label: 'Finansial', icon: CreditCard },
+                        { id: 'moderation', label: 'Moderasi', icon: AlertTriangle },
+                        { id: 'system', label: 'Sistem', icon: Server }
                       ].map(cat => {
                         const isCatActive = auditCategoryFilter === cat.id;
+                        const IconComp = cat.icon;
                         return (
                           <button
                             key={cat.id}
@@ -11269,34 +11271,40 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             style={{
                               minHeight: '44px',
                               minWidth: '44px',
-                              padding: '0.35rem 0.65rem',
+                              padding: '0.4rem 0.75rem',
                               borderRadius: '999px',
                               border: `1px solid ${isCatActive ? 'var(--primary)' : 'var(--border-light)'}`,
                               backgroundColor: isCatActive ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
                               color: isCatActive ? 'var(--primary)' : 'var(--text-muted)',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
+                              fontSize: '0.7rem',
+                              fontWeight: isCatActive ? 800 : 600,
                               cursor: 'pointer',
                               whiteSpace: 'nowrap',
                               flexShrink: 0,
                               display: 'inline-flex',
                               alignItems: 'center',
-                              justifyContent: 'center'
+                              justifyContent: 'center',
+                              gap: '0.3rem',
+                              transition: 'all 0.15s ease'
                             }}
                           >
-                            {cat.label}
+                            <IconComp size={13} color={isCatActive ? 'var(--primary)' : 'var(--text-muted)'} />
+                            <span>{cat.label}</span>
                           </button>
                         );
                       })}
                     </div>
 
                     {/* Role Filter Pills */}
-                    <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0.15rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '0.2rem', whiteSpace: 'nowrap' }}>
+                        Aktor:
+                      </span>
                       {[
                         { id: 'all', label: 'Semua Aktor' },
                         { id: 'superadmin', label: 'Superadmin' },
                         { id: 'merchant', label: 'Merchant' },
-                        { id: 'system', label: 'Sistem' }
+                        { id: 'system', label: 'Sistem Otomatis' }
                       ].map(r => {
                         const isRoleActive = auditRoleFilter === r.id;
                         return (
@@ -11310,12 +11318,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             style={{
                               minHeight: '44px',
                               minWidth: '44px',
-                              padding: '0.35rem 0.6rem',
-                              borderRadius: '0.45rem',
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '0.5rem',
                               border: `1px solid ${isRoleActive ? 'var(--primary)' : 'var(--border-light)'}`,
                               backgroundColor: isRoleActive ? 'rgba(59, 130, 246, 0.18)' : 'transparent',
                               color: isRoleActive ? 'var(--primary)' : 'var(--text-muted)',
-                              fontSize: '0.65rem',
+                              fontSize: '0.66rem',
                               fontWeight: isRoleActive ? 800 : 500,
                               cursor: 'pointer',
                               whiteSpace: 'nowrap',
@@ -11367,12 +11375,41 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         const cat = (log.category || '').toLowerCase();
                         let catColor = '#64748b';
                         let catBg = 'rgba(100, 116, 139, 0.15)';
-                        if (cat === 'security') { catColor = '#f59e0b'; catBg = 'rgba(245, 158, 11, 0.15)'; }
-                        else if (cat === 'catalog') { catColor = '#10b981'; catBg = 'rgba(16, 185, 129, 0.15)'; }
-                        else if (cat === 'store') { catColor = '#3b82f6'; catBg = 'rgba(59, 130, 246, 0.15)'; }
-                        else if (cat === 'billing') { catColor = '#8b5cf6'; catBg = 'rgba(139, 92, 246, 0.15)'; }
-                        else if (cat === 'moderation') { catColor = '#ef4444'; catBg = 'rgba(239, 68, 68, 0.15)'; }
-                        else if (cat === 'system') { catColor = '#06b6d4'; catBg = 'rgba(6, 182, 212, 0.15)'; }
+                        let catIcon = Activity;
+                        let catLabel = 'Aktivitas';
+
+                        if (cat === 'security') {
+                          catColor = '#f59e0b';
+                          catBg = 'rgba(245, 158, 11, 0.15)';
+                          catIcon = Shield;
+                          catLabel = 'Keamanan';
+                        } else if (cat === 'catalog') {
+                          catColor = '#10b981';
+                          catBg = 'rgba(16, 185, 129, 0.15)';
+                          catIcon = ShoppingBag;
+                          catLabel = 'Katalog';
+                        } else if (cat === 'store') {
+                          catColor = '#3b82f6';
+                          catBg = 'rgba(59, 130, 246, 0.15)';
+                          catIcon = StoreIcon;
+                          catLabel = 'Toko';
+                        } else if (cat === 'billing') {
+                          catColor = '#8b5cf6';
+                          catBg = 'rgba(139, 92, 246, 0.15)';
+                          catIcon = CreditCard;
+                          catLabel = 'Finansial';
+                        } else if (cat === 'moderation') {
+                          catColor = '#ef4444';
+                          catBg = 'rgba(239, 68, 68, 0.15)';
+                          catIcon = AlertTriangle;
+                          catLabel = 'Moderasi';
+                        } else if (cat === 'system') {
+                          catColor = '#06b6d4';
+                          catBg = 'rgba(6, 182, 212, 0.15)';
+                          catIcon = Server;
+                          catLabel = 'Sistem';
+                        }
+                        const CatIconComp = catIcon;
 
                         return (
                           <div
@@ -11391,19 +11428,23 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                                 <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
                                   fontSize: '0.62rem',
                                   fontWeight: 800,
-                                  padding: '0.1rem 0.4rem',
-                                  borderRadius: '4px',
+                                  padding: '0.12rem 0.45rem',
+                                  borderRadius: '999px',
                                   backgroundColor: catBg,
                                   color: catColor
                                 }}>
-                                  {log.category || 'AKTIVITAS'}
+                                  <CatIconComp size={10} color={catColor} />
+                                  <span>{catLabel}</span>
                                 </span>
                                 <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>
-                                  {log.action || 'ACTION'}
+                                  {log.action || 'system.log'}
                                 </span>
                               </div>
                               <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
