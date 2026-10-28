@@ -895,7 +895,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                   }}
                 />
                 <span style={{ fontSize: '0.66rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>
-                  💡 Protokol (https://) dan tanda garis miring (/) akan dibersihkan otomatis.
+                  Protokol (https://) dan tanda garis miring (/) akan dibersihkan otomatis.
                 </span>
               </div>
 

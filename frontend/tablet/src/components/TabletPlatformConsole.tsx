@@ -94,13 +94,13 @@ import { type UserRBACInfo, getRoleBadge, isSuperAdmin, hasPermission } from '..
 import { useModalBackHandler } from '../utils/navigation';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
-  rekber_template_physical: "Halo *{store_title}*, saya berminat membeli item berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
-  rekber_template_general: "Halo *{store_title}*, saya berminat membeli item berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
-  rekber_template_food: "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n\n*Menu:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin menggunakan layanan *Rekber Syariah ({rekber_website_domain})* demi keamanan transaksi.\n\nMohon diproses via {rekber_website_url} atau hubungi WA Rekber *+{rekber_wa_number}*.\n\nTerima kasih.",
-  rekber_template_digital: "Halo *{store_title}*, saya berminat membeli item digital berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi via *Rekber Syariah ({rekber_website_domain})*.\n\nMohon bantuannya via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih.",
-  rekber_template_service: "Halo *{store_title}*, saya ingin menggunakan jasa berikut:\n\n*Layanan:* {item_name}\n*Biaya:* {item_price}\n\nSaya ingin menggunakan proteksi *Rekber Syariah ({rekber_website_domain})*.\n\nSilakan konfirmasi via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih.",
-  rekber_template_plant: "Halo *{store_title}*, saya berminat membeli tanaman berikut:\n\n*Tanaman:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin menggunakan layanan *Rekber Syariah ({rekber_website_domain})*.\n\nMohon diproses via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih.",
-  rekber_template_fauna: "Halo *{store_title}*, saya berminat mengadopsi satwa legal berikut:\n\n*Satwa:* {item_name}\n*Mahar/Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman via *Rekber Syariah ({rekber_website_domain})*.\n\nMohon bantuannya via {rekber_website_url} atau WA *+{rekber_wa_number}*.\n\nTerima kasih."
+  rekber_template_physical: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_general: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_food: "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n\n*Menu:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_digital: "Halo *{store_title}*, saya ingin membeli item digital berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan lisensi terlindungi secara aman.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_service: "Halo *{store_title}*, saya ingin memesan layanan jasa berikut:\n\n*Layanan:* {item_name}\n*Tarif:* {item_price}\n\nSaya ingin bertransaksi menggunakan perlindungan escrow *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_plant: "Halo *{store_title}*, saya ingin membeli tanaman berikut:\n\n*Tanaman:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_fauna: "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n\n*Satwa/Hewan:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
 };
 
 const TICKET_STATUS_OPTIONS: TabletSelectOption[] = [
@@ -2005,7 +2005,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: MONETIZATION (AdSense & GA4)
   // =========================================================================
+  const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
+  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
   const [monetizationSubTab, setMonetizationSubTab] = useState<'adsense' | 'analytics'>('adsense');
   const [googleSettings, setGoogleSettings] = useState<Record<string, string>>({
     ads_enabled: '0',
@@ -2042,27 +2044,37 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   const fetchSettings = useCallback(async () => {
     if (!canAccessMonetization && activeView === 'monetization') return;
+    if (!canAccessMasterData && activeView === 'master-data') return;
     try {
       const res = await fetch('/api/settings');
       if (res.ok) {
         const j = await res.json();
         if (j.data) {
+          const d = j.data;
+          const stripIcons = (s?: string) => (s || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/^[ \t]+/gm, '');
           setGoogleSettings(prev => ({
             ...prev,
-            ...j.data
+            ...d,
+            rekber_template_physical: stripIcons(d.rekber_template_physical || d.rekber_template_general) || REKBER_FACTORY_DEFAULTS.rekber_template_physical,
+            rekber_template_general: stripIcons(d.rekber_template_general || d.rekber_template_physical) || REKBER_FACTORY_DEFAULTS.rekber_template_general,
+            rekber_template_food: stripIcons(d.rekber_template_food) || REKBER_FACTORY_DEFAULTS.rekber_template_food,
+            rekber_template_digital: stripIcons(d.rekber_template_digital) || REKBER_FACTORY_DEFAULTS.rekber_template_digital,
+            rekber_template_service: stripIcons(d.rekber_template_service) || REKBER_FACTORY_DEFAULTS.rekber_template_service,
+            rekber_template_plant: stripIcons(d.rekber_template_plant) || REKBER_FACTORY_DEFAULTS.rekber_template_plant,
+            rekber_template_fauna: stripIcons(d.rekber_template_fauna) || REKBER_FACTORY_DEFAULTS.rekber_template_fauna,
           }));
         }
       }
     } catch {
       // Fail silently
     }
-  }, [canAccessMonetization, activeView]);
+  }, [canAccessMonetization, canAccessMasterData, activeView]);
 
   useEffect(() => {
-    if ((activeView === 'monetization' && canAccessMonetization) || activeView === 'master-data') {
+    if ((activeView === 'monetization' && canAccessMonetization) || (activeView === 'master-data' && canAccessMasterData)) {
       fetchSettings();
     }
-  }, [activeView, canAccessMonetization, fetchSettings]);
+  }, [activeView, canAccessMonetization, canAccessMasterData, fetchSettings]);
 
   const handleSaveGoogleSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -2122,6 +2134,24 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
+  useEffect(() => {
+    const handleMasterPopState = () => {
+      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const params = new URLSearchParams(window.location.search);
+      const sub = params.get('sub');
+      const tab = params.get('tab') || params.get('view');
+      if (sub === 'domains' || sub === 'templates' || sub === 'rekber') {
+        setMasterSubTab(sub);
+      } else if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(String(tab).toLowerCase())) {
+        setMasterSubTab('domains');
+      } else if (['templates', 'canned'].includes(String(tab).toLowerCase())) {
+        setMasterSubTab('templates');
+      }
+    };
+    window.addEventListener('popstate', handleMasterPopState);
+    return () => window.removeEventListener('popstate', handleMasterPopState);
+  }, []);
+
   // 1. REKBER SYARIAH ESCROW CONFIGURATION
   const [rekberActiveTemplateTab, setRekberActiveTemplateTab] = useState<'physical' | 'food' | 'digital' | 'service' | 'plant' | 'fauna'>('physical');
   const [isUploadingRekberLogo, setIsUploadingRekberLogo] = useState(false);
@@ -2161,7 +2191,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   };
 
   const handleResetRekberDefaults = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin mereset seluruh konfigurasi Rekber Syariah ke standar resmi rekbersyariah.com?')) return;
+    if (!window.confirm('Apakah Anda yakin ingin mereset seluruh konfigurasi Rekber Syariah ke standar resmi pabrik rekbersyariah.com?')) return;
     setIsSavingSettings(true);
     try {
       const res = await authFetch('/api/admin/settings/rekber/reset-defaults', {
@@ -2169,7 +2199,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        showToast('Konfigurasi Rekber Syariah berhasil direset ke standar pabrik!', 'success');
+        showToast('Konfigurasi Rekber Syariah berhasil direset ke standar resmi rekbersyariah.com!', 'success');
         setGoogleSettings(prev => ({
           ...prev,
           rekber_enabled: '1',
@@ -2184,7 +2214,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         showToast('Gagal mereset konfigurasi Rekber', 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan jaringan', 'error');
+      showToast('Terjadi kesalahan jaringan saat reset', 'error');
     } finally {
       setIsSavingSettings(false);
     }
@@ -2194,22 +2224,48 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     if (e) e.preventDefault();
     setIsSavingSettings(true);
     try {
-      const res = await authFetch('/api/admin/settings', {
+      const stripIcons = (s?: string) => (s || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/^[ \t]+/gm, '');
+      const payload = {
+        rekber_enabled: googleSettings.rekber_enabled !== undefined ? googleSettings.rekber_enabled : '1',
+        rekber_partner_name: googleSettings.rekber_partner_name || 'Rekber Syariah',
+        rekber_website_url: googleSettings.rekber_website_url || 'https://rekbersyariah.com',
+        rekber_wa_number: (googleSettings.rekber_wa_number || '').trim(),
+        rekber_logo_url: (googleSettings.rekber_logo_url || '').trim(),
+        rekber_template_physical: stripIcons(googleSettings.rekber_template_physical),
+        rekber_template_general: stripIcons(googleSettings.rekber_template_physical || googleSettings.rekber_template_general),
+        rekber_template_food: stripIcons(googleSettings.rekber_template_food),
+        rekber_template_digital: stripIcons(googleSettings.rekber_template_digital),
+        rekber_template_service: stripIcons(googleSettings.rekber_template_service),
+        rekber_template_plant: stripIcons(googleSettings.rekber_template_plant),
+        rekber_template_fauna: stripIcons(googleSettings.rekber_template_fauna),
+      };
+      let res = await authFetch('/api/admin/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(googleSettings)
+        body: JSON.stringify(payload)
       });
+      if (!res.ok) {
+        res = await authFetch('/api/settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+      }
       if (res.ok) {
         showToast('Konfigurasi Rekber Syariah berhasil disimpan!', 'success');
         fetchSettings();
       } else {
-        showToast('Gagal menyimpan konfigurasi', 'error');
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal menyimpan konfigurasi Rekber', 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan jaringan', 'error');
+      showToast('Terjadi kesalahan jaringan saat menyimpan', 'error');
     } finally {
       setIsSavingSettings(false);
     }
@@ -3667,7 +3723,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       { key: 'broadcast', label: 'Siaran Broadcast', desc: 'Kirim notifikasi masal', icon: Radio, color: '#ec4899' },
                       { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316' },
                       { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308', visible: canAccessMonetization },
-                      { key: 'master-data', label: 'Master Data & Rekber', desc: 'Rekber Syariah & Whitelist', icon: Layers, color: '#10b981' },
+                      { key: 'master-data', label: 'Master Data & Rekber', desc: 'Rekber Syariah & Whitelist', icon: Layers, color: '#10b981', visible: canAccessMasterData },
                       { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b' }
                     ].filter(mod => (mod as any).visible !== false).map(mod => {
                       const Icon = mod.icon;
@@ -9890,7 +9946,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 10: MASTER DATA (REKBER, DOMAINS, CS TEMPLATES) */}
-          {activeView === 'master-data' && (
+          {activeView === 'master-data' && canAccessMasterData && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-main)' }}>
               {/* Segmented Sub-Tab Switcher Bar */}
               <div style={{

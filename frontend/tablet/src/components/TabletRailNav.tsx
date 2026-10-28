@@ -48,7 +48,9 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
+  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
 
   const navItems = [
     { key: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard },
@@ -72,7 +74,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
     { key: 'broadcast', label: 'Siaran Broadcast', icon: Radio },
     { key: 'automation', label: 'Mesin Otomatisasi', icon: Cpu },
     { key: 'monetization', label: 'Monetisasi & Iklan', icon: DollarSign, visible: canAccessMonetization },
-    { key: 'master-data', label: 'Master Data & Rekber', icon: Layers },
+    { key: 'master-data', label: 'Master Data & Rekber', icon: Layers, visible: canAccessMasterData },
     { key: 'audit', label: 'Audit Trail', icon: History },
   ];
 

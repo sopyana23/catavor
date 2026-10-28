@@ -14213,7 +14213,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       border: `1px solid ${googleSettings.rekber_enabled !== '0' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
                       whiteSpace: 'nowrap'
                     }}>
-                      {googleSettings.rekber_enabled !== '0' ? '● Aktif' : '○ Dinonaktifkan'}
+                      {googleSettings.rekber_enabled !== '0' ? '● Aktif' : '○ Nonaktif'}
                     </span>
                   </div>
 
@@ -17500,7 +17500,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
-      {/* MOBILE BOTTOM SHEET: TAMBAH / EDIT MASTER TEMPLATE */}
+      {/* DESKTOP CENTERED MODAL: TAMBAH / EDIT MASTER TEMPLATE */}
       {showTemplateFormModal && (
         <div
           style={{
@@ -17508,101 +17508,94 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             inset: 0,
             zIndex: 14000,
             backgroundColor: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.55)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
             display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
             animation: 'fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
-          onClick={() => {
-            setShowTemplateFormModal(false);
-            setTemplateFormDragY(0);
-          }}
+          onClick={() => setShowTemplateFormModal(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              transform: `translateY(${Math.max(0, templateFormDragY)}px)`,
-              transition: isTemplateFormDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              width: '100%',
+              maxWidth: '560px',
               maxHeight: '90vh',
               display: 'flex',
               flexDirection: 'column',
-              padding: '0.65rem 0 0 0',
               backgroundColor: theme.surface,
-              borderTop: `1px solid ${theme.borderStrong}`,
-              borderTopLeftRadius: '1.6rem',
-              borderTopRightRadius: '1.6rem',
-              boxShadow: isDark ? '0 -12px 48px rgba(0, 0, 0, 0.6)' : '0 -10px 35px rgba(0, 0, 0, 0.12)',
+              borderRadius: '1.25rem',
+              border: `1px solid ${theme.borderStrong}`,
+              boxShadow: isDark ? '0 20px 60px rgba(0, 0, 0, 0.6)' : '0 15px 45px rgba(0, 0, 0, 0.15)',
               color: theme.textPrimary,
               boxSizing: 'border-box',
-              width: '100%',
               overflow: 'hidden'
             }}
           >
-            {/* Smooth Drag Handle Area (Touch & Mouse Drag to Dismiss) */}
+            {/* Header with Title and Close X */}
             <div
               style={{
-                width: '100%',
-                display: 'flex',
-                justifyContent: 'center',
-                padding: '0.35rem 0 0.75rem',
-                flexShrink: 0,
-                cursor: isTemplateFormDragging ? 'grabbing' : 'grab',
-                touchAction: 'none',
-                userSelect: 'none'
-              }}
-              onTouchStart={(e) => handleTemplateFormDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleTemplateFormDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleTemplateFormDragEnd}
-              onMouseDown={(e) => handleTemplateFormDragStart(e.clientY)}
-              onMouseMove={(e) => handleTemplateFormDragMove(e.clientY)}
-              onMouseUp={handleTemplateFormDragEnd}
-            >
-              <div style={{
-                width: '44px',
-                height: '5px',
-                borderRadius: '999px',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.18)'
-              }} />
-            </div>
-
-            {/* Header (Clean, draggable, without X icon) */}
-            <div
-              style={{
-                padding: '0.15rem 1.25rem 0.85rem',
+                padding: '1.15rem 1.35rem',
                 borderBottom: `1px solid ${theme.border}`,
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '0.15rem',
-                flexShrink: 0,
-                cursor: isTemplateFormDragging ? 'grabbing' : 'grab',
-                touchAction: 'none',
-                userSelect: 'none'
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: theme.cardAlt
               }}
-              onTouchStart={(e) => handleTemplateFormDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleTemplateFormDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleTemplateFormDragEnd}
-              onMouseDown={(e) => handleTemplateFormDragStart(e.clientY)}
-              onMouseMove={(e) => handleTemplateFormDragMove(e.clientY)}
-              onMouseUp={handleTemplateFormDragEnd}
             >
-              <h3 style={{
-                fontSize: '1rem',
-                fontWeight: 800,
-                color: theme.textPrimary,
-                letterSpacing: '-0.02em',
-                margin: 0
-              }}>
-                {editingTemplate ? 'Edit Template Balasan' : 'Tambah Template Balasan'}
-              </h3>
-              <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>
-                Konfigurasi pesan standar balasan cepat CS
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.75rem',
+                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                  color: isDark ? '#38bdf8' : '#0284c7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Zap size={18} />
+                </div>
+                <div>
+                  <h3 style={{
+                    fontSize: '1rem',
+                    fontWeight: 800,
+                    color: theme.textPrimary,
+                    margin: 0
+                  }}>
+                    {editingTemplate ? 'Edit Template Balasan' : 'Tambah Template Balasan'}
+                  </h3>
+                  <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>
+                    Konfigurasi pesan standar balasan cepat CS
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowTemplateFormModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: theme.textMuted,
+                  cursor: 'pointer',
+                  padding: '0.35rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '0.45rem'
+                }}
+              >
+                <X size={18} />
+              </button>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSaveTemplate} style={{ padding: '1rem 1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', overflowY: 'auto' }}>
+            <form onSubmit={handleSaveTemplate} style={{ padding: '1.25rem 1.35rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', overflowY: 'auto' }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
                   <label style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textSecondary }}>
@@ -17755,8 +17748,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.05)',
                   border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(2, 132, 199, 0.2)'}`
                 }}>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', display: 'block', marginBottom: '0.2rem' }}>
-                    🔍 Pratinjau Teks (Variabel Terisi):
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.2rem' }}>
+                    <Eye size={12} />
+                    <span>Pratinjau Teks (Variabel Terisi):</span>
                   </span>
                   <p style={{
                     margin: 0,
@@ -17775,7 +17769,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               )}
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: `1px solid ${theme.border}` }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.76rem', color: theme.textPrimary, cursor: 'pointer' }}>
                   <input
                     type="checkbox"
@@ -17785,7 +17779,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <span>Template Aktif</span>
                 </label>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <button
                     type="button"
                     onClick={() => setShowTemplateFormModal(false)}
