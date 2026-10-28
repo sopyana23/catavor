@@ -806,20 +806,25 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     setIsExportingCatalog(true);
     showToast(`Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
     try {
-      const res = await fetch(`/api/admin/catalog/export?format=${format}`, {
+      const activeSlug = storeSlug || (currentStoreObj as any)?.slug || '';
+      const queryParams = new URLSearchParams({ format });
+      if (activeSlug) queryParams.set('slug', activeSlug);
+
+      const res = await fetch(`/api/catalog/export?${queryParams.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'X-Store-Slug': storeSlug
+          ...(activeSlug ? { 'X-Store-Slug': activeSlug } : {})
         }
       });
       if (!res.ok) {
-        throw new Error('Gagal mengekspor katalog');
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || 'Gagal mengekspor data katalog');
       }
       const blob = await res.blob();
       const contentDisposition = res.headers.get('Content-Disposition');
-      let filename = `katalog-${storeSlug}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
+      let filename = `katalog-${activeSlug || 'data'}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
       if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
         if (match && match[1]) {
           filename = match[1];
         }
@@ -834,8 +839,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       URL.revokeObjectURL(url);
       setShowExportModal(false);
       showToast(`Katalog berhasil diekspor (${format.toUpperCase()})!`, 'success');
-    } catch {
-      showToast(`Gagal mengunduh berkas ${format.toUpperCase()}`, 'error');
+    } catch (err: any) {
+      showToast(err.message || `Gagal mengunduh berkas ${format.toUpperCase()}`, 'error');
     } finally {
       setIsExportingCatalog(false);
     }

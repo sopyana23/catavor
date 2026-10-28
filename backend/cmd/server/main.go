@@ -404,11 +404,6 @@ func main() {
 		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
 		guarded.Get("/admin/analytics/export", analyticsHandler.ExportStoreAnalytics)
 		guarded.Get("/analytics/export", analyticsHandler.ExportStoreAnalytics)
-
-		// Merchant Catalog Data Portability & Export (GDPR Art. 20 / UU PDP)
-		guarded.Get("/admin/catalog/export", catalogExportHandler.ExportCatalog)
-		guarded.Get("/catalog/export", catalogExportHandler.ExportCatalog)
-
 		// Settings & Policies
 		// SECURITY (N-18): menulis pengaturan platform adalah wewenang "system",
 		// bukan merchant. Sebelumnya hanya dijaga StoreOwnerRequired sehingga
@@ -523,6 +518,7 @@ func main() {
 		// Store Management / Directory Catalog Profiles (Server-Side Paginated & Filtered)
 		adminApi.Get("/stores", storeHandler.AdminListStores)
 		adminApi.Get("/stores/:id", storeHandler.AdminGetStoreDetail)
+		adminApi.Get("/catalog/export", catalogExportHandler.ExportCatalog)
 
 		// Moderasi Komentar Artikel (wewenang platform/content, tidak butuh toko)
 		// Dipindah dari grup "guarded" (StoreOwnerRequired) sesuai OWASP:

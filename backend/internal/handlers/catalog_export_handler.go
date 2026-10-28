@@ -35,6 +35,39 @@ func (h *CatalogExportHandler) ExportCatalog(c *fiber.Ctx) error {
 
 	user, _ := c.Locals("user").(*models.User)
 	store, _ := c.Locals("store").(*models.Store)
+
+	// Defensive store context resolution (for platform admin oversight, query params, or direct header)
+	if store == nil && user != nil {
+		targetSlug := strings.TrimSpace(c.Get("X-Store-Slug"))
+		if targetSlug == "" {
+			targetSlug = strings.TrimSpace(c.Query("slug"))
+		}
+		targetID := strings.TrimSpace(c.Query("store_id"))
+
+		var dbStore models.Store
+		if targetID != "" {
+			if user.IsPlatformStaff() {
+				_ = h.db.Where("id = ?", targetID).First(&dbStore).Error
+			} else {
+				_ = h.db.Where("id = ? AND user_id = ?", targetID, user.ID).First(&dbStore).Error
+			}
+		} else if targetSlug != "" {
+			if user.IsPlatformStaff() {
+				_ = h.db.Where("LOWER(slug) = ?", strings.ToLower(targetSlug)).First(&dbStore).Error
+			} else {
+				_ = h.db.Where("LOWER(slug) = ? AND user_id = ?", strings.ToLower(targetSlug), user.ID).First(&dbStore).Error
+			}
+		}
+
+		if dbStore.ID > 0 {
+			store = &dbStore
+		} else if len(user.Stores) > 0 {
+			store = &user.Stores[0]
+		} else if user.Store != nil {
+			store = user.Store
+		}
+	}
+
 	if store == nil {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -56,14 +89,18 @@ func (h *CatalogExportHandler) ExportCatalog(c *fiber.Ctx) error {
 	// 2. Fetch products with relations (including draft/archived unless filtered)
 	query := h.db.Preload("Category").
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("sort_order ASC")
+			return db.Order("sort_order ASC, id ASC")
 		}).
-		Preload("Variants").
+		Preload("Variants", func(db *gorm.DB) *gorm.DB {
+			return db.Order("id ASC")
+		}).
 		Where("store_id = ?", store.ID)
 
 	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status", "all")))
 	if statusFilter == "active" {
-		query = query.Where("is_active = ?", true)
+		query = query.Where("is_active = ? AND archived_at IS NULL", true)
+	} else if statusFilter == "draft" {
+		query = query.Where("is_active = ? AND archived_at IS NULL", false)
 	} else if statusFilter == "archived" {
 		query = query.Where("archived_at IS NOT NULL")
 	}
@@ -82,7 +119,11 @@ func (h *CatalogExportHandler) ExportCatalog(c *fiber.Ctx) error {
 
 	// 3. Log activity audit
 	if user != nil {
-		go func(sID uint, uID uint, uName, uEmail, fmtChoice string, count int, ip, ua string) {
+		actorRole := "merchant"
+		if user.IsPlatformStaff() {
+			actorRole = string(user.PlatformRole)
+		}
+		go func(sID uint, uID uint, uName, uEmail, role, fmtChoice string, count int, ip, ua string) {
 			act := "catalog.export_csv"
 			if fmtChoice == "json" {
 				act = "catalog.export_json"
@@ -91,7 +132,7 @@ func (h *CatalogExportHandler) ExportCatalog(c *fiber.Ctx) error {
 				DB:          h.db,
 				StoreID:     &sID,
 				UserID:      &uID,
-				ActorRole:   "merchant",
+				ActorRole:   role,
 				ActorName:   uName,
 				ActorEmail:  uEmail,
 				Action:      act,
@@ -102,7 +143,7 @@ func (h *CatalogExportHandler) ExportCatalog(c *fiber.Ctx) error {
 				IPAddress:   ip,
 				UserAgent:   ua,
 			})
-		}(store.ID, user.ID, user.Name, user.Email, format, len(products), c.IP(), c.Get("User-Agent"))
+		}(store.ID, user.ID, user.Name, user.Email, actorRole, format, len(products), c.IP(), c.Get("User-Agent"))
 	}
 
 	// 4. Generate Export
@@ -117,6 +158,7 @@ func (h *CatalogExportHandler) ExportCatalog(c *fiber.Ctx) error {
 		c.Set("Content-Type", "application/json; charset=utf-8")
 		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"katalog-%s-%s.json\"", store.Slug, dateStr))
 		c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
+		c.Set("Pragma", "no-cache")
 		return c.Send(buf.Bytes())
 	}
 
@@ -131,5 +173,6 @@ func (h *CatalogExportHandler) ExportCatalog(c *fiber.Ctx) error {
 	c.Set("Content-Type", "text/csv; charset=utf-8")
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"katalog-%s-%s.csv\"", store.Slug, dateStr))
 	c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Set("Pragma", "no-cache")
 	return c.Send(buf.Bytes())
 }

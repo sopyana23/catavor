@@ -89,6 +89,9 @@ func TestExportCatalogCSV(t *testing.T) {
 	if !strings.Contains(csvStr, "ID Produk") {
 		t.Errorf("Expected header 'ID Produk' in CSV")
 	}
+	if !strings.Contains(csvStr, "Stok Utama") {
+		t.Errorf("Expected header 'Stok Utama' in CSV")
+	}
 	if !strings.Contains(csvStr, "Gecko Leopard") {
 		t.Errorf("Expected product 'Gecko Leopard' in CSV")
 	}
@@ -99,14 +102,19 @@ func TestExportCatalogCSV(t *testing.T) {
 
 func TestExportCatalogJSON(t *testing.T) {
 	store := &models.Store{
-		ID:         1,
-		Slug:       "toko-test",
-		StoreTitle: "Toko Test",
+		ID:               1,
+		Slug:             "toko-test",
+		StoreTitle:       "Toko Test",
+		AboutDescription: "Toko fauna terpercaya",
+		OfficialWebsite:  "https://tokotest.com",
 	}
 
 	category := models.Category{
-		ID:   10,
-		Name: "Fauna Eksotis",
+		ID:          10,
+		Name:        "Fauna Eksotis",
+		Slug:        "fauna-eksotis",
+		ProductType: "fauna",
+		SortOrder:   1,
 	}
 
 	products := []models.Product{
@@ -143,8 +151,18 @@ func TestExportCatalogJSON(t *testing.T) {
 		t.Errorf("Invalid metadata platform: %v", metadata)
 	}
 
+	storeMap, ok := root["store"].(map[string]interface{})
+	if !ok || storeMap["about_description"] != "Toko fauna terpercaya" {
+		t.Errorf("Store metadata missing about_description: %v", storeMap)
+	}
+
 	prods, ok := root["products"].([]interface{})
 	if !ok || len(prods) != 1 {
 		t.Errorf("Expected 1 product in JSON, got %d", len(prods))
+	}
+
+	masterCats, ok := root["master_categories"].([]interface{})
+	if !ok || len(masterCats) != 1 || masterCats[0] != "Fauna Eksotis" {
+		t.Errorf("Expected master_categories with 'Fauna Eksotis', got %v", masterCats)
 	}
 }

@@ -14017,10 +14017,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
     showToast(`Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
     try {
-      const res = await fetch(`${API_BASE}/admin/catalog/export?format=${format}`, {
+      const queryParams = new URLSearchParams({ format });
+      if (slug) queryParams.set('slug', slug);
+      const res = await fetch(`${API_BASE}/catalog/export?${queryParams.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'X-Store-Slug': slug
+          ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
       if (!res.ok) {

@@ -75,10 +75,13 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
     setIsExporting(true);
     if (showToast) showToast('info', `Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
     try {
-      const res = await fetch(`${apiBase}/admin/catalog/export?format=${format}`, {
+      const activeSlug = currentStore?.slug || '';
+      const queryParams = new URLSearchParams({ format });
+      if (activeSlug) queryParams.set('slug', activeSlug);
+      const res = await fetch(`${apiBase}/catalog/export?${queryParams.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'X-Store-Slug': currentStore?.slug || ''
+          ...(activeSlug ? { 'X-Store-Slug': activeSlug } : {})
         }
       });
       if (!res.ok) {
