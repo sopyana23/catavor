@@ -108,6 +108,7 @@ import {
   PackageCheck,
   BadgeCheck,
   LifeBuoy,
+  Headphones,
   Trees,
   Sprout,
   Droplets,
@@ -158,6 +159,7 @@ import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { OfficialContactSheet } from './components/OfficialContactSheet'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
 import { 
   getSavedUserSlug, 
@@ -8190,6 +8192,7 @@ Terima kasih.`;
     return null;
   });
   const [isCreatingTicket, setIsCreatingTicket] = useState<boolean>(false);
+  const [showOfficialContactSheet, setShowOfficialContactSheet] = useState<boolean>(false);
   const [showCategorySelectModal, setShowCategorySelectModal] = useState<boolean>(false);
   const [showPrioritySelectModal, setShowPrioritySelectModal] = useState<boolean>(false);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
@@ -30111,6 +30114,27 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => setShowOfficialContactSheet(true)}
+                              style={{
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '999px',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-secondary)',
+                                fontSize: '0.66rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                cursor: 'pointer'
+                              }}
+                              title="Hubungi Kontak Resmi Platform"
+                            >
+                              <Headphones size={11} color="var(--primary)" />
+                              <span>Kontak Resmi</span>
+                            </button>
                             {/* Priority Badge */}
                             {(() => {
                               const pMeta = getTicketPriorityMeta(selectedTicket.priority);
@@ -31395,22 +31419,44 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: '280px', lineHeight: 1.45 }}>
                         Ajukan sanggahan resmi agar tim kepatuhan Catavor dapat meninjau pemulihan katalog Anda.
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNewTicketForm({
-                            subject: `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || 'Profil Katalog'})`,
-                            category: 'compliance',
-                            priority: 'high',
-                            message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
-                          });
-                          setIsCreatingTicket(true);
-                        }}
-                        className="btn-primary"
-                        style={{ padding: '0.6rem 1.25rem', borderRadius: '0.65rem', fontSize: '0.82rem', fontWeight: 700 }}
-                      >
-                        Ajukan Banding Sekarang
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewTicketForm({
+                              subject: `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || 'Profil Katalog'})`,
+                              category: 'compliance',
+                              priority: 'high',
+                              message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                            });
+                            setIsCreatingTicket(true);
+                          }}
+                          className="btn-primary"
+                          style={{ padding: '0.6rem 1.25rem', borderRadius: '0.65rem', fontSize: '0.82rem', fontWeight: 700 }}
+                        >
+                          Ajukan Banding Sekarang
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowOfficialContactSheet(true)}
+                          style={{
+                            padding: '0.6rem 1rem',
+                            borderRadius: '0.65rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Headphones size={14} color="var(--primary)" />
+                          <span>Kontak Resmi</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -31425,25 +31471,51 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         background: 'var(--card-bg-gradient)', 
                         boxShadow: '0 8px 25px rgba(0, 0, 0, 0.3)' 
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.75rem' }}>
-                          <div style={{ 
-                            width: '38px', 
-                            height: '38px', 
-                            borderRadius: '0.65rem', 
-                            backgroundColor: 'var(--primary-glow)', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            color: 'var(--primary)', 
-                            border: '1px solid var(--border-light)',
-                            flexShrink: 0
-                          }}>
-                            <HelpCircle size={22} />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.65rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            <div style={{ 
+                              width: '38px', 
+                              height: '38px', 
+                              borderRadius: '0.65rem', 
+                              backgroundColor: 'var(--primary-glow)', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              color: 'var(--primary)', 
+                              border: '1px solid var(--border-light)',
+                              flexShrink: 0
+                            }}>
+                              <HelpCircle size={22} />
+                            </div>
+                            <div>
+                              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Pusat Tiket Support</h3>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Layanan Bantuan Interaktif Catavor</span>
+                            </div>
                           </div>
-                          <div>
-                            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Pusat Tiket Support</h3>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Layanan Bantuan Interaktif Catavor</span>
-                          </div>
+
+                          {/* Official Contact Button (Mobile) */}
+                          <button
+                            type="button"
+                            onClick={() => setShowOfficialContactSheet(true)}
+                            style={{
+                              padding: '0.45rem 0.85rem',
+                              borderRadius: '0.6rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              color: 'var(--text-primary)',
+                              border: '1px solid var(--border-light)',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <Headphones size={14} color="var(--primary)" />
+                            <span>Kontak Resmi</span>
+                          </button>
                         </div>
 
                         {/* Search & Filter Bar - Stacked for spacious mobile UX */}
@@ -31540,18 +31612,40 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <>
                               <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Belum Ada Tiket</h4>
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Punya kendala teknis atau pertanyaan? Buat tiket support Anda untuk terhubung langsung dengan tim kami.</p>
-                              <button
-                                type="button"
-                                className="btn-primary"
-                                onClick={() => {
-                                  setTicketNewAttachments([]);
-                                  setIsCreatingTicket(true);
-                                }}
-                                style={{ padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                              >
-                                <Plus size={14} />
-                                <span>Buat Tiket Baru</span>
-                              </button>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  className="btn-primary"
+                                  onClick={() => {
+                                    setTicketNewAttachments([]);
+                                    setIsCreatingTicket(true);
+                                  }}
+                                  style={{ padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                                >
+                                  <Plus size={14} />
+                                  <span>Buat Tiket Baru</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowOfficialContactSheet(true)}
+                                  style={{
+                                    padding: '0.45rem 0.95rem',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    border: '1px solid var(--border-light)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Headphones size={13} color="var(--primary)" />
+                                  <span>Kontak Resmi</span>
+                                </button>
+                              </div>
                             </>
                           ) : (
                             <>
@@ -31818,6 +31912,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     )}
                     </div>
                   )}
+
+                  {/* Official Contact Sheet (Mobile) */}
+                  <OfficialContactSheet
+                    isOpen={showOfficialContactSheet}
+                    onClose={() => setShowOfficialContactSheet(false)}
+                    showToast={showToast}
+                  />
 
                 </div>
               )}

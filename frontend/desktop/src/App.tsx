@@ -114,6 +114,7 @@ import {
   PackageCheck,
   BadgeCheck,
   LifeBuoy,
+  Headphones,
   User,
   Trees,
   Waves,
@@ -173,6 +174,7 @@ import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { OfficialContactModal } from './components/OfficialContactModal'
 import { normalizeNotification } from './utils/notificationHelpers'
 import { 
   getSavedUserSlug, 
@@ -8194,6 +8196,7 @@ Terima kasih.`;
     setTicketPage(1);
   }, [ticketFilter]);
   const [showCreateTicketModal, setShowCreateTicketModal] = useState<boolean>(false);
+  const [showOfficialContactModal, setShowOfficialContactModal] = useState<boolean>(false);
   const [ticketReplyText, setTicketReplyText] = useState<string>('');
   const merchantTicketTextareaRef = useRef<HTMLTextAreaElement>(null);
   const desktopTicketChatContainerRef = useRef<HTMLDivElement>(null);
@@ -28291,6 +28294,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         </div>
                       </div>
 
+                      {/* Official Contact Button (Desktop) */}
+                      <button
+                        type="button"
+                        onClick={() => setShowOfficialContactModal(true)}
+                        style={{
+                          padding: '0.65rem 1.15rem',
+                          borderRadius: '0.75rem',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Headphones size={16} color="var(--primary)" />
+                        <span>Kontak Resmi</span>
+                      </button>
+
                       {!(isSuspendedAccount && activeAppeal) ? (
                         <button
                           type="button"
@@ -29937,6 +29963,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   );
                 })()}
+
+                  {/* Official Contact Modal (Desktop) */}
+                  <OfficialContactModal
+                    isOpen={showOfficialContactModal}
+                    onClose={() => setShowOfficialContactModal(false)}
+                    showToast={showToast}
+                  />
                 </div>
               );
             })()}

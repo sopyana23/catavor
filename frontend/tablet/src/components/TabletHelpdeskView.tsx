@@ -19,10 +19,12 @@ import {
   X,
   Store,
   RefreshCw,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Headphones
 } from 'lucide-react';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
+import { TabletOfficialContactModal } from './TabletOfficialContactModal';
 
 export interface TicketAttachment {
   id?: number | string;
@@ -148,6 +150,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   const [csatRating, setCsatRating] = useState<number>(5);
   const [csatComment, setCsatComment] = useState<string>('');
   const [isSubmittingCSAT, setIsSubmittingCSAT] = useState<boolean>(false);
+  const [showOfficialContactModal, setShowOfficialContactModal] = useState<boolean>(false);
 
   // Document & Lightbox Preview States
   const [docPreview, setDocPreview] = useState<DocumentPreviewData | null>(null);
@@ -741,28 +744,28 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
             </div>
           </div>
 
-          {/* Official WhatsApp CS Support */}
+          {/* Official Contact Trigger Button (Tablet) */}
           <button
             type="button"
-            onClick={() => window.open('https://wa.me/6281234567890?text=Halo%20Admin%20Catavor', '_blank')}
+            onClick={() => setShowOfficialContactModal(true)}
             style={{
               minHeight: '40px',
-              padding: '0.45rem 0.95rem',
+              padding: '0.45rem 1rem',
               borderRadius: '0.65rem',
-              backgroundColor: '#16a34a',
-              color: '#ffffff',
-              border: 'none',
+              backgroundColor: 'var(--bg-deep)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-light)',
               fontWeight: 700,
-              fontSize: '0.8rem',
+              fontSize: '0.82rem',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.4rem',
+              gap: '0.45rem',
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
           >
-            <Phone size={15} />
-            <span>Chat CS Resmi</span>
+            <Headphones size={16} color="var(--primary)" />
+            <span>Kontak Resmi</span>
           </button>
 
           {/* Create Ticket Action */}
@@ -1748,6 +1751,13 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Tablet Official Contact Modal */}
+      <TabletOfficialContactModal
+        isOpen={showOfficialContactModal}
+        onClose={() => setShowOfficialContactModal(false)}
+        showToast={showToast}
+      />
 
     </div>
   );
