@@ -2005,6 +2005,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: MONETIZATION (AdSense & GA4)
   // =========================================================================
+  const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const [monetizationSubTab, setMonetizationSubTab] = useState<'adsense' | 'analytics'>('adsense');
   const [googleSettings, setGoogleSettings] = useState<Record<string, string>>({
     ads_enabled: '0',
@@ -2033,14 +2034,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     try {
       navigator.clipboard.writeText(googleSettings.ads_txt_content);
       setCopiedAdsTxt(true);
-      showToast('Konten ads.txt disalin ke clipboard');
-      setTimeout(() => setCopiedAdsTxt(false), 2500);
+      setTimeout(() => setCopiedAdsTxt(false), 2000);
     } catch {
       showToast('Gagal menyalin konten ads.txt', 'error');
     }
   };
 
   const fetchSettings = useCallback(async () => {
+    if (!canAccessMonetization && activeView === 'monetization') return;
     try {
       const res = await fetch('/api/settings');
       if (res.ok) {
@@ -2055,19 +2056,20 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     } catch {
       // Fail silently
     }
-  }, []);
+  }, [canAccessMonetization, activeView]);
 
   useEffect(() => {
-    if (activeView === 'monetization' || activeView === 'master-data') {
+    if ((activeView === 'monetization' && canAccessMonetization) || activeView === 'master-data') {
       fetchSettings();
     }
-  }, [activeView, fetchSettings]);
+  }, [activeView, canAccessMonetization, fetchSettings]);
 
   const handleSaveGoogleSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!token || !canAccessMonetization) return;
     setIsSavingSettings(true);
     try {
-      const res = await authFetch('/api/admin/settings', {
+      let res = await fetch('/api/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2075,14 +2077,24 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         },
         body: JSON.stringify(googleSettings)
       });
+      if (!res.ok) {
+        res = await fetch('/api/admin/settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(googleSettings)
+        });
+      }
       if (res.ok) {
-        showToast('Pengaturan Google & Monetisasi berhasil disimpan!', 'success');
+        showToast('Pengaturan Google AdSense & Analytics berhasil disimpan!', 'success');
         fetchSettings();
       } else {
-        showToast('Gagal menyimpan pengaturan', 'error');
+        showToast('Gagal menyimpan pengaturan Google', 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan jaringan', 'error');
+      showToast('Terjadi kesalahan jaringan saat menyimpan', 'error');
     } finally {
       setIsSavingSettings(false);
     }
@@ -3654,10 +3666,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       { key: 'staff', label: 'Staf & Role RBAC', desc: 'Penugasan hak akses tim', icon: ShieldCheck, color: '#8b5cf6' },
                       { key: 'broadcast', label: 'Siaran Broadcast', desc: 'Kirim notifikasi masal', icon: Radio, color: '#ec4899' },
                       { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316' },
-                      { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308' },
+                      { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308', visible: canAccessMonetization },
                       { key: 'master-data', label: 'Master Data & Rekber', desc: 'Rekber Syariah & Whitelist', icon: Layers, color: '#10b981' },
                       { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b' }
-                    ].map(mod => {
+                    ].filter(mod => (mod as any).visible !== false).map(mod => {
                       const Icon = mod.icon;
                       return (
                         <div
@@ -9303,7 +9315,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 9: MONETIZATION (GOOGLE ADSENSE & GA4) */}
-          {activeView === 'monetization' && (
+          {activeView === 'monetization' && canAccessMonetization && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
               {/* Segmented Switch: AdSense vs GA4 */}
               <div style={{
@@ -9382,7 +9394,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           </strong>
                         </div>
                         <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                          Iklan hanya akan disuntikkan pada katalog merchant <strong>Versi Gratis (Free)</strong>. Merchant yang berlangganan <strong>Paket Pro</strong> dijamin 100% bebas iklan.
+                          Iklan hanya akan disuntikkan pada katalog toko <strong>Versi Gratis (Free)</strong>. Toko yang berlangganan <strong>Paket Pro</strong> dijamin 100% bebas iklan.
                         </p>
                       </div>
 
@@ -9549,7 +9561,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </label>
                             <input
                               type="text"
-                              placeholder="Contoh: 1234567890"
+                              placeholder="Contoh: 1234567890 (Opsional jika Auto Ads aktif)"
                               value={googleSettings.ads_slot_header || ''}
                               onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_header: e.target.value.trim() }))}
                               style={{
@@ -9572,7 +9584,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </label>
                             <input
                               type="text"
-                              placeholder="Contoh: 2345678901"
+                              placeholder="Contoh: 2345678901 (Opsional jika Auto Ads aktif)"
                               value={googleSettings.ads_slot_infeed || ''}
                               onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_infeed: e.target.value.trim() }))}
                               style={{
@@ -9595,7 +9607,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </label>
                             <input
                               type="text"
-                              placeholder="Contoh: 3456789012"
+                              placeholder="Contoh: 3456789012 (Opsional jika Auto Ads aktif)"
                               value={googleSettings.ads_slot_product_detail || ''}
                               onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_product_detail: e.target.value.trim() }))}
                               style={{
@@ -9618,7 +9630,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </label>
                             <input
                               type="text"
-                              placeholder="Contoh: 4567890123"
+                              placeholder="Contoh: 4567890123 (Opsional jika Auto Ads aktif)"
                               value={googleSettings.ads_slot_bottom || ''}
                               onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_bottom: e.target.value.trim() }))}
                               style={{
@@ -9672,7 +9684,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             }}
                           >
                             {copiedAdsTxt ? <CheckCheck size={14} /> : <Copy size={14} />}
-                            <span>{copiedAdsTxt ? 'Tersalin' : 'Salin Teks'}</span>
+                            <span>{copiedAdsTxt ? 'Tersalin' : 'Salin'}</span>
                           </button>
                         </div>
 

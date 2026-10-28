@@ -9107,7 +9107,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </strong>
                 </div>
                 <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                  Iklan hanya akan disuntikkan pada katalog merchant <strong>Versi Gratis (Free)</strong>. Merchant yang berlangganan <strong>Paket Pro</strong> dijamin 100% bebas iklan.
+                  Iklan hanya akan disuntikkan pada katalog toko <strong>Versi Gratis (Free)</strong>. Toko yang berlangganan <strong>Paket Pro</strong> dijamin 100% bebas iklan.
                 </p>
               </div>
 
@@ -9255,7 +9255,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {/* Slot 1: Header Banner */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    1. Header Banner Slot ID (Di Bawah Search Bar Merchant)
+                    1. Header Banner Slot ID (Di Bawah Search Bar Toko)
                   </label>
                   <input
                     type="text"
@@ -9278,7 +9278,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {/* Slot 2: In-Feed Product Catalog */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    2. In-Feed Catalog Slot ID (Di Sela-Sela Item)
+                    2. In-Feed Catalog Slot ID (Di Sela-Sela Produk)
                   </label>
                   <input
                     type="text"
@@ -9301,7 +9301,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {/* Slot 3: Product Detail View */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    3. Product Detail Slot ID (Di Bawah Spesifikasi Item)
+                    3. Product Detail Slot ID (Di Bawah Spesifikasi Produk)
                   </label>
                   <input
                     type="text"

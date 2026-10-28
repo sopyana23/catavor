@@ -19,6 +19,8 @@ import {
   ChevronLeft
 } from 'lucide-react';
 
+import { hasPermission, isSuperAdmin } from '../utils/rbac';
+
 export interface TabletRailNavProps {
   activeView: string;
   onSwitchView: (view: string) => void;
@@ -46,6 +48,8 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
+
   const navItems = [
     { key: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard },
     { key: 'staff', label: 'Staf & RBAC', icon: ShieldCheck },
@@ -67,10 +71,12 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
     { key: 'finance', label: 'Keuangan & Billing', icon: CreditCard },
     { key: 'broadcast', label: 'Siaran Broadcast', icon: Radio },
     { key: 'automation', label: 'Mesin Otomatisasi', icon: Cpu },
-    { key: 'monetization', label: 'Monetisasi & Iklan', icon: DollarSign },
+    { key: 'monetization', label: 'Monetisasi & Iklan', icon: DollarSign, visible: canAccessMonetization },
     { key: 'master-data', label: 'Master Data & Rekber', icon: Layers },
     { key: 'audit', label: 'Audit Trail', icon: History },
   ];
+
+  const visibleNavItems = navItems.filter(item => item.visible !== false);
 
   return (
     <aside
@@ -196,7 +202,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
 
         {/* Navigation List */}
         <nav style={{ padding: '0.75rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeView === item.key || (item.key === 'staff' && activeView === 'rbac') || (item.key === 'master-data' && activeView === 'master_data');
             return (
