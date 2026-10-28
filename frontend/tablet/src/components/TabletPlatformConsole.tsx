@@ -370,7 +370,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       case 'monetization':
         return { title: 'Monetisasi & Integrasi Google', subtitle: 'Pengaturan Google AdSense, ads.txt dan GA4' };
       case 'master-data':
-        return { title: 'Master Data & Proteksi Rekber', subtitle: 'Whitelist domain aman, template CS, dan escrow syariah' };
+        return { title: 'Master Data', subtitle: 'Whitelist domain aman, template CS, dan proteksi rekber syariah' };
       case 'audit':
         return { title: 'System-Wide Audit Trail', subtitle: 'Jejak rekaman forensik seluruh tindakan administratif' };
       default:
@@ -3723,7 +3723,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       { key: 'broadcast', label: 'Siaran Broadcast', desc: 'Kirim notifikasi masal', icon: Radio, color: '#ec4899' },
                       { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316' },
                       { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308', visible: canAccessMonetization },
-                      { key: 'master-data', label: 'Master Data & Rekber', desc: 'Rekber Syariah & Whitelist', icon: Layers, color: '#10b981', visible: canAccessMasterData },
+                      { key: 'master-data', label: 'Master Data', desc: 'Whitelist domain aman, template CS, dan proteksi rekber', icon: Layers, color: '#10b981', visible: canAccessMasterData },
                       { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b' }
                     ].filter(mod => (mod as any).visible !== false).map(mod => {
                       const Icon = mod.icon;

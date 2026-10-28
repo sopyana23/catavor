@@ -3405,7 +3405,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     automation: { title: 'Mesin Otomatisasi', subtitle: `${automationStatus?.total_workers || 11} Bot & Background Workers` },
     audit: { title: 'Audit Trail', subtitle: `${auditLogs.length} Log Aktivitas` },
     master_data: { 
-      title: 'Data Master Platform', 
+      title: 'Data Master', 
       subtitle: masterSubView === 'domains' 
         ? 'Domain Whitelist Ekosistem' 
         : (masterSubView === 'templates' 
@@ -3474,7 +3474,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     },
     {
       id: 'master_data' as ActiveView,
-      title: 'Data Master Platform',
+      title: 'Data Master',
       subtitle: 'Domain Whitelist & Template CS',
       icon: <Database size={20} />,
       color: '#38bdf8',
@@ -12555,7 +12555,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       color: theme.textPrimary,
                       letterSpacing: '-0.01em'
                     }}>
-                      Pusat Data Master Platform
+                      Data Master
                     </h4>
                     <span style={{
                       fontSize: '0.62rem',

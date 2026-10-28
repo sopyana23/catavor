@@ -202,8 +202,8 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
         },
         {
           id: 'master_data',
-          label: 'Master Data & Rekber',
-          sublabel: 'Safe Domains & Template',
+          label: 'Master Data',
+          sublabel: 'Domain, Template & Rekber',
           icon: <Database size={18} strokeWidth={1.75} />,
           badge: 0,
           visible: canAccessMasterData
@@ -241,7 +241,7 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
       case 'monetization':
         return { title: 'Monetisasi & Integrasi Google', subtitle: 'Pengaturan Google AdSense, file ads.txt, dan integrasi Google Analytics (GA4)' };
       case 'master_data':
-        return { title: 'Master Data, Domain & Rekber', subtitle: 'Whitelist domain transaksi aman, template balasan CS, dan escrow Rekber Syariah' };
+        return { title: 'Master Data', subtitle: 'Whitelist domain transaksi aman, template balasan CS, dan escrow Rekber Syariah' };
       case 'audit':
         return { title: 'System-Wide Audit Trail', subtitle: 'Jejak rekaman forensik seluruh tindakan administratif lintas platform' };
       default:

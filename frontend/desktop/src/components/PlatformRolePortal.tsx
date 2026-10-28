@@ -3345,7 +3345,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     automation: { title: 'Mesin Otomatisasi', subtitle: `${automationStatus?.total_workers || 11} Bot & Background Workers` },
     audit: { title: 'Audit Trail', subtitle: `${auditLogs.length} Log Aktivitas` },
     master_data: { 
-      title: 'Data Master Platform', 
+      title: 'Master Data', 
       subtitle: masterSubView === 'domains' 
         ? 'Whitelist URL & Navigasi Ekosistem' 
         : (masterSubView === 'templates' 
@@ -3414,7 +3414,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     },
     {
       id: 'master_data' as ActiveView,
-      title: 'Data Master Platform',
+      title: 'Master Data',
       subtitle: 'Domain Whitelist & Template CS',
       icon: <Database size={20} />,
       color: '#38bdf8',
@@ -14274,6 +14274,59 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* SUB-VIEW 1: MASTER DOMAIN AMAN (WHITELIST) */}
           {masterSubView === 'domains' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              {/* Header Box with Back Button */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.1rem',
+                borderRadius: '1rem',
+                backgroundColor: theme.surface,
+                border: `1px solid ${theme.border}`,
+                boxShadow: theme.cardShadow,
+                flexWrap: 'wrap',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMasterSubView('menu');
+                      updatePlatformUrl('master_data', null, null);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                      border: `1px solid ${theme.border}`,
+                      color: theme.textPrimary,
+                      cursor: 'pointer',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Kembali ke Master Data"
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Kembali</span>
+                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <Globe size={18} color="#0284c7" />
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+                        Master Domain Aman (Whitelist)
+                      </h4>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                      Konfigurasi domain resmi &amp; mitra yang dibuka instan tanpa peringatan perantara
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <AdminSafeDomainsManagement
                 token={token}
                 themeMode={themeMode}
@@ -14289,6 +14342,106 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* SUB-VIEW 2: MASTER CANNED RESPONSES (TEMPLATES) */}
           {masterSubView === 'templates' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {/* Header Box with Back Button & Actions */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.1rem',
+                borderRadius: '1rem',
+                backgroundColor: theme.surface,
+                border: `1px solid ${theme.border}`,
+                boxShadow: theme.cardShadow,
+                flexWrap: 'wrap',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMasterSubView('menu');
+                      updatePlatformUrl('master_data', null, null);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                      border: `1px solid ${theme.border}`,
+                      color: theme.textPrimary,
+                      cursor: 'pointer',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Kembali ke Master Data"
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Kembali</span>
+                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <Zap size={18} color="#f59e0b" />
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+                        Template Pesan Cepat CS
+                      </h4>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                      Katalog respon cepat helpdesk &amp; standarisasi komunikasi operasional
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleResetDefaultTemplates}
+                    style={{
+                      padding: '0.45rem 0.8rem',
+                      borderRadius: '0.75rem',
+                      border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)'}`,
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+                      color: '#ef4444',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Pulihkan template bawaan standar"
+                  >
+                    <RotateCcw size={14} />
+                    <span>Reset Default</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateTemplate}
+                    style={{
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                      border: 'none',
+                      color: '#ffffff',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      boxShadow: isDark ? '0 4px 14px rgba(56, 189, 248, 0.25)' : '0 4px 14px rgba(2, 132, 199, 0.2)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Plus size={15} />
+                    <span>Tambah Template</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Search Bar & Action Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -14693,21 +14846,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       updatePlatformUrl('master_data', null, null);
                     }}
                     style={{
-                      width: '34px',
-                      height: '34px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.45rem 0.75rem',
                       borderRadius: '0.75rem',
                       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
                       border: `1px solid ${theme.border}`,
                       color: theme.textPrimary,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
                       cursor: 'pointer',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
                       transition: 'all 0.15s ease'
                     }}
-                    title="Kembali ke Menu Master"
+                    title="Kembali ke Master Data"
                   >
                     <ArrowLeft size={16} />
+                    <span>Kembali</span>
                   </button>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
