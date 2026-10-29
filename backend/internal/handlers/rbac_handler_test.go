@@ -177,6 +177,18 @@ func TestRBACUpdateMatrix_SQLite(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("superadmin_matrix_tidak_bisa_diubah", func(t *testing.T) {
+		code, body := rbacReq(t, app, "PUT", "/rbac/matrix", "superadmin",
+			`{"role_slug":"superadmin","permission_keys":["products.read"]}`)
+		if code != 400 {
+			t.Fatalf("status = %d, want 400 (body %v)", code, body)
+		}
+		msg, _ := body["message"].(string)
+		if !strings.Contains(strings.ToLower(msg), "superadmin") {
+			t.Errorf("pesan = %q, want mengandung 'superadmin'", msg)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

@@ -2167,10 +2167,20 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: MONETIZATION (AdSense & GA4)
   // =========================================================================
+  const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
+  const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
   const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
+  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
+  const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
   const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
+
+  // Granular Sub-Action Permission Checks
+  const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
+  const canManageReports = isSuperAdmin(currentUser) || hasPermission(currentUser, 'compliance:reports:manage');
+  const canManageFinance = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage');
+  const canSendBroadcast = isSuperAdmin(currentUser) || hasPermission(currentUser, 'content:broadcast:send');
   const [monetizationSubTab, setMonetizationSubTab] = useState<'adsense' | 'analytics'>('adsense');
   const [googleSettings, setGoogleSettings] = useState<Record<string, string>>({
     ads_enabled: '0',
@@ -3942,13 +3952,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     gap: '0.85rem'
                   }}>
                     {[
-                      { key: 'stores', label: 'Direktori Merchant', desc: 'Audit & kepatuhan katalog', icon: StoreIcon, color: '#3b82f6' },
-                      { key: 'reports', label: 'Kepatuhan & Laporan', desc: 'Investigasi satwa terlarang', icon: AlertOctagon, color: '#ef4444' },
-                      { key: 'support', label: 'Bantuan CS', desc: 'Respon tiket merchant', icon: LifeBuoy, color: '#06b6d4' },
-                      { key: 'finance', label: 'Keuangan & Billing', desc: 'Verifikasi aktivasi paket Pro', icon: CreditCard, color: '#10b981' },
-                      { key: 'staff', label: 'Staf & Role RBAC', desc: 'Penugasan hak akses tim', icon: ShieldCheck, color: '#8b5cf6' },
-                      { key: 'broadcast', label: 'Siaran Broadcast', desc: 'Kirim notifikasi masal', icon: Radio, color: '#ec4899' },
-                      { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316' },
+                      { key: 'stores', label: 'Direktori Merchant', desc: 'Audit & kepatuhan katalog', icon: StoreIcon, color: '#3b82f6', visible: canAccessCompliance },
+                      { key: 'reports', label: 'Kepatuhan & Laporan', desc: 'Investigasi satwa terlarang', icon: AlertOctagon, color: '#ef4444', visible: canAccessCompliance },
+                      { key: 'support', label: 'Bantuan CS', desc: 'Respon tiket merchant', icon: LifeBuoy, color: '#06b6d4', visible: canAccessSupport },
+                      { key: 'finance', label: 'Keuangan & Billing', desc: 'Verifikasi aktivasi paket Pro', icon: CreditCard, color: '#10b981', visible: canAccessFinance },
+                      { key: 'staff', label: 'Staf & Role RBAC', desc: 'Penugasan hak akses tim', icon: ShieldCheck, color: '#8b5cf6', visible: canAccessRBAC },
+                      { key: 'broadcast', label: 'Siaran Broadcast', desc: 'Kirim notifikasi masal', icon: Radio, color: '#ec4899', visible: canAccessBroadcast },
+                      { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316', visible: canAccessAutomation },
                       { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308', visible: canAccessMonetization },
                       { key: 'master-data', label: 'Master Data', desc: 'Whitelist domain aman, template CS, dan proteksi rekber', icon: Layers, color: '#10b981', visible: canAccessMasterData },
                       { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b', visible: canAccessAudit }
@@ -3985,7 +3995,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 2: STORES */}
-          {activeView === 'stores' && (
+          {activeView === 'stores' && canAccessCompliance && (
             <TabletPlatformStoresView
               token={token}
               hideHeader={true}
@@ -3994,7 +4004,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 3: REPORTS (KEPATUHAN & LAPORAN) */}
-          {activeView === 'reports' && (
+          {activeView === 'reports' && canAccessCompliance && (
             <TabletMasterDetailView
               title="Kepatuhan & Laporan Masyarakat"
               subtitle={`${reportsPagination.total || reports.length} antrean laporan pelanggaran`}
@@ -5011,7 +5021,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 4: SUPPORT (PUSAT BANTUAN CS) */}
-          {activeView === 'support' && (
+          {activeView === 'support' && canAccessSupport && (
             <TabletMasterDetailView
               title="Tiket Helpdesk CS"
               subtitle={`${ticketsPagination.total_items || tickets.length} antrean tiket`}
@@ -6256,112 +6266,132 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           )}
 
                           {/* Input Area + Toolbar */}
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-                            <input
-                              type="file"
-                              ref={fileInputRef}
-                              style={{ display: 'none' }}
-                              onChange={e => handleUploadTicketAttachment(e.target.files)}
-                              multiple
-                              accept="image/*,.pdf"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => fileInputRef.current?.click()}
-                              disabled={isUploadingTicketAttachment}
-                              title="Lampirkan File (Gambar/PDF)"
-                              style={{
-                                height: '42px',
-                                padding: '0 0.75rem',
-                                borderRadius: '0.55rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-muted)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.35rem',
-                                fontSize: '0.74rem',
-                                fontWeight: 700
-                              }}
-                            >
-                              {isUploadingTicketAttachment ? (
-                                <RefreshCw size={15} className="animate-spin" color="var(--primary)" />
-                              ) : (
-                                <Paperclip size={16} />
-                              )}
-                              <span>Lampiran</span>
-                            </button>
+                          {!canReplySupport ? (
+                            <div style={{
+                              padding: '0.85rem 1rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-muted)',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              justifyContent: 'center',
+                              width: '100%'
+                            }}>
+                              <Lock size={15} />
+                              <span>Mode Hanya Baca: Akun Anda memiliki izin melihat riwayat (support:tickets:read), namun tidak memiliki wewenang membalas tiket (support:tickets:reply).</span>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', width: '100%' }}>
+                              <input
+                                type="file"
+                                ref={fileInputRef}
+                                style={{ display: 'none' }}
+                                onChange={e => handleUploadTicketAttachment(e.target.files)}
+                                multiple
+                                accept="image/*,.pdf"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploadingTicketAttachment}
+                                title="Lampirkan File (Gambar/PDF)"
+                                style={{
+                                  height: '42px',
+                                  padding: '0 0.75rem',
+                                  borderRadius: '0.55rem',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.35rem',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700
+                                }}
+                              >
+                                {isUploadingTicketAttachment ? (
+                                  <RefreshCw size={15} className="animate-spin" color="var(--primary)" />
+                                ) : (
+                                  <Paperclip size={16} />
+                                )}
+                                <span>Lampiran</span>
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => setShowCannedModal(true)}
-                              title="Gunakan Template CS"
-                              style={{
-                                height: '42px',
-                                padding: '0 0.75rem',
-                                borderRadius: '0.55rem',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: '#f59e0b',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.35rem',
-                                fontSize: '0.74rem',
-                                fontWeight: 700
-                              }}
-                            >
-                              <Zap size={14} color="#f59e0b" />
-                              <span>Template</span>
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowCannedModal(true)}
+                                title="Gunakan Template CS"
+                                style={{
+                                  height: '42px',
+                                  padding: '0 0.75rem',
+                                  borderRadius: '0.55rem',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  color: '#f59e0b',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.35rem',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700
+                                }}
+                              >
+                                <Zap size={14} color="#f59e0b" />
+                                <span>Template</span>
+                              </button>
 
-                            <textarea
-                              rows={2}
-                              value={ticketReply}
-                              onChange={e => setTicketReply(e.target.value)}
-                              placeholder={isInternalNote ? 'Tuliskan catatan internal (hanya terlihat oleh tim admin)...' : 'Tuliskan respon bantuan ke merchant...'}
-                              style={{
-                                flex: 1,
-                                padding: '0.65rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                border: `1px solid ${isInternalNote ? 'rgba(245, 158, 11, 0.4)' : 'var(--border-light)'}`,
-                                backgroundColor: isInternalNote ? 'rgba(245, 158, 11, 0.05)' : 'var(--bg-deep)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.82rem',
-                                outline: 'none',
-                                resize: 'none',
-                                lineHeight: 1.45
-                              }}
-                            />
+                              <textarea
+                                rows={2}
+                                value={ticketReply}
+                                onChange={e => setTicketReply(e.target.value)}
+                                placeholder={isInternalNote ? 'Tuliskan catatan internal (hanya terlihat oleh tim admin)...' : 'Tuliskan respon bantuan ke merchant...'}
+                                style={{
+                                  flex: 1,
+                                  padding: '0.65rem 0.85rem',
+                                  borderRadius: '0.55rem',
+                                  border: `1px solid ${isInternalNote ? 'rgba(245, 158, 11, 0.4)' : 'var(--border-light)'}`,
+                                  backgroundColor: isInternalNote ? 'rgba(245, 158, 11, 0.05)' : 'var(--bg-deep)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.82rem',
+                                  outline: 'none',
+                                  resize: 'none',
+                                  lineHeight: 1.45
+                                }}
+                              />
 
-                            <button
-                              type="button"
-                              onClick={() => handleSendTicketReply(isInternalNote)}
-                              disabled={!ticketReply.trim() && ticketReplyAttachments.length === 0}
-                              style={{
-                                height: '42px',
-                                padding: '0 1.25rem',
-                                borderRadius: '0.55rem',
-                                border: 'none',
-                                backgroundColor: isInternalNote ? '#f59e0b' : 'var(--primary)',
-                                color: '#ffffff',
-                                fontWeight: 700,
-                                fontSize: '0.82rem',
-                                cursor: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 'not-allowed' : 'pointer',
-                                opacity: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 0.6 : 1,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.4rem',
-                                transition: 'all 0.15s ease'
-                              }}
-                            >
-                              <Send size={15} />
-                              <span>{isInternalNote ? 'Simpan Catatan' : 'Kirim'}</span>
-                            </button>
-                          </div>
+                              <button
+                                type="button"
+                                onClick={() => handleSendTicketReply(isInternalNote)}
+                                disabled={!ticketReply.trim() && ticketReplyAttachments.length === 0}
+                                style={{
+                                  height: '42px',
+                                  padding: '0 1.25rem',
+                                  borderRadius: '0.55rem',
+                                  border: 'none',
+                                  backgroundColor: isInternalNote ? '#f59e0b' : 'var(--primary)',
+                                  color: '#ffffff',
+                                  fontWeight: 700,
+                                  fontSize: '0.82rem',
+                                  cursor: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 'not-allowed' : 'pointer',
+                                  opacity: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 0.6 : 1,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.4rem',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <Send size={15} />
+                                <span>{isInternalNote ? 'Simpan Catatan' : 'Kirim'}</span>
+                              </button>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -6372,7 +6402,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 5: FINANCE (KEUANGAN & BILLING) */}
-          {activeView === 'finance' && (
+          {activeView === 'finance' && canAccessFinance && (
             <TabletMasterDetailView
               title="Billing Langganan Pro"
               subtitle={`${filteredOrders.length} order transaksi`}
@@ -6615,7 +6645,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       )}
 
                       {/* Approval Actions */}
-                      {selectedOrder.status !== 'paid' && selectedOrder.status !== 'active' && (
+                      {selectedOrder.status !== 'paid' && selectedOrder.status !== 'active' && canManageFinance && (
                         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
                           <button
                             type="button"
@@ -6660,7 +6690,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 6: STAFF & RBAC */}
-          {activeView === 'staff' && (
+          {(activeView === 'staff' || activeView === 'rbac') && canAccessRBAC && (
             <div style={{ height: '100%', overflowY: 'auto' }}>
               <AdminRBACManagement
                 token={token}
@@ -6671,7 +6701,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 7: BROADCAST (SIARAN PENGUMUMAN) */}
-          {activeView === 'broadcast' && (
+          {activeView === 'broadcast' && canAccessBroadcast && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
               {/* Top Sub-Switcher & Header Bar */}
               <div style={{

@@ -96,3 +96,93 @@ func TestRequireRBACSuperadmin(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// PENTEST SUITE: RBAC Authorization & Escalation Resistance
+// ---------------------------------------------------------------------------
+
+func TestRBAC_Pentest_CreateCustomRole_RejectsNonSuperadmin(t *testing.T) {
+	s := &RBACService{}
+	maliciousActors := []*models.User{
+		nil,
+		{ID: 2, PlatformRole: "merchant"},
+		{ID: 3, PlatformRole: "support"},
+		{ID: 4, PlatformRole: "compliance"},
+		{ID: 5, PlatformRole: "superadminx"},
+		{ID: 6, PlatformRole: "admin"},
+	}
+
+	for _, actor := range maliciousActors {
+		role, err := s.CreateCustomRole("hacked_role", "Hacked Role", "evil", []string{"*"}, actor)
+		if err == nil || role != nil {
+			roleName := "nil"
+			if actor != nil {
+				roleName = actor.PlatformRole
+			}
+			t.Fatalf("PENTEST BREACH: Aktor %s berhasil membuat custom role!", roleName)
+		}
+	}
+}
+
+func TestRBAC_Pentest_AssignStaffRole_RejectsNonSuperadmin(t *testing.T) {
+	s := &RBACService{}
+	maliciousActors := []*models.User{
+		nil,
+		{ID: 2, PlatformRole: "merchant"},
+		{ID: 3, PlatformRole: "support"},
+		{ID: 4, PlatformRole: "compliance"},
+		{ID: 5, PlatformRole: "finance"},
+	}
+
+	for _, actor := range maliciousActors {
+		err := s.AssignStaffRole("target@test.com", "superadmin", actor)
+		if err == nil {
+			roleName := "nil"
+			if actor != nil {
+				roleName = actor.PlatformRole
+			}
+			t.Fatalf("PENTEST BREACH: Aktor %s berhasil menugaskan role!", roleName)
+		}
+	}
+}
+
+func TestRBAC_Pentest_RevokeStaffRole_RejectsNonSuperadmin(t *testing.T) {
+	s := &RBACService{}
+	maliciousActors := []*models.User{
+		nil,
+		{ID: 2, PlatformRole: "merchant"},
+		{ID: 3, PlatformRole: "support"},
+		{ID: 4, PlatformRole: "content"},
+	}
+
+	for _, actor := range maliciousActors {
+		err := s.RevokeStaffRole(99, actor)
+		if err == nil {
+			roleName := "nil"
+			if actor != nil {
+				roleName = actor.PlatformRole
+			}
+			t.Fatalf("PENTEST BREACH: Aktor %s berhasil mencabut wewenang staf!", roleName)
+		}
+	}
+}
+
+func TestRBAC_Pentest_UpdateRolePermissions_RejectsNonSuperadmin(t *testing.T) {
+	s := &RBACService{}
+	maliciousActors := []*models.User{
+		nil,
+		{ID: 2, PlatformRole: "merchant"},
+		{ID: 3, PlatformRole: "support"},
+	}
+
+	for _, actor := range maliciousActors {
+		err := s.UpdateRolePermissions("support", []string{"*"}, actor)
+		if err == nil {
+			roleName := "nil"
+			if actor != nil {
+				roleName = actor.PlatformRole
+			}
+			t.Fatalf("PENTEST BREACH: Aktor %s berhasil mengubah matriks izin!", roleName)
+		}
+	}
+}

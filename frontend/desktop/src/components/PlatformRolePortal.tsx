@@ -310,16 +310,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const roleSlug = currentUser?.platform_role || (currentUser?.is_superadmin ? 'superadmin' : 'merchant');
   const roleBadge = getRoleBadge(roleSlug);
 
-  // Granular Permission Checks
+  // Granular Permission Checks (Module Level)
   const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
   const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
   const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
-  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || isSuperAdmin(currentUser);
+  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
+
+  // Granular Sub-Action Permission Checks (Action / Execution Level)
+  const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
+  const canManageReports = isSuperAdmin(currentUser) || hasPermission(currentUser, 'compliance:reports:manage');
+  const canManageFinance = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage');
+  const canSendBroadcast = isSuperAdmin(currentUser) || hasPermission(currentUser, 'content:broadcast:send');
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
     view: string, 
@@ -7957,105 +7963,124 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </div>
 
               {/* Input Bar Row */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                backgroundColor: isInternalNote 
-                  ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)')
-                  : (isDark ? '#1e293b' : '#ffffff'),
-                borderRadius: '0.85rem',
-                padding: '0.35rem 0.45rem 0.35rem 0.65rem',
-                border: isInternalNote 
-                  ? `1.5px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`
-                  : `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1'}`,
-                boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.04)'
-              }}>
-                <input
-                  type="file"
-                  id="admin-ticket-reply-file"
-                  multiple
-                  accept="image/png, image/jpeg, image/webp, application/pdf, .pdf"
-                  style={{ display: 'none' }}
-                  onChange={(e) => handleUploadTicketAttachment(e.target.files)}
-                />
+              {!canReplySupport ? (
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: theme.cardAlt,
+                  border: `1px solid ${theme.border}`,
+                  color: theme.textMuted,
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  justifyContent: 'center'
+                }}>
+                  <Lock size={15} />
+                  <span>Mode Hanya Baca: Akun Anda memiliki izin melihat riwayat (support:tickets:read), namun tidak memiliki wewenang membalas tiket (support:tickets:reply).</span>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  backgroundColor: isInternalNote 
+                    ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)')
+                    : (isDark ? '#1e293b' : '#ffffff'),
+                  borderRadius: '0.85rem',
+                  padding: '0.35rem 0.45rem 0.35rem 0.65rem',
+                  border: isInternalNote 
+                    ? `1.5px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`
+                    : `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1'}`,
+                  boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.04)'
+                }}>
+                  <input
+                    type="file"
+                    id="admin-ticket-reply-file"
+                    multiple
+                    accept="image/png, image/jpeg, image/webp, application/pdf, .pdf"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handleUploadTicketAttachment(e.target.files)}
+                  />
 
-                {/* Paperclip Button */}
-                <button
-                  type="button"
-                  disabled={isUploadingTicketAttachment || ticketReplyAttachments.length >= 5}
-                  onClick={() => document.getElementById('admin-ticket-reply-file')?.click()}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '0.55rem',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    color: isDark ? '#94a3b8' : '#64748b',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    padding: 0
-                  }}
-                  title="Lampirkan File / Berkas (Foto atau PDF)"
-                >
-                  {isUploadingTicketAttachment ? <RefreshCw size={15} className="animate-spin" /> : <Paperclip size={18} />}
-                </button>
+                  {/* Paperclip Button */}
+                  <button
+                    type="button"
+                    disabled={isUploadingTicketAttachment || ticketReplyAttachments.length >= 5}
+                    onClick={() => document.getElementById('admin-ticket-reply-file')?.click()}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '0.55rem',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      padding: 0
+                    }}
+                    title="Lampirkan File / Berkas (Foto atau PDF)"
+                  >
+                    {isUploadingTicketAttachment ? <RefreshCw size={15} className="animate-spin" /> : <Paperclip size={18} />}
+                  </button>
 
-                {/* Textarea */}
-                <textarea
-                  ref={mobileTicketTextareaRef}
-                  rows={1}
-                  placeholder={isInternalNote ? "Tulis catatan rahasia internal tim CS..." : "Ketik balasan untuk merchant..."}
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  style={{
-                    flex: 1,
-                    minHeight: '36px',
-                    maxHeight: '120px',
-                    height: 'auto',
-                    padding: '0.45rem 0.35rem',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    color: theme.textPrimary,
-                    fontSize: '0.84rem',
-                    lineHeight: 1.45,
-                    resize: 'none',
-                    overflowY: 'auto',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
+                  {/* Textarea */}
+                  <textarea
+                    ref={mobileTicketTextareaRef}
+                    rows={1}
+                    placeholder={isInternalNote ? "Tulis catatan rahasia internal tim CS..." : "Ketik balasan untuk merchant..."}
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    style={{
+                      flex: 1,
+                      minHeight: '36px',
+                      maxHeight: '120px',
+                      height: 'auto',
+                      padding: '0.45rem 0.35rem',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      color: theme.textPrimary,
+                      fontSize: '0.84rem',
+                      lineHeight: 1.45,
+                      resize: 'none',
+                      overflowY: 'auto',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
 
-                {/* Send Button */}
-                <button
-                  type="button"
-                  disabled={(!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading}
-                  onClick={() => handleAdminReply(false)}
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    backgroundColor: isInternalNote ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
-                    color: isInternalNote ? '#000000' : '#ffffff',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    opacity: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 0.35 : 1,
-                    boxShadow: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 'none' : '0 2px 8px rgba(0,0,0,0.2)',
-                    transition: 'all 0.15s ease',
-                    padding: 0
-                  }}
-                  title={isInternalNote ? "Simpan Catatan Internal" : "Kirim Balasan"}
-                >
-                  {actionLoading ? <RefreshCw size={15} className="animate-spin" /> : <Send size={16} />}
-                </button>
-              </div>
+                  {/* Send Button */}
+                  <button
+                    type="button"
+                    disabled={(!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading}
+                    onClick={() => handleAdminReply(false)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      backgroundColor: isInternalNote ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
+                      color: isInternalNote ? '#000000' : '#ffffff',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      opacity: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 0.35 : 1,
+                      boxShadow: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 'none' : '0 2px 8px rgba(0,0,0,0.2)',
+                      transition: 'all 0.15s ease',
+                      padding: 0
+                    }}
+                    title={isInternalNote ? "Simpan Catatan Internal" : "Kirim Balasan"}
+                  >
+                    {actionLoading ? <RefreshCw size={15} className="animate-spin" /> : <Send size={16} />}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -9117,7 +9142,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </button>
                   )}
 
-                  {o.status === 'pending' && (
+                  {o.status === 'pending' && canManageFinance && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
                       <button
                         onClick={() => handleUpdateOrderStatus(o.id, 'rejected')}

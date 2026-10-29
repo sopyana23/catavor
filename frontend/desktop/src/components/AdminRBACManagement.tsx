@@ -22,6 +22,7 @@ import {
   type AdminStaffUser,
   getRoleBadge,
 } from '../utils/rbac';
+import { useModalBackHandler } from '../utils/navigation';
 import { DesktopCustomSelect } from './DesktopCustomSelect';
 
 interface AdminRBACManagementProps {
@@ -58,6 +59,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedStaffEmail, setSelectedStaffEmail] = useState('');
   const [selectedRoleSlug, setSelectedRoleSlug] = useState('support');
+
+  // Intercept back navigation for assign modal
+  useModalBackHandler({
+    isOpen: showAssignModal,
+    onClose: () => setShowAssignModal(false)
+  });
 
   // New Custom Role Form
   const [newRoleSlug, setNewRoleSlug] = useState('');
@@ -170,14 +177,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const res = await fetch('/api/admin/rbac/staff', {
+      const res = await fetch('/api/admin/rbac/staff/assign', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email_or_id: selectedStaffEmail.trim(),
+          email: selectedStaffEmail.trim(),
           role_slug: selectedRoleSlug,
         }),
       });
@@ -205,13 +212,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const res = await fetch('/api/admin/rbac/staff/revoke', {
+      const res = await fetch(`/api/admin/rbac/staff/${userId}/revoke`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ user_id: userId }),
       });
       const data = await res.json();
       if (data.success) {

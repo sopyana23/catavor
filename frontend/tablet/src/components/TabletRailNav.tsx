@@ -48,32 +48,39 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
+  const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
   const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
+  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
+  const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
+  const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
   const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
 
   const navItems = [
-    { key: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard },
-    { key: 'staff', label: 'Staf & RBAC', icon: ShieldCheck },
-    { key: 'stores', label: 'Direktori Merchant', icon: Store },
+    { key: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard, visible: true },
+    { key: 'staff', label: 'Staf & RBAC', icon: ShieldCheck, visible: canAccessRBAC },
+    { key: 'stores', label: 'Direktori Merchant', icon: Store, visible: canAccessCompliance },
     {
       key: 'reports',
       label: 'Kepatuhan & Laporan',
       icon: AlertOctagon,
       badge: pendingReportsCount > 0 ? pendingReportsCount : null,
-      badgeColor: '#ef4444'
+      badgeColor: '#ef4444',
+      visible: canAccessCompliance
     },
     {
       key: 'support',
       label: 'Bantuan CS',
       icon: LifeBuoy,
       badge: (urgentTicketsCount + actionRequiredTicketsCount) > 0 ? (urgentTicketsCount + actionRequiredTicketsCount) : null,
-      badgeColor: '#f59e0b'
+      badgeColor: '#f59e0b',
+      visible: canAccessSupport
     },
-    { key: 'finance', label: 'Keuangan & Billing', icon: CreditCard },
-    { key: 'broadcast', label: 'Siaran Broadcast', icon: Radio },
-    { key: 'automation', label: 'Mesin Otomatisasi', icon: Cpu },
+    { key: 'finance', label: 'Keuangan & Billing', icon: CreditCard, visible: canAccessFinance },
+    { key: 'broadcast', label: 'Siaran Broadcast', icon: Radio, visible: canAccessBroadcast },
+    { key: 'automation', label: 'Mesin Otomatisasi', icon: Cpu, visible: canAccessAutomation },
     { key: 'monetization', label: 'Monetisasi & Iklan', icon: DollarSign, visible: canAccessMonetization },
     { key: 'master-data', label: 'Master Data', icon: Layers, visible: canAccessMasterData },
     { key: 'audit', label: 'Audit Trail', icon: History, visible: canAccessAudit },

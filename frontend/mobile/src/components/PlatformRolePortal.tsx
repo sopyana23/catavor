@@ -314,6 +314,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
+
+  // Granular Sub-Action Level Permissions
+  const canReplySupport = hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
+  const canManageReports = hasPermission(currentUser, 'compliance:reports:manage') || isSuperAdmin(currentUser);
+  const canManageFinance = hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
+  const canSendBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
     view: string, 
@@ -3858,7 +3864,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           title: `Tiket #${selectedTicket.ticket_number || ('TCK-' + selectedTicket.id)}`,
           subtitle: `${getStoreDisplayName(selectedTicket)} • Status: ${String(selectedTicket.status || 'open').toUpperCase()}`,
           items: [
-            ...(selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? [{
+            ...(selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' && canReplySupport ? [{
               id: 'resolve_ticket',
               label: 'Tandai Tiket Selesai',
               description: 'Ubah status ke Resolved (Teratasi)',
@@ -3867,7 +3873,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               iconColor: '#10b981',
               onClick: () => handleUpdateTicketStatus(selectedTicket.id, 'resolved')
             }] : []),
-            ...(selectedTicket.status !== 'closed' ? [{
+            ...(selectedTicket.status !== 'closed' && canReplySupport ? [{
               id: 'close_ticket',
               label: 'Tutup Tiket Permanen',
               description: 'Kunci tiket dan akhiri percakapan',
@@ -3964,7 +3970,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           title: `Pesanan #${selectedProofOrder.id}`,
           subtitle: `${selectedProofOrder.store_name || 'Toko'} • Rp ${(selectedProofOrder.amount || 99000).toLocaleString('id-ID')}`,
           items: [
-            ...(selectedProofOrder.status === 'pending' ? [
+            ...(selectedProofOrder.status === 'pending' && canManageFinance ? [
               {
                 id: 'approve_payment',
                 label: 'Setujui & Aktifkan Paket',
@@ -4096,7 +4102,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         showMenu: true,
         title: 'Siaran Platform',
         subtitle: 'Pengumuman serentak untuk merchant',
-        primaryAction: broadcasts.length > 0 ? {
+        primaryAction: (broadcasts.length > 0 && canSendBroadcast) ? {
           icon: <Plus size={17} />,
           title: 'Buat Siaran',
           onClick: () => handleOpenCreateBroadcast()
@@ -6254,8 +6260,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </button>
               <button
                 type="button"
-                disabled={isSubmittingModeration}
+                disabled={isSubmittingModeration || !canManageReports}
                 onClick={() => {
+                  if (!canManageReports) {
+                    showToast('Akun Anda tidak memiliki wewenang penegakan sanksi laporan (compliance:reports:manage)', 'error');
+                    return;
+                  }
                   if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned' || moderationAction === 'account_banned' || moderationStatus === 'banned') {
                     setBannedConfirmModalReport(moderationModalReport);
                     setBannedConfirmAcknowledged(false);
@@ -6275,17 +6285,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   padding: '0.75rem 1rem',
                   borderRadius: '0.75rem',
                   border: 'none',
-                  backgroundColor: '#f43f5e',
+                  backgroundColor: !canManageReports ? (isDark ? '#334155' : '#94a3b8') : '#f43f5e',
                   color: '#ffffff',
                   fontSize: '0.82rem',
                   fontWeight: 800,
-                  cursor: isSubmittingModeration ? 'not-allowed' : 'pointer',
+                  cursor: (isSubmittingModeration || !canManageReports) ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.45rem',
-                  opacity: isSubmittingModeration ? 0.7 : 1,
-                  boxShadow: '0 4px 16px rgba(244, 63, 94, 0.35)'
+                  opacity: (isSubmittingModeration || !canManageReports) ? 0.7 : 1,
+                  boxShadow: !canManageReports ? 'none' : '0 4px 16px rgba(244, 63, 94, 0.35)'
                 }}
               >
                 {isSubmittingModeration ? (
@@ -6293,7 +6303,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 ) : (
                   <ShieldCheck size={16} />
                 )}
-                <span>Terapkan Tindakan</span>
+                <span>{!canManageReports ? 'Mode Hanya Baca' : 'Terapkan Tindakan'}</span>
               </button>
             </div>
           </div>
@@ -7591,308 +7601,328 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 boxShadow: isDark ? '0 -8px 30px rgba(0,0,0,0.5)' : '0 -6px 20px rgba(0,0,0,0.06)',
                 boxSizing: 'border-box'
               }}>
-                {/* Segmented Mode Control (Full Width 2-Tabs) */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0.3rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
-                borderRadius: '0.65rem',
-                padding: '3px',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setIsInternalNote(false)}
-                  style={{
-                    padding: '0.45rem 0.5rem',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.74rem',
-                    fontWeight: !isInternalNote ? 800 : 600,
-                    backgroundColor: !isInternalNote ? (isDark ? '#1e293b' : '#ffffff') : 'transparent',
-                    color: !isInternalNote ? (isDark ? '#38bdf8' : '#0284c7') : theme.textSecondary,
-                    boxShadow: !isInternalNote ? (isDark ? '0 2px 6px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.06)') : 'none',
-                    border: !isInternalNote ? `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0,0,0,0.06)'}` : '1px solid transparent',
-                    cursor: 'pointer',
+                {!canReplySupport ? (
+                  <div style={{
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : '#f8fafc',
+                    border: `1.5px dashed ${isDark ? 'rgba(255, 255, 255, 0.15)' : '#cbd5e1'}`,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <span>Balas Merchant</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsInternalNote(true)}
-                  style={{
-                    padding: '0.45rem 0.5rem',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.74rem',
-                    fontWeight: isInternalNote ? 800 : 600,
-                    backgroundColor: isInternalNote ? (isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.15)') : 'transparent',
-                    color: isInternalNote ? (isDark ? '#fbbf24' : '#b45309') : theme.textSecondary,
-                    boxShadow: isInternalNote ? '0 2px 6px rgba(245, 158, 11, 0.15)' : 'none',
-                    border: isInternalNote ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Lock size={12} />
-                  <span>Catatan Internal</span>
-                </button>
-              </div>
-
-              {/* Attachment Previews */}
-              {ticketReplyAttachments.length > 0 && (
-                <div style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', padding: '0.2rem 0', alignItems: 'center' }}>
-                  {ticketReplyAttachments.map((att, idx) => (
-                    <div key={idx} style={{
-                      position: 'relative',
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '0.5rem',
-                      overflow: 'hidden',
-                      border: `1px solid ${theme.borderStrong}`,
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: (att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? 'rgba(239,68,68,0.1)' : 'transparent'
+                    gap: '0.6rem',
+                    color: isDark ? '#94a3b8' : '#64748b'
+                  }}>
+                    <Lock size={16} style={{ flexShrink: 0, color: isDark ? '#fbbf24' : '#d97706' }} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>
+                      Mode Hanya Baca: Akun Anda memiliki izin melihat riwayat tiket (<code style={{ fontSize: '0.75rem' }}>support:tickets:read</code>), namun tidak memiliki wewenang membalas tiket (<code style={{ fontSize: '0.75rem' }}>support:tickets:reply</code>).
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Segmented Mode Control (Full Width 2-Tabs) */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: '0.3rem',
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+                      borderRadius: '0.65rem',
+                      padding: '3px',
+                      border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`
                     }}>
-                      {(att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? (
-                        <FileText size={20} color="#ef4444" />
-                      ) : (
-                        <img src={att.file_url} alt="Attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      )}
                       <button
                         type="button"
-                        onClick={() => setTicketReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
+                        onClick={() => setIsInternalNote(false)}
                         style={{
-                          position: 'absolute',
-                          top: 2,
-                          right: 2,
-                          width: '16px',
-                          height: '16px',
-                          borderRadius: '50%',
-                          backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                          color: '#ffffff',
+                          padding: '0.45rem 0.5rem',
+                          borderRadius: '0.5rem',
+                          fontSize: '0.74rem',
+                          fontWeight: !isInternalNote ? 800 : 600,
+                          backgroundColor: !isInternalNote ? (isDark ? '#1e293b' : '#ffffff') : 'transparent',
+                          color: !isInternalNote ? (isDark ? '#38bdf8' : '#0284c7') : theme.textSecondary,
+                          boxShadow: !isInternalNote ? (isDark ? '0 2px 6px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.06)') : 'none',
+                          border: !isInternalNote ? `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0,0,0,0.06)'}` : '1px solid transparent',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <span>Balas Merchant</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsInternalNote(true)}
+                        style={{
+                          padding: '0.45rem 0.5rem',
+                          borderRadius: '0.5rem',
+                          fontSize: '0.74rem',
+                          fontWeight: isInternalNote ? 800 : 600,
+                          backgroundColor: isInternalNote ? (isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.15)') : 'transparent',
+                          color: isInternalNote ? (isDark ? '#fbbf24' : '#b45309') : theme.textSecondary,
+                          boxShadow: isInternalNote ? '0 2px 6px rgba(245, 158, 11, 0.15)' : 'none',
+                          border: isInternalNote ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Lock size={12} />
+                        <span>Catatan Internal</span>
+                      </button>
+                    </div>
+
+                    {/* Attachment Previews */}
+                    {ticketReplyAttachments.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', padding: '0.2rem 0', alignItems: 'center' }}>
+                        {ticketReplyAttachments.map((att, idx) => (
+                          <div key={idx} style={{
+                            position: 'relative',
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '0.5rem',
+                            overflow: 'hidden',
+                            border: `1px solid ${theme.borderStrong}`,
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: (att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? 'rgba(239,68,68,0.1)' : 'transparent'
+                          }}>
+                            {(att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? (
+                              <FileText size={20} color="#ef4444" />
+                            ) : (
+                              <img src={att.file_url} alt="Attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setTicketReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
+                              style={{
+                                position: 'absolute',
+                                top: 2,
+                                right: 2,
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontSize: '0.6rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                padding: 0
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
+                          {ticketReplyAttachments.length} lampiran foto
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Quick Action Toolbar Strip: Status Capsule Pill on Left, Template Capsule Pill on Right */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.15rem 0.1rem 0.35rem',
+                      gap: '0.45rem',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}>
+                      {/* Left: Premium Interactive Ticket Status Pill */}
+                      {(() => {
+                        const statusMeta = getTicketStatusMeta(selectedTicket.status);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setShowFooterStatusMenu(true)}
+                            style={{
+                              height: '32px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0 0.65rem',
+                              borderRadius: '999px',
+                              backgroundColor: statusMeta.bg,
+                              color: statusMeta.color,
+                              border: `1.5px solid ${statusMeta.border}`,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
+                              transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                              minWidth: 0,
+                              flexShrink: 1
+                            }}
+                            title="Ubah Status Pengerjaan Tiket"
+                          >
+                            <span style={{
+                              width: '7px',
+                              height: '7px',
+                              borderRadius: '50%',
+                              backgroundColor: statusMeta.color,
+                              display: 'inline-block',
+                              boxShadow: `0 0 6px ${statusMeta.color}88`,
+                              flexShrink: 0
+                            }} />
+                            <span style={{
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}>
+                              Status: <span style={{ textDecoration: 'underline', textUnderlineOffset: '2px' }}>{statusMeta.shortLabel}</span>
+                            </span>
+                            <ChevronDown size={12} strokeWidth={2.5} style={{ opacity: 0.8, flexShrink: 0 }} />
+                          </button>
+                        );
+                      })()}
+
+                      {/* Right: Premium Quick Reply Canned Response Templates Pill */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetchCannedTemplates();
+                          setShowTemplateModal(true);
+                        }}
+                        style={{
+                          height: '32px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0 0.65rem',
+                          borderRadius: '999px',
+                          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                          color: isDark ? '#38bdf8' : '#0284c7',
+                          border: `1.5px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.22)'}`,
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.05)',
+                          transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                          flexShrink: 0
+                        }}
+                        title="Gunakan Template Balasan Cepat (Canned Responses)"
+                      >
+                        <Zap size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                        <span style={{ whiteSpace: 'nowrap' }}>Template Balasan</span>
+                      </button>
+                    </div>
+
+                    {/* Input Bar Row */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      backgroundColor: isInternalNote 
+                        ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)')
+                        : (isDark ? '#1e293b' : '#ffffff'),
+                      borderRadius: '0.85rem',
+                      padding: '0.35rem 0.45rem 0.35rem 0.65rem',
+                      border: isInternalNote 
+                        ? `1.5px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`
+                        : `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1'}`,
+                      boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.04)'
+                    }}>
+                      <input
+                        type="file"
+                        id="admin-ticket-reply-file"
+                        multiple
+                        accept="image/png, image/jpeg, image/webp, application/pdf, .pdf"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handleUploadTicketAttachment(e.target.files)}
+                      />
+
+                      {/* Paperclip Button */}
+                      <button
+                        type="button"
+                        disabled={isUploadingTicketAttachment || ticketReplyAttachments.length >= 5}
+                        onClick={() => document.getElementById('admin-ticket-reply-file')?.click()}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'transparent',
                           border: 'none',
-                          fontSize: '0.6rem',
+                          color: isDark ? '#94a3b8' : '#64748b',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
+                          flexShrink: 0,
                           padding: 0
                         }}
+                        title="Lampirkan Gambar"
                       >
-                        ✕
+                        {isUploadingTicketAttachment ? <RefreshCw size={15} className="animate-spin" /> : <Paperclip size={18} />}
+                      </button>
+
+                      {/* Textarea */}
+                      <textarea
+                        ref={mobileTicketTextareaRef}
+                        rows={1}
+                        placeholder={isInternalNote ? "Tulis catatan rahasia internal tim CS..." : "Ketik balasan untuk merchant..."}
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        style={{
+                          flex: 1,
+                          minHeight: '36px',
+                          maxHeight: '120px',
+                          height: 'auto',
+                          padding: '0.45rem 0.35rem',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          color: theme.textPrimary,
+                          fontSize: '0.84rem',
+                          lineHeight: 1.45,
+                          resize: 'none',
+                          overflowY: 'auto',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+
+                      {/* Send Button */}
+                      <button
+                        type="button"
+                        disabled={(!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading}
+                        onClick={() => handleAdminReply(false)}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          backgroundColor: isInternalNote ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
+                          color: isInternalNote ? '#000000' : '#ffffff',
+                          border: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          opacity: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 0.35 : 1,
+                          boxShadow: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 'none' : '0 2px 8px rgba(0,0,0,0.2)',
+                          transition: 'all 0.15s ease',
+                          padding: 0
+                        }}
+                        title={isInternalNote ? "Simpan Catatan Internal" : "Kirim Balasan"}
+                      >
+                        {actionLoading ? <RefreshCw size={15} className="animate-spin" /> : <Send size={16} />}
                       </button>
                     </div>
-                  ))}
-                  <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
-                    {ticketReplyAttachments.length} lampiran foto
-                  </span>
-                </div>
-              )}
-
-              {/* Quick Action Toolbar Strip: Status Capsule Pill on Left, Template Capsule Pill on Right */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.15rem 0.1rem 0.35rem',
-                gap: '0.45rem',
-                width: '100%',
-                boxSizing: 'border-box'
-              }}>
-                {/* Left: Premium Interactive Ticket Status Pill */}
-                {(() => {
-                  const statusMeta = getTicketStatusMeta(selectedTicket.status);
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => setShowFooterStatusMenu(true)}
-                      style={{
-                        height: '32px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        padding: '0 0.65rem',
-                        borderRadius: '999px',
-                        backgroundColor: statusMeta.bg,
-                        color: statusMeta.color,
-                        border: `1.5px solid ${statusMeta.border}`,
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
-                        transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                        minWidth: 0,
-                        flexShrink: 1
-                      }}
-                      title="Ubah Status Pengerjaan Tiket"
-                    >
-                      <span style={{
-                        width: '7px',
-                        height: '7px',
-                        borderRadius: '50%',
-                        backgroundColor: statusMeta.color,
-                        display: 'inline-block',
-                        boxShadow: `0 0 6px ${statusMeta.color}88`,
-                        flexShrink: 0
-                      }} />
-                      <span style={{
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}>
-                        Status: <span style={{ textDecoration: 'underline', textUnderlineOffset: '2px' }}>{statusMeta.shortLabel}</span>
-                      </span>
-                      <ChevronDown size={12} strokeWidth={2.5} style={{ opacity: 0.8, flexShrink: 0 }} />
-                    </button>
-                  );
-                })()}
-
-                {/* Right: Premium Quick Reply Canned Response Templates Pill */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    fetchCannedTemplates();
-                    setShowTemplateModal(true);
-                  }}
-                  style={{
-                    height: '32px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0 0.65rem',
-                    borderRadius: '999px',
-                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
-                    color: isDark ? '#38bdf8' : '#0284c7',
-                    border: `1.5px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.22)'}`,
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.05)',
-                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                    flexShrink: 0
-                  }}
-                  title="Gunakan Template Balasan Cepat (Canned Responses)"
-                >
-                  <Zap size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-                  <span style={{ whiteSpace: 'nowrap' }}>Template Balasan</span>
-                </button>
+                  </>
+                )}
               </div>
-
-              {/* Input Bar Row */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                backgroundColor: isInternalNote 
-                  ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)')
-                  : (isDark ? '#1e293b' : '#ffffff'),
-                borderRadius: '0.85rem',
-                padding: '0.35rem 0.45rem 0.35rem 0.65rem',
-                border: isInternalNote 
-                  ? `1.5px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`
-                  : `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1'}`,
-                boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.04)'
-              }}>
-                <input
-                  type="file"
-                  id="admin-ticket-reply-file"
-                  multiple
-                  accept="image/png, image/jpeg, image/webp, application/pdf, .pdf"
-                  style={{ display: 'none' }}
-                  onChange={(e) => handleUploadTicketAttachment(e.target.files)}
-                />
-
-                {/* Paperclip Button */}
-                <button
-                  type="button"
-                  disabled={isUploadingTicketAttachment || ticketReplyAttachments.length >= 5}
-                  onClick={() => document.getElementById('admin-ticket-reply-file')?.click()}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '0.55rem',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    color: isDark ? '#94a3b8' : '#64748b',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    padding: 0
-                  }}
-                  title="Lampirkan Gambar"
-                >
-                  {isUploadingTicketAttachment ? <RefreshCw size={15} className="animate-spin" /> : <Paperclip size={18} />}
-                </button>
-
-                {/* Textarea */}
-                <textarea
-                  ref={mobileTicketTextareaRef}
-                  rows={1}
-                  placeholder={isInternalNote ? "Tulis catatan rahasia internal tim CS..." : "Ketik balasan untuk merchant..."}
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  style={{
-                    flex: 1,
-                    minHeight: '36px',
-                    maxHeight: '120px',
-                    height: 'auto',
-                    padding: '0.45rem 0.35rem',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    color: theme.textPrimary,
-                    fontSize: '0.84rem',
-                    lineHeight: 1.45,
-                    resize: 'none',
-                    overflowY: 'auto',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-
-                {/* Send Button */}
-                <button
-                  type="button"
-                  disabled={(!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading}
-                  onClick={() => handleAdminReply(false)}
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    backgroundColor: isInternalNote ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
-                    color: isInternalNote ? '#000000' : '#ffffff',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    opacity: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 0.35 : 1,
-                    boxShadow: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 'none' : '0 2px 8px rgba(0,0,0,0.2)',
-                    transition: 'all 0.15s ease',
-                    padding: 0
-                  }}
-                  title={isInternalNote ? "Simpan Catatan Internal" : "Kirim Balasan"}
-                >
-                  {actionLoading ? <RefreshCw size={15} className="animate-spin" /> : <Send size={16} />}
-                </button>
-              </div>
-            </div>
           )}
         </div>
       ) : (
@@ -8395,38 +8425,53 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   )}
 
                   {o.status === 'pending' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
-                      <button
-                        onClick={() => handleUpdateOrderStatus(o.id, 'rejected')}
-                        style={{
-                          padding: '0.5rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                          color: '#f87171',
-                          fontSize: '0.74rem',
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Tolak
-                      </button>
-                      <button
-                        onClick={() => handleUpdateOrderStatus(o.id, 'active')}
-                        style={{
-                          padding: '0.5rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: '#10b981',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: '0.74rem',
-                          fontWeight: 800,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Aktifkan Paket
-                      </button>
-                    </div>
+                    canManageFinance ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
+                        <button
+                          onClick={() => handleUpdateOrderStatus(o.id, 'rejected')}
+                          style={{
+                            padding: '0.5rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#f87171',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Tolak
+                        </button>
+                        <button
+                          onClick={() => handleUpdateOrderStatus(o.id, 'active')}
+                          style={{
+                            padding: '0.5rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: '#10b981',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: '0.74rem',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Aktifkan Paket
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{
+                        padding: '0.4rem 0.6rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : '#f8fafc',
+                        border: `1px dashed ${theme.border}`,
+                        fontSize: '0.72rem',
+                        color: theme.textMuted,
+                        textAlign: 'center',
+                        marginTop: '0.35rem'
+                      }}>
+                        Menunggu verifikasi admin keuangan (<code style={{ fontSize: '0.68rem' }}>finance:orders:manage</code>)
+                      </div>
+                    )
                   )}
                 </div>
               ))

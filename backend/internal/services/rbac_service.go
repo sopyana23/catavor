@@ -195,15 +195,14 @@ func (s *RBACService) UpdateRolePermissions(roleSlug string, permissionKeys []st
 		return err
 	}
 
+	// SECURITY (N-05): role superadmin memiliki hak akses absolut wildcard dan matriks izinnya tidak dapat diubah
+	if roleSlug == "superadmin" {
+		return errors.New("role 'superadmin' memiliki akses absolut wildcard dan matriks izinnya tidak dapat diubah")
+	}
+
 	var role models.PlatformRole
 	if err := s.db.Where("slug = ?", roleSlug).First(&role).Error; err != nil {
 		return fmt.Errorf("role '%s' tidak ditemukan", roleSlug)
-	}
-
-	// SECURITY (N-05): role sistem (is_system=true) tidak boleh diubah matriksnya
-	// lewat API; perubahan role inti harus lewat migrasi/seed yang ter-review.
-	if role.IsSystem {
-		return fmt.Errorf("role '%s' adalah role sistem dan tidak dapat diubah lewat API", roleSlug)
 	}
 
 	// Resolve permission IDs from keys
@@ -327,7 +326,7 @@ func (s *RBACService) AssignStaffRole(targetEmailOrID string, roleSlug string, a
 	}
 
 	var targetUser models.User
-	if err := s.db.Where("email = ? OR CAST(id AS TEXT) = ?", targetEmailOrID, targetEmailOrID).First(&targetUser).Error; err != nil {
+	if err := s.db.Where("LOWER(email) = LOWER(?) OR CAST(id AS TEXT) = ?", targetEmailOrID, targetEmailOrID).First(&targetUser).Error; err != nil {
 		return errors.New("pengguna target tidak ditemukan")
 	}
 
@@ -451,6 +450,11 @@ func (s *RBACService) CreateCustomRole(slug, name, description string, permissio
 	slug = strings.ToLower(strings.TrimSpace(slug))
 	slug = strings.ReplaceAll(slug, " ", "_")
 	name = strings.TrimSpace(name)
+
+	// SECURITY (N-05): tolak bila aktor bukan superadmin (pertahanan berlapis).
+	if err := requireRBACSuperadmin(actor); err != nil {
+		return nil, err
+	}
 
 	if slug == "" || name == "" {
 		return nil, errors.New("slug dan nama role wajib diisi")

@@ -35,6 +35,7 @@ import {
   type AdminStaffUser,
   getRoleBadge,
 } from '../utils/rbac';
+import { MobileCustomSelect } from './MobileCustomSelect';
 
 interface AdminRBACManagementProps {
   token: string;
@@ -1173,25 +1174,19 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
                   Pilih Role Wewenang
                 </label>
-                <select
+                <MobileCustomSelect
                   value={selectedRoleSlug}
-                  onChange={e => setSelectedRoleSlug(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.65rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: theme.inputBg,
-                    border: `1px solid ${theme.inputBorder}`,
-                    color: theme.textPrimary,
-                    fontSize: '0.8rem'
-                  }}
-                >
-                  {roles.map(r => (
-                    <option key={r.slug} value={r.slug}>
-                      {r.name} ({r.slug})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedRoleSlug(val)}
+                  options={roles.map(r => ({
+                    value: r.slug,
+                    label: r.name,
+                    description: `Slug: ${r.slug}`
+                  }))}
+                  title="Pilih Role Platform"
+                  subtitle="Tugaskan wewenang operasional untuk staf terpilih"
+                  placeholder="Pilih Role Wewenang..."
+                  style={{ width: '100%' }}
+                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '0.65rem', marginTop: '0.65rem' }}>
