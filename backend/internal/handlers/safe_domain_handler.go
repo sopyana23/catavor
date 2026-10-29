@@ -148,9 +148,22 @@ func (h *SafeDomainHandler) GetAdminSafeDomains(c *fiber.Ctx) error {
 		})
 	}
 
+	// 2b. Aggregate categories with data (count > 0)
+	var categoryCounts []struct {
+		Category string `json:"category"`
+		Count    int64  `json:"count"`
+	}
+	h.db.Model(&models.SafeDomain{}).
+		Select("category, count(*) as count").
+		Group("category").
+		Having("count(*) > 0").
+		Order("count desc, category asc").
+		Scan(&categoryCounts)
+
 	resp := fiber.Map{
-		"success": true,
-		"data":    domains,
+		"success":    true,
+		"data":       domains,
+		"categories": categoryCounts,
 		"pagination": fiber.Map{
 			"page":        page,
 			"limit":       limit,

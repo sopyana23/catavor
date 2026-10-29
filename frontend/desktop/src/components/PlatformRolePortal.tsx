@@ -98,7 +98,7 @@ import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { AdminStoresManagement } from './AdminStoresManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
-import { DesktopCustomSelect } from './DesktopCustomSelect';
+import { DesktopCustomSelect, type SelectOption } from './DesktopCustomSelect';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
 
@@ -620,6 +620,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const [templateCategoryFilter, setTemplateCategoryFilter] = useState('all');
+  const [templateCategoryCounts, setTemplateCategoryCounts] = useState<{ category: string; count: number }[]>([]);
   const [templateSearchQuery, setTemplateSearchQuery] = useState('');
   const [debouncedTemplateSearch, setDebouncedTemplateSearch] = useState('');
   const [templatePage, setTemplatePage] = useState(1);
@@ -816,6 +817,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         if (data.pagination) {
           setTemplatePagination(data.pagination);
         }
+        if (Array.isArray(data.categories)) {
+          setTemplateCategoryCounts(data.categories.filter((c: any) => c && c.category && c.count > 0));
+        } else if (Array.isArray(data.data)) {
+          const countMap: Record<string, number> = {};
+          (data.data as any[]).forEach(t => {
+            const cat = t.category || 'general';
+            countMap[cat] = (countMap[cat] || 0) + 1;
+          });
+          setTemplateCategoryCounts(Object.entries(countMap).map(([category, count]) => ({ category, count })));
+        }
       }
     } catch (e) {
       console.error('Failed to load canned response templates:', e);
@@ -823,6 +834,51 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setLoadingTemplates(false);
     }
   };
+
+  // Standardized Category labels for CS Templates
+  const templateCategoryLabels: Record<string, string> = useMemo(() => ({
+    all: 'Semua Kategori',
+    general: 'Umum & Greeting',
+    billing: 'Keuangan',
+    technical: 'Teknis',
+    closing: 'Penutupan',
+    account: 'Akun & Keamanan'
+  }), []);
+
+  // Dynamic Template Category Options: strictly contains only categories that have actual data (count > 0)
+  const desktopTemplateCategoryOptions = useMemo<SelectOption[]>(() => {
+    const totalCount = Number(templatePagination.total ?? cannedTemplates.length);
+    const options: SelectOption[] = [
+      {
+        value: 'all',
+        label: 'Semua Kategori',
+        count: totalCount
+      }
+    ];
+
+    templateCategoryCounts.forEach(c => {
+      if (c.count > 0 && c.category !== 'all') {
+        const label = templateCategoryLabels[c.category] || (c.category.charAt(0).toUpperCase() + c.category.slice(1));
+        options.push({
+          value: c.category,
+          label,
+          count: c.count
+        });
+      }
+    });
+
+    return options;
+  }, [templateCategoryCounts, templatePagination.total, cannedTemplates.length, templateCategoryLabels]);
+
+  // Safety auto-reset: if selected template category filter no longer has data, fallback safely to 'all'
+  useEffect(() => {
+    if (templateCategoryFilter !== 'all' && desktopTemplateCategoryOptions.length > 1) {
+      const exists = desktopTemplateCategoryOptions.some(opt => opt.value === templateCategoryFilter);
+      if (!exists) {
+        setTemplateCategoryFilter('all');
+      }
+    }
+  }, [desktopTemplateCategoryOptions, templateCategoryFilter]);
 
   useEffect(() => {
     if (activeView === 'master_data' && masterSubView === 'templates') {
@@ -1213,19 +1269,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     setFilterSheetDragY(0);
   };
 
-  // Available unique categories & priorities from registered dictionary & tickets
+  // Available unique categories & priorities from tickets: strictly count > 0
   const availableCategories = useMemo(() => {
     const map: Record<string, number> = {};
     tickets.forEach(t => {
       const cat = t.category || 'general';
       map[cat] = (map[cat] || 0) + 1;
     });
-    const allKeys = Array.from(new Set([...Object.keys(CATEGORY_LABELS), ...Object.keys(map)]));
-    return allKeys.map(cat => ({
-      id: cat,
-      label: CATEGORY_LABELS[cat] || cat,
-      count: map[cat] || 0
-    }));
+    return Object.entries(map)
+      .filter(([_, count]) => count > 0)
+      .map(([cat, count]) => ({
+        id: cat,
+        label: CATEGORY_LABELS[cat] || cat,
+        count
+      }));
   }, [tickets]);
 
   const availablePriorities = useMemo(() => {
@@ -1235,13 +1292,82 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       map[p] = (map[p] || 0) + 1;
     });
     const allPrios = ['urgent', 'high', 'medium', 'low'];
-    return allPrios.map(p => ({
-      id: p,
-      label: PRIORITY_META[p]?.label || p,
-      color: PRIORITY_META[p]?.color || '#94a3b8',
-      count: map[p] || 0
-    }));
+    return allPrios
+      .filter(p => (map[p] || 0) > 0)
+      .map(p => ({
+        id: p,
+        label: PRIORITY_META[p]?.label || p,
+        color: PRIORITY_META[p]?.color || '#94a3b8',
+        count: map[p] || 0
+      }));
   }, [tickets]);
+
+  // Safety auto-reset for ticket category & priority filters
+  useEffect(() => {
+    if (ticketCategoryFilter !== 'all' && availableCategories.length > 0) {
+      if (!availableCategories.some(c => c.id === ticketCategoryFilter)) {
+        setTicketCategoryFilter('all');
+      }
+    }
+  }, [availableCategories, ticketCategoryFilter]);
+
+  useEffect(() => {
+    if (ticketPriorityFilter !== 'all' && availablePriorities.length > 0) {
+      if (!availablePriorities.some(p => p.id === ticketPriorityFilter)) {
+        setTicketPriorityFilter('all');
+      }
+    }
+  }, [availablePriorities, ticketPriorityFilter]);
+
+  // Target counts for compliance reports
+  const reportTargetCounts = useMemo(() => {
+    const item = reports.filter(r => r.target_type !== 'catalog' && r.target_type !== 'store').length;
+    const catalog = reports.filter(r => r.target_type === 'catalog' || r.target_type === 'store').length;
+    const total = reportMetrics ? reportMetrics.total : reports.length;
+    return { total, item, catalog };
+  }, [reports, reportMetrics]);
+
+  // Dynamic Status Options for Reports: strictly count > 0
+  const reportStatusOptions = useMemo<SelectOption[]>(() => {
+    const list = [
+      { value: 'all', label: 'Semua Status Laporan', count: reportMetrics ? reportMetrics.total : reports.length },
+      { value: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
+      { value: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
+      { value: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
+      { value: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
+      { value: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
+      { value: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
+      { value: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length }
+    ];
+    return list.filter(opt => opt.value === 'all' || (typeof opt.count === 'number' && opt.count > 0));
+  }, [reportMetrics, reports]);
+
+  // Dynamic Target Options for Reports: strictly count > 0
+  const reportTargetOptions = useMemo<SelectOption[]>(() => {
+    const list = [
+      { value: 'all', label: 'Semua Target', count: reportTargetCounts.total },
+      { value: 'item', label: 'Hanya Item', count: reportTargetCounts.item },
+      { value: 'catalog', label: 'Katalog Merchant', count: reportTargetCounts.catalog }
+    ];
+    return list.filter(opt => opt.value === 'all' || (typeof opt.count === 'number' && opt.count > 0));
+  }, [reportTargetCounts]);
+
+  // Safety auto-resets for compliance reports
+  useEffect(() => {
+    if (reportsFilter !== 'all' && reportStatusOptions.length > 1) {
+      if (!reportStatusOptions.some(opt => opt.value === reportsFilter)) {
+        setReportsFilter('all');
+      }
+    }
+  }, [reportStatusOptions, reportsFilter]);
+
+  useEffect(() => {
+    if (reportsTargetFilter !== 'all' && reportTargetOptions.length > 1) {
+      if (!reportTargetOptions.some(opt => opt.value === reportsTargetFilter)) {
+        setReportsTargetFilter('all');
+      }
+    }
+  }, [reportTargetOptions, reportsTargetFilter]);
 
   // Trigger Compliance Reports fetch on filter / debounced search changes
   useEffect(() => {
@@ -3315,6 +3441,42 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const totalTicketsCount = ticketsMetrics.total ?? tickets.length;
   const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
   const totalAlertsCount = pendingReportsCount + actionRequiredTicketsCount + pendingOrdersCount + (dormancyMetrics?.dormant_stores || 0);
+
+  // Dynamic Triage Status Options for Support Tickets: strictly count > 0
+  const supportTriageStatusOptions = useMemo(() => {
+    const raw = [
+      { value: 'all', label: 'Semua Status Tiket', count: totalTicketsCount },
+      { value: 'action_required', label: 'Perlu Respon', count: actionRequiredTicketsCount },
+      { value: 'in_progress', label: 'Diproses', count: inProgressTicketsCount },
+      { value: 'waiting_user', label: 'Tunggu Merchant', count: waitingUserTicketsCount },
+      { value: 'urgent', label: 'Urgent', count: urgentTicketsCount },
+      { value: 'resolved', label: 'Selesai', count: resolvedTicketsCount }
+    ];
+    return raw.filter(opt => opt.value === 'all' || (opt.count && opt.count > 0));
+  }, [totalTicketsCount, actionRequiredTicketsCount, inProgressTicketsCount, waitingUserTicketsCount, urgentTicketsCount, resolvedTicketsCount]);
+
+  const activeTriageFilter: string = ticketPriorityFilter === 'urgent' ? 'urgent' : ticketsFilter;
+
+  const handleTriageFilterChange = (val: string) => {
+    if (val === 'urgent') {
+      setTicketPriorityFilter('urgent');
+      setTicketsFilter('all');
+    } else {
+      if (ticketPriorityFilter === 'urgent') {
+        setTicketPriorityFilter('all');
+      }
+      setTicketsFilter(val as any);
+    }
+  };
+
+  useEffect(() => {
+    const current = ticketPriorityFilter === 'urgent' ? 'urgent' : ticketsFilter;
+    if (current !== 'all' && supportTriageStatusOptions.length > 0) {
+      if (!supportTriageStatusOptions.some(opt => opt.value === current)) {
+        handleTriageFilterChange('all');
+      }
+    }
+  }, [supportTriageStatusOptions, ticketsFilter, ticketPriorityFilter]);
 
   // Auto-scroll chat stream to bottom when ticket is opened or new messages arrive
   useEffect(() => {
@@ -6064,98 +6226,53 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
           </div>
 
-          {/* Search Box */}
-          <div style={{ position: 'relative', width: '100%' }}>
-            <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
-            <input
-              type="text"
-              placeholder="Cari nomor tiket (#RPT-...), merchant, item, atau email..."
-              value={reportsSearchQuery}
-              onChange={(e) => setReportsSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.65rem 0.85rem 0.65rem 2.35rem',
-                borderRadius: '0.75rem',
-                border: `1px solid ${theme.border}`,
-                backgroundColor: theme.surface,
-                color: theme.textPrimary,
-                fontSize: '0.78rem',
-                fontFamily: 'inherit',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          {/* Filter Status Chips */}
-          <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
-            {[
-              { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
-              { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
-              { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
-              { id: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
-              { id: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
-              { id: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
-              { id: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
-              { id: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length },
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setReportsFilter(f.id as any)}
+          {/* Search Box & Dropdown Filters Bar */}
+          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
+              <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+              <input
+                type="text"
+                placeholder="Cari nomor tiket (#RPT-...), merchant, item, atau email..."
+                value={reportsSearchQuery}
+                onChange={(e) => setReportsSearchQuery(e.target.value)}
                 style={{
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '999px',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  backgroundColor: reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : '#f43f5e') : theme.chipInactiveBg,
-                  color: reportsFilter === f.id ? '#ffffff' : theme.chipInactiveText,
-                  border: `1px solid ${reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : '#f43f5e') : theme.border}`,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
+                  width: '100%',
+                  padding: '0.65rem 0.85rem 0.65rem 2.35rem',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.surface,
+                  color: theme.textPrimary,
+                  fontSize: '0.78rem',
+                  fontFamily: 'inherit',
+                  outline: 'none',
+                  boxSizing: 'border-box'
                 }}
-              >
-                <span>{f.label}</span>
-                <span style={{
-                  fontSize: '0.62rem',
-                  padding: '0.05rem 0.35rem',
-                  borderRadius: '999px',
-                  backgroundColor: reportsFilter === f.id ? 'rgba(255,255,255,0.25)' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'),
-                  color: reportsFilter === f.id ? '#ffffff' : theme.textSecondary
-                }}>
-                  {f.count}
-                </span>
-              </button>
-            ))}
-          </div>
+              />
+            </div>
 
-          {/* Target Type Filter */}
-          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: theme.textSecondary }}>Target:</span>
-            {[
-              { id: 'all', label: 'Semua Target' },
-              { id: 'item', label: 'Hanya Item' },
-              { id: 'catalog', label: 'Katalog Merchant' },
-            ].map(tf => (
-              <button
-                key={tf.id}
-                onClick={() => setReportsTargetFilter(tf.id as any)}
-                style={{
-                  padding: '0.25rem 0.6rem',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.68rem',
-                  fontWeight: 600,
-                  backgroundColor: reportsTargetFilter === tf.id ? (isDark ? '#334155' : '#e2e8f0') : 'transparent',
-                  color: reportsTargetFilter === tf.id ? theme.textPrimary : theme.textMuted,
-                  border: `1px solid ${reportsTargetFilter === tf.id ? theme.border : 'transparent'}`,
-                  cursor: 'pointer'
-                }}
-              >
-                {tf.label}
-              </button>
-            ))}
+            {/* Status Dropdown (Standardized DesktopCustomSelect) */}
+            <div style={{ minWidth: '220px', flexShrink: 0 }}>
+              <DesktopCustomSelect
+                value={reportsFilter}
+                onChange={(val) => setReportsFilter(val as any)}
+                options={reportStatusOptions}
+                icon={<ShieldAlert size={14} />}
+                placeholder="Filter Status Laporan"
+                highlight={reportsFilter !== 'all'}
+              />
+            </div>
+
+            {/* Target Dropdown (Standardized DesktopCustomSelect) */}
+            <div style={{ minWidth: '180px', flexShrink: 0 }}>
+              <DesktopCustomSelect
+                value={reportsTargetFilter}
+                onChange={(val) => setReportsTargetFilter(val as any)}
+                options={reportTargetOptions}
+                icon={<Layers size={14} />}
+                placeholder="Filter Target"
+                highlight={reportsTargetFilter !== 'all'}
+              />
+            </div>
           </div>
 
           {/* Filtered Reports Feed */}
@@ -8003,176 +8120,134 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               )}
             </div>
 
-            {/* 2. Unified Triage Tabs Bar (Single Source of Truth) */}
-            <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
-              {[
-                { id: 'all', label: 'Semua', count: totalTicketsCount, color: 'var(--primary)', isPriority: false },
-                { id: 'action_required', label: 'Perlu Respon', count: actionRequiredTicketsCount, color: 'var(--primary)', isPriority: false },
-                { id: 'in_progress', label: 'Diproses', count: inProgressTicketsCount, color: isDark ? '#fbbf24' : '#d97706', isPriority: false },
-                { id: 'waiting_user', label: 'Tunggu Merchant', count: waitingUserTicketsCount, color: isDark ? '#c084fc' : '#9333ea', isPriority: false },
-                { id: 'urgent', label: 'Urgent', count: urgentTicketsCount, color: '#ef4444', isPriority: true },
-                { id: 'resolved', label: 'Selesai', count: resolvedTicketsCount, color: isDark ? '#34d399' : '#059669', isPriority: false }
-              ].map(tab => {
-                const isActive = tab.isPriority 
-                  ? ticketPriorityFilter === 'urgent'
-                  : (ticketsFilter === tab.id && ticketPriorityFilter !== 'urgent');
+            {/* 2. Unified Filter Toolbar (Desktop Native with Strictly Count > 0) */}
+            <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Status Tiket Dropdown (Desktop Native) */}
+              <DesktopCustomSelect
+                value={activeTriageFilter}
+                onChange={handleTriageFilterChange}
+                icon={<Filter size={12} />}
+                highlight={activeTriageFilter !== 'all'}
+                options={supportTriageStatusOptions.map(opt => ({
+                  value: opt.value,
+                  label: opt.label,
+                  count: opt.count
+                }))}
+                placeholder="Semua Status Tiket"
+                style={{ width: 'auto', minWidth: '175px' }}
+                triggerStyle={{
+                  height: '34px',
+                  padding: '0 0.65rem',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  backgroundColor: activeTriageFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
+                  borderColor: activeTriageFilter !== 'all' ? 'var(--primary)' : theme.border,
+                  color: activeTriageFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
+                }}
+                dropdownStyle={{ minWidth: '200px' }}
+              />
 
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      if (tab.isPriority) {
-                        setTicketPriorityFilter(ticketPriorityFilter === 'urgent' ? 'all' : 'urgent');
-                        setTicketsFilter('all');
-                      } else {
-                        setTicketsFilter(tab.id as any);
-                        setTicketPriorityFilter('all');
-                      }
-                    }}
-                    style={{
-                      padding: '0.36rem 0.65rem',
-                      borderRadius: '0.65rem',
-                      fontSize: '0.72rem',
-                      fontWeight: 800,
-                      backgroundColor: isActive 
-                        ? (tab.id === 'urgent' ? '#ef4444' : (tab.id === 'in_progress' ? '#f59e0b' : (tab.id === 'waiting_user' ? '#a855f7' : (tab.id === 'resolved' ? '#10b981' : 'var(--primary)')))) 
-                        : theme.chipInactiveBg,
-                      color: isActive ? (isDark && tab.id !== 'urgent' && tab.id !== 'waiting_user' && tab.id !== 'resolved' ? '#000000' : '#ffffff') : theme.textSecondary,
-                      border: `1px solid ${isActive ? 'transparent' : theme.border}`,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      transition: 'all 0.12s ease'
-                    }}
-                  >
-                    <span>{tab.label}</span>
-                    <span style={{
-                      fontSize: '0.66rem',
-                      fontWeight: 900,
-                      padding: '0.08rem 0.35rem',
-                      borderRadius: '999px',
-                      backgroundColor: isActive ? 'rgba(0,0,0,0.25)' : theme.cardAlt,
-                      color: isActive ? '#ffffff' : (tab.count > 0 && (tab.id === 'action_required' || tab.id === 'urgent') ? '#ef4444' : theme.textMuted),
-                      border: `1px solid ${isActive ? 'rgba(255,255,255,0.2)' : theme.border}`
-                    }}>
-                      {tab.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+              {/* Time-Windowing Selector Bar for Selesai / Resolved Tab */}
+              {ticketsFilter === 'resolved' && (
+                <div style={{ display: 'inline-flex', gap: '0.25rem', alignItems: 'center', padding: '0.15rem 0.35rem', backgroundColor: theme.cardAlt, borderRadius: '0.55rem', border: `1px solid ${theme.border}` }}>
+                  {[
+                    { id: '30d', label: '30 Hari' },
+                    { id: '90d', label: '90 Hari' },
+                    { id: 'all', label: 'Semua Riwayat' }
+                  ].map(tr => (
+                    <button
+                      key={tr.id}
+                      type="button"
+                      onClick={() => setResolvedTimeRangeFilter(tr.id as any)}
+                      style={{
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '0.4rem',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        backgroundColor: resolvedTimeRangeFilter === tr.id ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)') : 'transparent',
+                        color: resolvedTimeRangeFilter === tr.id ? (isDark ? '#34d399' : '#059669') : theme.textMuted,
+                        border: 'none',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.12s ease'
+                      }}
+                    >
+                      {tr.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-            {/* 3. Time-Windowing Selector Bar for Selesai / Resolved Tab */}
-            {ticketsFilter === 'resolved' && (
-              <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', padding: '0.2rem 0', overflowX: 'auto' }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase', marginRight: '0.15rem', whiteSpace: 'nowrap' }}>
-                  Rentang Riwayat:
-                </span>
-                {[
-                  { id: '30d', label: '30 Hari Terakhir' },
-                  { id: '90d', label: '90 Hari Terakhir' },
-                  { id: 'all', label: 'Semua Riwayat Selesai' }
-                ].map(tr => (
-                  <button
-                    key={tr.id}
-                    type="button"
-                    onClick={() => setResolvedTimeRangeFilter(tr.id as any)}
-                    style={{
-                      padding: '0.25rem 0.6rem',
-                      borderRadius: '999px',
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      backgroundColor: resolvedTimeRangeFilter === tr.id ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)') : theme.chipInactiveBg,
-                      color: resolvedTimeRangeFilter === tr.id ? (isDark ? '#34d399' : '#059669') : theme.textMuted,
-                      border: `1px solid ${resolvedTimeRangeFilter === tr.id ? '#10b981' : theme.border}`,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.12s ease'
-                    }}
-                  >
-                    {tr.label}
-                  </button>
-                ))}
-              </div>
-            )}
+              {/* Category Dropdown (Desktop Native) */}
+              {availableCategories.length > 1 && (
+                <DesktopCustomSelect
+                  value={ticketCategoryFilter}
+                  onChange={(val) => setTicketCategoryFilter(val)}
+                  icon={<Tag size={12} />}
+                  highlight={ticketCategoryFilter !== 'all'}
+                  options={[
+                    { value: 'all', label: 'Semua Kategori' },
+                    ...availableCategories.map((c) => ({
+                      value: c.id,
+                      label: c.label,
+                      count: c.count
+                    }))
+                  ]}
+                  placeholder="Semua Kategori"
+                  style={{ width: 'auto', minWidth: '160px' }}
+                  triggerStyle={{
+                    height: '34px',
+                    padding: '0 0.65rem',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    backgroundColor: ticketCategoryFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
+                    borderColor: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.border,
+                    color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
+                  }}
+                  dropdownStyle={{ minWidth: '190px' }}
+                />
+              )}
 
-            {/* 4. Secondary Filter Row (Mobile Trigger for Bottom Sheet Modals & Reset) */}
-            {(availableCategories.length > 1 || availablePriorities.length > 1 || (ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSearchQuery)) && (
-              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                
-                {/* Category Dropdown (Desktop Native) */}
-                {availableCategories.length > 1 && (
-                  <DesktopCustomSelect
-                    value={ticketCategoryFilter}
-                    onChange={(val) => setTicketCategoryFilter(val)}
-                    icon={<Tag size={12} />}
-                    highlight={ticketCategoryFilter !== 'all'}
-                    options={[
-                      { value: 'all', label: 'Semua Kategori' },
-                      ...availableCategories.map((c) => ({
-                        value: c.id,
-                        label: c.label,
-                        count: c.count
-                      }))
-                    ]}
-                    placeholder="Semua Kategori"
-                    style={{ width: 'auto', minWidth: '160px' }}
-                    triggerStyle={{
-                      height: '34px',
-                      padding: '0 0.65rem',
-                      fontSize: '0.74rem',
-                      fontWeight: 700,
-                      backgroundColor: ticketCategoryFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
-                      borderColor: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.border,
-                      color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
-                    }}
-                    dropdownStyle={{ minWidth: '190px' }}
-                  />
-                )}
+              {/* Priority Dropdown (Desktop Native) */}
+              {availablePriorities.length > 1 && (
+                <DesktopCustomSelect
+                  value={ticketPriorityFilter}
+                  onChange={(val) => setTicketPriorityFilter(val)}
+                  icon={<AlertCircle size={12} />}
+                  highlight={ticketPriorityFilter !== 'all'}
+                  options={[
+                    { value: 'all', label: 'Semua Prioritas' },
+                    ...availablePriorities.map((p) => ({
+                      value: p.id,
+                      label: p.label,
+                      count: p.count
+                    }))
+                  ]}
+                  placeholder="Semua Prioritas"
+                  style={{ width: 'auto', minWidth: '160px' }}
+                  triggerStyle={{
+                    height: '34px',
+                    padding: '0 0.65rem',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    backgroundColor: ticketPriorityFilter !== 'all' ? (isDark ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.1)') : theme.surface,
+                    borderColor: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.border,
+                    color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textPrimary
+                  }}
+                  dropdownStyle={{ minWidth: '190px' }}
+                />
+              )}
 
-                {/* Priority Dropdown (Desktop Native) */}
-                {availablePriorities.length > 1 && (
-                  <DesktopCustomSelect
-                    value={ticketPriorityFilter}
-                    onChange={(val) => setTicketPriorityFilter(val)}
-                    icon={<AlertCircle size={12} />}
-                    highlight={ticketPriorityFilter !== 'all'}
-                    options={[
-                      { value: 'all', label: 'Semua Prioritas' },
-                      ...availablePriorities.map((p) => ({
-                        value: p.id,
-                        label: p.label,
-                        count: p.count
-                      }))
-                    ]}
-                    placeholder="Semua Prioritas"
-                    style={{ width: 'auto', minWidth: '160px' }}
-                    triggerStyle={{
-                      height: '34px',
-                      padding: '0 0.65rem',
-                      fontSize: '0.74rem',
-                      fontWeight: 700,
-                      backgroundColor: ticketPriorityFilter !== 'all' ? (isDark ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.1)') : theme.surface,
-                      borderColor: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.border,
-                      color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textPrimary
-                    }}
-                    dropdownStyle={{ minWidth: '190px' }}
-                  />
-                )}
-
-                {/* Active Filter Indicator & Reset Button */}
-                {(ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSearchQuery) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTicketsFilter('all');
-                      setTicketCategoryFilter('all');
-                      setTicketPriorityFilter('all');
-                      setTicketSearchQuery('');
-                    }}
+              {/* Active Filter Indicator & Reset Button */}
+              {(ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || Boolean(ticketSearchQuery)) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleTriageFilterChange('all');
+                    setTicketCategoryFilter('all');
+                    setTicketPriorityFilter('all');
+                    setTicketSearchQuery('');
+                  }}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -8195,7 +8270,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </button>
                 )}
               </div>
-            )}
 
             {/* 5. Tickets Feed (Server-Side Filtered & Paginated with Load More) */}
             {ticketsLoading && tickets.length === 0 ? (
@@ -14306,9 +14380,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               </div>
 
-              {/* Search Bar & Action Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              {/* Search Bar & Category Filter Select */}
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: '240px', display: 'flex', alignItems: 'center' }}>
                   <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
                   <input
                     type="text"
@@ -14352,37 +14426,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   )}
                 </div>
 
-                {/* Action Buttons Row & Category Pills */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
-                    {[
-                      { id: 'all', label: 'Semua' },
-                      { id: 'general', label: 'Umum' },
-                      { id: 'billing', label: 'Keuangan' },
-                      { id: 'technical', label: 'Teknis' },
-                      { id: 'closing', label: 'Penutupan' },
-                      { id: 'account', label: 'Akun' }
-                    ].map(cat => (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setTemplateCategoryFilter(cat.id)}
-                        style={{
-                          padding: '0.3rem 0.65rem',
-                          borderRadius: '999px',
-                          fontSize: '0.7rem',
-                          fontWeight: templateCategoryFilter === cat.id ? 800 : 600,
-                          backgroundColor: templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.chipInactiveBg,
-                          color: templateCategoryFilter === cat.id ? '#ffffff' : theme.chipInactiveText,
-                          border: `1px solid ${templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.border}`,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
+                <div style={{ minWidth: '200px', flexShrink: 0 }}>
+                  <DesktopCustomSelect
+                    value={templateCategoryFilter}
+                    onChange={(val) => {
+                      setTemplateCategoryFilter(val);
+                      setTemplatePage(1);
+                    }}
+                    options={desktopTemplateCategoryOptions}
+                    icon={<Filter size={14} />}
+                    placeholder="Pilih Kategori"
+                  />
                 </div>
               </div>
 

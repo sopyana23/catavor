@@ -21,9 +21,11 @@ import {
   Tag,
   Info,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Filter
 } from 'lucide-react';
 import { loadDynamicSafeDomains } from '../utils/urlSecurity';
+import { MobileCustomSelect, type MobileSelectOption } from './MobileCustomSelect';
 
 export interface SafeDomainItem {
   id: number;
@@ -81,6 +83,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
+  const [categoryCounts, setCategoryCounts] = useState<{ category: string; count: number }[]>([]);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [pagination, setPagination] = useState({
@@ -187,6 +190,17 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
             total_pages: Number(json.pagination.total_pages || 1)
           });
         }
+        if (Array.isArray(json.categories)) {
+          setCategoryCounts(json.categories.filter((c: any) => c && c.category && c.count > 0));
+        } else {
+          // Dynamic fallback aggregation: only categories with count > 0
+          const countMap: Record<string, number> = {};
+          (json.data as SafeDomainItem[]).forEach(d => {
+            const cat = d.category || 'Umum';
+            countMap[cat] = (countMap[cat] || 0) + 1;
+          });
+          setCategoryCounts(Object.entries(countMap).map(([category, count]) => ({ category, count })));
+        }
       }
     } catch (err: any) {
       showToast(err.message || 'Gagal memuat data domain', 'error');
@@ -199,10 +213,42 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     fetchDomains(page, debouncedSearch, selectedCategory, limit);
   }, [token, page, debouncedSearch, selectedCategory, limit]);
 
-  const categories = useMemo(() => {
-    const list = ['Semua', 'Google', 'Komunikasi', 'Media Sosial', 'Platform', 'Produktivitas', 'Finansial', 'Mitra', 'Umum'];
-    return list;
-  }, []);
+  // Dynamic Category Options: strictly contains only categories that have actual data (count > 0)
+  const categoryOptions = useMemo<MobileSelectOption[]>(() => {
+    const totalCount = pagination.total || domains.length;
+    const options: MobileSelectOption[] = [
+      {
+        value: 'Semua',
+        label: 'Semua Kategori',
+        count: totalCount
+      }
+    ];
+
+    categoryCounts.forEach(c => {
+      if (c.count > 0 && c.category !== 'Semua') {
+        const color = CATEGORY_COLORS[c.category];
+        options.push({
+          value: c.category,
+          label: c.category,
+          count: c.count,
+          badgeColor: color?.text,
+          badgeBg: color?.bg
+        });
+      }
+    });
+
+    return options;
+  }, [categoryCounts, pagination.total, domains.length]);
+
+  // Safety auto-reset: if selected category no longer has data, fallback safely to 'Semua'
+  useEffect(() => {
+    if (selectedCategory !== 'Semua' && categoryOptions.length > 1) {
+      const exists = categoryOptions.some(opt => opt.value === selectedCategory);
+      if (!exists) {
+        setSelectedCategory('Semua');
+      }
+    }
+  }, [categoryOptions, selectedCategory]);
 
   const stats = useMemo(() => {
     const total = pagination.total || domains.length;
@@ -471,38 +517,17 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
           )}
         </div>
 
-        {/* Category Filter Pills */}
-        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
-          {categories.map(cat => {
-            const isActive = selectedCategory === cat;
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                style={{
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '999px',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  border: isActive
-                    ? '1px solid #38bdf8'
-                    : `1px solid ${theme.border}`,
-                  backgroundColor: isActive
-                    ? (isDark ? 'rgba(56, 189, 248, 0.18)' : '#0284c7')
-                    : (isDark ? 'rgba(255, 255, 255, 0.04)' : '#f1f5f9'),
-                  color: isActive
-                    ? (isDark ? '#38bdf8' : '#ffffff')
-                    : theme.textSecondary,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {cat}
-              </button>
-            );
-          })}
+        {/* Mobile Native Dropdown: Option Picker Bottom Sheet Modal */}
+        <div>
+          <MobileCustomSelect
+            value={selectedCategory}
+            onChange={(val) => setSelectedCategory(val)}
+            options={categoryOptions}
+            title="Kategori Domain Whitelist"
+            subtitle="Menampilkan kategori yang memiliki domain aman terdaftar"
+            placeholder="Pilih Kategori..."
+            icon={<Filter size={15} />}
+          />
         </div>
       </div>
 

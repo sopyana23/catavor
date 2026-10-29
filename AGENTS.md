@@ -231,6 +231,24 @@ Detail lengkap diatur pada [.agents/rules/03_clean_code_and_architecture.md](fil
 4. **Idempotensi & Concurrency Safety**:
    - Tombol submit/bayar wajib otomatis disable saat loading (`isSubmitting`), debounced, dan dikunci secara unik di backend untuk mencegah transaksi/pesanan duplikat.
 
+---
+
+## 11. Data-Driven Dynamic Dropdown Filter Standards (Count > 0) (MANDATORY)
+Detail lengkap diatur pada [.agents/rules/08_data_driven_dropdown_filter_standards.md](file:///c:/MyProject/DFauna/.agents/rules/08_data_driven_dropdown_filter_standards.md):
+1. **Haram Tag Pill Horizontal Panjang / Meluber**:
+   - Dilarang keras menggunakan deretan tag pill horizontal yang memanjang atau memerlukan scroll horizontal untuk kategori/status/tag yang memiliki opsi banyak ($\ge 3$ opsi).
+   - Wajib menggunakan **Dropdown Filter Native Terstandarisasi**:
+     - Desktop Native: `DesktopCustomSelect`
+     - Tablet Native: `TabletCustomSelect`
+     - Mobile Native: `MobileCustomSelect` (Slide-Up Bottom Sheet Option Picker dengan gesture drag Apple-style, touch target $\ge 44$px, bebas 'X' header, `useModalBackHandler`).
+2. **Mandat Opsi Hanya untuk Data Riil ($count > 0$)**:
+   - Seluruh opsi kategori/status di dalam dropdown (selain opsi reset/semua seperti `'all'` / `'Semua'`) **HANYA BOLEH MUNCUL JIKA MEMILIKI DATA ($count > 0$)**.
+   - Dilarang menampilkan opsi kosong ($count = 0$) agar pengguna tidak menemui daftar kosong.
+   - Setiap opsi wajib menampilkan badge jumlah data ($count$).
+3. **Defensive Safety Auto-Reset**:
+   - Wajib memasang `useEffect` auto-reset: Jika opsi filter yang aktif saat ini tidak lagi memiliki data ($count = 0$), state otomatis kembali ke default (`'all'` atau `'Semua'`).
+
+
 
 
 

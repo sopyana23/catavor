@@ -22,7 +22,8 @@ import {
   Tag,
   Info,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Filter
 } from 'lucide-react';
 import { loadDynamicSafeDomains } from '../utils/urlSecurity';
 
@@ -102,6 +103,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     total_pages: 1
   });
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [categoryCounts, setCategoryCounts] = useState<{ category: string; count: number }[]>([]);
 
   // Debounce search query 300ms
   useEffect(() => {
@@ -199,6 +201,17 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
             total_pages: Number(json.pagination.total_pages || 1)
           });
         }
+        if (Array.isArray(json.categories)) {
+          setCategoryCounts(json.categories.filter((c: any) => c && c.category && c.count > 0));
+        } else {
+          // Dynamic fallback aggregation: only categories with count > 0
+          const countMap: Record<string, number> = {};
+          (json.data as SafeDomainItem[]).forEach(d => {
+            const cat = d.category || 'Umum';
+            countMap[cat] = (countMap[cat] || 0) + 1;
+          });
+          setCategoryCounts(Object.entries(countMap).map(([category, count]) => ({ category, count })));
+        }
       }
     } catch (err: any) {
       showToast(err.message || 'Gagal memuat data domain', 'error');
@@ -211,10 +224,39 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     fetchDomains(page, debouncedSearch, selectedCategory, limit);
   }, [token, page, debouncedSearch, selectedCategory, limit]);
 
-  const categories = useMemo(() => {
-    const list = ['Semua', 'Google', 'Komunikasi', 'Media Sosial', 'Platform', 'Produktivitas', 'Finansial', 'Mitra', 'Umum'];
-    return list;
-  }, []);
+  // Dynamic Category Options: strictly contains only categories that have actual data (count > 0)
+  const categoryOptions = useMemo<TabletSelectOption[]>(() => {
+    const totalCount = pagination.total || domains.length;
+    const options: TabletSelectOption[] = [
+      {
+        value: 'Semua',
+        label: 'Semua Kategori',
+        count: totalCount
+      }
+    ];
+
+    categoryCounts.forEach(c => {
+      if (c.count > 0 && c.category !== 'Semua') {
+        options.push({
+          value: c.category,
+          label: c.category,
+          count: c.count
+        });
+      }
+    });
+
+    return options;
+  }, [categoryCounts, pagination.total, domains.length]);
+
+  // Safety auto-reset: if selected category no longer has data, fallback safely to 'Semua'
+  useEffect(() => {
+    if (selectedCategory !== 'Semua' && categoryOptions.length > 1) {
+      const exists = categoryOptions.some(opt => opt.value === selectedCategory);
+      if (!exists) {
+        setSelectedCategory('Semua');
+      }
+    }
+  }, [categoryOptions, selectedCategory]);
 
   const stats = useMemo(() => {
     const total = pagination.total || domains.length;
@@ -442,9 +484,9 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
         </div>
       </div>
 
-      {/* Search & Category Filter */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-        <div style={{ position: 'relative', width: '100%' }}>
+      {/* Search & Category Filter Bar */}
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
           <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
           <input
             type="text"
@@ -483,38 +525,19 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
           )}
         </div>
 
-        {/* Category Filter Pills */}
-        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
-          {categories.map(cat => {
-            const isActive = selectedCategory === cat;
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                style={{
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '999px',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  border: isActive
-                    ? '1px solid #38bdf8'
-                    : `1px solid ${theme.border}`,
-                  backgroundColor: isActive
-                    ? (isDark ? 'rgba(56, 189, 248, 0.18)' : '#0284c7')
-                    : (isDark ? 'rgba(255, 255, 255, 0.04)' : '#f1f5f9'),
-                  color: isActive
-                    ? (isDark ? '#38bdf8' : '#ffffff')
-                    : theme.textSecondary,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {cat}
-              </button>
-            );
-          })}
+        <div style={{ minWidth: '200px', flexShrink: 0 }}>
+          <TabletCustomSelect
+            variant="filter"
+            value={selectedCategory}
+            onChange={(val) => {
+              setSelectedCategory(val);
+              setPage(1);
+            }}
+            options={categoryOptions}
+            icon={<Filter size={15} />}
+            placeholder="Pilih Kategori"
+            interceptBack={true}
+          />
         </div>
       </div>
 

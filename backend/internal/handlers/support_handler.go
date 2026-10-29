@@ -1763,10 +1763,26 @@ func (h *SupportHandler) ListCannedResponses(c *fiber.Ctx) error {
 		totalPages = int((total + int64(limit) - 1) / int64(limit))
 	}
 
+	// Aggregate categories with active data (count > 0)
+	var categoryCounts []struct {
+		Category string `json:"category"`
+		Count    int64  `json:"count"`
+	}
+	catQuery := h.db.Model(&models.SupportCannedResponse{})
+	if !includeInactive {
+		catQuery = catQuery.Where("is_active = true")
+	}
+	catQuery.Select("category, count(*) as count").
+		Group("category").
+		Having("count(*) > 0").
+		Order("count desc, category asc").
+		Scan(&categoryCounts)
+
 	respMap := fiber.Map{
-		"success": true,
-		"count":   len(templates),
-		"data":    templates,
+		"success":    true,
+		"count":      len(templates),
+		"data":       templates,
+		"categories": categoryCounts,
 		"pagination": fiber.Map{
 			"page":        page,
 			"limit":       limit,
