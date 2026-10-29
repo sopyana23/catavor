@@ -186,3 +186,30 @@ func TestRBAC_Pentest_UpdateRolePermissions_RejectsNonSuperadmin(t *testing.T) {
 		}
 	}
 }
+
+func TestRBAC_Pentest_CreateStaffUser_RejectsNonSuperadmin(t *testing.T) {
+	s := &RBACService{}
+	maliciousActors := []*models.User{
+		nil,
+		{ID: 2, PlatformRole: "merchant"},
+		{ID: 3, PlatformRole: "support"},
+		{ID: 4, PlatformRole: "finance"},
+	}
+
+	for _, actor := range maliciousActors {
+		_, err := s.CreateStaffUser(CreateStaffParams{
+			Name:     "Hacker Staff",
+			Email:    "hacker@test.com",
+			Password: "password123",
+			RoleSlug: "superadmin",
+			Actor:    actor,
+		})
+		if err == nil {
+			roleName := "nil"
+			if actor != nil {
+				roleName = actor.PlatformRole
+			}
+			t.Fatalf("PENTEST BREACH: Aktor %s berhasil membuat staf baru!", roleName)
+		}
+	}
+}

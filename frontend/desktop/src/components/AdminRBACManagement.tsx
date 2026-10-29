@@ -15,6 +15,10 @@ import {
   Check,
   X,
   Lock,
+  Eye,
+  EyeOff,
+  Mail,
+  User,
 } from 'lucide-react';
 import {
   type PlatformRole,
@@ -64,6 +68,21 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   useModalBackHandler({
     isOpen: showAssignModal,
     onClose: () => setShowAssignModal(false)
+  });
+
+  // Create Staff Modal states
+  const [showCreateStaffModal, setShowCreateStaffModal] = useState(false);
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffPassword, setNewStaffPassword] = useState('');
+  const [newStaffRoleSlug, setNewStaffRoleSlug] = useState('support');
+  const [showStaffPassword, setShowStaffPassword] = useState(false);
+  const [creatingStaff, setCreatingStaff] = useState(false);
+
+  // Intercept back navigation for create staff modal
+  useModalBackHandler({
+    isOpen: showCreateStaffModal,
+    onClose: () => setShowCreateStaffModal(false)
   });
 
   // New Custom Role Form
@@ -201,6 +220,54 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
       setErrorMsg(err.message || 'Terjadi kesalahan jaringan.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStaffName.trim() || !newStaffEmail.trim() || !newStaffPassword) {
+      setErrorMsg('Nama lengkap, email, dan password petugas wajib diisi.');
+      return;
+    }
+    if (newStaffPassword.length < 8) {
+      setErrorMsg('Password petugas minimal 8 karakter.');
+      return;
+    }
+
+    setCreatingStaff(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const res = await fetch('/api/admin/rbac/staff/create', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newStaffName.trim(),
+          email: newStaffEmail.trim(),
+          password: newStaffPassword,
+          role_slug: newStaffRoleSlug || 'support',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMsg(`Akun petugas '${newStaffName.trim()}' (${newStaffEmail.trim()}) berhasil dibuat dengan role '${newStaffRoleSlug}'.`);
+        setShowCreateStaffModal(false);
+        setNewStaffName('');
+        setNewStaffEmail('');
+        setNewStaffPassword('');
+        setNewStaffRoleSlug('support');
+        setShowStaffPassword(false);
+        fetchRBACData();
+      } else {
+        setErrorMsg(data.message || 'Gagal menambahkan akun petugas baru.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Terjadi kesalahan jaringan.');
+    } finally {
+      setCreatingStaff(false);
     }
   };
 
@@ -430,19 +497,48 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               />
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedStaffEmail('');
-                setSelectedRoleSlug('support');
-                setShowAssignModal(true);
-              }}
-              className="btn-primary"
-              style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <UserPlus size={15} />
-              <span>Angkat / Ubah Role Staf</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewStaffName('');
+                  setNewStaffEmail('');
+                  setNewStaffPassword('');
+                  setNewStaffRoleSlug('support');
+                  setShowStaffPassword(false);
+                  setShowCreateStaffModal(true);
+                }}
+                className="btn-primary"
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.82rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  backgroundColor: '#f43f5e',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  boxShadow: '0 4px 14px rgba(244, 63, 94, 0.35)',
+                }}
+              >
+                <UserPlus size={15} />
+                <span>+ Tambah Petugas Baru</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStaffEmail('');
+                  setSelectedRoleSlug('support');
+                  setShowAssignModal(true);
+                }}
+                className="btn-secondary"
+                style={{ padding: '0.5rem 0.9rem', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <Edit2 size={14} />
+                <span>Ubah Role Staf</span>
+              </button>
+            </div>
           </div>
 
           <div style={{ overflowX: 'auto' }}>
@@ -818,6 +914,225 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 >
                   <Check size={15} />
                   <span>Simpan Perubahan</span>
+                </button>
+              </div>
+
+              <div style={{ marginTop: '0.9rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAssignModal(false);
+                    setNewStaffName('');
+                    setNewStaffEmail('');
+                    setNewStaffPassword('');
+                    setNewStaffRoleSlug('support');
+                    setShowStaffPassword(false);
+                    setShowCreateStaffModal(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--primary)',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                  }}
+                >
+                  <UserPlus size={13} />
+                  <span>Petugas belum punya akun? Buat akun petugas baru</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE STAFF MODAL */}
+      {showCreateStaffModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1rem',
+          }}
+          onClick={() => setShowCreateStaffModal(false)}
+        >
+          <div
+            className="glass-panel"
+            style={{ width: '100%', maxWidth: '480px', padding: '1.75rem', borderRadius: '1rem' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'rgba(244, 63, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
+                  <UserPlus size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Tambah Akun Petugas Baru
+                  </h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Buat akun staf operasional internal & tetapkan hak akses
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateStaffModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.25rem' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateStaff}>
+              {/* Nama Lengkap */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                  Nama Lengkap Petugas <span style={{ color: '#f43f5e' }}>*</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <User size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    placeholder="Contoh: Budi Santoso"
+                    value={newStaffName}
+                    onChange={(e) => setNewStaffName(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', paddingLeft: '2.2rem', fontSize: '0.85rem' }}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Email Petugas */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                  Alamat Email <span style={{ color: '#f43f5e' }}>*</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="email"
+                    placeholder="petugas@catavor.com"
+                    value={newStaffEmail}
+                    onChange={(e) => setNewStaffEmail(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', paddingLeft: '2.2rem', fontSize: '0.85rem' }}
+                    required
+                  />
+                </div>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  Email ini akan digunakan petugas untuk login ke portal admin.
+                </p>
+              </div>
+
+              {/* Password */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                  Kata Sandi Awal <span style={{ color: '#f43f5e' }}>*</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type={showStaffPassword ? 'text' : 'password'}
+                    placeholder="Minimal 8 karakter..."
+                    value={newStaffPassword}
+                    onChange={(e) => setNewStaffPassword(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', paddingLeft: '2.2rem', paddingRight: '2.5rem', fontSize: '0.85rem' }}
+                    required
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowStaffPassword(!showStaffPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    title={showStaffPassword ? 'Sembunyikan password' : 'Lihat password'}
+                  >
+                    {showStaffPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  Minimal 8 karakter. Petugas dapat menggantinya setelah login.
+                </p>
+              </div>
+
+              {/* Role Platform */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                  Role & Wewenang Platform <span style={{ color: '#f43f5e' }}>*</span>
+                </label>
+                <DesktopCustomSelect
+                  value={newStaffRoleSlug}
+                  onChange={(val) => setNewStaffRoleSlug(val)}
+                  options={roles.map((r) => ({
+                    value: r.slug,
+                    label: `${r.name} (${r.slug})`
+                  }))}
+                  placeholder="Pilih Role Platform..."
+                  style={{ width: '100%' }}
+                  triggerStyle={{ height: '42px' }}
+                />
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateStaffModal(false)}
+                  className="btn-secondary"
+                  style={{ padding: '0.55rem 1.1rem', fontSize: '0.82rem' }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingStaff}
+                  className="btn-primary"
+                  style={{
+                    padding: '0.55rem 1.3rem',
+                    fontSize: '0.82rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    backgroundColor: '#f43f5e',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                  }}
+                >
+                  {creatingStaff ? (
+                    <>
+                      <RefreshCw size={14} className="spin" />
+                      <span>Membuat Akun...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={15} />
+                      <span>Buat Akun Petugas</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

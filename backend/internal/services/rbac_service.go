@@ -372,6 +372,99 @@ func (s *RBACService) AssignStaffRole(targetEmailOrID string, roleSlug string, a
 	return nil
 }
 
+// CreateStaffParams contains parameters to create a new platform staff user.
+type CreateStaffParams struct {
+	Name     string
+	Email    string
+	Password string
+	RoleSlug string
+	Actor    *models.User
+}
+
+// CreateStaffUser creates a brand new user account directly as a platform staff member.
+func (s *RBACService) CreateStaffUser(params CreateStaffParams) (*models.User, error) {
+	// SECURITY (N-05): tolak bila aktor bukan superadmin (pertahanan berlapis).
+	if err := requireRBACSuperadmin(params.Actor); err != nil {
+		return nil, err
+	}
+
+	name := strings.TrimSpace(params.Name)
+	email := strings.ToLower(strings.TrimSpace(params.Email))
+	password := strings.TrimSpace(params.Password)
+	roleSlug := strings.ToLower(strings.TrimSpace(params.RoleSlug))
+
+	if name == "" {
+		return nil, errors.New("nama lengkap petugas wajib diisi")
+	}
+	if email == "" || !strings.Contains(email, "@") || !strings.Contains(email, ".") {
+		return nil, errors.New("format email petugas tidak valid")
+	}
+	if len(password) < 8 {
+		return nil, errors.New("kata sandi awal minimal 8 karakter")
+	}
+
+	// Cek apakah email sudah terdaftar
+	var count int64
+	if err := s.db.Model(&models.User{}).Where("LOWER(email) = ?", email).Count(&count).Error; err != nil {
+		return nil, err
+	}
+	if count > 0 {
+		return nil, errors.New("email sudah terdaftar dalam sistem")
+	}
+
+	// Validasi role jika role diisi dan bukan "merchant"
+	if roleSlug == "" {
+		roleSlug = "support" // default staf role
+	}
+	if roleSlug != "merchant" {
+		var role models.PlatformRole
+		if err := s.db.Where("slug = ?", roleSlug).First(&role).Error; err != nil {
+			return nil, fmt.Errorf("role '%s' tidak terdaftar dalam sistem", roleSlug)
+		}
+	}
+
+	now := time.Now().UTC()
+	newUser := models.User{
+		Name:              name,
+		Email:             email,
+		PlatformRole:      roleSlug,
+		EmailVerifiedAt:   &now,
+		IsPasswordChanged: true,
+		HasCustomPassword: true,
+		TokenVersion:      1,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	if err := newUser.SetPassword(password); err != nil {
+		return nil, fmt.Errorf("gagal mengenkripsi kata sandi: %w", err)
+	}
+
+	if err := s.db.Create(&newUser).Error; err != nil {
+		return nil, fmt.Errorf("gagal membuat akun petugas: %w", err)
+	}
+
+	// Record Enterprise Audit Log
+	if params.Actor != nil {
+		targetUID := newUser.ID
+		RecordActivity(RecordActivityParams{
+			DB:          s.db,
+			UserID:      &params.Actor.ID,
+			ActorEmail:  params.Actor.Email,
+			ActorName:   params.Actor.Name,
+			ActorRole:   "superadmin",
+			Action:      "RBAC_STAFF_USER_CREATED",
+			Category:    "superadmin",
+			EntityType:  "user",
+			EntityID:    &targetUID,
+			EntityTitle: newUser.Email,
+			Description: fmt.Sprintf("Superadmin '%s' membuat akun petugas baru: '%s' (%s) dengan role '%s'.", params.Actor.Name, newUser.Name, newUser.Email, newUser.PlatformRole),
+		})
+	}
+
+	return &newUser, nil
+}
+
 // RevokeStaffRole demotes a platform admin to standard merchant status.
 func (s *RBACService) RevokeStaffRole(targetUserID uint, actor *models.User) error {
 	// SECURITY (N-05): tolak bila aktor bukan superadmin (pertahanan berlapis).

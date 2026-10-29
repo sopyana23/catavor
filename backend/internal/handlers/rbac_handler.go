@@ -127,6 +127,57 @@ func (h *RBACHandler) GetStaff(c *fiber.Ctx) error {
 	})
 }
 
+type CreateStaffRequest struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	RoleSlug string `json:"role_slug"`
+}
+
+// CreateStaff creates a brand new user account directly as a platform staff member.
+func (h *RBACHandler) CreateStaff(c *fiber.Ctx) error {
+	userVal := c.Locals("user")
+	var actor *models.User
+	if userVal != nil {
+		actor = userVal.(*models.User)
+	}
+
+	var req CreateStaffRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data tidak valid.",
+		})
+	}
+
+	createdUser, err := h.rbacService.CreateStaffUser(services.CreateStaffParams{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		RoleSlug: req.RoleSlug,
+		Actor:    actor,
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("rbac: CreateStaff gagal")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": safeErrMsg(err, "Gagal membuat akun petugas baru."),
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"success": true,
+		"message": "Akun petugas baru berhasil dibuat.",
+		"data": fiber.Map{
+			"id":            createdUser.ID,
+			"name":          createdUser.Name,
+			"email":         createdUser.Email,
+			"platform_role": createdUser.PlatformRole,
+			"created_at":    createdUser.CreatedAt,
+		},
+	})
+}
+
 type AssignStaffRequest struct {
 	EmailOrID string `json:"email_or_id"`
 	Email     string `json:"email"`

@@ -479,6 +479,7 @@ func main() {
 		adminApi.Get("/rbac/staff", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.GetStaff)
 		adminApi.Post("/rbac/staff", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
 		adminApi.Post("/rbac/staff/assign", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
+		adminApi.Post("/rbac/staff/create", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.CreateStaff)
 		adminApi.Post("/rbac/staff/revoke", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.RevokeStaff)
 		adminApi.Post("/rbac/staff/:id/revoke", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.RevokeStaff)
 		adminApi.Delete("/rbac/staff/:id", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.RevokeStaff)

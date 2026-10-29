@@ -54,6 +54,7 @@ func rbacApp(t *testing.T, handlerDB *gorm.DB) *fiber.App {
 	app.Put("/rbac/matrix", actorMiddleware, h.UpdateMatrix)
 	app.Get("/rbac/staff", actorMiddleware, h.GetStaff)
 	app.Post("/rbac/staff", actorMiddleware, h.AssignStaff)
+	app.Post("/rbac/staff/create", actorMiddleware, h.CreateStaff)
 	app.Delete("/rbac/staff", actorMiddleware, h.RevokeStaff)
 	app.Post("/rbac/roles", actorMiddleware, h.CreateRole)
 	return app
@@ -296,6 +297,50 @@ func TestRBACCreateRole_SQLite(t *testing.T) {
 			code, resp := rbacReq(t, app, "POST", "/rbac/roles", "superadmin", body)
 			if code != 400 {
 				t.Errorf("body %s: status = %d, want 400 (resp %v)", body, code, resp)
+			}
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// CreateStaff — pembuatan akun user baru petugas platform
+// ---------------------------------------------------------------------------
+
+func TestRBACCreateStaff_SQLite(t *testing.T) {
+	app := rbacApp(t, nil)
+
+	t.Run("payload_rusak_400", func(t *testing.T) {
+		code, _ := rbacReq(t, app, "POST", "/rbac/staff/create", "superadmin", "{bukan json")
+		if code != 400 {
+			t.Fatalf("status = %d, want 400", code)
+		}
+	})
+
+	t.Run("field_wajib", func(t *testing.T) {
+		cases := []string{
+			`{}`,
+			`{"name":"Petugas"}`,
+			`{"name":"Petugas","email":"invalid"}`,
+			`{"name":"Petugas","email":"petugas@test.com","password":"short"}`,
+		}
+		for _, body := range cases {
+			code, resp := rbacReq(t, app, "POST", "/rbac/staff/create", "superadmin", body)
+			if code != 400 {
+				t.Errorf("body %s: status = %d, want 400 (resp %v)", body, code, resp)
+			}
+		}
+	})
+
+	t.Run("bukan_superadmin_ditolak", func(t *testing.T) {
+		for _, actor := range []string{"", "merchant", "garbage"} {
+			code, body := rbacReq(t, app, "POST", "/rbac/staff/create", actor,
+				`{"name":"Petugas Baru","email":"petugas.baru@test.com","password":"password123","role_slug":"support"}`)
+			if code != 400 {
+				t.Fatalf("actor %q: status = %d, want 400 (body %v)", actor, code, body)
+			}
+			msg, _ := body["message"].(string)
+			if !strings.Contains(strings.ToLower(msg), "akses ditolak") {
+				t.Errorf("actor %q: pesan = %q, want mengandung 'akses ditolak'", actor, msg)
 			}
 		}
 	})
