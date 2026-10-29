@@ -242,6 +242,13 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 // Show returns details of a single product.
 func (h *ProductHandler) Show(c *fiber.Ctx) error {
 	id := c.Params("id")
+	if id == "export" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Parameter ID produk tidak valid.",
+		})
+	}
+
 	var product models.Product
 
 	if err := h.db.Preload("Category").Preload("Images").Preload("Variants").Preload("Store").First(&product, id).Error; err != nil {

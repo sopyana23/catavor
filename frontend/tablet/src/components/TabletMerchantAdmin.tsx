@@ -10990,9 +10990,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     minHeight: '44px',
                     padding: '0.55rem 1.15rem',
                     borderRadius: '0.65rem',
-                    backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.08))',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff',
+                    border: 'none',
                     fontWeight: 700,
                     fontSize: '0.82rem',
                     display: 'inline-flex',
@@ -11000,7 +11000,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     gap: '0.45rem',
                     cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
                     opacity: isExportingCatalog ? 0.7 : 1,
-                    flexShrink: 0
+                    flexShrink: 0,
+                    boxShadow: '0 4px 12px var(--primary-glow)'
                   }}
                 >
                   <FileCode size={15} />

@@ -7114,7 +7114,7 @@ Terima kasih.`;
     }
   };
 
-  type BottomSheetType = 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown' | 'stores' | 'create_store' | 'discard_confirm' | 'archive_confirm';
+  type BottomSheetType = 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown' | 'stores' | 'create_store' | 'discard_confirm' | 'archive_confirm' | 'export_catalog';
   const [closingSheet, setClosingSheet] = useState<BottomSheetType | null>(null);
 
   const closeSheetWithAnimation = (type: BottomSheetType) => {
@@ -7139,6 +7139,7 @@ Terima kasih.`;
         setShowPurchaseOptions(false);
         setShowMarketplacesSubMenu(false);
       }
+      if (type === 'export_catalog') setShowExportSheet(false);
       setClosingSheet(null);
       setSheetDragY(0);
     }, 240);
@@ -9939,40 +9940,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [showExportSheet, setShowExportSheet] = useState<boolean>(false);
   const [exportFormat, setExportFormat] = useState<'csv' | 'json'>('csv');
   const [isExportingCatalog, setIsExportingCatalog] = useState<boolean>(false);
-  const [exportDragY, setExportDragY] = useState(0);
-  const [isExportDragging, setIsExportDragging] = useState(false);
-  const exportTouchStartY = useRef(0);
-
-  const handleExportDragStart = (clientY: number) => {
-    if (isExportingCatalog) return;
-    exportTouchStartY.current = clientY;
-    setIsExportDragging(true);
-  };
-
-  const handleExportDragMove = (clientY: number) => {
-    if (!isExportDragging || isExportingCatalog) return;
-    const delta = clientY - exportTouchStartY.current;
-    if (delta > 0) {
-      setExportDragY(delta);
-    } else {
-      setExportDragY(delta * 0.18);
-    }
-  };
-
-  const handleExportDragEnd = () => {
-    if (!isExportDragging || isExportingCatalog) return;
-    setIsExportDragging(false);
-    if (exportDragY > 70) {
-      setShowExportSheet(false);
-    }
-    setExportDragY(0);
-  };
 
   useModalBackHandler({
     isOpen: showExportSheet,
     onClose: () => {
-      setShowExportSheet(false);
-      setExportDragY(0);
+      closeSheetWithAnimation('export_catalog');
     },
     modalId: 'mobile-catalog-export-sheet'
   });
@@ -35742,20 +35714,19 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       {showExportSheet && (
         <div
           id="modal-export-catalog-mobile"
-          className="bottom-sheet-backdrop"
+          className={`bottom-sheet-backdrop ${closingSheet === 'export_catalog' ? 'is-closing' : ''}`}
           onClick={() => {
             if (!isExportingCatalog) {
-              setShowExportSheet(false);
-              setExportDragY(0);
+              closeSheetWithAnimation('export_catalog');
             }
           }}
         >
           <div
-            className="bottom-sheet-content"
+            className={`bottom-sheet-content ${closingSheet === 'export_catalog' ? 'is-closing' : ''}`}
             onClick={(e) => e.stopPropagation()}
             style={{
-              transform: `translateY(${Math.max(0, exportDragY)}px)`,
-              transition: isExportDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
               padding: '0.65rem 0 0 0',
               background: 'var(--bg-card)'
             }}
@@ -35763,12 +35734,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             {/* Drag Handle Bar (touch-action none) */}
             <div
               className="bottom-sheet-handle-bar"
-              onTouchStart={(e) => handleExportDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleExportDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleExportDragEnd}
-              onMouseDown={(e) => handleExportDragStart(e.clientY)}
-              onMouseMove={(e) => handleExportDragMove(e.clientY)}
-              onMouseUp={handleExportDragEnd}
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('export_catalog')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('export_catalog')}
             >
               <div className="bottom-sheet-handle" />
             </div>
@@ -35776,12 +35747,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             {/* Header: Clean & professional, NO 'X' button per Rule 7.A */}
             <div
               className="bottom-sheet-header"
-              onTouchStart={(e) => handleExportDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleExportDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleExportDragEnd}
-              onMouseDown={(e) => handleExportDragStart(e.clientY)}
-              onMouseMove={(e) => handleExportDragMove(e.clientY)}
-              onMouseUp={handleExportDragEnd}
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('export_catalog')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('export_catalog')}
               style={{ padding: '0 1.25rem 0.75rem' }}
             >
               <div className="bottom-sheet-title-box">
@@ -35960,8 +35931,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 className="btn-secondary"
                 disabled={isExportingCatalog}
                 onClick={() => {
-                  setShowExportSheet(false);
-                  setExportDragY(0);
+                  closeSheetWithAnimation('export_catalog');
                 }}
                 style={{
                   flex: 1,

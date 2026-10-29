@@ -217,6 +217,10 @@ func main() {
 	app.Get("/readyz", healthHandler.Readiness)
 	api := app.Group("/api", middleware.GlobalAPIRateLimiter())
 
+	// Catalog Data Portability & Export (Must precede :id wildcard to prevent route shadowing)
+	api.Get("/products/export", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), catalogExportHandler.ExportProducts)
+	api.Get("/catalog/items/export", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), catalogExportHandler.ExportProducts)
+
 	// Public Modern Product & Category Endpoints
 	api.Get("/products", productHandler.Index)
 	api.Get("/products/:id", productHandler.Show)
