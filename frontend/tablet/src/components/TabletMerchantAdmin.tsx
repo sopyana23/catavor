@@ -81,7 +81,9 @@ import {
   FolderMinus,
   HardDriveDownload,
   FileSpreadsheet,
-  Loader
+  Loader,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 import { setupModalBackInterceptor } from '../utils/navigation';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
@@ -96,6 +98,7 @@ import { TabletPoliciesView } from './TabletPoliciesView';
 import { TabletProductFilterSheet, type TabletProductFilterValues } from './TabletProductFilterSheet';
 import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
 import { TabletCustomSelect } from './TabletCustomSelect';
+import { TabletImageLightbox } from './TabletImageLightbox';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { TabletStoreSettingsView } from './TabletStoreSettingsView';
 import { TabletShareCatalogView } from './TabletShareCatalogView';
@@ -944,6 +947,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   } | null>(null);
   const [previewProduct, setPreviewProduct] = useState<any | null>(null);
   const [previewImageIndex, setPreviewImageIndex] = useState<number>(0);
+  const [showPreviewLightbox, setShowPreviewLightbox] = useState<boolean>(false);
   const [catalogMetrics, setCatalogMetrics] = useState<{
     total_items?: number;
     active_items?: number;
@@ -2004,6 +2008,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const handleOpenProductDetail = async (item: any) => {
     setPreviewProduct(item);
     setPreviewImageIndex(0);
+    setShowPreviewLightbox(false);
     try {
       const res = await fetch(`/api/products/${item.id}`, {
         headers: getHeaders()
@@ -7040,20 +7045,48 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 }}>
                   {/* Photo Gallery Column */}
                   <div>
-                    <div style={{
-                      width: '100%',
-                      aspectRatio: '1/1',
-                      borderRadius: '0.85rem',
-                      overflow: 'hidden',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-deep)',
-                      position: 'relative'
-                    }}>
+                    <div
+                      onClick={() => setShowPreviewLightbox(true)}
+                      style={{
+                        width: '100%',
+                        aspectRatio: '1/1',
+                        borderRadius: '0.85rem',
+                        overflow: 'hidden',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-deep)',
+                        position: 'relative',
+                        cursor: 'zoom-in'
+                      }}
+                      title="Klik untuk perbesar & lihat detail foto produk"
+                    >
                       <img
                         src={currentActiveImg}
                         alt={prod.name}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
+
+                      {/* Bottom-Right Zoom Hint Badge */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '0.65rem',
+                        right: '0.65rem',
+                        padding: '0.28rem 0.6rem',
+                        borderRadius: '0.45rem',
+                        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                        backdropFilter: 'blur(4px)',
+                        color: '#ffffff',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                        zIndex: 2
+                      }}>
+                        <ZoomIn size={12} />
+                        <span>Perbesar</span>
+                      </div>
+
                       {prod.is_active === false && (
                         <div style={{
                           position: 'absolute',
@@ -7064,7 +7097,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           backgroundColor: 'rgba(245, 158, 11, 0.95)',
                           color: '#ffffff',
                           fontSize: '0.72rem',
-                          fontWeight: 700
+                          fontWeight: 700,
+                          zIndex: 2
                         }}>
                           Diarsipkan
                         </div>
@@ -7352,6 +7386,32 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           </div>
         );
       })()}
+
+      {/* DEDICATED PRODUCT IMAGE FULLSCREEN LIGHTBOX (Interactive Zoom & Pan) */}
+      {previewProduct && (
+        <TabletImageLightbox
+          isOpen={showPreviewLightbox}
+          images={(() => {
+            const prod = previewProduct;
+            const list: string[] = [];
+            if (prod.image_url) list.push(prod.image_url);
+            if (Array.isArray(prod.gallery_images)) {
+              prod.gallery_images.forEach((img: string) => {
+                if (img && !list.includes(img)) list.push(img);
+              });
+            }
+            if (Array.isArray(prod.detailed_info?.images)) {
+              prod.detailed_info.images.forEach((img: string) => {
+                if (img && !list.includes(img)) list.push(img);
+              });
+            }
+            return list.length > 0 ? list : ['https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'];
+          })()}
+          initialIndex={previewImageIndex}
+          productName={previewProduct.name}
+          onClose={() => setShowPreviewLightbox(false)}
+        />
+      )}
 
       {/* ARCHIVE / ACTIVATE CONFIRMATION MODAL */}
       {archiveConfirmModal && (() => {

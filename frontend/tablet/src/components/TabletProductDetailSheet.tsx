@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { X, MessageCircle, Share2, ShieldCheck, Check, Package, Tag, ExternalLink, Truck } from 'lucide-react';
+import { X, MessageCircle, Share2, ShieldCheck, Check, Package, Tag, ExternalLink, Truck, ZoomIn } from 'lucide-react';
 import { FormattedText } from './RichTextarea';
 import { useModalBackHandler } from '../utils/navigation';
+import { TabletImageLightbox } from './TabletImageLightbox';
 
 export interface TabletProductDetailSheetProps {
   product: any | null;
@@ -39,6 +40,7 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
   onClose
 }) => {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [showLightbox, setShowLightbox] = useState<boolean>(false);
 
   useModalBackHandler({
     isOpen: Boolean(product),
@@ -401,17 +403,22 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
         }}>
           {/* Main Photo Container */}
           <div>
-            <div style={{
-              width: '100%',
-              aspectRatio: '16/10',
-              borderRadius: '0.85rem',
-              overflow: 'hidden',
-              backgroundColor: 'rgba(0, 0, 0, 0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative'
-            }}>
+            <div
+              onClick={() => setShowLightbox(true)}
+              style={{
+                width: '100%',
+                aspectRatio: '16/10',
+                borderRadius: '0.85rem',
+                overflow: 'hidden',
+                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                cursor: 'zoom-in'
+              }}
+              title="Klik untuk perbesar & lihat detail foto produk"
+            >
               <img
                 src={images[activeImageIndex] || images[0]}
                 alt={product.name}
@@ -420,6 +427,28 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
                   e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
                 }}
               />
+
+              {/* Bottom-Right Zoom Hint Badge */}
+              <div style={{
+                position: 'absolute',
+                bottom: '12px',
+                right: '12px',
+                padding: '0.3rem 0.65rem',
+                borderRadius: '0.45rem',
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(4px)',
+                color: '#ffffff',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                zIndex: 2
+              }}>
+                <ZoomIn size={12} />
+                <span>Perbesar</span>
+              </div>
 
               {/* Top-Left Category Badge */}
               {(product.class || product.category_name) && (
@@ -694,6 +723,15 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
           </button>
         </div>
       </div>
+
+      {/* Interactive Fullscreen Image Lightbox with Zoom & Pan */}
+      <TabletImageLightbox
+        isOpen={showLightbox}
+        images={images}
+        initialIndex={activeImageIndex}
+        productName={product.name}
+        onClose={() => setShowLightbox(false)}
+      />
     </div>
   );
 };
