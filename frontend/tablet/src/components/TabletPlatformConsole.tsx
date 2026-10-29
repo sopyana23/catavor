@@ -5076,166 +5076,172 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       )}
                     </div>
 
-                    {/* Unified Support Filter Toolbar (Tablet Native with count > 0) */}
-                    <div style={{ position: 'relative', width: '100%' }}>
-                      <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', alignItems: 'center', scrollbarWidth: 'thin', paddingBottom: '0.2rem', WebkitOverflowScrolling: 'touch' }}>
-                        {/* Status Tiket Dropdown (Dynamic count > 0) */}
-                        <TabletCustomSelect
-                          value={activeTabletTriageFilter}
-                          onChange={handleTabletTriageFilterChange}
-                          options={dynamicTicketStatusOptions}
-                          variant="compact"
-                          style={{ flexShrink: 0 }}
-                          triggerStyle={{
-                            minHeight: '44px',
-                            fontSize: '0.72rem',
-                            padding: '0.25rem 0.55rem',
-                            color: activeTabletTriageFilter !== 'all' ? 'var(--primary)' : undefined
-                          }}
-                          menuWidth={220}
-                          ariaLabel="Filter Status Tiket"
-                        />
+                    {/* Unified Support Filter Toolbar (Tablet Native with count > 0 - Best Practice No Sideways Scroll) */}
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '0.45rem',
+                      alignItems: 'center',
+                      width: '100%'
+                    }}>
+                      {/* Status Tiket Dropdown (Dynamic count > 0) */}
+                      <TabletCustomSelect
+                        value={activeTabletTriageFilter}
+                        onChange={handleTabletTriageFilterChange}
+                        options={dynamicTicketStatusOptions}
+                        variant="compact"
+                        icon={<Filter size={13} />}
+                        style={{ flex: '1 1 170px', minWidth: '145px' }}
+                        triggerStyle={{
+                          minHeight: '44px',
+                          fontSize: '0.74rem',
+                          padding: '0.25rem 0.65rem',
+                          color: activeTabletTriageFilter !== 'all' ? 'var(--primary)' : undefined
+                        }}
+                        menuWidth={240}
+                        ariaLabel="Filter Status Tiket"
+                      />
 
-                        {/* Category Dropdown (Dynamic count > 0) */}
-                        <TabletCustomSelect
-                          value={ticketCategoryFilter}
-                          onChange={(val) => setTicketCategoryFilter(val)}
-                          options={dynamicTicketCategoryOptions}
-                          variant="compact"
-                          style={{ flexShrink: 0 }}
-                          triggerStyle={{
-                            minHeight: '44px',
-                            fontSize: '0.72rem',
-                            padding: '0.25rem 0.55rem'
-                          }}
-                          menuWidth={240}
-                          ariaLabel="Filter Kategori Tiket"
-                        />
+                      {/* Category Dropdown (Dynamic count > 0) */}
+                      <TabletCustomSelect
+                        value={ticketCategoryFilter}
+                        onChange={(val) => setTicketCategoryFilter(val)}
+                        options={dynamicTicketCategoryOptions}
+                        variant="compact"
+                        icon={<Tag size={13} />}
+                        style={{ flex: '1 1 170px', minWidth: '145px' }}
+                        triggerStyle={{
+                          minHeight: '44px',
+                          fontSize: '0.74rem',
+                          padding: '0.25rem 0.65rem',
+                          color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : undefined
+                        }}
+                        menuWidth={240}
+                        ariaLabel="Filter Kategori Tiket"
+                      />
 
-                        {/* Priority Dropdown (Dynamic count > 0) */}
-                        <TabletCustomSelect
-                          value={ticketPriorityFilter}
-                          onChange={(val) => setTicketPriorityFilter(val)}
-                          options={dynamicTicketPriorityOptions}
-                          variant="compact"
-                          style={{ flexShrink: 0 }}
-                          triggerStyle={{
-                            minHeight: '44px',
-                            fontSize: '0.72rem',
-                            padding: '0.25rem 0.55rem',
-                            color: ticketPriorityFilter === 'urgent' ? '#ef4444' : undefined
-                          }}
-                          menuWidth={200}
-                          ariaLabel="Filter Prioritas Tiket"
-                        />
+                      {/* Priority Dropdown (Dynamic count > 0) */}
+                      <TabletCustomSelect
+                        value={ticketPriorityFilter}
+                        onChange={(val) => setTicketPriorityFilter(val)}
+                        options={dynamicTicketPriorityOptions}
+                        variant="compact"
+                        icon={<AlertCircle size={13} />}
+                        style={{ flex: '1 1 150px', minWidth: '135px' }}
+                        triggerStyle={{
+                          minHeight: '44px',
+                          fontSize: '0.74rem',
+                          padding: '0.25rem 0.65rem',
+                          color: ticketPriorityFilter === 'urgent' ? '#ef4444' : (ticketPriorityFilter !== 'all' ? 'var(--primary)' : undefined)
+                        }}
+                        menuWidth={220}
+                        ariaLabel="Filter Prioritas Tiket"
+                      />
 
-                        {/* SLA Filter Toggle */}
+                      {/* SLA Filter Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setTicketSlaFilter(prev => prev === 'breached' ? 'all' : 'breached')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          backgroundColor: ticketSlaFilter === 'breached' ? 'rgba(239, 68, 68, 0.15)' : 'var(--bg-deep)',
+                          color: ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--text-muted)',
+                          border: `1px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--border-light)'}`,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Filter tiket dengan batas waktu respon SLA terlewat"
+                      >
+                        <Clock size={13} />
+                        <span>SLA Lewat</span>
+                        {(ticketsMetrics?.sla_breached ?? 0) > 0 && (
+                          <span style={{
+                            fontSize: '0.62rem',
+                            padding: '0.05rem 0.35rem',
+                            borderRadius: '999px',
+                            backgroundColor: ticketSlaFilter === 'breached' ? '#ef4444' : 'rgba(239, 68, 68, 0.2)',
+                            color: ticketSlaFilter === 'breached' ? '#ffffff' : '#ef4444',
+                            fontWeight: 800
+                          }}>
+                            {ticketsMetrics?.sla_breached}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Time range for resolved */}
+                      {supportFilter === 'resolved' && (
+                        <div style={{ display: 'inline-flex', gap: '0.25rem', alignItems: 'center' }}>
+                          {(['30d', '90d', 'all'] as const).map(tr => (
+                            <button
+                              key={tr}
+                              type="button"
+                              onClick={() => setResolvedTimeRangeFilter(tr)}
+                              style={{
+                                minHeight: '44px',
+                                minWidth: '44px',
+                                padding: '0.25rem 0.55rem',
+                                borderRadius: '0.55rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                backgroundColor: resolvedTimeRangeFilter === tr ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-deep)',
+                                color: resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--text-muted)',
+                                border: `1px solid ${resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--border-light)'}`,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {tr === '30d' ? '30 Hari' : tr === '90d' ? '90 Hari' : 'Semua'}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Reset Filter Button */}
+                      {(activeTabletTriageFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || Boolean(supportSearch.trim())) && (
                         <button
                           type="button"
-                          onClick={() => setTicketSlaFilter(prev => prev === 'breached' ? 'all' : 'breached')}
+                          onClick={() => {
+                            handleTabletTriageFilterChange('all');
+                            setTicketCategoryFilter('all');
+                            setTicketPriorityFilter('all');
+                            setTicketSlaFilter('all');
+                            setSupportSearch('');
+                          }}
                           style={{
                             minHeight: '44px',
-                            minWidth: '44px',
-                            padding: '0.25rem 0.65rem',
-                            borderRadius: '0.5rem',
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '0.55rem',
                             fontSize: '0.72rem',
                             fontWeight: 700,
-                            backgroundColor: ticketSlaFilter === 'breached' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
-                            color: ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--text-muted)',
-                            border: `1px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--border-light)'}`,
+                            backgroundColor: 'var(--bg-deep)',
+                            color: 'var(--text-muted)',
+                            border: '1px solid var(--border-light)',
                             cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '0.3rem',
                             whiteSpace: 'nowrap',
-                            flexShrink: 0
+                            transition: 'all 0.15s ease'
                           }}
+                          title="Reset semua filter pencarian"
                         >
-                          <Clock size={12} />
-                          <span>SLA Lewat</span>
+                          <X size={12} />
+                          <span>Reset</span>
                         </button>
-
-                        {/* Time range for resolved */}
-                        {supportFilter === 'resolved' && (
-                          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexShrink: 0 }}>
-                            {(['30d', '90d', 'all'] as const).map(tr => (
-                              <button
-                                key={tr}
-                                type="button"
-                                onClick={() => setResolvedTimeRangeFilter(tr)}
-                                style={{
-                                  minHeight: '44px',
-                                  minWidth: '44px',
-                                  padding: '0.25rem 0.5rem',
-                                  borderRadius: '0.5rem',
-                                  fontSize: '0.68rem',
-                                  fontWeight: 700,
-                                  backgroundColor: resolvedTimeRangeFilter === tr ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                                  color: resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--text-muted)',
-                                  border: `1px solid ${resolvedTimeRangeFilter === tr ? '#10b981' : 'var(--border-light)'}`,
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  whiteSpace: 'nowrap',
-                                  flexShrink: 0
-                                }}
-                              >
-                                {tr === '30d' ? '30 Hari' : tr === '90d' ? '90 Hari' : 'Semua'}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Reset Filter Button */}
-                        {(ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || supportSearch.trim()) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTicketCategoryFilter('all');
-                              setTicketPriorityFilter('all');
-                              setTicketSlaFilter('all');
-                              setSupportSearch('');
-                            }}
-                            style={{
-                              minHeight: '44px',
-                              minWidth: '44px',
-                              padding: '0.25rem 0.55rem',
-                              borderRadius: '0.5rem',
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-muted)',
-                              border: '1px solid var(--border-light)',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.25rem',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0
-                            }}
-                          >
-                            <X size={12} />
-                            <span>Reset</span>
-                          </button>
-                        )}
-                      </div>
-                      {/* Smooth Right Edge Fade Indicator */}
-                      <div
-                        aria-hidden="true"
-                        style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: 0,
-                          bottom: '0.2rem',
-                          width: '28px',
-                          background: 'linear-gradient(to right, transparent, var(--bg-card))',
-                          pointerEvents: 'none',
-                          opacity: 0.95
-                        }}
-                      />
+                      )}
                     </div>
                   </div>
 

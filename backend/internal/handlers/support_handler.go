@@ -815,6 +815,10 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 		query = query.Where("priority = ?", priority)
 	}
 
+	if c.Query("sla_breached") == "true" || c.Query("sla") == "breached" {
+		query = query.Where("(sla_breached = true OR (status = 'open' AND sla_due_at IS NOT NULL AND sla_due_at < ?)) AND status NOT IN (?)", nowTime, []string{"resolved", "closed"})
+	}
+
 	if timeRange := strings.TrimSpace(c.Query("time_range")); timeRange != "" && timeRange != "all" {
 		now := time.Now().UTC()
 		if timeRange == "30d" {

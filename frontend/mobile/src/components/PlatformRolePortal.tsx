@@ -2235,6 +2235,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (ticketsFilter !== 'all' && ticketsFilter !== 'unread') params.set('status', ticketsFilter);
       if (ticketCategoryFilter !== 'all') params.set('category', ticketCategoryFilter);
       if (ticketPriorityFilter !== 'all') params.set('priority', ticketPriorityFilter);
+      if (ticketSlaFilter === 'breached') params.set('sla_breached', 'true');
       if (ticketsFilter === 'resolved' && resolvedTimeRangeFilter !== 'all') {
         params.set('time_range', resolvedTimeRangeFilter);
       }
@@ -2358,7 +2359,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     if (canAccessSupport && token && activeView === 'support') {
       fetchTickets(1, false);
     }
-  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   // Polling santai fallback (45 detik saat aktif, data utama di-push secara instan via SSE)
   useEffect(() => {
@@ -2379,7 +2380,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   // Real-Time Global SSE Stream Subscription (Go Channel Live Broadcast) for Mobile
   useEffect(() => {
@@ -8004,13 +8005,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               >
                 <Clock size={13} />
                 <span>SLA Lewat</span>
+                {(ticketsMetrics?.sla_breached ?? 0) > 0 && (
+                  <span style={{
+                    fontSize: '0.62rem',
+                    padding: '0.05rem 0.35rem',
+                    borderRadius: '999px',
+                    backgroundColor: ticketSlaFilter === 'breached' ? '#ef4444' : 'rgba(239, 68, 68, 0.25)',
+                    color: ticketSlaFilter === 'breached' ? '#ffffff' : '#ef4444',
+                    fontWeight: 800
+                  }}>
+                    {ticketsMetrics.sla_breached}
+                  </span>
+                )}
               </button>
 
               {/* Reset Filters (if active) */}
-              {(ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || ticketSearchQuery.trim()) && (
+              {(activeMobileTriageFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || ticketSearchQuery.trim()) && (
                 <button
                   type="button"
                   onClick={() => {
+                    handleMobileTriageFilterChange('all');
                     setTicketCategoryFilter('all');
                     setTicketPriorityFilter('all');
                     setTicketSlaFilter('all');
