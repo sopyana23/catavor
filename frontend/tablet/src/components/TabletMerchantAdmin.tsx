@@ -4759,106 +4759,49 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   /* =========================================================================
                      STEP 2: FORMULIR INPUT DATA PRODUK LENGKAP
                      ========================================================================= */
-                  <form onSubmit={handleSaveProduct} style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100%',
-                    padding: '1.5rem',
-                    gap: '1.25rem',
-                    overflowY: 'auto'
-                  }}>
-                    {/* Active Type Banner with Ganti Tipe Button */}
-                    <div style={{
-                      padding: '0.85rem 1rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: activeTypeDef.bgColor,
-                      border: `1.5px solid ${activeTypeDef.borderColor}`,
+                  <form
+                    onSubmit={handleSaveProduct}
+                    style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '0.75rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{
-                          width: '42px',
-                          height: '42px',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'var(--bg-card)',
-                          border: `1px solid ${activeTypeDef.borderColor}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: activeTypeDef.color,
-                          flexShrink: 0
-                        }}>
-                          <ActiveTypeIcon size={22} />
-                        </div>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: activeTypeDef.color }}>
-                              Tipe Katalog Aktif
-                            </span>
-                            <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '999px', backgroundColor: 'var(--bg-card)', border: `1px solid ${activeTypeDef.borderColor}`, color: 'var(--text-secondary)' }}>
-                              {activeTypeDef.categoryBadge}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.1rem' }}>
-                            {activeTypeDef.name}
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        id="btn-ganti-tipe"
-                        data-testid="btn-ganti-tipe"
-                        onClick={handleBackToTypeSelection}
-                        style={{
-                          minHeight: '36px',
-                          padding: '0.4rem 0.85rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'var(--bg-card)',
-                          border: `1px solid ${activeTypeDef.borderColor}`,
-                          color: activeTypeDef.color,
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          cursor: 'pointer',
-                          boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
-                        }}
-                        title="Ganti format tipe katalog"
-                      >
-                        <RefreshCw size={13} />
-                        <span>Ganti Tipe</span>
-                      </button>
-                    </div>
-
-                    {/* Header Actions */}
+                      flexDirection: 'column',
+                      height: '100%',
+                      maxHeight: '92vh',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* 1. FLOATING / STICKY HEADER (TIDAK IKUT TERSCROLL) */}
                     <div style={{
+                      padding: '1.1rem 1.5rem',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       borderBottom: '1px solid var(--border-light)',
-                      paddingBottom: '1rem',
-                      flexWrap: 'wrap',
+                      backgroundColor: 'var(--bg-deep)',
+                      flexShrink: 0,
                       gap: '0.75rem'
                     }}>
-                      <div>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <h3 style={{
+                          fontSize: '1.18rem',
+                          fontWeight: 800,
+                          margin: 0,
+                          color: 'var(--text-primary)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
                           {selectedProductId === 'new'
                             ? typeConfig.modalTitle('create')
                             : (productForm.name ? `Form Edit Data: ${productForm.name}` : 'Form Edit Data')}
                         </h3>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0', lineHeight: 1.3 }}>
                           {selectedProductId === 'new'
                             ? typeConfig.modalSubtitle
                             : `Perbarui spesifikasi, harga, stok, dan informasi katalog ${activeTypeDef.name}`}
                         </p>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
                         {selectedProductId !== 'new' && (
                           <button
                             id="btn-hapus-produk"
@@ -4881,7 +4824,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             }}
                           >
                             <Trash2 size={15} />
-                            Hapus
+                            <span>Hapus</span>
                           </button>
                         )}
 
@@ -4905,7 +4848,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             height: '38px',
                             borderRadius: '0.5rem',
                             border: '1px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-deep)',
+                            backgroundColor: 'var(--bg-card)',
                             color: 'var(--text-secondary)',
                             display: 'flex',
                             alignItems: 'center',
@@ -4919,6 +4862,83 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         </button>
                       </div>
                     </div>
+
+                    {/* 2. SCROLLABLE FORM BODY */}
+                    <div style={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      padding: '1.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1.25rem'
+                    }}>
+                      {/* Active Type Banner with Ganti Tipe Button (Now in Form Body) */}
+                      <div style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: activeTypeDef.bgColor,
+                        border: `1.5px solid ${activeTypeDef.borderColor}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'var(--bg-card)',
+                            border: `1px solid ${activeTypeDef.borderColor}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: activeTypeDef.color,
+                            flexShrink: 0
+                          }}>
+                            <ActiveTypeIcon size={20} />
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: activeTypeDef.color }}>
+                                Tipe Katalog Aktif
+                              </span>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '999px', backgroundColor: 'var(--bg-card)', border: `1px solid ${activeTypeDef.borderColor}`, color: 'var(--text-secondary)' }}>
+                                {activeTypeDef.categoryBadge}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.1rem' }}>
+                              {activeTypeDef.name}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          id="btn-ganti-tipe"
+                          data-testid="btn-ganti-tipe"
+                          onClick={handleBackToTypeSelection}
+                          style={{
+                            minHeight: '36px',
+                            padding: '0.4rem 0.85rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'var(--bg-card)',
+                            border: `1px solid ${activeTypeDef.borderColor}`,
+                            color: activeTypeDef.color,
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            cursor: 'pointer',
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                          }}
+                          title="Ganti format tipe katalog"
+                        >
+                          <RefreshCw size={13} />
+                          <span>Ganti Tipe</span>
+                        </button>
+                      </div>
 
                     {/* Basic Information Grid */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
@@ -6627,62 +6647,73 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </div>
                   </div>
 
-                  {/* Submit Footer */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)' }}>
-                    <button
-                      type="button"
-                      id="btn-batal-form-produk"
-                      data-testid="btn-batal-form-produk"
-                      onClick={() => {
-                        setSelectedProductId(null);
-                        setIsSelectingProductType(false);
-                        try {
-                          const url = new URL(window.location.href);
-                          url.searchParams.delete('action');
-                          url.searchParams.delete('type');
-                          url.searchParams.delete('catalog_type');
-                          window.history.replaceState({ tab: 'items' }, '', url.toString());
-                        } catch {}
-                      }}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0.65rem 1.25rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        color: 'var(--text-secondary)',
-                        border: '1px solid var(--border-light)',
-                        fontWeight: 600,
-                        fontSize: '0.88rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Batal
-                    </button>
-                    <button
-                      type="submit"
-                      id="btn-simpan-produk"
-                      data-testid="btn-simpan-produk"
-                      disabled={saving}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0.65rem 1.75rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--primary)',
-                        color: '#ffffff',
-                        border: 'none',
-                        fontWeight: 700,
-                        fontSize: '0.9rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        cursor: saving ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      <Save size={16} />
-                      {saving ? 'Menyimpan...' : (selectedProductId === 'new' ? 'Terbitkan Produk' : 'Simpan Perubahan')}
-                    </button>
-                  </div>
-                </form>
+                    </div>
+
+                    {/* 3. STICKY FOOTER ACTION BAR (TIDAK IKUT TERSCROLL) */}
+                    <div style={{
+                      padding: '1rem 1.5rem',
+                      borderTop: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-end',
+                      gap: '0.75rem',
+                      flexShrink: 0
+                    }}>
+                      <button
+                        type="button"
+                        id="btn-batal-form-produk"
+                        data-testid="btn-batal-form-produk"
+                        onClick={() => {
+                          setSelectedProductId(null);
+                          setIsSelectingProductType(false);
+                          try {
+                            const url = new URL(window.location.href);
+                            url.searchParams.delete('action');
+                            url.searchParams.delete('type');
+                            url.searchParams.delete('catalog_type');
+                            window.history.replaceState({ tab: 'items' }, '', url.toString());
+                          } catch {}
+                        }}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.25rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-secondary)',
+                          border: '1px solid var(--border-light)',
+                          fontWeight: 600,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        id="btn-simpan-produk"
+                        data-testid="btn-simpan-produk"
+                        disabled={saving}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.75rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          cursor: saving ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        <Save size={16} />
+                        {saving ? 'Menyimpan...' : (selectedProductId === 'new' ? 'Terbitkan Produk' : 'Simpan Perubahan')}
+                      </button>
+                    </div>
+                  </form>
               );
             })()}
           </div>
