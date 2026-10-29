@@ -350,6 +350,24 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
+  // =========================================================================
+  // RBAC PERMISSION GATES (Aligned with Desktop & Mobile)
+  // =========================================================================
+  const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
+  const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
+  const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
+  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
+  const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
+  const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
+  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
+  const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
+
+  // Granular Sub-Action Permission Checks
+  const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
+  const canManageReports = isSuperAdmin(currentUser) || hasPermission(currentUser, 'compliance:reports:manage');
+  const canManageFinance = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage');
+  const canSendBroadcast = isSuperAdmin(currentUser) || hasPermission(currentUser, 'content:broadcast:send');
+
   // Header Title metadata
   const viewMetadata = useMemo(() => {
     switch (activeView) {
@@ -380,10 +398,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   }, [activeView]);
 
-  // Centralized authenticated fetch with automatic 401/403 session eviction
+  // Centralized authenticated fetch with automatic 401 session eviction
   const authFetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const res = await fetch(input, init);
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       onLogout();
       throw new Error('UNAUTHORIZED');
     }
@@ -403,69 +421,93 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [actionRequiredTicketsCount, setActionRequiredTicketsCount] = useState(0);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
 
-  // Load metrics from backend
+  // Load metrics from backend (guarded by user permissions)
   const loadPlatformStats = useCallback(async () => {
     if (!token) return;
     try {
-      // 1. Dormancy metrics
-      const dormRes = await authFetch('/api/admin/dormancy/metrics', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (dormRes.ok) {
-        const j = await dormRes.json();
-        if (j.data) {
-          setMetrics(prev => ({
-            ...prev,
-            active_stores: j.data.active_stores || 0,
-            dormant_stores: j.data.dormant_stores || 0,
-            total_stores: j.data.total_stores || 0
-          }));
+      // 1. Dormancy metrics (only if user has compliance permission)
+      if (canAccessCompliance) {
+        try {
+          const dormRes = await fetch('/api/admin/dormancy/metrics', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (dormRes.ok) {
+            const j = await dormRes.json();
+            if (j.data) {
+              setMetrics(prev => ({
+                ...prev,
+                active_stores: j.data.active_stores || 0,
+                dormant_stores: j.data.dormant_stores || 0,
+                total_stores: j.data.total_stores || 0
+              }));
+            }
+          }
+        } catch {
+          // Gracefully continue
         }
       }
 
-      // 2. Pending reports count
-      const repRes = await authFetch('/api/admin/reports?status=pending&limit=1', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (repRes.ok) {
-        const rj = await repRes.json();
-        setPendingReportsCount(rj.pagination?.total || (rj.data ? rj.data.length : 0));
+      // 2. Pending reports count (only if user has compliance permission)
+      if (canAccessCompliance) {
+        try {
+          const repRes = await fetch('/api/admin/reports?status=pending&limit=1', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (repRes.ok) {
+            const rj = await repRes.json();
+            setPendingReportsCount(rj.pagination?.total || (rj.data ? rj.data.length : 0));
+          }
+        } catch {
+          // Gracefully continue
+        }
       }
 
-      // 3. Support tickets
-      const tckRes = await authFetch('/api/admin/support/tickets?limit=50', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (tckRes.ok) {
-        const tj = await tckRes.json();
-        const list = tj.data || [];
-        const urgent = list.filter((t: any) => t.priority === 'urgent' && t.status !== 'resolved' && t.status !== 'closed').length;
-        const actionReq = list.filter((t: any) => t.status === 'open' || t.status === 'in_progress').length;
-        setUrgentTicketsCount(urgent);
-        setActionRequiredTicketsCount(actionReq);
+      // 3. Support tickets (only if user has support permission)
+      if (canAccessSupport) {
+        try {
+          const tckRes = await fetch('/api/admin/support/tickets?limit=50', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (tckRes.ok) {
+            const tj = await tckRes.json();
+            const list = tj.data || [];
+            const urgent = list.filter((t: any) => t.priority === 'urgent' && t.status !== 'resolved' && t.status !== 'closed').length;
+            const actionReq = list.filter((t: any) => t.status === 'open' || t.status === 'in_progress').length;
+            setUrgentTicketsCount(urgent);
+            setActionRequiredTicketsCount(actionReq);
+          }
+        } catch {
+          // Gracefully continue
+        }
       }
 
-      // 4. Pending billing orders
-      const ordRes = await authFetch('/api/admin/subscription/orders', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (ordRes.ok) {
-        const oj = await ordRes.json();
-        const olist = oj.data || [];
-        const pending = olist.filter((o: any) => o.status === 'pending_payment' || o.status === 'pending_verification').length;
-        const paidOrders = olist.filter((o: any) => o.status === 'paid' || o.status === 'active');
-        const rev = paidOrders.reduce((sum: number, o: any) => sum + (o.amount || o.price || 0), 0);
-        setPendingOrdersCount(pending);
-        setMetrics(prev => ({
-          ...prev,
-          total_revenue: rev,
-          pro_stores: paidOrders.length
-        }));
+      // 4. Pending billing orders (only if user has finance permission)
+      if (canAccessFinance) {
+        try {
+          const ordRes = await fetch('/api/admin/subscription/orders', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (ordRes.ok) {
+            const oj = await ordRes.json();
+            const olist = oj.data || [];
+            const pending = olist.filter((o: any) => o.status === 'pending_payment' || o.status === 'pending_verification').length;
+            const paidOrders = olist.filter((o: any) => o.status === 'paid' || o.status === 'active');
+            const rev = paidOrders.reduce((sum: number, o: any) => sum + (o.amount || o.price || 0), 0);
+            setPendingOrdersCount(pending);
+            setMetrics(prev => ({
+              ...prev,
+              total_revenue: rev,
+              pro_stores: paidOrders.length
+            }));
+          }
+        } catch {
+          // Gracefully continue
+        }
       }
     } catch {
       // Fail gracefully
     }
-  }, [token, authFetch]);
+  }, [token, canAccessCompliance, canAccessSupport, canAccessFinance]);
 
   useEffect(() => {
     loadPlatformStats();
@@ -2167,20 +2209,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: MONETIZATION (AdSense & GA4)
   // =========================================================================
-  const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
-  const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
-  const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
-  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
-  const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
-  const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
-  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
-  const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
-
-  // Granular Sub-Action Permission Checks
-  const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
-  const canManageReports = isSuperAdmin(currentUser) || hasPermission(currentUser, 'compliance:reports:manage');
-  const canManageFinance = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage');
-  const canSendBroadcast = isSuperAdmin(currentUser) || hasPermission(currentUser, 'content:broadcast:send');
   const [monetizationSubTab, setMonetizationSubTab] = useState<'adsense' | 'analytics'>('adsense');
   const [googleSettings, setGoogleSettings] = useState<Record<string, string>>({
     ads_enabled: '0',
