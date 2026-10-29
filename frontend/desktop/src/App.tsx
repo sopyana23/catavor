@@ -160,6 +160,7 @@ import { AdSenseUnit } from './components/AdSenseUnit'
 import { AdminRBACManagement } from './components/AdminRBACManagement'
 import { PlatformRolePortal } from './components/PlatformRolePortal'
 import { MerchantAdminShell } from './components/MerchantAdminShell'
+import { DesktopShareCatalogView } from './components/DesktopShareCatalogView'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
 import { StoreChooserModal, type CatalogStoreItem } from './components/StoreChooserModal'
 import { DesktopCustomSelect } from './components/DesktopCustomSelect'
@@ -6561,10 +6562,10 @@ Terima kasih.`;
     }
     return 'catalog';
   });
-  const [adminTab, setAdminTab] = useState<'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal'>(() => {
+  const [adminTab, setAdminTab] = useState<'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share'>(() => {
     if (typeof window !== 'undefined') {
       const savedTab = sessionStorage.getItem('catavor_desktop_admin_tab');
-      if (savedTab && ['items', 'categories', 'analytics', 'notifications', 'settings', 'profile', 'policies', 'help', 'subscription', 'audit_logs', 'rbac', 'portal'].includes(savedTab)) {
+      if (savedTab && ['items', 'categories', 'analytics', 'notifications', 'settings', 'profile', 'policies', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(savedTab)) {
         sessionStorage.removeItem('catavor_desktop_admin_tab');
         return savedTab as any;
       }
@@ -6597,15 +6598,22 @@ Terima kasih.`;
       ) {
         return 'categories';
       }
+      if (
+        ['share', 'bagikan', 'qrcode', 'qr'].includes(rawTabParam) ||
+        (parts[0] === 'admin' && ['share', 'bagikan', 'qrcode', 'qr'].includes(parts[1])) ||
+        (parts.length >= 3 && parts[1] === 'admin' && ['share', 'bagikan', 'qrcode', 'qr'].includes(parts[2]))
+      ) {
+        return 'share';
+      }
       if (parts[0] === 'admin' && parts[1]) {
         const sub = parts[1];
-        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
           return sub as any;
         }
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
         const sub = parts[2];
-        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
           return sub as any;
         }
       }
@@ -6616,6 +6624,7 @@ Terima kasih.`;
       if (['subscription', 'langganan', 'paket'].includes(rawTabParam)) return 'subscription';
       if (['audit_logs', 'audit'].includes(rawTabParam)) return 'audit_logs';
       if (['rbac', 'akses'].includes(rawTabParam)) return 'rbac';
+      if (['share', 'bagikan'].includes(rawTabParam)) return 'share';
     }
     return 'items';
   });
@@ -10480,8 +10489,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
             fetchActivityLogs(1, false);
           } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
             setAdminTab('rbac');
-          } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
-            setShowQRModal(true);
+          } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr' || pageSub === 'bagikan') {
+            setAdminTab('share');
           } else setAdminTab('items');
         } else if (sub === 'about') {
           setView('catalog');
@@ -10868,8 +10877,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
             } else if (pageSub === 'portal' || pageSub === 'compliance' || pageSub === 'support' || pageSub === 'finance' || pageSub === 'content') {
               setAdminTab('portal');
               setView('admin');
-            } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
-              setShowQRModal(true);
+            } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr' || pageSub === 'bagikan') {
+              setAdminTab('share');
               setView('admin');
             } else {
               setAdminTab('items');
@@ -12045,7 +12054,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       } else if (adminTab === 'audit_logs') {
         targetPath += `/admin/audit-logs`;
-      } else if (showQRModal) {
+      } else if (adminTab === 'share' || showQRModal) {
         targetPath += `/admin/share`;
       } else {
         targetPath += `/admin/items`;
@@ -29817,6 +29826,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     }}
                   />
                 </div>
+              )}
+
+              {/* TAB 11: BAGIKAN KATALOG & QR CODE */}
+              {adminTab === 'share' && (
+                <DesktopShareCatalogView
+                  storeSlug={storeSlug || ''}
+                  storeTitle={settings.store_title}
+                  storeLogoUrl={settings.store_logo_url}
+                  storeSlogan={settings.about_slogan || settings.store_slogan}
+                  whatsappNumber={settings.whatsapp_number}
+                  onToast={showToast}
+                />
               )}
               </>
             )}

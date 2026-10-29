@@ -97,6 +97,7 @@ import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollab
 import { TabletCustomSelect } from './TabletCustomSelect';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { TabletStoreSettingsView } from './TabletStoreSettingsView';
+import { TabletShareCatalogView } from './TabletShareCatalogView';
 import { StoreChooserModal, type CatalogStoreItem } from './StoreChooserModal';
 import { broadcastAuthEvent, appendViewParam } from '../utils/authSync';
 import { useModalBackHandler } from '../utils/navigation';
@@ -3098,8 +3099,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       items: [
         { key: 'notifications', label: 'Pusat Notifikasi', icon: Bell, badge: totalNotifUnread > 0 ? String(totalNotifUnread) : undefined, badgeColor: '#ef4444' },
         { key: 'help', label: 'Pusat Bantuan & Tiket', icon: HelpCircle, badge: totalHelpUnread > 0 ? String(totalHelpUnread) : undefined, badgeColor: '#ef4444' },
-        { key: 'policies', label: 'Legal & Kebijakan', icon: FileText },
-        { key: 'share', label: 'Bagikan Katalog', icon: Share2 }
+        { key: 'policies', label: 'Legal & Kebijakan', icon: FileText }
       ]
     }
   ];
@@ -3378,6 +3378,31 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             >
               <Layers size={18} style={{ flexShrink: 0 }} />
               {isNavExpanded && <span>Pusat Katalog</span>}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('share')}
+              title="Bagikan Tautan & QR Code Katalog"
+              style={{
+                width: '100%',
+                minHeight: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: isNavExpanded ? '0 0.75rem' : 0,
+                justifyContent: isNavExpanded ? 'flex-start' : 'center',
+                borderRadius: '0.6rem',
+                border: activeTab === 'share' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                backgroundColor: activeTab === 'share' ? 'var(--primary-glow, rgba(30, 58, 138, 0.12))' : 'transparent',
+                color: activeTab === 'share' ? 'var(--primary)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: activeTab === 'share' ? 700 : 600,
+                fontSize: '0.85rem'
+              }}
+            >
+              <Share2 size={18} style={{ flexShrink: 0 }} />
+              {isNavExpanded && <span>Bagikan Katalog</span>}
             </button>
 
             <button
@@ -9089,116 +9114,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 10: BAGIKAN KATALOG & QR CODE
             =================================================================== */}
         {activeTab === 'share' && (
-          <div style={{ padding: '2rem', maxWidth: '850px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-              Bagikan Profil Katalog Digital Anda
-            </h2>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Promosikan etalase bisnis Anda dengan tautan langsung atau unduh QR Code resmi untuk dicetak.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-              {/* Link Share Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>Tautan Resmi Katalog</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                    Bagikan tautan ini ke media sosial (Instagram Bio, TikTok, Facebook) atau grup chat WhatsApp.
-                  </p>
-                  <div style={{ padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', fontSize: '0.85rem', fontWeight: 600, wordBreak: 'break-all' }}>
-                    {window.location.origin}/{storeSlug}
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/${storeSlug}`);
-                      showToast('Tautan katalog berhasil disalin!');
-                    }}
-                    style={{
-                      flex: 1,
-                      minHeight: '44px',
-                      padding: '0.65rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: 'var(--primary)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Copy size={16} />
-                    Salin Tautan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.open(`https://wa.me/?text=${encodeURIComponent(`Kunjungi katalog resmi ${storeSettings.name || 'toko kami'} di: ${window.location.origin}/${storeSlug}`)}`, '_blank');
-                    }}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0.65rem 1rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: '#16a34a',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <MessageCircle size={16} />
-                    Share WA
-                  </button>
-                </div>
-              </div>
-
-              {/* QR Code Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                <QrCode size={48} color="var(--primary)" style={{ marginBottom: '0.5rem' }} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.35rem 0' }}>Poster QR Code Toko</h3>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                  Pajang di kasir atau cetak pada kartu nama usaha Anda.
-                </p>
-                <div style={{ width: '140px', height: '140px', backgroundColor: '#ffffff', borderRadius: '0.75rem', padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-light)' }}>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(`${window.location.origin}/${storeSlug}`)}`}
-                    alt="QR Code Toko"
-                    style={{ width: '100%', height: '100%' }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(`${window.location.origin}/${storeSlug}`)}`, '_blank')}
-                  style={{
-                    marginTop: '1.25rem',
-                    minHeight: '40px',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-light)',
-                    fontWeight: 600,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Unduh QR Code HD
-                </button>
-              </div>
-            </div>
-          </div>
+          <TabletShareCatalogView
+            storeSlug={storeSlug || ''}
+            storeTitle={storeSettings.name}
+            storeLogoUrl={storeSettings.logo_url}
+            storeSlogan={storeSettings.slogan}
+            whatsappNumber={storeSettings.whatsapp_number}
+            onToast={showToast}
+          />
         )}
       </main>
 

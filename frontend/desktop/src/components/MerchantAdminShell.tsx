@@ -32,11 +32,12 @@ import {
   MessageSquare,
   ArrowRight,
   FileSpreadsheet,
-  HardDriveDownload
+  HardDriveDownload,
+  Share2
 } from 'lucide-react';
 
 export interface MerchantAdminShellProps {
-  adminTab: 'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal';
+  adminTab: 'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share';
   setAdminTab: (tab: any) => void;
   settings: any;
   storeSlug: string | null;
@@ -314,6 +315,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
       case 'help': return 'Pusat Bantuan & Layanan Tiket';
       case 'rbac': return 'Manajemen Staf & Akses RBAC';
       case 'portal': return 'Portal Khusus Tim Pengelola';
+      case 'share': return 'Bagikan Tautan & QR Code Katalog';
       default: return 'Dashboard Pengelola';
     }
   };
@@ -887,7 +889,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           ))}
         </div>
 
-        {/* Sidebar Bottom Action: Public Storefront Link (Tablet Parity) */}
+        {/* Sidebar Bottom Action: Bagikan Katalog & Public Storefront Link (Tablet Parity) */}
         {!isSuspended && (
           <div 
             style={{
@@ -900,6 +902,55 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
               backgroundColor: 'var(--bg-card)'
             }}
           >
+            <button
+              type="button"
+              onClick={() => {
+                setAdminTab('share');
+                if (storeSlug) {
+                  window.history.pushState({}, '', `/${storeSlug}/admin/share`);
+                }
+              }}
+              title="Bagikan Tautan & QR Code Katalog Toko"
+              style={{
+                width: '100%',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: isSidebarCollapsed ? '0' : '0 0.75rem',
+                justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                borderRadius: '0.55rem',
+                border: adminTab === 'share' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                backgroundColor: adminTab === 'share' ? 'var(--primary-glow, rgba(16, 185, 129, 0.18))' : 'transparent',
+                color: adminTab === 'share' ? 'var(--primary)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: adminTab === 'share' ? 800 : 600,
+                fontSize: '0.82rem',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                if (adminTab !== 'share') {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                  e.currentTarget.style.borderColor = 'var(--primary)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (adminTab !== 'share') {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                  e.currentTarget.style.borderColor = 'var(--border-light)';
+                }
+              }}
+            >
+              <Share2 size={16} style={{ flexShrink: 0, color: 'var(--primary)' }} />
+              {!isSidebarCollapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span>Bagikan Katalog</span>
+                </div>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={goToCatalog}
