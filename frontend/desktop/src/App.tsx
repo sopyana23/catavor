@@ -14012,18 +14012,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   };
 
-  // Catalog Data Export Handler (CSV / JSON)
+  // Catalog Items Data Export Handler (CSV / JSON)
   const handleExportCatalog = useCallback(async (format: 'csv' | 'json' = 'csv') => {
     const slug = storeSlug || getStoreSlug() || '';
     if (!token) {
       showToast('Sesi autentikasi tidak ditemukan', 'error');
       return;
     }
-    showToast(`Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
+    showToast(`Menyiapkan berkas ekspor data item ${format.toUpperCase()}...`);
     try {
       const queryParams = new URLSearchParams({ format });
       if (slug) queryParams.set('slug', slug);
-      const res = await fetch(`${API_BASE}/catalog/export?${queryParams.toString()}`, {
+      const res = await fetch(`${API_BASE}/products/export?${queryParams.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           ...(slug ? { 'X-Store-Slug': slug } : {})
@@ -14031,12 +14031,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        showToast(errJson.message || 'Gagal mengekspor data katalog', 'error');
+        showToast(errJson.message || 'Gagal mengekspor data item katalog', 'error');
         return;
       }
       const blob = await res.blob();
       const contentDisposition = res.headers.get('Content-Disposition');
-      let filename = `katalog-${slug}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
+      let filename = `katalog-items-${slug}-${format === 'csv' ? 'data.csv' : 'items.json'}`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="?([^";]+)"?/);
         if (match && match[1]) filename = match[1];
@@ -14049,7 +14049,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast(`Katalog (${format.toUpperCase()}) berhasil diunduh!`);
+      showToast(`Data item katalog (${format.toUpperCase()}) berhasil diunduh!`);
     } catch {
       showToast(`Gagal mengunduh berkas ekspor ${format.toUpperCase()}`, 'error');
     }
@@ -26052,7 +26052,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         handleLogout();
                       }}
                       showToast={(type, msg) => showToast(msg, type)}
-                      onExportCatalog={handleExportCatalog}
                     />
                   )}
                 </div>

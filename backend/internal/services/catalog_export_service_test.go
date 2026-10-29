@@ -166,3 +166,65 @@ func TestExportCatalogJSON(t *testing.T) {
 		t.Errorf("Expected master_categories with 'Fauna Eksotis', got %v", masterCats)
 	}
 }
+
+func TestExportProductsJSON(t *testing.T) {
+	store := &models.Store{
+		ID:         1,
+		Slug:       "toko-test",
+		StoreTitle: "Toko Test",
+	}
+
+	category := models.Category{
+		ID:          10,
+		Name:        "Fauna Eksotis",
+		Slug:        "fauna-eksotis",
+		ProductType: "fauna",
+	}
+
+	products := []models.Product{
+		{
+			ID:                 101,
+			StoreID:            1,
+			CategoryID:         &category.ID,
+			Category:           &category,
+			Name:               "Gecko Leopard",
+			ProductType:        "fauna",
+			Price:              150000,
+			ConservationStatus: "available",
+			MinOrder:           1,
+			IsActive:           true,
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+		},
+	}
+
+	var buf bytes.Buffer
+	err := ExportProductsJSON(&buf, store, products)
+	if err != nil {
+		t.Fatalf("ExportProductsJSON error: %v", err)
+	}
+
+	var root map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &root); err != nil {
+		t.Fatalf("JSON parse error: %v", err)
+	}
+
+	if root["export_type"] != "catalog_items" {
+		t.Errorf("Expected export_type 'catalog_items', got %v", root["export_type"])
+	}
+
+	if root["store_slug"] != "toko-test" {
+		t.Errorf("Expected store_slug 'toko-test', got %v", root["store_slug"])
+	}
+
+	// Verify store settings/backup fields are NOT present
+	if _, hasStore := root["store"]; hasStore {
+		t.Errorf("Catalog items export must not contain store backup object")
+	}
+
+	items, ok := root["items"].([]interface{})
+	if !ok || len(items) != 1 {
+		t.Errorf("Expected 1 item in JSON, got %d", len(items))
+	}
+}
+

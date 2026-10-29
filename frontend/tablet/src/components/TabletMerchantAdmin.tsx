@@ -811,13 +811,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const handleExportCatalog = async (format: 'csv' | 'json' = 'csv') => {
     if (isExportingCatalog) return;
     setIsExportingCatalog(true);
-    showToast(`Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
+    showToast(`Menyiapkan berkas ekspor data item ${format.toUpperCase()}...`);
     try {
       const activeSlug = storeSlug || (currentStoreObj as any)?.slug || '';
       const queryParams = new URLSearchParams({ format });
       if (activeSlug) queryParams.set('slug', activeSlug);
 
-      const res = await fetch(`/api/catalog/export?${queryParams.toString()}`, {
+      const res = await fetch(`/api/products/export?${queryParams.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           ...(activeSlug ? { 'X-Store-Slug': activeSlug } : {})
@@ -825,11 +825,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       });
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || 'Gagal mengekspor data katalog');
+        throw new Error(errJson.message || 'Gagal mengekspor data item katalog');
       }
       const blob = await res.blob();
       const contentDisposition = res.headers.get('Content-Disposition');
-      let filename = `katalog-${activeSlug || 'data'}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
+      let filename = `katalog-items-${activeSlug || 'data'}-${format === 'csv' ? 'data.csv' : 'items.json'}`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="?([^";]+)"?/);
         if (match && match[1]) {
@@ -845,7 +845,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setShowExportModal(false);
-      showToast(`Katalog berhasil diekspor (${format.toUpperCase()})!`, 'success');
+      showToast(`Data item katalog berhasil diekspor (${format.toUpperCase()})!`, 'success');
     } catch (err: any) {
       showToast(err.message || `Gagal mengunduh berkas ${format.toUpperCase()}`, 'error');
     } finally {
@@ -9439,8 +9439,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   onStoreDeleted={handleStoreDeleted}
                   onAccountDeleted={handleAccountDeleted}
                   showToast={showToast}
-                  onExportCatalog={handleExportCatalog}
-                  onExportCatalogJSON={handleExportCatalogJSON}
                 />
               </div>
             )}
@@ -10823,10 +10821,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             style={{
               width: '100%',
               maxWidth: '520px',
-              backgroundColor: 'var(--bg-surface, #1e293b)',
+              backgroundColor: 'var(--bg-card)',
               borderRadius: '1rem',
               border: '1px solid var(--border-light)',
-              boxShadow: 'var(--shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.5))',
+              boxShadow: 'var(--shadow-premium, 0 20px 40px rgba(0, 0, 0, 0.35))',
               overflow: 'hidden'
             }}
             onClick={e => e.stopPropagation()}
@@ -10842,23 +10840,24 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                 <div style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '8px',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '9px',
                   backgroundColor: 'var(--primary-glow)',
                   color: 'var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  flexShrink: 0
                 }}>
                   <HardDriveDownload size={19} />
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    Ekspor Data Katalog
+                    Ekspor Data Item Katalog
                   </h3>
                   <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    Pilih format berkas untuk mengunduh seluruh data katalog Anda.
+                    Pilih format berkas untuk mengunduh daftar produk dan inventaris katalog Anda.
                   </p>
                 </div>
               </div>
@@ -10866,13 +10865,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 type="button"
                 onClick={() => setShowExportModal(false)}
                 style={{
-                  background: 'none',
-                  border: 'none',
+                  background: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
                   color: 'var(--text-secondary)',
                   cursor: 'pointer',
-                  padding: '0.35rem',
+                  padding: '0.4rem',
                   display: 'flex',
-                  borderRadius: '6px'
+                  borderRadius: '8px',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 <X size={18} />
@@ -10880,33 +10880,46 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             </div>
 
             {/* Modal Body */}
-            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', backgroundColor: 'var(--bg-card)' }}>
               {/* Option 1: CSV */}
               <div
                 style={{
-                  padding: '1rem 1.15rem',
-                  borderRadius: '0.75rem',
+                  padding: '1.1rem 1.25rem',
+                  borderRadius: '0.85rem',
                   border: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-card)',
+                  backgroundColor: 'var(--bg-deep)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '1rem'
+                  gap: '1rem',
+                  transition: 'all 0.15s ease'
                 }}
               >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                    <FileSpreadsheet size={17} style={{ color: 'var(--primary)' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <div style={{
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(16, 185, 129, 0.14)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <FileSpreadsheet size={15} style={{ color: '#10b981' }} />
+                    </div>
                     <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                       Format CSV (Microsoft Excel)
                     </span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                    Tabel data terstruktur (ID, nama, SKU, kategori, harga, stok, spesifikasi, dan total klik WhatsApp). Cocok untuk pembukuan di Excel/Spreadsheet.
+                    Tabel data produk terstruktur (ID, nama, tipe, kategori, harga, stok, dan spesifikasi). Dilengkapi UTF-8 BOM untuk Excel &amp; Google Sheets.
                   </p>
                 </div>
                 <button
                   type="button"
+                  id="btn-tablet-export-csv"
                   disabled={isExportingCatalog}
                   onClick={() => handleExportCatalog('csv')}
                   style={{
@@ -10923,7 +10936,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     gap: '0.45rem',
                     cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
                     opacity: isExportingCatalog ? 0.7 : 1,
-                    flexShrink: 0
+                    flexShrink: 0,
+                    boxShadow: '0 4px 12px var(--primary-glow)'
                   }}
                 >
                   <FileSpreadsheet size={15} />
@@ -10934,36 +10948,49 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               {/* Option 2: JSON */}
               <div
                 style={{
-                  padding: '1rem 1.15rem',
-                  borderRadius: '0.75rem',
+                  padding: '1.1rem 1.25rem',
+                  borderRadius: '0.85rem',
                   border: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-card)',
+                  backgroundColor: 'var(--bg-deep)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '1rem'
+                  gap: '1rem',
+                  transition: 'all 0.15s ease'
                 }}
               >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                    <HardDriveDownload size={17} style={{ color: 'var(--primary)' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <div style={{
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: '6px',
+                      backgroundColor: 'var(--primary-glow)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <FileCode size={15} style={{ color: 'var(--primary)' }} />
+                    </div>
                     <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      Format JSON (Cadangan Utuh)
+                      Format JSON (Data Item Produk)
                     </span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                    Salinan digital teknis lengkap memuat hierarki relasi galeri foto, seluruh varian harga, serta atribut dinamis 7 domain industri untuk kebutuhan migrasi/arsip.
+                    Salinan digital teknis berisi data item produk, varian harga, galeri foto, dan atribut spesifikasi domain untuk kebutuhan portabilitas &amp; arsip.
                   </p>
                 </div>
                 <button
                   type="button"
+                  id="btn-tablet-export-json"
                   disabled={isExportingCatalog}
                   onClick={() => handleExportCatalog('json')}
                   style={{
                     minHeight: '44px',
                     padding: '0.55rem 1.15rem',
                     borderRadius: '0.65rem',
-                    backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+                    backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.08))',
                     color: 'var(--text-primary)',
                     border: '1px solid var(--border-light)',
                     fontWeight: 700,
@@ -10976,7 +11003,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     flexShrink: 0
                   }}
                 >
-                  <HardDriveDownload size={15} />
+                  <FileCode size={15} />
                   <span>Unduh JSON</span>
                 </button>
               </div>
@@ -10999,8 +11026,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   padding: '0 1.25rem',
                   borderRadius: '0.55rem',
                   border: '1px solid var(--border-light)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-secondary)',
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
                   fontWeight: 600,
                   fontSize: '0.85rem',
                   cursor: 'pointer'

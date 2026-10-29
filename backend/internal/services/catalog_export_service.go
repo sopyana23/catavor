@@ -292,8 +292,8 @@ type JSONExportMetrics struct {
 	VideoViewsCount        int64 `json:"video_views_count"`
 }
 
-// ExportCatalogJSON writes deep relational JSON backup stream
-func ExportCatalogJSON(w io.Writer, store *models.Store, categories []models.Category, products []models.Product) error {
+// BuildExportProducts converts models.Product slice into JSONExportProduct slice
+func BuildExportProducts(products []models.Product) []JSONExportProduct {
 	exportProducts := make([]JSONExportProduct, 0, len(products))
 
 	for _, p := range products {
@@ -372,6 +372,32 @@ func ExportCatalogJSON(w io.Writer, store *models.Store, categories []models.Cat
 			UpdatedAt: p.UpdatedAt,
 		})
 	}
+	return exportProducts
+}
+
+// ExportProductsJSON writes a focused JSON stream containing strictly catalog items (products data only)
+func ExportProductsJSON(w io.Writer, store *models.Store, products []models.Product) error {
+	exportProducts := BuildExportProducts(products)
+
+	root := map[string]interface{}{
+		"export_type":    "catalog_items",
+		"store_slug":     store.Slug,
+		"store_title":    store.StoreTitle,
+		"exported_at":    time.Now().UTC().Format(time.RFC3339),
+		"platform":       "Catavor Multi-Tenant Smart Catalog",
+		"schema_version": "1.0",
+		"total_items":    len(products),
+		"items":          exportProducts,
+	}
+
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(root)
+}
+
+// ExportCatalogJSON writes deep relational JSON backup stream (Full Store Backup)
+func ExportCatalogJSON(w io.Writer, store *models.Store, categories []models.Category, products []models.Product) error {
+	exportProducts := BuildExportProducts(products)
 
 	catList := make([]JSONExportCategory, 0, len(categories))
 	catNames := make([]string, 0, len(categories))

@@ -32,6 +32,7 @@ import {
   MessageSquare,
   ArrowRight,
   FileSpreadsheet,
+  FileCode,
   HardDriveDownload,
   Share2
 } from 'lucide-react';
@@ -1363,6 +1364,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                   <div ref={exportDropdownRef} style={{ position: 'relative' }}>
                     <button
                       type="button"
+                      id="btn-ekspor-katalog-desktop"
                       className="btn-secondary"
                       onClick={() => setShowExportDropdown(!showExportDropdown)}
                       style={{
@@ -1374,15 +1376,16 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                         fontSize: '0.8rem',
                         fontWeight: 700,
                         cursor: 'pointer',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: showExportDropdown ? 'var(--bg-card-hover)' : 'transparent',
-                        color: 'var(--text-primary)'
+                        border: showExportDropdown ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        backgroundColor: showExportDropdown ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                        color: showExportDropdown ? 'var(--primary)' : 'var(--text-primary)',
+                        transition: 'all 0.15s ease'
                       }}
-                      title="Ekspor Seluruh Data Produk & Portabilitas Katalog"
+                      title="Ekspor Data Item Produk & Portabilitas Katalog (CSV / JSON)"
                     >
                       <HardDriveDownload size={15} style={{ color: 'var(--primary)' }} />
                       <span>Ekspor Data</span>
-                      <ChevronDown size={13} style={{ opacity: 0.7 }} />
+                      <ChevronDown size={13} style={{ opacity: 0.75, transform: showExportDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
                     </button>
 
                     {showExportDropdown && (
@@ -1390,26 +1393,36 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                         style={{
                           position: 'absolute',
                           right: 0,
-                          top: 'calc(100% + 6px)',
-                          width: '240px',
-                          backgroundColor: 'var(--bg-surface, #1e293b)',
+                          top: 'calc(100% + 8px)',
+                          width: '260px',
+                          backgroundColor: 'var(--bg-card)',
                           border: '1px solid var(--border-light)',
-                          borderRadius: '0.75rem',
-                          boxShadow: 'var(--shadow-xl, 0 10px 25px rgba(0,0,0,0.35))',
-                          padding: '0.45rem',
+                          borderRadius: '0.85rem',
+                          boxShadow: 'var(--shadow-premium, 0 16px 36px rgba(0,0,0,0.28))',
+                          padding: '0.55rem',
                           zIndex: 9999,
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '0.25rem'
+                          gap: '0.4rem'
                         }}
                       >
-                        <div style={{ padding: '0.35rem 0.55rem 0.25rem', borderBottom: '1px solid var(--border-light)', marginBottom: '0.2rem' }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Format Ekspor
+                        <div style={{
+                          padding: '0.35rem 0.65rem 0.4rem',
+                          borderBottom: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Format Ekspor Item
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                            Katalog
                           </span>
                         </div>
                         <button
                           type="button"
+                          id="btn-desktop-export-csv"
                           onClick={() => {
                             setShowExportDropdown(false);
                             onExportCatalog('csv');
@@ -1418,11 +1431,11 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                             width: '100%',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.6rem',
-                            padding: '0.55rem 0.65rem',
-                            borderRadius: '0.5rem',
-                            border: 'none',
-                            backgroundColor: 'transparent',
+                            gap: '0.65rem',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.6rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-deep)',
                             color: 'var(--text-primary)',
                             fontSize: '0.8rem',
                             fontWeight: 600,
@@ -1432,21 +1445,33 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-                            e.currentTarget.style.color = 'var(--primary)';
+                            e.currentTarget.style.borderColor = 'var(--primary)';
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                            e.currentTarget.style.color = 'var(--text-primary)';
+                            e.currentTarget.style.backgroundColor = 'var(--bg-deep)';
+                            e.currentTarget.style.borderColor = 'var(--border-light)';
                           }}
                         >
-                          <FileSpreadsheet size={16} style={{ color: '#10b981', flexShrink: 0 }} />
-                          <div>
-                            <div style={{ fontWeight: 700 }}>Unduh CSV (Excel)</div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Tabel Spreadsheet UTF-8 BOM</div>
+                          <div style={{
+                            width: '30px',
+                            height: '30px',
+                            borderRadius: '0.45rem',
+                            backgroundColor: 'rgba(16, 185, 129, 0.14)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <FileSpreadsheet size={16} style={{ color: '#10b981' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Unduh CSV (Excel)</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Tabel Spreadsheet UTF-8 BOM</div>
                           </div>
                         </button>
                         <button
                           type="button"
+                          id="btn-desktop-export-json"
                           onClick={() => {
                             setShowExportDropdown(false);
                             onExportCatalog('json');
@@ -1455,11 +1480,11 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                             width: '100%',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.6rem',
-                            padding: '0.55rem 0.65rem',
-                            borderRadius: '0.5rem',
-                            border: 'none',
-                            backgroundColor: 'transparent',
+                            gap: '0.65rem',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.6rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-deep)',
                             color: 'var(--text-primary)',
                             fontSize: '0.8rem',
                             fontWeight: 600,
@@ -1469,17 +1494,28 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-                            e.currentTarget.style.color = 'var(--primary)';
+                            e.currentTarget.style.borderColor = 'var(--primary)';
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                            e.currentTarget.style.color = 'var(--text-primary)';
+                            e.currentTarget.style.backgroundColor = 'var(--bg-deep)';
+                            e.currentTarget.style.borderColor = 'var(--border-light)';
                           }}
                         >
-                          <HardDriveDownload size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <div>
-                            <div style={{ fontWeight: 700 }}>Unduh JSON (Backup)</div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Salinan Struktur Relasional</div>
+                          <div style={{
+                            width: '30px',
+                            height: '30px',
+                            borderRadius: '0.45rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <FileCode size={16} style={{ color: 'var(--primary)' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Unduh JSON (Data Item)</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Format Portabilitas Item Produk</div>
                           </div>
                         </button>
                       </div>

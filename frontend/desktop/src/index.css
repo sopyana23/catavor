@@ -8,6 +8,7 @@
   /* Colors - Dark Slate Palette */
   --bg-deep: #080c14;
   --bg-card: #0f172a;
+  --bg-surface: var(--bg-card);
   --bg-card-hover: #1e293b;
   --border-light: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.18);

@@ -353,7 +353,11 @@ func main() {
 		guardedMutations.Put("/categories/:id", categoryHandler.Update)
 		guardedMutations.Delete("/categories/:id", categoryHandler.Destroy)
 
-		// Catalog Data Portability & Export (CSV Excel & JSON Backup)
+		// Catalog Data Portability & Export
+		// 1. Dedicated Catalog Items Export (Products only: CSV Excel & JSON Items)
+		guarded.Get("/products/export", catalogExportHandler.ExportProducts)
+		guarded.Get("/admin/products/export", catalogExportHandler.ExportProducts)
+		// 2. Full Store Backup (Danger Zone & Store Profile Backup: CSV & JSON Store Dump)
 		guarded.Get("/catalog/export", catalogExportHandler.ExportCatalog)
 		guarded.Get("/admin/catalog/export", catalogExportHandler.ExportCatalog)
 
@@ -518,6 +522,7 @@ func main() {
 		// Store Management / Directory Catalog Profiles (Server-Side Paginated & Filtered)
 		adminApi.Get("/stores", storeHandler.AdminListStores)
 		adminApi.Get("/stores/:id", storeHandler.AdminGetStoreDetail)
+		adminApi.Get("/products/export", catalogExportHandler.ExportProducts)
 		adminApi.Get("/catalog/export", catalogExportHandler.ExportCatalog)
 
 		// Moderasi Komentar Artikel (wewenang platform/content, tidak butuh toko)

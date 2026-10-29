@@ -9937,6 +9937,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Mobile Catalog Data Export Sheet State & Gesture
   const [showExportSheet, setShowExportSheet] = useState<boolean>(false);
+  const [exportFormat, setExportFormat] = useState<'csv' | 'json'>('csv');
   const [isExportingCatalog, setIsExportingCatalog] = useState<boolean>(false);
   const [exportDragY, setExportDragY] = useState(0);
   const [isExportDragging, setIsExportDragging] = useState(false);
@@ -9984,11 +9985,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
     if (isExportingCatalog) return;
     setIsExportingCatalog(true);
-    showToast(`Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
+    showToast(`Menyiapkan berkas ekspor data item ${format.toUpperCase()}...`);
     try {
       const queryParams = new URLSearchParams({ format });
       if (slug) queryParams.set('slug', slug);
-      const res = await fetch(`${API_BASE}/catalog/export?${queryParams.toString()}`, {
+      const res = await fetch(`${API_BASE}/products/export?${queryParams.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           ...(slug ? { 'X-Store-Slug': slug } : {})
@@ -9996,12 +9997,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        showToast(errJson.message || 'Gagal mengekspor data katalog', 'error');
+        showToast(errJson.message || 'Gagal mengekspor data item katalog', 'error');
         return;
       }
       const blob = await res.blob();
       const contentDisposition = res.headers.get('Content-Disposition');
-      let filename = `katalog-${slug}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
+      let filename = `katalog-items-${slug}-${format === 'csv' ? 'data.csv' : 'items.json'}`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="?([^";]+)"?/);
         if (match && match[1]) filename = match[1];
@@ -10015,7 +10016,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setShowExportSheet(false);
-      showToast(`Katalog (${format.toUpperCase()}) berhasil diunduh!`);
+      showToast(`Data item katalog (${format.toUpperCase()}) berhasil diunduh!`);
     } catch {
       showToast(`Gagal mengunduh berkas ekspor ${format.toUpperCase()}`, 'error');
     } finally {
@@ -35748,36 +35749,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               setExportDragY(0);
             }
           }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center'
-          }}
         >
           <div
             className="bottom-sheet-content"
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: '100%',
-              maxWidth: '540px',
-              backgroundColor: 'var(--bg-surface, #1e293b)',
-              borderTopLeftRadius: '1.25rem',
-              borderTopRightRadius: '1.25rem',
-              border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
-              borderBottom: 'none',
-              boxShadow: '0 -10px 30px rgba(0, 0, 0, 0.45)',
               transform: `translateY(${Math.max(0, exportDragY)}px)`,
               transition: isExportDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
+              padding: '0.65rem 0 0 0',
+              background: 'var(--bg-card)'
             }}
           >
             {/* Drag Handle Bar (touch-action none) */}
@@ -35789,26 +35769,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               onMouseDown={(e) => handleExportDragStart(e.clientY)}
               onMouseMove={(e) => handleExportDragMove(e.clientY)}
               onMouseUp={handleExportDragEnd}
-              style={{
-                touchAction: 'none',
-                padding: '0.75rem 0 0.35rem',
-                display: 'flex',
-                justifyContent: 'center',
-                cursor: 'grab'
-              }}
             >
-              <div
-                className="bottom-sheet-handle"
-                style={{
-                  width: '42px',
-                  height: '4px',
-                  borderRadius: '999px',
-                  backgroundColor: 'var(--border-light, rgba(255, 255, 255, 0.25))'
-                }}
-              />
+              <div className="bottom-sheet-handle" />
             </div>
 
-            {/* Header: Clean & professional, NO 'X' button per Rule 7.A.3 */}
+            {/* Header: Clean & professional, NO 'X' button per Rule 7.A */}
             <div
               className="bottom-sheet-header"
               onTouchStart={(e) => handleExportDragStart(e.touches[0].clientY)}
@@ -35817,250 +35782,231 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               onMouseDown={(e) => handleExportDragStart(e.clientY)}
               onMouseMove={(e) => handleExportDragMove(e.clientY)}
               onMouseUp={handleExportDragEnd}
-              style={{
-                touchAction: 'none',
-                padding: '0.5rem 1.25rem 0.85rem',
-                borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))'
-              }}
+              style={{ padding: '0 1.25rem 0.75rem' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div className="bottom-sheet-title-box">
                 <div
                   style={{
-                    width: '36px',
-                    height: '36px',
+                    width: '38px',
+                    height: '38px',
                     borderRadius: '0.65rem',
-                    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                    backgroundColor: 'var(--primary-glow)',
+                    border: '1px solid var(--border-light)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: 'var(--primary, #3b82f6)',
+                    color: 'var(--primary)',
                     flexShrink: 0
                   }}
                 >
-                  <HardDriveDownload size={18} />
+                  <HardDriveDownload size={19} />
                 </div>
-                <div>
+                <div style={{ minWidth: 0, flex: 1 }}>
                   <h3
+                    className="bottom-sheet-title"
                     style={{
                       margin: 0,
-                      fontSize: '1rem',
+                      fontSize: '0.98rem',
                       fontWeight: 800,
-                      color: 'var(--text-primary, #ffffff)',
-                      lineHeight: 1.2
+                      color: 'var(--text-primary)',
+                      lineHeight: 1.25
                     }}
                   >
-                    Ekspor Data & Portabilitas
+                    Ekspor Data Item Katalog
                   </h3>
-                  <p
+                  <span
                     style={{
                       margin: '0.2rem 0 0',
-                      fontSize: '0.75rem',
-                      color: 'var(--text-secondary, #94a3b8)',
-                      lineHeight: 1.3
+                      fontSize: '0.73rem',
+                      color: 'var(--text-secondary)',
+                      display: 'block',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
                     }}
                   >
-                    Unduh data katalog aktif untuk laporan Excel atau arsip digital
-                  </p>
+                    Unduh daftar produk & inventaris katalog Anda
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Body: Scrollable with touch containment */}
             <div
+              className="bottom-sheet-scrollable-body"
               style={{
-                padding: '1rem 1.15rem',
-                overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                overscrollBehavior: 'contain',
+                padding: '0.85rem 1.15rem 0.65rem',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.85rem'
+                gap: '0.65rem'
               }}
             >
               {/* Option 1: CSV / Excel */}
               <div
+                id="btn-option-csv-mobile"
+                className={`bottom-sheet-item ${exportFormat === 'csv' ? 'active' : ''}`}
+                onClick={() => setExportFormat('csv')}
                 style={{
-                  padding: '1rem',
+                  padding: '0.85rem 0.95rem',
                   borderRadius: '0.85rem',
-                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
-                  backgroundColor: 'var(--bg-card, rgba(255, 255, 255, 0.03))',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem'
+                  cursor: 'pointer',
+                  alignItems: 'flex-start',
+                  border: exportFormat === 'csv' ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                  backgroundColor: exportFormat === 'csv' ? 'var(--primary-glow)' : 'var(--bg-deep)'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                <div className="bottom-sheet-item-left" style={{ alignItems: 'flex-start', gap: '0.75rem' }}>
                   <div
                     style={{
                       width: '32px',
                       height: '32px',
-                      borderRadius: '0.5rem',
-                      backgroundColor: 'rgba(34, 197, 94, 0.12)',
+                      borderRadius: '0.55rem',
+                      backgroundColor: 'rgba(16, 185, 129, 0.14)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#22c55e',
+                      color: '#10b981',
                       flexShrink: 0,
                       marginTop: '0.1rem'
                     }}
                   >
                     <FileSpreadsheet size={16} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
-                      Format CSV (Microsoft Excel)
+                  <div className="bottom-sheet-item-col">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <span className="bottom-sheet-item-name" style={{ fontSize: '0.88rem', fontWeight: 800 }}>
+                        Format CSV (Microsoft Excel)
+                      </span>
+                      <span className="bottom-sheet-item-badge">Spreadsheet</span>
                     </div>
-                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: 'var(--text-secondary, #94a3b8)', lineHeight: 1.4 }}>
-                      Tabel terstruktur (ID, nama, SKU, kategori, harga, stok, spesifikasi). Dilengkapi UTF-8 BOM agar rapi saat dibuka langsung di Microsoft Excel & Google Sheets.
+                    <p className="bottom-sheet-item-desc" style={{ margin: '0.25rem 0 0', fontSize: '0.73rem', lineHeight: 1.45 }}>
+                      Tabel produk terstruktur (ID, nama, tipe, kategori, harga, stok, spesifikasi). Dilengkapi UTF-8 BOM untuk Excel &amp; Google Sheets.
                     </p>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  id="btn-download-csv-mobile"
-                  disabled={isExportingCatalog}
-                  onClick={() => handleExportCatalog('csv')}
-                  style={{
-                    width: '100%',
-                    minHeight: '44px',
-                    padding: '0.65rem 1rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--primary, #3b82f6)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: '0.84rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
-                    opacity: isExportingCatalog ? 0.7 : 1,
-                    transition: 'all 0.15s ease'
-                  }}
+                <div
+                  className={`bottom-sheet-radio ${exportFormat === 'csv' ? 'selected' : ''}`}
+                  style={{ marginTop: '0.2rem' }}
                 >
-                  {isExportingCatalog ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      <span>Mengunduh Berkas...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileSpreadsheet size={16} />
-                      <span>Unduh Berkas Excel (CSV)</span>
-                    </>
-                  )}
-                </button>
+                  {exportFormat === 'csv' && <Check size={14} strokeWidth={2.5} />}
+                </div>
               </div>
 
-              {/* Option 2: JSON / Full Backup */}
+              {/* Option 2: JSON Items */}
               <div
+                id="btn-option-json-mobile"
+                className={`bottom-sheet-item ${exportFormat === 'json' ? 'active' : ''}`}
+                onClick={() => setExportFormat('json')}
                 style={{
-                  padding: '1rem',
+                  padding: '0.85rem 0.95rem',
                   borderRadius: '0.85rem',
-                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
-                  backgroundColor: 'var(--bg-card, rgba(255, 255, 255, 0.03))',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem'
+                  cursor: 'pointer',
+                  alignItems: 'flex-start',
+                  border: exportFormat === 'json' ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                  backgroundColor: exportFormat === 'json' ? 'var(--primary-glow)' : 'var(--bg-deep)'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                <div className="bottom-sheet-item-left" style={{ alignItems: 'flex-start', gap: '0.75rem' }}>
                   <div
                     style={{
                       width: '32px',
                       height: '32px',
-                      borderRadius: '0.5rem',
-                      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                      borderRadius: '0.55rem',
+                      backgroundColor: 'var(--primary-glow)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: 'var(--primary, #3b82f6)',
+                      color: 'var(--primary)',
                       flexShrink: 0,
                       marginTop: '0.1rem'
                     }}
                   >
-                    <HardDriveDownload size={16} />
+                    <FileCode size={16} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
-                      Format JSON (Cadangan Utuh)
+                  <div className="bottom-sheet-item-col">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <span className="bottom-sheet-item-name" style={{ fontSize: '0.88rem', fontWeight: 800 }}>
+                        Format JSON (Data Item Produk)
+                      </span>
+                      <span className="bottom-sheet-item-badge">JSON Raw</span>
                     </div>
-                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: 'var(--text-secondary, #94a3b8)', lineHeight: 1.4 }}>
-                      Salinan teknis lossless memuat hierarki relasi galeri media, varian opsi harga, dan atribut dinamis 7 domain industri untuk portabilitas & arsip.
+                    <p className="bottom-sheet-item-desc" style={{ margin: '0.25rem 0 0', fontSize: '0.73rem', lineHeight: 1.45 }}>
+                      Salinan digital teknis berisi seluruh data produk, varian harga, galeri media, dan atribut spesifikasi domain untuk integrasi atau arsip.
                     </p>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  id="btn-download-json-mobile"
-                  disabled={isExportingCatalog}
-                  onClick={() => handleExportCatalog('json')}
-                  style={{
-                    width: '100%',
-                    minHeight: '44px',
-                    padding: '0.65rem 1rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                    color: 'var(--text-primary, #ffffff)',
-                    border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
-                    fontWeight: 700,
-                    fontSize: '0.84rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
-                    opacity: isExportingCatalog ? 0.7 : 1,
-                    transition: 'all 0.15s ease'
-                  }}
+                <div
+                  className={`bottom-sheet-radio ${exportFormat === 'json' ? 'selected' : ''}`}
+                  style={{ marginTop: '0.2rem' }}
                 >
-                  {isExportingCatalog ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      <span>Mengunduh Berkas...</span>
-                    </>
-                  ) : (
-                    <>
-                      <HardDriveDownload size={16} />
-                      <span>Unduh Salinan Lengkap (JSON)</span>
-                    </>
-                  )}
-                </button>
+                  {exportFormat === 'json' && <Check size={14} strokeWidth={2.5} />}
+                </div>
               </div>
             </div>
 
-            {/* Footer with touch-friendly Dismiss/Close button */}
+            {/* Sticky Footer: Action Row in Thumb Resting Zone */}
             <div
+              className="bottom-sheet-sticky-footer"
               style={{
-                padding: '0.75rem 1.15rem 1.25rem',
-                borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
-                backgroundColor: 'var(--bg-deep, rgba(0, 0, 0, 0.2))'
+                padding: '0.75rem 1.15rem max(1.15rem, env(safe-area-inset-bottom))',
+                backgroundColor: 'var(--bg-deep)',
+                borderTop: '1px solid var(--border-light)',
+                display: 'flex',
+                gap: '0.65rem'
               }}
             >
               <button
                 type="button"
+                className="btn-secondary"
                 disabled={isExportingCatalog}
                 onClick={() => {
                   setShowExportSheet(false);
                   setExportDragY(0);
                 }}
                 style={{
-                  width: '100%',
+                  flex: 1,
                   minHeight: '44px',
                   padding: '0.65rem 1rem',
                   borderRadius: '0.65rem',
-                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-secondary, #94a3b8)',
-                  fontWeight: 600,
                   fontSize: '0.85rem',
+                  fontWeight: 600,
                   cursor: isExportingCatalog ? 'not-allowed' : 'pointer'
                 }}
               >
                 Tutup
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-export-mobile"
+                className="btn-primary"
+                disabled={isExportingCatalog}
+                onClick={() => handleExportCatalog(exportFormat)}
+                style={{
+                  flex: 1.6,
+                  minHeight: '44px',
+                  padding: '0.65rem 1rem',
+                  borderRadius: '0.65rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 14px var(--primary-glow)'
+                }}
+              >
+                {isExportingCatalog ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Mengunduh...</span>
+                  </>
+                ) : (
+                  <>
+                    {exportFormat === 'csv' ? <FileSpreadsheet size={16} /> : <FileCode size={16} />}
+                    <span>Unduh {exportFormat.toUpperCase()}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
