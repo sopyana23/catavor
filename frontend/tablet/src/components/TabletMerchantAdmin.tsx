@@ -930,6 +930,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   // Narrow screen and single-pane back interceptions are managed natively by TabletMasterDetailView
 
+  // Adaptive compact workspace detection: activates when screen is narrow OR sidebar is expanded (taking 250px)
+  const isNarrowFilterBar = useMemo(() => {
+    if (isNarrowScreen) return true;
+    if (isNavExpanded) return true;
+    if (typeof window !== 'undefined' && window.innerWidth < 1140) return true;
+    return false;
+  }, [isNarrowScreen, isNavExpanded]);
+
   const [productSearch, setProductSearch] = useState<string>('');
   const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
@@ -3663,12 +3671,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               {/* Search Bar + Secondary Dropdowns: adapts between wide (grid) and compact tablet */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: isNarrowScreen ? '1fr' : 'minmax(200px, 2fr) minmax(160px, 1.2fr) minmax(140px, 1fr) auto',
+                gridTemplateColumns: isNarrowFilterBar ? '1fr' : 'minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) auto',
                 gap: '0.65rem',
-                alignItems: 'center'
+                alignItems: 'center',
+                width: '100%',
+                boxSizing: 'border-box'
               }}>
                 {/* Search Input */}
-                <div style={{ position: 'relative', width: '100%' }}>
+                <div style={{ position: 'relative', width: '100%', minWidth: 0 }}>
                   <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                   <input
                     type="text"
@@ -3722,51 +3732,68 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </div>
 
                 {/* Dropdowns Row on Compact or Grid on Wide Tablet */}
-                {isNarrowScreen ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '0.65rem', alignItems: 'center' }}>
-                    <TabletCustomSelect
-                      value={productCategoryFilter}
-                      onChange={(val) => {
-                        setProductCategoryFilter(val);
-                        setProductPage(1);
-                      }}
-                      options={[
-                        {
-                          value: 'all',
-                          label: 'Semua Kategori',
-                          count: productTypeFilter === 'all'
-                            ? (catalogMetrics?.total_items ?? productTotalRecords)
-                            : (catalogMetrics?.by_type?.[productTypeFilter] ?? products.filter(p => (p.product_type || 'physical') === productTypeFilter).length)
-                        },
-                        ...categories.map(c => ({
-                          value: String(c.id),
-                          label: c.name,
-                          count: catalogMetrics?.by_category?.[c.name] ?? catalogMetrics?.by_category?.[String(c.id)]
-                        }))
-                      ]}
-                      placeholder="Semua Kategori"
-                      ariaLabel="Filter Kategori Produk"
-                    />
+                {isNarrowFilterBar ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.65rem',
+                    flexWrap: 'wrap',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}>
+                    <div style={{ flex: '1 1 180px', minWidth: '130px' }}>
+                      <TabletCustomSelect
+                        value={productCategoryFilter}
+                        onChange={(val) => {
+                          setProductCategoryFilter(val);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          {
+                            value: 'all',
+                            label: 'Semua Kategori',
+                            count: productTypeFilter === 'all'
+                              ? (catalogMetrics?.total_items ?? productTotalRecords)
+                              : (catalogMetrics?.by_type?.[productTypeFilter] ?? products.filter(p => (p.product_type || 'physical') === productTypeFilter).length)
+                          },
+                          ...categories.map(c => ({
+                            value: String(c.id),
+                            label: c.name,
+                            count: catalogMetrics?.by_category?.[c.name] ?? catalogMetrics?.by_category?.[String(c.id)]
+                          }))
+                        ]}
+                        placeholder="Semua Kategori"
+                        ariaLabel="Filter Kategori Produk"
+                      />
+                    </div>
 
-                    <TabletCustomSelect
-                      value={productSortFilter}
-                      onChange={(val) => {
-                        setProductSortFilter(val);
-                        setProductPage(1);
-                      }}
-                      options={[
-                        { value: 'newest', label: 'Terbaru' },
-                        { value: 'oldest', label: 'Terlama' },
-                        { value: 'name_asc', label: 'Nama (A-Z)' },
-                        { value: 'price_asc', label: 'Harga Terendah' },
-                        { value: 'price_desc', label: 'Harga Tertinggi' }
-                      ]}
-                      placeholder="Urutan Item"
-                      ariaLabel="Urutan Item"
-                    />
+                    <div style={{ flex: '1 1 150px', minWidth: '120px' }}>
+                      <TabletCustomSelect
+                        value={productSortFilter}
+                        onChange={(val) => {
+                          setProductSortFilter(val);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          { value: 'newest', label: 'Terbaru' },
+                          { value: 'oldest', label: 'Terlama' },
+                          { value: 'name_asc', label: 'Nama (A-Z)' },
+                          { value: 'price_asc', label: 'Harga Terendah' },
+                          { value: 'price_desc', label: 'Harga Tertinggi' }
+                        ]}
+                        placeholder="Urutan Item"
+                        ariaLabel="Urutan Item"
+                      />
+                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'flex-end' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      marginLeft: 'auto',
+                      flexShrink: 0
+                    }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 600 }}>
                         Baris:
                       </span>
                       <TabletCustomSelect
@@ -3783,56 +3810,61 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         ]}
                         placeholder="10"
                         variant="compact"
-                        style={{ width: '74px' }}
+                        style={{ width: '72px', minWidth: '65px' }}
+                        triggerStyle={{ padding: '0.45rem 0.65rem' }}
                         ariaLabel="Jumlah Baris per Halaman"
                       />
                     </div>
                   </div>
                 ) : (
                   <>
-                    <TabletCustomSelect
-                      value={productCategoryFilter}
-                      onChange={(val) => {
-                        setProductCategoryFilter(val);
-                        setProductPage(1);
-                      }}
-                      options={[
-                        {
-                          value: 'all',
-                          label: 'Semua Kategori',
-                          count: productTypeFilter === 'all'
-                            ? (catalogMetrics?.total_items ?? productTotalRecords)
-                            : (catalogMetrics?.by_type?.[productTypeFilter] ?? products.filter(p => (p.product_type || 'physical') === productTypeFilter).length)
-                        },
-                        ...categories.map(c => ({
-                          value: String(c.id),
-                          label: c.name,
-                          count: catalogMetrics?.by_category?.[c.name] ?? catalogMetrics?.by_category?.[String(c.id)]
-                        }))
-                      ]}
-                      placeholder="Semua Kategori"
-                      ariaLabel="Filter Kategori Produk"
-                    />
+                    <div style={{ minWidth: 0 }}>
+                      <TabletCustomSelect
+                        value={productCategoryFilter}
+                        onChange={(val) => {
+                          setProductCategoryFilter(val);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          {
+                            value: 'all',
+                            label: 'Semua Kategori',
+                            count: productTypeFilter === 'all'
+                              ? (catalogMetrics?.total_items ?? productTotalRecords)
+                              : (catalogMetrics?.by_type?.[productTypeFilter] ?? products.filter(p => (p.product_type || 'physical') === productTypeFilter).length)
+                          },
+                          ...categories.map(c => ({
+                            value: String(c.id),
+                            label: c.name,
+                            count: catalogMetrics?.by_category?.[c.name] ?? catalogMetrics?.by_category?.[String(c.id)]
+                          }))
+                        ]}
+                        placeholder="Semua Kategori"
+                        ariaLabel="Filter Kategori Produk"
+                      />
+                    </div>
 
-                    <TabletCustomSelect
-                      value={productSortFilter}
-                      onChange={(val) => {
-                        setProductSortFilter(val);
-                        setProductPage(1);
-                      }}
-                      options={[
-                        { value: 'newest', label: 'Terbaru' },
-                        { value: 'oldest', label: 'Terlama' },
-                        { value: 'name_asc', label: 'Nama (A-Z)' },
-                        { value: 'price_asc', label: 'Harga Terendah' },
-                        { value: 'price_desc', label: 'Harga Tertinggi' }
-                      ]}
-                      placeholder="Urutan Item"
-                      ariaLabel="Urutan Item"
-                    />
+                    <div style={{ minWidth: 0 }}>
+                      <TabletCustomSelect
+                        value={productSortFilter}
+                        onChange={(val) => {
+                          setProductSortFilter(val);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          { value: 'newest', label: 'Terbaru' },
+                          { value: 'oldest', label: 'Terlama' },
+                          { value: 'name_asc', label: 'Nama (A-Z)' },
+                          { value: 'price_asc', label: 'Harga Terendah' },
+                          { value: 'price_desc', label: 'Harga Tertinggi' }
+                        ]}
+                        placeholder="Urutan Item"
+                        ariaLabel="Urutan Item"
+                      />
+                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'flex-end' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'flex-end', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 600 }}>
                         Baris:
                       </span>
                       <TabletCustomSelect
@@ -3849,7 +3881,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         ]}
                         placeholder="10"
                         variant="compact"
-                        style={{ width: '74px' }}
+                        style={{ width: '72px', minWidth: '65px' }}
+                        triggerStyle={{ padding: '0.45rem 0.65rem' }}
                         ariaLabel="Jumlah Baris per Halaman"
                       />
                     </div>
