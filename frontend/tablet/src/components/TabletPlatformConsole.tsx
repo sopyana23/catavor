@@ -378,7 +378,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       case 'stores':
         return { title: 'Tata Kelola Profil Merchant', subtitle: 'Direktori katalog terdaftar dan kepatuhan akun' };
       case 'reports':
-        return { title: 'Kepatuhan & Laporan Masyarakat', subtitle: 'Antrean penertiban satwa dilindungi dan barang terlarang' };
+        return { title: 'Kepatuhan & Laporan Masyarakat', subtitle: 'Antrean penertiban komoditas ilegal dan pelanggaran katalog' };
       case 'support':
         return { title: 'Pusat Bantuan & Helpdesk CS', subtitle: 'Penanganan tiket kendala merchant dan percakapan' };
       case 'finance':
@@ -3694,7 +3694,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 {pendingReportsCount} Laporan Kepatuhan Baru
                               </div>
                               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                Dugaan satwa terlarang / pelanggaran etalase
+                                Dugaan komoditas terlarang / pelanggaran etalase
                               </div>
                             </div>
                           </div>
@@ -3981,7 +3981,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   }}>
                     {[
                       { key: 'stores', label: 'Direktori Merchant', desc: 'Audit & kepatuhan katalog', icon: StoreIcon, color: '#3b82f6', visible: canAccessCompliance },
-                      { key: 'reports', label: 'Kepatuhan & Laporan', desc: 'Investigasi satwa terlarang', icon: AlertOctagon, color: '#ef4444', visible: canAccessCompliance },
+                      { key: 'reports', label: 'Kepatuhan & Laporan', desc: 'Investigasi komoditas ilegal', icon: AlertOctagon, color: '#ef4444', visible: canAccessCompliance },
                       { key: 'support', label: 'Bantuan CS', desc: 'Respon tiket merchant', icon: LifeBuoy, color: '#06b6d4', visible: canAccessSupport },
                       { key: 'finance', label: 'Keuangan & Billing', desc: 'Verifikasi aktivasi paket Pro', icon: CreditCard, color: '#10b981', visible: canAccessFinance },
                       { key: 'staff', label: 'Staf & Role RBAC', desc: 'Penugasan hak akses tim', icon: ShieldCheck, color: '#8b5cf6', visible: canAccessRBAC },

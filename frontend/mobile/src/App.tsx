@@ -6522,29 +6522,6 @@ Terima kasih.`;
   const lastViewedTicketIdRef = useRef<number | string | null>(null);
   const lastMessagesCountRef = useRef<number>(0);
   const readTicketIdsRef = useRef<Set<string | number>>(new Set());
-  const editorRef = useRef<HTMLDivElement>(null)
-  const imageInputRef = useRef<HTMLInputElement>(null)
-  const savedRangeRef = useRef<Range | null>(null)
-
-  const saveSelection = () => {
-    const sel = window.getSelection()
-    if (sel && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0)
-      if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
-        savedRangeRef.current = range
-      }
-    }
-  }
-
-  const restoreSelection = () => {
-    if (savedRangeRef.current) {
-      const sel = window.getSelection()
-      if (sel) {
-        sel.removeAllRanges()
-        sel.addRange(savedRangeRef.current)
-      }
-    }
-  }
 
   // Mobile navigation views: 'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'
   const isPopStateRef = useRef<boolean>(false)
@@ -6575,11 +6552,11 @@ Terima kasih.`;
     };
   }, [markUserNavigation])
 
-  const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'>('tabs')
-  const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>(() => {
+  const [view, setView] = useState<'tabs' | 'fauna-editor' | 'product-type-selector'>('tabs')
+  const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'admin'>(() => {
     if (typeof window !== 'undefined') {
       const savedTab = sessionStorage.getItem('catavor_mobile_active_tab');
-      if (savedTab && ['catalog', 'about', 'sightings', 'articles', 'admin'].includes(savedTab)) {
+      if (savedTab && ['catalog', 'about', 'sightings', 'admin'].includes(savedTab)) {
         sessionStorage.removeItem('catavor_mobile_active_tab');
         return savedTab as any;
       }
@@ -6595,8 +6572,6 @@ Terima kasih.`;
         rawTabParam === 'bantuan' ||
         rawTabParam === 'notifications' ||
         rawTabParam === 'notifikasi' ||
-        rawTabParam === 'articles' ||
-        rawTabParam === 'artikel' ||
         rawTabParam === 'settings' ||
         rawTabParam === 'analytics' ||
         Boolean(urlParams.get('ticket')) ||
@@ -6608,7 +6583,6 @@ Terima kasih.`;
       }
       if (rawTabParam === 'about' || path.includes('/about')) return 'about';
       if (rawTabParam === 'sightings' || path.includes('/sightings')) return 'sightings';
-      if (rawTabParam === 'articles' || path.includes('/articles')) return 'articles';
     }
     return 'catalog';
   })
@@ -6710,10 +6684,10 @@ Terima kasih.`;
     }
     return 'hub';
   })
-  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs' | 'rbac' | 'portal'>(() => {
+  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs' | 'rbac' | 'portal'>(() => {
     if (typeof window !== 'undefined') {
       const savedSub = sessionStorage.getItem('catavor_mobile_admin_subtab');
-      if (savedSub && ['menu', 'items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(savedSub)) {
+      if (savedSub && ['menu', 'items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(savedSub)) {
         sessionStorage.removeItem('catavor_mobile_admin_subtab');
         return savedSub as any;
       }
@@ -6747,9 +6721,6 @@ Terima kasih.`;
       if (path.includes('/admin/analytics') || ['analytics', 'analitik', 'analisis'].includes(rawTabParam) || ['analytics', 'analitik', 'analisis'].includes(rawSubParam)) {
         return 'analytics';
       }
-      if (path.includes('/admin/articles') || ['articles', 'artikel'].includes(rawTabParam) || ['articles', 'artikel'].includes(rawSubParam)) {
-        return 'articles';
-      }
       if (path.includes('/admin/profile') || ['profile', 'profil'].includes(rawTabParam) || ['profile', 'profil'].includes(rawSubParam)) {
         return 'profile';
       }
@@ -6770,17 +6741,17 @@ Terima kasih.`;
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
         const sub = parts[2];
-        if (['items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
           return sub as any;
         }
       }
       if (parts.length === 2 && parts[0] === 'admin') {
         const sub = parts[1];
-        if (['items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
           return sub as any;
         }
       }
-      if (rawSubParam && ['items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(rawSubParam)) {
+      if (rawSubParam && ['items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(rawSubParam)) {
         return rawSubParam as any;
       }
     }
@@ -6927,7 +6898,6 @@ Terima kasih.`;
   const [agreeCheckoutTermsError, setAgreeCheckoutTermsError] = useState<boolean>(false)
   const [showQuickPolicyModal, setShowQuickPolicyModal] = useState<'terms' | 'privacy' | 'acceptable_use' | null>(null)
   const [faunasPage, setFaunasPage] = useState(1)
-  const [articlesPage, setArticlesPage] = useState<number>(1)
   const [itemsPage, setItemsPage] = useState<number>(1)
   const [logoUploading, setLogoUploading] = useState<boolean>(false)
 
@@ -7116,39 +7086,6 @@ Terima kasih.`;
     return Math.max(0, totalNotificationsCount - unreadCount);
   }, [isStoreSuspended, suspendedFilteredList, totalNotificationsCount, unreadCount]);
 
-  // Articles state
-  const [articles, setArticles] = useState<Article[]>([])
-  const [articlesLoading, setArticlesLoading] = useState<boolean>(false)
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null) // for reading full article
-  const [editingArticle, setEditingArticle] = useState<Article | null>(null)
-  
-  // Public comment states
-  const [commentName, setCommentName] = useState<string>('')
-  const [commentEmail, setCommentEmail] = useState<string>('')
-  const [commentContent, setCommentContent] = useState<string>('')
-  const [submittingComment, setSubmittingComment] = useState<boolean>(false)
-  const [replyingTo, setReplyingTo] = useState<{ id: number; name: string } | null>(null)
-
-  // Admin comments & hub states
-  const [articleTabState, setArticleTabState] = useState<'hub' | 'articles' | 'comments'>('hub')
-  const [adminComments, setAdminComments] = useState<CommentItem[]>([])
-  const [loadingComments, setLoadingComments] = useState<boolean>(false)
-  const [commentsFilter, setCommentsFilter] = useState<'all' | 'pending' | 'approved'>('all')
-
-  const [articleForm, setArticleForm] = useState({
-    title: '',
-    content: '',
-    image_url: '',
-    author: 'Admin Catavor',
-    read_time: '5 mnt baca',
-    slug: '',
-    meta_description: '',
-    is_comments_enabled: true,
-    require_comment_approval: false,
-    require_comment_email: false,
-    verify_comment_email_domain: false
-  })
-  const [editorTab, setEditorTab] = useState<'compose' | 'html' | 'preview'>('compose')
 
   // Search & Filters (Multi-Type Hybrid Catalog Support)
   const [search, setSearch] = useState<string>('')
@@ -7497,9 +7434,6 @@ Terima kasih.`;
   const totalItemsPages = totalAdminPages;
   const paginatedItems = paginatedAdminItems;
 
-  const ARTICLES_PER_PAGE = 5
-  const totalArticlesPages = Math.ceil(articles.length / ARTICLES_PER_PAGE)
-  const paginatedArticles = articles.slice((articlesPage - 1) * ARTICLES_PER_PAGE, articlesPage * ARTICLES_PER_PAGE)
   const [loadingMore, setLoadingMore] = useState<boolean>(false)
 
   const [isFirstTimeLogin, setIsFirstTimeLogin] = useState<boolean>(() => {
@@ -9874,12 +9808,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [isDragging, setIsDragging] = useState<boolean>(false)
   const [dragStart, setDragStart] = useState<{ x: number, y: number }>({ x: 0, y: 0 })
 
-  // Blogger-style Image Formatting states
-  const [selectedEditorImage, setSelectedEditorImage] = useState<HTMLImageElement | null>(null)
-  const [showImageSettingsModal, setShowImageSettingsModal] = useState<boolean>(false)
-  const [imageAltText, setImageAltText] = useState<string>('')
-  const [imageCaptionText, setImageCaptionText] = useState<string>('')
-  const [imageSizeSelection, setImageSizeSelection] = useState<'kecil' | 'sedang' | 'besar' | 'ekstrabesar' | 'asli'>('sedang')
 
   // Multi-image management states (Deferred Upload with Instant Blob Previews)
   const MAX_PRODUCT_PHOTOS = 10
@@ -11845,20 +11773,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   };
 
-  const fetchArticles = async () => {
-    setArticlesLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/articles`)
-      const data = await res.json()
-      if (data.success) {
-        setArticles(data.data)
-      }
-    } catch (err) {
-      console.error('Error fetching articles:', err)
-    } finally {
-      setArticlesLoading(false)
-    }
-  }
+
   // Share store link (direct to Share / QR page)
   const handleShareStore = () => {
     const slug = storeSlug || getStoreSlug();
@@ -11968,8 +11883,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (selectedNotification && activeNotifId) {
           params.set('id', String(activeNotifId));
         }
-      } else if (adminSubTab === 'articles') {
-        targetPath += `/admin/articles`;
       } else if (adminSubTab === 'subscription') {
         targetPath += `/admin/subscription`;
       } else if (adminSubTab === 'help') {
@@ -11997,11 +11910,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
       } else {
         targetPath += `/about`;
       }
-    } else if (activeTab === 'articles') {
-      targetPath += `/articles`;
-      if (selectedArticle && selectedArticle.id) {
-        params.set('article', String(selectedArticle.id));
-      }
     } else if (activeTab === 'sightings') {
       targetPath += `/sightings`;
     }
@@ -12023,13 +11931,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const isUserInitiated = isUserNavRef.current && !isPopStateRef.current && !isInitialLoadRef.current;
       if (isPopStateRef.current || !isUserInitiated) {
         window.history.replaceState(
-          { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotification?.id, articleId: selectedArticle?.id },
+          { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotification?.id },
           '',
           fullTarget
         );
       } else {
         window.history.pushState(
-          { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotification?.id, articleId: selectedArticle?.id },
+          { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotification?.id },
           '',
           fullTarget
         );
@@ -12044,7 +11952,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       isInitialLoadRef.current = false;
     }
     isUserNavRef.current = false;
-  }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error]);
+  }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, storeSlug, error]);
 
   // Auto-redirect or recovery if authenticated user lands on /login (Mobile)
   useEffect(() => {
@@ -13423,10 +13331,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setActiveTab('about')
   }
 
-  const goToArticles = () => {
-    closeAllTransientOverlays()
-    setActiveTab('articles')
-  }
 
   // Handle Logout
   const handleLogout = async (customRedirectUrl?: string | React.MouseEvent) => {
@@ -14320,259 +14224,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     return Array.isArray(masterShippingCoverages) ? masterShippingCoverages : []
   }
 
-  const handleTitleChange = (newTitle: string) => {
-    const generatedSlug = newTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
-    setArticleForm(prev => ({
-      ...prev,
-      title: newTitle,
-      slug: editingArticle ? prev.slug : generatedSlug
-    }))
-  }
 
-  const handleVisualInput = () => {
-    if (editorRef.current) {
-      setArticleForm(prev => ({ ...prev, content: editorRef.current!.innerHTML }))
-    }
-  }
-
-  const preventDefaultOnDesktop = (e: React.MouseEvent) => {
-    if (!('ontouchstart' in window)) {
-      e.preventDefault()
-    }
-  }
-
-  const execFormat = (cmd: string, val: string = '') => {
-    if (editorRef.current) {
-      editorRef.current.focus()
-    }
-    restoreSelection()
-    document.execCommand(cmd, false, val)
-    handleVisualInput()
-    saveSelection()
-  }
-
-  const insertImageUrl = () => {
-    if (imageInputRef.current) {
-      imageInputRef.current.click()
-    }
-  }
-
-  const handleArticleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setArticlesLoading(true)
-    const formData = new FormData()
-    formData.append('image', file)
-
-    try {
-      const res = await fetch(`${API_BASE}/storage/upload?category=articles`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      })
-
-      if (res.status === 401) {
-        showToast('Sesi Anda berakhir. Silakan login kembali untuk mengunggah gambar.', 'error')
-        return
-      }
-
-      const data = await res.json()
-      if (data.success && data.url) {
-        if (editorRef.current) {
-          editorRef.current.focus()
-        }
-        const imgHtml = `<img src="${data.url}" alt="Gambar Artikel" style="max-width:100%; height:auto; border-radius:0.5rem; margin:1rem 0; border: 1px solid var(--border-light);" />`
-        execFormat('insertHTML', imgHtml)
-        showToast('Gambar berhasil diunggah dan disisipkan!')
-      } else {
-        showToast(data.message || 'Gagal mengunggah gambar.', 'error')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('Terjadi kesalahan saat mengunggah gambar. Silakan login ulang.', 'error')
-    } finally {
-      setArticlesLoading(false)
-      e.target.value = ''
-    }
-  }
-
-  const insertLinkUrl = () => {
-    const url = prompt('Masukkan URL Tautan:', 'https://')
-    if (url) {
-      if (editorRef.current) {
-        editorRef.current.focus()
-      }
-      execFormat('createLink', url)
-    }
-  }
-
-  const clearFormatting = () => {
-    execFormat('removeFormat')
-  }
-
-  const openAddArticleSheet = () => {
-    setEditingArticle(null)
-    setArticleForm({
-      title: '',
-      content: '',
-      image_url: '',
-      author: 'Admin Catavor',
-      read_time: '5 mnt baca',
-      slug: '',
-      meta_description: '',
-      is_comments_enabled: settings.default_is_comments_enabled !== '0',
-      require_comment_approval: settings.default_require_comment_approval === '1',
-      require_comment_email: settings.default_require_comment_email === '1',
-      verify_comment_email_domain: settings.default_verify_comment_email_domain === '1'
-    })
-    setView('article-editor')
-  }
-
-  const openEditArticleSheet = (article: Article) => {
-    setEditingArticle(article)
-    setArticleForm({
-      title: article.title,
-      content: article.content,
-      image_url: article.image_url || '',
-      author: article.author || 'Admin Catavor',
-      read_time: article.read_time || '5 mnt baca',
-      slug: article.slug || '',
-      meta_description: article.meta_description || '',
-      is_comments_enabled: article.is_comments_enabled !== undefined ? article.is_comments_enabled : true,
-      require_comment_approval: article.require_comment_approval !== undefined ? article.require_comment_approval : false,
-      require_comment_email: article.require_comment_email !== undefined ? article.require_comment_email : false,
-      verify_comment_email_domain: article.verify_comment_email_domain !== undefined ? article.verify_comment_email_domain : false
-    })
-    setView('article-editor')
-  }
-
-  const handleSaveArticle = async (e: React.FormEvent, customPayload?: typeof articleForm) => {
-    if (e) e.preventDefault()
-    setArticlesLoading(true)
-    const payload = customPayload || articleForm
-    try {
-      const url = editingArticle 
-        ? `${API_BASE}/articles/${editingArticle.id}` 
-        : `${API_BASE}/articles`
-      const method = editingArticle ? 'PUT' : 'POST'
-      
-      const res = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      })
-      
-      const data = await res.json()
-      if (data.success) {
-        setView('tabs')
-        setActiveTab('admin')
-        setAdminSubTab('articles')
-        await fetchArticles()
-        showToast('Artikel berhasil disimpan!')
-      } else {
-        showToast(data.message || 'Gagal menyimpan artikel.', 'error')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('Koneksi bermasalah. Gagal menyimpan artikel.', 'error')
-    } finally {
-      setArticlesLoading(false)
-    }
-  }
-
-  const handleDeleteArticle = async (id: number) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus artikel ini?')) return
-    setArticlesLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/articles/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const data = await res.json()
-      if (data.success) {
-        await fetchArticles()
-        showToast('Artikel berhasil dihapus!')
-      } else {
-        showToast(data.message || 'Gagal menghapus artikel.', 'error')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('Koneksi bermasalah. Gagal menghapus artikel.', 'error')
-    } finally {
-      setArticlesLoading(false)
-    }
-  }
-
-  const handleSelectArticle = async (article: Article) => {
-    setSelectedArticle(article)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    try {
-      const res = await fetch(`${API_BASE}/articles/${article.id}`)
-      const data = await res.json()
-      if (data.success) {
-        setSelectedArticle(data.data)
-      }
-    } catch (err) {
-      console.error("Error fetching article details:", err)
-    }
-  }
-
-  const handlePostComment = async (e: React.FormEvent) => {
-    if (e) e.preventDefault()
-    if (!selectedArticle) return
-    if (!commentName.trim() || !commentContent.trim()) {
-      showToast('Nama dan komentar harus diisi.', 'error')
-      return
-    }
-
-    setSubmittingComment(true)
-    try {
-      const res = await fetch(`${API_BASE}/articles/${selectedArticle.id}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: commentName,
-          email: commentEmail || null,
-          content: commentContent,
-          parent_id: replyingTo ? replyingTo.id : null
-        })
-      })
-
-      const data = await res.json()
-      if (res.ok && data.success) {
-        showToast(data.message || 'Komentar Anda berhasil diterbitkan!')
-        setCommentName('')
-        setCommentEmail('')
-        setCommentContent('')
-        setReplyingTo(null)
-        
-        // Reload details
-        const reloadRes = await fetch(`${API_BASE}/articles/${selectedArticle.id}`)
-        const reloadData = await reloadRes.json()
-        if (reloadData.success) {
-          setSelectedArticle(reloadData.data)
-        }
-      } else {
-        showToast(data.message || 'Gagal mengirim komentar.', 'error')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('Koneksi bermasalah. Gagal mengirim komentar.', 'error')
-    } finally {
-      setSubmittingComment(false)
-    }
-  }
 
   const handleDeleteMasterOption = (field: 'class' | 'habitat' | 'conservation_status' | 'shipping_coverage', value: string) => {
     if (field === 'class' && (DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || []).includes(value)) {
@@ -18277,7 +17929,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       // 2. In Public Storefront Mode: Show bottom bar on root tabs
       (
         activeTab !== 'admin' &&
-        !(activeTab === 'articles' && selectedArticle) &&
         !(activeTab === 'about' && aboutSubView === 'qrcode')
       )
     )
@@ -18362,9 +18013,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 if (activeTab === 'about' && aboutSubView !== 'main') {
                   setAboutSubView('main');
                 }
-                if (activeTab === 'articles' && selectedArticle) {
-                  setSelectedArticle(null);
-                }
                 setActiveTab('admin');
                 setAdminSubTab('menu');
                 const slug = storeSlug || getStoreSlug();
@@ -18400,14 +18048,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
   return (
     <>
-      {/* Hidden File Input for WYSIWYG Editor Image Upload */}
-      <input 
-        type="file" 
-        ref={imageInputRef} 
-        style={{ display: 'none' }} 
-        accept="image/*" 
-        onChange={handleArticleImageUpload} 
-      />
 
       {isDetailActive ? (
         selectedFauna ? (
@@ -32655,168 +32295,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         );
       })()}
 
-
-      {/* IMAGE SETTINGS DIALOG MODAL */}
-      {showImageSettingsModal && selectedEditorImage && (
-        <div className="modal-overlay" style={{ zIndex: 4000 }}>
-          <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative' }}>
-            <button 
-              type="button" 
-              className="modal-close-btn" 
-              onClick={() => setShowImageSettingsModal(false)}
-              style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-secondary)' }}
-            >
-              <X size={18} />
-            </button>
-
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Edit Gambar</h3>
-
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Teks Alternatif (Alt Text - SEO) *</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={imageAltText} 
-                onChange={(e) => setImageAltText(e.target.value)} 
-                placeholder="Deskripsi gambar untuk pencarian Google..." 
-                style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
-              />
-            </div>
-
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Teks Judul / Keterangan (Title/Caption)</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={imageCaptionText} 
-                onChange={(e) => setImageCaptionText(e.target.value)} 
-                placeholder="Judul atau caption melayang..." 
-                style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
-              />
-            </div>
-
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Ukuran Gambar</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'kecil'} onChange={() => setImageSizeSelection('kecil')} />
-                  Kecil (150px)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'sedang'} onChange={() => setImageSizeSelection('sedang')} />
-                  Sedang (300px)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'besar'} onChange={() => setImageSizeSelection('besar')} />
-                  Besar (500px)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'ekstrabesar'} onChange={() => setImageSizeSelection('ekstrabesar')} />
-                  Ekstra Besar (800px)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'asli'} onChange={() => setImageSizeSelection('asli')} />
-                  Ukuran Asli (100%)
-                </label>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-              <button 
-                type="button" 
-                className="btn-secondary" 
-                onClick={() => setShowImageSettingsModal(false)}
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-              >
-                Batal
-              </button>
-              <button 
-                type="button" 
-                className="btn-primary" 
-                onClick={() => {
-                  if (selectedEditorImage) {
-                    selectedEditorImage.setAttribute('alt', imageAltText);
-                    
-                    if (imageSizeSelection === 'kecil') {
-                      selectedEditorImage.style.width = '150px';
-                      selectedEditorImage.style.maxWidth = '30%';
-                    } else if (imageSizeSelection === 'sedang') {
-                      selectedEditorImage.style.width = '300px';
-                      selectedEditorImage.style.maxWidth = '60%';
-                    } else if (imageSizeSelection === 'besar') {
-                      selectedEditorImage.style.width = '500px';
-                      selectedEditorImage.style.maxWidth = '80%';
-                    } else if (imageSizeSelection === 'ekstrabesar') {
-                      selectedEditorImage.style.width = '800px';
-                      selectedEditorImage.style.maxWidth = '95%';
-                    } else if (imageSizeSelection === 'asli') {
-                      selectedEditorImage.style.width = '100%';
-                      selectedEditorImage.style.maxWidth = '100%';
-                    }
-                    selectedEditorImage.style.height = 'auto';
-
-                    const parent = selectedEditorImage.parentElement;
-                    const isWrapped = parent && parent.classList.contains('img-caption-wrapper');
-
-                    if (imageCaptionText.trim()) {
-                      if (isWrapped) {
-                        const capDiv = parent.querySelector('.img-caption-text') as HTMLElement;
-                        if (capDiv) {
-                          capDiv.innerText = imageCaptionText;
-                        }
-                        parent.style.width = selectedEditorImage.style.width;
-                        parent.style.maxWidth = selectedEditorImage.style.maxWidth;
-                      } else {
-                        const wrapper = document.createElement('div');
-                        wrapper.className = 'img-caption-wrapper';
-                        
-                        wrapper.style.display = selectedEditorImage.style.display || 'block';
-                        wrapper.style.float = selectedEditorImage.style.float || 'none';
-                        wrapper.style.margin = selectedEditorImage.style.margin || '1rem auto';
-                        wrapper.style.clear = selectedEditorImage.style.clear || 'both';
-                        wrapper.style.width = selectedEditorImage.style.width;
-                        wrapper.style.maxWidth = selectedEditorImage.style.maxWidth;
-                        
-                        selectedEditorImage.style.display = 'block';
-                        selectedEditorImage.style.float = 'none';
-                        selectedEditorImage.style.margin = '0 auto';
-                        selectedEditorImage.style.clear = 'none';
-                        
-                        const capDiv = document.createElement('div');
-                        capDiv.className = 'img-caption-text';
-                        capDiv.innerText = imageCaptionText;
-                        
-                        selectedEditorImage.parentNode?.insertBefore(wrapper, selectedEditorImage);
-                        wrapper.appendChild(selectedEditorImage);
-                        wrapper.appendChild(capDiv);
-                      }
-                    } else {
-                      if (isWrapped) {
-                        const grandParent = parent.parentElement;
-                        if (grandParent) {
-                          selectedEditorImage.style.display = parent.style.display;
-                          selectedEditorImage.style.float = parent.style.float;
-                          selectedEditorImage.style.margin = parent.style.margin;
-                          selectedEditorImage.style.clear = parent.style.clear;
-                          
-                          grandParent.insertBefore(selectedEditorImage, parent);
-                          parent.remove();
-                        }
-                      }
-                    }
-
-                    handleVisualInput();
-                    setShowImageSettingsModal(false);
-                  }
-                }}
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-              >
-                Perbarui
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* QUICK POLICY POPOVER MODAL FOR FORMS */}
       {showQuickPolicyModal && (

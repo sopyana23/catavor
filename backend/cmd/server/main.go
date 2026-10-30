@@ -85,7 +85,6 @@ func main() {
 	subscriptionHandler := handlers.NewSubscriptionHandler(database.DB)
 	productHandler := handlers.NewProductHandler(cfg, database.DB)
 	categoryHandler := handlers.NewCategoryHandler(database.DB)
-	articleHandler := handlers.NewArticleHandler(database.DB)
 	settingHandler := handlers.NewSettingHandler(database.DB)
 	reportHandler := handlers.NewReportHandler(database.DB)
 	supportHandler := handlers.NewSupportHandler(cfg, storageService, database.DB)
@@ -233,10 +232,6 @@ func main() {
 	api.Get("/settings", settingHandler.PublicIndex)
 	api.Get("/policies", settingHandler.GetPolicies)
 	api.Post("/policies/agree", middleware.PublicSubmissionRateLimiter(), settingHandler.RecordAgreement)
-	api.Get("/articles", articleHandler.Index)
-	api.Get("/articles/:id", articleHandler.Show)
-	api.Get("/articles/:id/comments", articleHandler.GetArticleComments)
-	api.Post("/articles/:id/comments", middleware.PublicSubmissionRateLimiter(), articleHandler.StoreComment)
 	api.Post("/reports", middleware.PublicSubmissionRateLimiter(), reportHandler.CreateReport)
 
 	// Multi-Tenant Public Store Endpoints
@@ -410,23 +405,6 @@ func main() {
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
 		guarded.Get("/settings/policy-audit-logs", settingHandler.GetPolicyAuditLogs)
 
-		// Articles & Moderation
-		// SECURITY (N-18): artikel edukasi adalah konten platform. Ketiga rute
-		// tulis sebelumnya tanpa cek peran sama sekali — merchant bisa
-		// menerbitkan, mengubah, dan MENGHAPUS artikel platform (terbukti
-		// runtime: PUT /api/articles/1 -> 200). Handler-nya pun tidak memeriksa
-		// peran, jadi penjagaan harus di middleware.
-		guardedMutations.Post("/articles",
-			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.Store)
-		guardedMutations.Put("/articles/:id",
-			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.Update)
-		guardedMutations.Delete("/articles/:id",
-			middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.Destroy)
-		// SECURITY (N-07): moderasi komentar artikel adalah wewenang platform
-		// (content), bukan merchant. Rute /admin/comments sudah DIPINDAH ke
-		// grup adminApi (lihat bagian "Content & Broadcast") karena handler-nya
-		// tidak memakai store_id konteks. Sebelumnya di sini sehingga
-		// superadmin tanpa toko tertolak 403 "Toko Anda belum terdaftar."
 
 		// SECURITY (N-07): rute /reports di grup "guarded" tidak memfilter tenant
 		// sama sekali. Terbukti runtime: merchant membaca 26 laporan dari SEMUA
@@ -516,12 +494,6 @@ func main() {
 		adminApi.Get("/stores", storeHandler.AdminListStores)
 		adminApi.Get("/stores/:id", storeHandler.AdminGetStoreDetail)
 
-		// Moderasi Komentar Artikel (wewenang platform/content, tidak butuh toko)
-		// Dipindah dari grup "guarded" (StoreOwnerRequired) sesuai OWASP:
-		// jalur admin lintas-tenant harus explicit & separately authorized.
-		adminApi.Get("/comments", middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.GetAdminComments)
-		adminApi.Post("/comments/:id/approve", middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.ApproveComment)
-		adminApi.Delete("/comments/:id", middleware.RequirePermission(cfg, "content:articles:manage"), articleHandler.DeleteComment)
 
 		// Monetization, Rekber Syariah & Platform Settings
 		// SECURITY (N-12): settings mengubah konfigurasi platform (monetisasi, iklan,

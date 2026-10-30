@@ -633,10 +633,14 @@ func seedDefaultCannedResponses(db *gorm.DB) {
 }
 
 func seedDefaultRBAC(db *gorm.DB) {
+	// 0. Clean up deprecated permissions (Articles & Comments)
+	db.Exec("DELETE FROM platform_role_permissions WHERE permission_id IN (SELECT id FROM platform_permissions WHERE key IN ('content:articles:manage', 'content:comments:moderate'))")
+	db.Exec("DELETE FROM platform_permissions WHERE key IN ('content:articles:manage', 'content:comments:moderate')")
+
 	// 1. Seed Granular Permissions if not exists
 	defaultPermissions := []models.PlatformPermission{
 		// Compliance & Trust
-		{Key: "compliance:reports:manage", Group: "compliance", Name: "Kelola Laporan Toko", Description: "Meninjau laporan penipuan, pelanggaran toko, dan satwa ilegal"},
+		{Key: "compliance:reports:manage", Group: "compliance", Name: "Kelola Laporan Toko", Description: "Meninjau laporan penipuan, pelanggaran toko, dan komoditas katalog terlarang"},
 		{Key: "compliance:stores:suspend", Group: "compliance", Name: "Bekukan / Pulihkan Toko", Description: "Membekukan toko yang melanggar atau memulihkan toko yang ditangguhkan"},
 		{Key: "compliance:dormancy:manage", Group: "compliance", Name: "Kelola Dormansi Toko", Description: "Meninjau metrik dormansi dan memicu sanksi atau perpanjangan akun"},
 
@@ -651,7 +655,6 @@ func seedDefaultRBAC(db *gorm.DB) {
 		{Key: "finance:revenue:read", Group: "finance", Name: "Lihat Laporan Finansial", Description: "Melihat analitik omzet platform, MRR, dan konversi paket Pro"},
 
 		// Content & Marketing
-		{Key: "content:articles:manage", Group: "content", Name: "Kelola Artikel Edukasi", Description: "Menulis, mengubah, dan mempublikasikan artikel blog platform"},
 		{Key: "content:broadcast:send", Group: "content", Name: "Kirim Siaran Notifikasi", Description: "Mengirim notifikasi broadcast sistem ke seluruh merchant"},
 
 		// Monetization & Analytics Integration
@@ -700,8 +703,8 @@ func seedDefaultRBAC(db *gorm.DB) {
 		},
 		{
 			Slug:        "compliance",
-			Name:        "Trust & Compliance Officer",
-			Description: "Penegakan hukum satwa, investigasi laporan masyarakat, dan audit kepatuhan toko",
+			Name:        "Trust & Compliance",
+			Description: "Investigasi laporan pelanggaran masyarakat, kepatuhan katalog multi-tipe, dan dormansi toko",
 			IsSystem:    true,
 			PermKeys: []string{
 				"compliance:reports:manage",
@@ -732,11 +735,10 @@ func seedDefaultRBAC(db *gorm.DB) {
 		},
 		{
 			Slug:        "content",
-			Name:        "Content & Monetization Specialist",
-			Description: "Siaran notifikasi massal, pengelolaan Google AdSense dan integrasi analitik",
+			Name:        "Content & Marketing Specialist",
+			Description: "Siaran notifikasi massal, pengelolaan Google AdSense dan integrasi analitik platform",
 			IsSystem:    true,
 			PermKeys: []string{
-				"content:articles:manage",
 				"content:broadcast:send",
 				"monetization:google:manage",
 			},

@@ -67,7 +67,7 @@ export const getRoleBadge = (roleSlug: string) => {
     case 'superadmin':
       return { label: 'Super Admin', color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.12)', border: 'rgba(244, 63, 94, 0.3)' };
     case 'compliance':
-      return { label: 'Compliance & Satwa', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)', border: 'rgba(139, 92, 246, 0.3)' };
+      return { label: 'Trust & Compliance', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)', border: 'rgba(139, 92, 246, 0.3)' };
     case 'support':
       return { label: 'Customer Support', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)', border: 'rgba(6, 182, 212, 0.3)' };
     case 'finance':
