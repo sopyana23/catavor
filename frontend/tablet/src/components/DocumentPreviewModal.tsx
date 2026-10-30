@@ -353,17 +353,61 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
       setJumpInput('1');
 
       const authToken = token || localStorage.getItem('catavor_token') || '';
-      const targetUrl = docId 
-        ? `/api/support/attachments/${docId}` 
-        : (fileUrl || '');
+      const localBlob = doc?.blobUrl || (doc as any)?.blob_url;
+
+      let res: Response | null = null;
+      let targetUrl = '';
+
+      // 1. Prioritize local blob URL (for staged files preview before sending message)
+      if (localBlob) {
+        targetUrl = localBlob;
+        try {
+          res = await fetch(targetUrl);
+        } catch (e) {
+          console.warn('Tablet preview: failed to fetch local blob:', e);
+        }
+      }
+
+      // 2. Fetch by attachment ID from secure support attachments API
+      if (!res || !res.ok) {
+        if (docId) {
+          targetUrl = `/api/support/attachments/${docId}`;
+          try {
+            res = await fetch(targetUrl, {
+              headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+            });
+          } catch (e) {
+            console.warn(`Tablet preview: failed to fetch by docId ${docId}:`, e);
+          }
+        }
+      }
+
+      // 3. Fallback to fileUrl (public storage or external URL) if docId failed or wasn't provided
+      if ((!res || !res.ok) && fileUrl && fileUrl !== targetUrl) {
+        targetUrl = fileUrl;
+        try {
+          res = await fetch(targetUrl, {
+            headers: authToken && !targetUrl.startsWith('data:') && !targetUrl.startsWith('blob:')
+              ? { Authorization: `Bearer ${authToken}` }
+              : {}
+          });
+        } catch (e) {
+          console.warn('Tablet preview: failed to fetch by fileUrl:', e);
+        }
+      }
 
       try {
-        const res = await fetch(targetUrl, {
-          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
-        });
-
-        if (!res.ok) {
-          throw new Error(`Gagal memuat dokumen (${res.status} ${res.statusText})`);
+        if (!res || !res.ok) {
+          let errorDetail = res ? `${res.status} ${res.statusText}` : 'Koneksi ke berkas lampiran gagal';
+          if (res) {
+            try {
+              const errData = await res.json();
+              if (errData && errData.message) {
+                errorDetail = errData.message;
+              }
+            } catch (_) {}
+          }
+          throw new Error(`Gagal memuat dokumen (${errorDetail})`);
         }
 
         const blob = await res.blob();

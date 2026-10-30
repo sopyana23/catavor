@@ -364,6 +364,14 @@ func runPreMigrationRenames(db *gorm.DB) {
 			log.Info().Msg("Database table 'faunas' successfully renamed to 'products'")
 		}
 	}
+
+	// Normalisasi penamaan unique constraint master_presets agar AutoMigrate GORM tidak gagal
+	_ = db.Exec(`DO $$
+	BEGIN
+		IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'master_presets_product_type_key') THEN
+			ALTER TABLE master_presets RENAME CONSTRAINT master_presets_product_type_key TO uni_master_presets_product_type;
+		END IF;
+	END $$;`).Error
 }
 
 func runPostMigrationOptimizations(db *gorm.DB) {

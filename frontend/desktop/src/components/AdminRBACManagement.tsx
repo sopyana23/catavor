@@ -474,10 +474,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         </div>
       )}
 
-      {/* 2. Executive KPI Summary Cards (Desktop Breathing Room) */}
+      {/* 2. Executive KPI Summary Cards (Desktop Breathing Room & Responsive Adaptivity) */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
         gap: '1.15rem'
       }}>
         {/* Card 1: Total Staf */}
@@ -817,9 +817,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            gap: '1rem'
+            gap: '1rem',
+            flexWrap: 'wrap'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, maxWidth: '480px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: '320px', maxWidth: '580px', flexWrap: 'wrap' }}>
               <div style={{ position: 'relative', width: '100%' }}>
                 <Search size={16} style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: colors.textMuted }} />
                 <input
@@ -1120,13 +1121,15 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            gap: '1rem',
+            flexWrap: 'wrap',
             backgroundColor: colors.cardBg,
             border: `1px solid ${colors.border}`,
             borderRadius: '0.85rem',
             padding: '1rem 1.4rem',
             boxShadow: colors.shadow
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: '300px' }}>
               <Info size={18} style={{ color: colors.textMuted, flexShrink: 0 }} />
               <p style={{ margin: 0, fontSize: '0.82rem', color: colors.textSecondary, lineHeight: 1.45 }}>
                 Atur granularitas hak akses operasional. Setiap perubahan izin per role dapat disimpan secara realtime tanpa perlu restart backend.
@@ -1378,7 +1381,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         <form onSubmit={handleCreateCustomRole} style={{ width: '100%' }}>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(320px, 420px) 1fr',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
             gap: '1.75rem',
             alignItems: 'start'
           }}>
@@ -1587,7 +1590,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                         </button>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.5rem' }}>
                         {grpPerms.map((p) => {
                           const isSelected = newRolePerms.has(p.key);
                           return (

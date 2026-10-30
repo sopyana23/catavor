@@ -512,10 +512,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         </div>
       )}
 
-      {/* 2. Tablet 4 KPI Metric Cards (2x2 Grid with Touch Targets) */}
+      {/* 2. Tablet 4 KPI Metric Cards (Responsive Grid with Touch Targets) */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
         gap: '1rem'
       }}>
         {/* Metric 1 */}
@@ -787,8 +787,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
       {activeTab === 'staff' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
           {/* Action Header */}
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1 }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
               <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
               <input
                 type="text"
@@ -1033,7 +1033,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                           <span>Superadmin Utama</span>
                         </span>
                       ) : (
-                        <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, flexWrap: 'wrap' }}>
                           <button
                             type="button"
                             onClick={() => {
@@ -1105,13 +1105,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '1rem',
+            flexWrap: 'wrap',
             backgroundColor: theme.surface,
             border: `1px solid ${theme.border}`,
             borderRadius: '1rem',
             padding: '1rem 1.25rem',
             boxShadow: theme.cardShadow
           }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flex: 1, minWidth: '280px' }}>
               <div style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
                 Pilih Role untuk Dikonfigurasi:
               </div>
@@ -1355,7 +1356,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.4rem' }}>
                   Slug Role (ID Unik) <span style={{ color: '#f43f5e' }}>*</span>
@@ -1430,7 +1431,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             </div>
 
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.8rem', fontWeight: 700, color: theme.textPrimary }}>
                   Pilih Izin Awal ({newRolePerms.size} terpilih):
                 </label>
@@ -1604,6 +1605,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             style={{
               width: '100%',
               maxWidth: '480px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
               backgroundColor: theme.modalBg,
               border: `1px solid ${theme.borderStrong}`,
               borderRadius: '1.25rem',
@@ -1762,6 +1765,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             style={{
               width: '100%',
               maxWidth: '500px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
               backgroundColor: theme.modalBg,
               border: `1px solid ${theme.borderStrong}`,
               borderRadius: '1.25rem',

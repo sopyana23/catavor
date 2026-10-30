@@ -37,6 +37,8 @@ export interface TicketAttachment {
   file_name: string;
   file_size?: number;
   file_type?: string;
+  blob_url?: string;
+  blobUrl?: string;
 }
 
 export interface TicketMessage {
@@ -197,6 +199,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   // Support Attachment URL Helper
   const supportAttachmentSrc = (att: any): string => {
     if (!att) return '';
+    if (att.blob_url || att.blobUrl) return att.blob_url || att.blobUrl;
     if (att.id) return `/api/support/attachments/${att.id}`;
     return att.file_url || '';
   };
@@ -497,12 +500,14 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
             else detectedType = 'application/octet-stream';
           }
 
+          const localBlobUrl = URL.createObjectURL(file);
           uploaded.push({
-            file_url: data.url,
-            storage_key: data.storage_key || '',
+            file_url: data.file_url || data.url || localBlobUrl,
+            storage_key: data.key || data.storage_key || '',
             file_name: file.name,
             file_size: file.size,
-            file_type: detectedType
+            file_type: detectedType,
+            blob_url: localBlobUrl
           });
         } else {
           showToast(data.message || `Gagal mengunggah ${file.name}`, 'error');
@@ -698,6 +703,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
       isOpen: true,
       id: att.id,
       url: supportAttachmentSrc(att),
+      blobUrl: att.blob_url || att.blobUrl,
       fileName: att.file_name || (isPdf ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran'),
       fileSize: att.file_size,
       fileType: att.file_type || (isPdf ? 'application/pdf' : isImage ? 'image/jpeg' : 'application/octet-stream')

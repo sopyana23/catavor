@@ -50,10 +50,10 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
     return () => ro.disconnect();
   }, []);
 
-  // When container width is below 700px (e.g. narrow tablet or expanded sidebar),
-  // adapt seamlessly to focused single-pane mode to prevent squeezed columns
-  const isNarrowTablet = containerWidth < 700;
-  const isSpaciousTablet = containerWidth >= 900;
+  // When container width is below 880px (Tablet Mini 768px-879px or compact viewports),
+  // adapt seamlessly to focused single-pane mode to prevent squeezed columns per Platform Standard 7.A.2
+  const isNarrowTablet = containerWidth < 880;
+  const isSpaciousTablet = containerWidth >= 960;
 
   const showMaster = !isNarrowTablet || !selectedId;
   const showDetail = !isNarrowTablet || Boolean(selectedId);

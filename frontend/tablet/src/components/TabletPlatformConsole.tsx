@@ -90,7 +90,7 @@ import { TabletPlatformStoresView } from './TabletPlatformStoresView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
-import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import { type UserRBACInfo, getRoleBadge, isSuperAdmin, hasPermission } from '../utils/rbac';
 import { useModalBackHandler } from '../utils/navigation';
@@ -513,9 +513,86 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     loadPlatformStats();
   }, [loadPlatformStats]);
 
-  // Global Document Preview Modal state (for payment proofs, report evidence, ticket attachments)
-  const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
-  const [previewDocTitle, setPreviewDocTitle] = useState('Bukti Dokumen');
+  // Global In-App Document & Image Preview Modal state (matching TabletHelpdeskView & Desktop standards)
+  const [docPreview, setDocPreview] = useState<DocumentPreviewData | null>(null);
+
+  const supportAttachmentSrc = (att: any): string => {
+    if (!att) return '';
+    if (att.blob_url || att.blobUrl) return att.blob_url || att.blobUrl;
+    if (att.id) return `/api/support/attachments/${att.id}`;
+    return att.file_url || '';
+  };
+
+  const openDocumentPreview = (att: any) => {
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const isPdf = (att.file_type || '').includes('pdf') || 
+      (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+      (att.file_url || '').toLowerCase().endsWith('.pdf');
+
+    setDocPreview({
+      isOpen: true,
+      id: att.id,
+      url: supportAttachmentSrc(att),
+      blobUrl: att.blob_url || att.blobUrl,
+      fileName: att.file_name || (isPdf ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran'),
+      fileSize: att.file_size,
+      fileType: att.file_type || (isPdf ? 'application/pdf' : isImage ? 'image/jpeg' : 'application/octet-stream')
+    });
+  };
+
+  const handleDownloadAttachment = async (att: any, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const fileName = att.file_name || (isImage ? 'Lampiran_Gambar.jpg' : 'Dokumen.pdf');
+    const authToken = token || localStorage.getItem('catavor_token') || '';
+
+    try {
+      if (att.blob_url || att.blobUrl) {
+        const link = document.createElement('a');
+        link.href = att.blob_url || att.blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+      const targetUrl = att.id ? `/api/support/attachments/${att.id}?download=1` : (att.file_url || supportAttachmentSrc(att));
+      const res = await fetch(targetUrl, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        return;
+      }
+    } catch (err) {
+      console.warn('Direct download blob error, falling back:', err);
+    }
+
+    const link = document.createElement('a');
+    link.href = att.id ? `/api/support/attachments/${att.id}?download=1` : (att.file_url || supportAttachmentSrc(att) || '#');
+    link.download = fileName;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // =========================================================================
   // SUB-VIEW: REPORTS (Kepatuhan & Laporan Pelanggaran)
@@ -817,8 +894,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [isUploadingTicketAttachment, setIsUploadingTicketAttachment] = useState(false);
   const [activePresences, setActivePresences] = useState<any[]>([]);
   const [showCannedModal, setShowCannedModal] = useState(false);
-  const [previewDocument, setPreviewDocument] = useState<any | null>(null);
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [ticketDetailsLoading, setTicketDetailsLoading] = useState(false);
   const [ticketsMetrics, setTicketsMetrics] = useState<any>(null);
@@ -1204,6 +1280,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         const file = files[i];
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('image', file);
+        formData.append('category', 'support');
         const res = await authFetch('/api/storage/upload?category=support', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
@@ -1211,18 +1289,28 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         });
         if (res.ok) {
           const j = await res.json();
-          const fileUrl = j.url || j.data?.url || j.file_url;
-          if (fileUrl) {
-            setTicketReplyAttachments(prev => [
-              ...prev,
-              {
-                file_url: fileUrl,
-                file_name: file.name,
-                file_type: file.type,
-                file_size: file.size
-              }
-            ]);
+          const localBlobUrl = URL.createObjectURL(file);
+          const lowerName = (file.name || '').toLowerCase();
+          let detectedType = file.type || '';
+          if (!detectedType) {
+            if (lowerName.endsWith('.pdf')) detectedType = 'application/pdf';
+            else if (lowerName.endsWith('.png')) detectedType = 'image/png';
+            else if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) detectedType = 'image/jpeg';
+            else if (lowerName.endsWith('.webp')) detectedType = 'image/webp';
+            else if (lowerName.endsWith('.gif')) detectedType = 'image/gif';
+            else detectedType = 'application/octet-stream';
           }
+          setTicketReplyAttachments(prev => [
+            ...prev,
+            {
+              file_url: j.file_url || j.url || localBlobUrl,
+              storage_key: j.key || j.storage_key || '',
+              file_name: file.name,
+              file_type: detectedType,
+              file_size: file.size,
+              blob_url: localBlobUrl
+            }
+          ]);
         }
       }
       showToast('Lampiran berhasil diunggah');
@@ -2888,15 +2976,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         </div>
       )}
 
-      {/* Global Document & Evidence Preview Modal */}
-      {previewDocUrl && (
+      {/* Global In-App Document & Image Preview Modal */}
+      {docPreview && docPreview.isOpen && (
         <DocumentPreviewModal
-          data={{
-            isOpen: true,
-            url: previewDocUrl,
-            fileName: previewDocTitle
-          }}
-          onClose={() => setPreviewDocUrl(null)}
+          data={docPreview}
+          onClose={() => setDocPreview(null)}
           token={token}
         />
       )}
@@ -4067,10 +4151,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               hideHeaderTitle={true}
               masterPane={
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-deep)' }}>
-                  {/* Quick Metrics Bar (4 Columns) */}
+                  {/* Quick Metrics Bar (2x2 Touch Grid for Tablet Master Pane) */}
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
                     gap: '0.45rem',
                     padding: '0.65rem 0.75rem',
                     backgroundColor: 'var(--bg-card)',
@@ -4646,8 +4730,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               src={activeRep.evidence_image_url}
                               alt="Bukti Laporan"
                               onClick={() => {
-                                setPreviewDocUrl(activeRep.evidence_image_url);
-                                setPreviewDocTitle(`Bukti Laporan ${activeRep.report_number || `#RPT-${activeRep.id}`}`);
+                                openDocumentPreview({
+                                  file_url: activeRep.evidence_image_url,
+                                  file_name: `Bukti_Laporan_${activeRep.report_number || `#RPT-${activeRep.id}`}.jpg`
+                                });
                               }}
                               style={{
                                 width: '120px',
@@ -6038,129 +6124,154 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           </p>
                                         ) : null}
 
-                                        {/* Attachments */}
+                                        {/* Attached Files & Documents */}
                                         {msg.attachments && msg.attachments.length > 0 && (
                                           <div style={{
                                             marginTop: (msg.message || msg.content) ? '0.6rem' : '0.2rem',
                                             paddingTop: (msg.message || msg.content) ? '0.5rem' : '0',
                                             borderTop: (msg.message || msg.content) ? '1px solid var(--border-light)' : 'none'
                                           }}>
-                                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                               <Paperclip size={11} color="var(--primary)" /> {msg.attachments.length} Lampiran Berkas:
                                             </div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '0.45rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
                                               {msg.attachments.map((att: any, aIdx: number) => {
-                                                const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
-                                                if (isPDF) {
-                                                  return (
-                                                    <div
-                                                      key={aIdx}
-                                                      style={{
-                                                        gridColumn: '1 / -1',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'space-between',
-                                                        padding: '0.55rem 0.75rem',
-                                                        borderRadius: '0.65rem',
-                                                        backgroundColor: 'var(--bg-card)',
-                                                        border: '1px solid var(--border-light)',
-                                                        gap: '0.5rem'
-                                                      }}
-                                                    >
-                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
-                                                        <div style={{
-                                                          width: '32px',
-                                                          height: '32px',
-                                                          borderRadius: '0.45rem',
-                                                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                                                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                                                          display: 'flex',
-                                                          alignItems: 'center',
-                                                          justifyContent: 'center',
-                                                          flexShrink: 0
-                                                        }}>
-                                                          <FileText size={16} color="#ef4444" />
-                                                        </div>
-                                                        <div style={{ minWidth: 0, flex: 1 }}>
-                                                          <div style={{ fontSize: '0.75rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                            {att.file_name || 'Dokumen.pdf'}
-                                                          </div>
-                                                          <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>
-                                                            PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
-                                                          </div>
-                                                        </div>
-                                                      </div>
-                                                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                                                        <button
-                                                          type="button"
-                                                          onClick={() => setPreviewDocument({
-                                                            isOpen: true,
-                                                            fileName: att.file_name || 'Dokumen.pdf',
-                                                            fileUrl: att.file_url,
-                                                            fileSize: att.file_size,
-                                                            fileType: att.file_type || 'application/pdf'
-                                                          })}
-                                                          style={{
-                                                            padding: '0.3rem 0.55rem',
-                                                            borderRadius: '0.4rem',
-                                                            backgroundColor: 'var(--primary)',
-                                                            color: '#ffffff',
-                                                            border: 'none',
-                                                            fontSize: '0.7rem',
-                                                            fontWeight: 700,
-                                                            cursor: 'pointer',
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '0.25rem'
-                                                          }}
-                                                        >
-                                                          <Eye size={12} /> Pratinjau
-                                                        </button>
-                                                        <a
-                                                          href={att.file_url}
-                                                          download={att.file_name || 'Dokumen.pdf'}
-                                                          target="_blank"
-                                                          rel="noopener noreferrer"
-                                                          style={{
-                                                            padding: '0.3rem 0.55rem',
-                                                            borderRadius: '0.4rem',
-                                                            backgroundColor: 'var(--bg-deep)',
-                                                            color: 'var(--text-primary)',
-                                                            border: '1px solid var(--border-light)',
-                                                            fontSize: '0.7rem',
-                                                            fontWeight: 700,
-                                                            textDecoration: 'none',
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '0.25rem'
-                                                          }}
-                                                        >
-                                                          <Download size={12} /> Unduh
-                                                        </a>
-                                                      </div>
-                                                    </div>
-                                                  );
-                                                }
+                                                const isPdf = (att.file_type || '').includes('pdf') || 
+                                                  (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+                                                  (att.file_url || '').toLowerCase().endsWith('.pdf');
+                                                const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+                                                  /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+                                                  /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+
                                                 return (
                                                   <div
                                                     key={aIdx}
-                                                    onClick={() => setPreviewImageUrl(att.file_url)}
+                                                    role="button"
+                                                    tabIndex={0}
                                                     style={{
-                                                      position: 'relative',
-                                                      borderRadius: '0.45rem',
-                                                      overflow: 'hidden',
+                                                      display: 'flex',
+                                                      flexDirection: 'column',
+                                                      gap: '0.55rem',
+                                                      padding: '0.75rem 0.85rem',
+                                                      borderRadius: '0.8rem',
+                                                      backgroundColor: 'var(--bg-card)',
                                                       border: '1px solid var(--border-light)',
-                                                      aspectRatio: '1',
-                                                      cursor: 'pointer',
-                                                      backgroundColor: '#000000'
+                                                      color: 'var(--text-primary)',
+                                                      minWidth: '220px',
+                                                      maxWidth: '340px',
+                                                      width: '100%',
+                                                      boxSizing: 'border-box'
                                                     }}
-                                                    title="Klik untuk perbesar gambar"
                                                   >
-                                                    <img
-                                                      src={att.file_url}
-                                                      alt={att.file_name || 'Lampiran'}
-                                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                    />
+                                                    {/* File Info Header (Clickable for preview) */}
+                                                    <div
+                                                      onClick={() => openDocumentPreview(att)}
+                                                      style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.65rem',
+                                                        cursor: 'pointer',
+                                                        width: '100%'
+                                                      }}
+                                                      title="Klik untuk pratinjau berkas lampiran"
+                                                    >
+                                                      <div style={{
+                                                        width: '38px',
+                                                        height: '38px',
+                                                        borderRadius: '0.5rem',
+                                                        backgroundColor: isPdf ? 'rgba(239, 68, 68, 0.12)' : 'rgba(14, 165, 233, 0.12)',
+                                                        border: `1px solid ${isPdf ? 'rgba(239, 68, 68, 0.28)' : 'rgba(14, 165, 233, 0.28)'}`,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexShrink: 0
+                                                      }}>
+                                                        {isPdf ? (
+                                                          <FileText size={20} color="#ef4444" />
+                                                        ) : (
+                                                          <ImageIcon size={20} color="#0284c7" />
+                                                        )}
+                                                      </div>
+                                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{
+                                                          fontWeight: 700,
+                                                          overflow: 'hidden',
+                                                          textOverflow: 'ellipsis',
+                                                          whiteSpace: 'nowrap',
+                                                          fontSize: '0.82rem',
+                                                          color: 'var(--text-primary)',
+                                                          lineHeight: 1.3
+                                                        }}>
+                                                          {att.file_name || (isPdf ? 'Dokumen.pdf' : 'Lampiran_Gambar.jpg')}
+                                                        </div>
+                                                        <div style={{
+                                                          fontSize: '0.68rem',
+                                                          color: 'var(--text-secondary, var(--text-muted))',
+                                                          marginTop: '0.12rem',
+                                                          fontWeight: 500,
+                                                          whiteSpace: 'nowrap',
+                                                          overflow: 'hidden',
+                                                          textOverflow: 'ellipsis'
+                                                        }}>
+                                                          {isPdf ? 'Dokumen PDF' : 'Lampiran Gambar'} {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+
+                                                    {/* Action Buttons Row */}
+                                                    <div style={{
+                                                      display: 'grid',
+                                                      gridTemplateColumns: '1fr 1fr',
+                                                      gap: '0.45rem',
+                                                      paddingTop: '0.5rem',
+                                                      borderTop: '1px solid var(--border-light)',
+                                                      width: '100%',
+                                                      boxSizing: 'border-box'
+                                                    }}>
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
+                                                        style={{
+                                                          display: 'inline-flex',
+                                                          alignItems: 'center',
+                                                          justifyContent: 'center',
+                                                          gap: '0.35rem',
+                                                          padding: '0.42rem 0.65rem',
+                                                          borderRadius: '0.5rem',
+                                                          backgroundColor: 'var(--primary, #0284c7)',
+                                                          color: '#ffffff',
+                                                          border: 'none',
+                                                          fontSize: '0.74rem',
+                                                          fontWeight: 700,
+                                                          cursor: 'pointer',
+                                                          boxShadow: '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))'
+                                                        }}
+                                                        title="Lihat Pratinjau Dokumen / Gambar"
+                                                      >
+                                                        <Eye size={13} strokeWidth={2.2} /> Preview
+                                                      </button>
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => handleDownloadAttachment(att, e)}
+                                                        style={{
+                                                          display: 'inline-flex',
+                                                          alignItems: 'center',
+                                                          justifyContent: 'center',
+                                                          gap: '0.35rem',
+                                                          padding: '0.42rem 0.65rem',
+                                                          borderRadius: '0.5rem',
+                                                          backgroundColor: 'var(--bg-deep)',
+                                                          color: 'var(--text-primary)',
+                                                          border: '1px solid var(--border-light)',
+                                                          fontSize: '0.74rem',
+                                                          fontWeight: 600,
+                                                          cursor: 'pointer'
+                                                        }}
+                                                        title="Unduh Berkas Lampiran"
+                                                      >
+                                                        <Download size={13} strokeWidth={2.2} /> Unduh
+                                                      </button>
+                                                    </div>
                                                   </div>
                                                 );
                                               })}
@@ -6281,9 +6392,21 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   backgroundColor: 'var(--bg-deep)'
                                 }}>
                                   {(att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? (
-                                    <FileText size={20} color="#ef4444" />
+                                    <div
+                                      onClick={() => openDocumentPreview(att)}
+                                      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}
+                                      title="Klik untuk melihat pratinjau dokumen PDF"
+                                    >
+                                      <FileText size={20} color="#ef4444" />
+                                    </div>
                                   ) : (
-                                    <img src={att.file_url} alt="Attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <img
+                                      src={att.blob_url || att.file_url}
+                                      alt="Attachment"
+                                      onClick={() => openDocumentPreview(att)}
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                                      title="Klik untuk melihat pratinjau gambar"
+                                    />
                                   )}
                                   <button
                                     type="button"
@@ -6336,68 +6459,73 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               <span>Mode Hanya Baca: Akun Anda memiliki izin melihat riwayat (support:tickets:read), namun tidak memiliki wewenang membalas tiket (support:tickets:reply).</span>
                             </div>
                           ) : (
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', width: '100%' }}>
-                              <input
-                                type="file"
-                                ref={fileInputRef}
-                                style={{ display: 'none' }}
-                                onChange={e => handleUploadTicketAttachment(e.target.files)}
-                                multiple
-                                accept="image/*,.pdf"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isUploadingTicketAttachment}
-                                title="Lampirkan File (Gambar/PDF)"
-                                style={{
-                                  height: '42px',
-                                  padding: '0 0.75rem',
-                                  borderRadius: '0.55rem',
-                                  border: '1px solid var(--border-light)',
-                                  backgroundColor: 'var(--bg-deep)',
-                                  color: 'var(--text-muted)',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '0.35rem',
-                                  fontSize: '0.74rem',
-                                  fontWeight: 700
-                                }}
-                              >
-                                {isUploadingTicketAttachment ? (
-                                  <RefreshCw size={15} className="animate-spin" color="var(--primary)" />
-                                ) : (
-                                  <Paperclip size={16} />
-                                )}
-                                <span>Lampiran</span>
-                              </button>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', width: '100%' }}>
+                              {/* Quick Tool Strip: Lampiran & Template Buttons */}
+                              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <input
+                                  type="file"
+                                  ref={fileInputRef}
+                                  style={{ display: 'none' }}
+                                  onChange={e => handleUploadTicketAttachment(e.target.files)}
+                                  multiple
+                                  accept="image/*,.pdf"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => fileInputRef.current?.click()}
+                                  disabled={isUploadingTicketAttachment}
+                                  title="Lampirkan File (Gambar/PDF)"
+                                  style={{
+                                    height: '36px',
+                                    padding: '0 0.75rem',
+                                    borderRadius: '0.55rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    color: 'var(--text-muted)',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.35rem',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700
+                                  }}
+                                >
+                                  {isUploadingTicketAttachment ? (
+                                    <RefreshCw size={14} className="animate-spin" color="var(--primary)" />
+                                  ) : (
+                                    <Paperclip size={15} />
+                                  )}
+                                  <span>Lampiran ({ticketReplyAttachments.length}/5)</span>
+                                </button>
 
-                              <button
-                                type="button"
-                                onClick={() => setShowCannedModal(true)}
-                                title="Gunakan Template CS"
-                                style={{
-                                  height: '42px',
-                                  padding: '0 0.75rem',
-                                  borderRadius: '0.55rem',
-                                  border: '1px solid var(--border-light)',
-                                  backgroundColor: 'var(--bg-deep)',
-                                  color: '#f59e0b',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '0.35rem',
-                                  fontSize: '0.74rem',
-                                  fontWeight: 700
-                                }}
-                              >
-                                <Zap size={14} color="#f59e0b" />
-                                <span>Template</span>
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCannedModal(true)}
+                                  title="Gunakan Template CS"
+                                  style={{
+                                    height: '36px',
+                                    padding: '0 0.75rem',
+                                    borderRadius: '0.55rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    color: '#f59e0b',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.35rem',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700
+                                  }}
+                                >
+                                  <Zap size={14} color="#f59e0b" />
+                                  <span>Template CS</span>
+                                </button>
+                              </div>
 
+                              {/* Input + Send Area Row */}
+                              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', width: '100%' }}>
                               <textarea
                                 rows={2}
                                 value={ticketReply}
@@ -6441,6 +6569,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 <Send size={15} />
                                 <span>{isInternalNote ? 'Simpan Catatan' : 'Kirim'}</span>
                               </button>
+                            </div>
                             </div>
                           )}
                         </>
@@ -6652,8 +6781,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               src={selectedOrder.transfer_proof_url}
                               alt="Bukti Transfer"
                               onClick={() => {
-                                setPreviewDocUrl(selectedOrder.transfer_proof_url);
-                                setPreviewDocTitle(`Bukti Transfer Invoice #${selectedOrder.invoice_number || selectedOrder.id}`);
+                                openDocumentPreview({
+                                  file_url: selectedOrder.transfer_proof_url,
+                                  file_name: `Bukti_Transfer_Invoice_#${selectedOrder.invoice_number || selectedOrder.id}.jpg`
+                                });
                               }}
                               style={{
                                 width: '100px',
@@ -6667,8 +6798,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                setPreviewDocUrl(selectedOrder.transfer_proof_url);
-                                setPreviewDocTitle(`Bukti Transfer Invoice #${selectedOrder.invoice_number || selectedOrder.id}`);
+                                openDocumentPreview({
+                                  file_url: selectedOrder.transfer_proof_url,
+                                  file_name: `Bukti_Transfer_Invoice_#${selectedOrder.invoice_number || selectedOrder.id}.jpg`
+                                });
                               }}
                               style={{
                                 padding: '0.5rem 0.85rem',
@@ -6842,7 +6975,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     flexShrink: 0
                   }}>
                     {/* 3 Quick Metrics Cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
                       <div style={{
                         padding: '0.75rem 1rem',
                         borderRadius: '0.75rem',
@@ -8642,8 +8775,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         Mesin otomatisasi platform mengelola siklus hidup merchant (inaktivitas &amp; kedaluwarsa), sinkronisasi promo/diskon katalog, eskalasi SLA tiket helpdesk, dan pembersihan sampah data otomatis di latar belakang.
                       </p>
 
-                      {/* 4 Telemetry Metrics Grid */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', paddingTop: '0.25rem' }}>
+                      {/* 4 Telemetry Metrics Grid (Responsive Wrap) */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', paddingTop: '0.25rem' }}>
                         <div style={{ padding: '0.9rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38bdf8', marginBottom: '0.25rem' }}>
                             <Bot size={15} />
@@ -12271,62 +12404,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         </div>
       </main>
 
-      {/* DOCUMENT PREVIEW MODAL */}
-      {previewDocument && (
-        <DocumentPreviewModal
-          document={previewDocument}
-          onClose={() => setPreviewDocument(null)}
-          token={token}
-        />
-      )}
 
-      {/* IMAGE LIGHTBOX MODAL */}
-      {previewImageUrl && (
-        <div
-          onClick={() => setPreviewImageUrl(null)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.85)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 10000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1.5rem'
-          }}
-        >
-          <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
-            <img
-              src={previewImageUrl}
-              alt="Pratinjau"
-              style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '0.75rem' }}
-            />
-            <button
-              type="button"
-              onClick={() => setPreviewImageUrl(null)}
-              style={{
-                position: 'absolute',
-                top: -12,
-                right: -12,
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                backgroundColor: '#ef4444',
-                color: '#ffffff',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 800
-              }}
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* CANNED CS RESPONSE TEMPLATES MODAL */}
       {showCannedModal && (
