@@ -36,17 +36,9 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
     storePlan === 'pro' ||
     storePlan === 'enterprise';
 
-  if (isPaidPlan) {
-    return null;
-  }
-
   // 2. MASTER TOGGLE: Cek apakah fitur iklan diaktifkan secara global di platform
   const isAdsGloballyEnabled =
     settings.ads_enabled === '1' || settings.ads_enabled === 'true';
-
-  if (!isAdsGloballyEnabled) {
-    return null;
-  }
 
   const clientId = settings.ads_client_id || '';
   const isTestMode =
@@ -66,6 +58,7 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
 
   // 3. Efek untuk memuat AdSense script & push iklan nyata saat di mode produksi
   useEffect(() => {
+    if (isPaidPlan || !isAdsGloballyEnabled) return;
     if (isTestMode || !clientId || isPushed.current) return;
 
     // Load Google AdSense library if not yet in DOM
@@ -87,7 +80,11 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
     } catch (e) {
       console.warn('Catavor AdSense trigger handled:', e);
     }
-  }, [isTestMode, clientId, activeSlot]);
+  }, [isPaidPlan, isAdsGloballyEnabled, isTestMode, clientId, activeSlot]);
+
+  if (isPaidPlan || !isAdsGloballyEnabled) {
+    return null;
+  }
 
   // 4. TEST MODE / PREVIEW PLACEHOLDER
   if (isTestMode) {
