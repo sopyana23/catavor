@@ -246,7 +246,16 @@ export function getStoreSlug(): string | null {
   const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
   
   if (parts.length === 0) return null;
-  if (reservedPortal.includes(parts[0])) return null;
+  if (parts[0] === 'login' && parts.length > 1 && !reservedPortal.includes(parts[1])) {
+    return parts[1];
+  }
+  if (reservedPortal.includes(parts[0])) {
+    try {
+      const q = new URLSearchParams(window.location.search).get('slug');
+      if (q && !reservedPortal.includes(q.toLowerCase())) return q.toLowerCase();
+    } catch {}
+    return null;
+  }
   
   return parts[0];
 }
@@ -4960,9 +4969,19 @@ function App() {
     const parts = path.split('/').filter(Boolean);
     if (parts.length === 0) return null;
     
+    if (parts[0] === 'login' && parts.length > 1 && !isReservedStoreSlug(parts[1])) {
+      return parts[1];
+    }
+
     if (!isReservedStoreSlug(parts[0])) {
       return parts[0];
     }
+
+    try {
+      const q = new URLSearchParams(window.location.search).get('slug');
+      if (q && !isReservedStoreSlug(q)) return q;
+    } catch {}
+
     return null;
   };
   const [storeSlug, setStoreSlug] = useState<string | null>(() => {
@@ -6556,7 +6575,11 @@ Terima kasih.`;
         return savedView as any;
       }
       const path = window.location.pathname.toLowerCase();
-      if (path.includes('/admin') || (path.split('/').filter(Boolean).length === 2 && path.endsWith('/login'))) {
+      if (
+        path.includes('/admin') ||
+        (path.split('/').filter(Boolean).length === 2 && path.endsWith('/login')) ||
+        (path.startsWith('/login/') && path.split('/').filter(Boolean).length >= 2)
+      ) {
         return 'admin';
       }
     }
@@ -10779,7 +10802,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
         if (parts.length >= 2) {
           const sub = parts[1];
-          if (sub === 'admin') {
+          if (sub === 'admin' || sub === 'login' || parts[0] === 'login') {
             setView('admin');
             const pageSub = parts[2] || urlParams.get('sub');
             const subSub = parts[3];
@@ -19829,9 +19852,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
         {renderStoreOwnerPreviewBar()}
 
         {/* Unified Desktop Top Stack - Sticky only in Admin, Static in Public Catalog (leaving floating solely to smart quick-search) */}
-        {!(view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged) && (
+        {view !== 'admin' && (
         <ErrorBoundary sectionName="Bilah Navigasi Atas (Desktop)">
-        <div className={view === 'admin' ? `desktop-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}` : 'desktop-public-top-stack'}>
+        <div className="desktop-public-top-stack">
 
         {/* Header (Shows stylish Catavor brand header on 404 error pages, and store header on valid pages) */}
         {error ? (
@@ -19871,24 +19894,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
             </div>
           </header>
         ) : (
-          <header className={`app-header ${view === 'catalog' ? 'public-storefront-header' : ''}`}>
+          <header className="app-header public-storefront-header">
             <div className="container header-content">
               <div className="logo-area">
-                {view === 'admin' ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    {renderStoreLogo(!error ? settings?.store_logo_url : undefined, 'logo-icon', 26)}
-                    <h1 
-                      className="logo-text" 
-                      style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }} 
-                    >
-                      {settings?.store_title || 'Pengelola Toko'}
-                    </h1>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '6px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
-                      Admin
-                    </span>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <a 
                       href="/" 
                       style={{ 
@@ -19928,7 +19937,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       Platform Katalog
                     </span>
                   </div>
-                )}
               </div>
               {!error && settings && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
                 <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -21725,92 +21733,269 @@ Terima kasih atas perhatian dan kerja samanya.`;
               </div>
             </div>
           ) : !token ? (
-            /* ADMIN LOGIN SCREEN (DYNAMIC HIGH-CONTRAST DESIGN) */
-            <div className="glass-panel animate-fade-in" style={{ maxWidth: '420px', margin: '4rem auto', padding: '2.5rem' }}>
-              <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <Lock size={36} style={{ color: 'var(--primary)', marginBottom: '0.5rem' }} />
-                <h2 style={{ fontSize: '1.5rem', color: 'var(--text-primary)' }}>Login Administrator</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                  Autentikasi login diperlukan untuk masuk ke dashboard admin.
-                </p>
-              </div>
-
-              {loginError && (
-                <div className="alert-message alert-error">
-                  {loginError}
+            /* ADMIN LOGIN SCREEN (DYNAMIC HIGH-CONTRAST DESIGN - PURE FORM WITHOUT HEADER) */
+            <div style={{
+              minHeight: '100vh',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'var(--bg-deep)',
+              color: 'var(--text-primary)',
+              padding: '2.5rem 1.5rem',
+              boxSizing: 'border-box'
+            }}>
+              <div style={{
+                width: '100%',
+                maxWidth: '440px',
+                backgroundColor: 'var(--bg-card)',
+                borderRadius: '1.25rem',
+                border: '1px solid var(--border-light)',
+                padding: '2.5rem 2.25rem',
+                boxShadow: 'var(--shadow-premium)',
+                boxSizing: 'border-box'
+              }} className="animate-fade-in">
+                <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+                  <div style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '1rem',
+                    backgroundColor: 'var(--primary-glow)',
+                    border: '1.5px solid var(--border-light)',
+                    color: 'var(--primary)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 0.85rem auto',
+                    overflow: 'hidden'
+                  }}>
+                    {settings?.store_logo_url ? (
+                      <img src={settings.store_logo_url} alt={settings.store_title || storeSlug || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Store size={28} />
+                    )}
+                  </div>
+                  <h1 style={{
+                    fontSize: '1.35rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    margin: '0 0 0.35rem 0',
+                    letterSpacing: '-0.02em',
+                    fontFamily: 'var(--font-heading, "Outfit", sans-serif)'
+                  }}>
+                    Login Administrator
+                  </h1>
+                  <p style={{
+                    fontSize: '0.84rem',
+                    color: 'var(--text-secondary)',
+                    margin: 0,
+                    lineHeight: 1.5
+                  }}>
+                    Kelola etalase katalog &amp; pesanan {settings?.store_title ? `"${settings.store_title}"` : storeSlug ? `"${storeSlug}"` : 'bisnis Anda'}
+                  </p>
+                  <div style={{ marginTop: '0.65rem' }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.2rem 0.65rem',
+                      borderRadius: '999px',
+                      backgroundColor: 'var(--primary-glow)',
+                      color: 'var(--primary)',
+                      border: '1px solid var(--border-light)',
+                      fontSize: '0.72rem',
+                      fontWeight: 700
+                    }}>
+                      <ShieldCheck size={13} />
+                      <span>Panel Pengelola Toko</span>
+                    </span>
+                  </div>
                 </div>
-              )}
 
-              {/* Google SSO Login Button */}
-              <button 
-                type="button" 
-                onClick={handleGoogleSSO}
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem 1rem', 
-                  borderRadius: '0.75rem', 
-                  backgroundColor: '#ffffff', 
-                  border: '1.5px solid #cbd5e1', 
-                  color: '#1e293b', 
-                  fontSize: '0.86rem', 
-                  fontWeight: 700, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '0.65rem', 
-                  marginBottom: '1.25rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-                <span>Masuk dengan Google</span>
-              </button>
+                {loginError && (
+                  <div style={{
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: 'var(--danger, #ef4444)',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    marginBottom: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.65rem',
+                    lineHeight: 1.45
+                  }}>
+                    <AlertCircle size={17} style={{ flexShrink: 0 }} />
+                    <span>{loginError}</span>
+                  </div>
+                )}
 
-              <div style={{ display: 'flex', alignItems: 'center', margin: '1.25rem 0', gap: '0.75rem' }}>
-                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-                <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 800, letterSpacing: '0.06em' }}>ATAU LOGIN MANUAL</span>
-                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-              </div>
-
-              <form onSubmit={handleLoginSubmit}>
-                <div className="form-group">
-                  <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Alamat Email Admin *</label>
-                  <input 
-                    type="email" 
-                    className="form-input" 
-                    placeholder="admin@catavor.com"
-                    required
-                    value={loginForm.email}
-                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Kata Sandi *</label>
-                  <input 
-                    type="password" 
-                    className="form-input" 
-                    placeholder="password123"
-                    required
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  />
-                </div>
+                {/* Google SSO Login Button */}
                 <button 
-                  type="submit" 
-                  className="btn-primary btn-full" 
+                  type="button" 
+                  onClick={handleGoogleSSO}
                   disabled={loginLoading}
-                  style={{ fontWeight: 800 }}
+                  style={{ 
+                    width: '100%', 
+                    minHeight: '46px',
+                    padding: '0.75rem 1rem', 
+                    borderRadius: '0.75rem', 
+                    backgroundColor: 'var(--bg-deep)', 
+                    border: '1.5px solid var(--border-light)', 
+                    color: 'var(--text-primary)', 
+                    fontSize: '0.88rem', 
+                    fontWeight: 700, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '0.65rem', 
+                    marginBottom: '1rem',
+                    cursor: loginLoading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                    transition: 'all 0.15s ease'
+                  }}
                 >
-                  {loginLoading ? 'Memverifikasi...' : 'Masuk'}
+                  <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                  <span>Masuk dengan Google</span>
                 </button>
-              </form>
+
+                <div style={{ display: 'flex', alignItems: 'center', margin: '0.2rem 0', gap: '0.75rem' }}>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.06em' }}>ATAU MASUK MANUAL</span>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+                </div>
+
+                <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', marginTop: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
+                      Email Administrator
+                    </label>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      padding: '0.72rem 0.95rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1.5px solid var(--border-light)',
+                      minHeight: '44px'
+                    }}>
+                      <Mail size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                      <input 
+                        type="email" 
+                        required 
+                        placeholder="admin@catavor.com" 
+                        value={loginForm.email} 
+                        onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                        style={{
+                          flex: 1,
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.9rem',
+                          outline: 'none',
+                          width: '100%'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                        Kata Sandi
+                      </label>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      padding: '0.72rem 0.95rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1.5px solid var(--border-light)',
+                      minHeight: '44px'
+                    }}>
+                      <Lock size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                      <input 
+                        type="password" 
+                        required 
+                        placeholder="••••••••" 
+                        value={loginForm.password} 
+                        onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                        style={{
+                          flex: 1,
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.9rem',
+                          outline: 'none',
+                          width: '100%'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={loginLoading}
+                    style={{
+                      width: '100%',
+                      minHeight: '46px',
+                      padding: '0.8rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 800,
+                      fontSize: '0.92rem',
+                      cursor: loginLoading ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 4px 14px var(--primary-glow)',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      marginTop: '0.25rem'
+                    }}
+                  >
+                    {loginLoading ? 'Memverifikasi...' : 'Masuk ke Dashboard'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = storeSlug && !isReservedStoreSlug(storeSlug) ? `/${storeSlug}` : '/';
+                      window.location.href = target;
+                    }}
+                    style={{
+                      width: '100%',
+                      minHeight: '40px',
+                      background: 'transparent',
+                      color: 'var(--text-muted)',
+                      border: 'none',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.45rem',
+                      marginTop: '0.25rem'
+                    }}
+                  >
+                    <ArrowLeft size={15} />
+                    <span>Kembali ke Katalog Publik {settings?.store_title || storeSlug ? `(${settings?.store_title || storeSlug})` : ''}</span>
+                  </button>
+                </form>
+              </div>
             </div>
           ) : (!isPasswordChanged && adminUser?.email === 'admin@catavor.local' && adminUser?.is_password_changed === false) ? (
             /* FIRST TIME PASSWORD REQUIREMENT */

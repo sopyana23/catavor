@@ -5,7 +5,8 @@ import {
   Store,
   ShieldCheck,
   ShieldAlert,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { TabletPublicLanding } from './components/TabletPublicLanding';
 import { TabletStoreCatalog } from './components/TabletStoreCatalog';
@@ -31,6 +32,27 @@ export const isCatalogChooserRoute = (path: string): boolean => {
   return p === '/catalogs' || p === '/select-catalog' || p === '/stores';
 };
 
+export const extractSlugFromPath = (pathname: string): string | null => {
+  if (!pathname) return null;
+  const parts = pathname.split('?')[0].split('/').filter(Boolean);
+  if (parts.length === 0) return null;
+  // Format /login/:slug or /login/:slug/admin
+  if (parts[0].toLowerCase() === 'login' && parts.length > 1 && !RESERVED_SLUGS.includes(parts[1].toLowerCase())) {
+    return parts[1].toLowerCase();
+  }
+  // Format /:slug or /:slug/admin or /:slug/login
+  if (!RESERVED_SLUGS.includes(parts[0].toLowerCase())) {
+    return parts[0].toLowerCase();
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const q = new URLSearchParams(window.location.search).get('slug');
+      if (q && !RESERVED_SLUGS.includes(q.toLowerCase())) return q.toLowerCase();
+    } catch {}
+  }
+  return null;
+};
+
 export const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('catavor_token') || localStorage.getItem('token') || '');
   const [currentUser, setCurrentUser] = useState<UserRBACInfo | null>(() => {
@@ -54,9 +76,19 @@ export const App: React.FC = () => {
   // Active Store Slug
   const [activeSlug, setActiveSlug] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
-    const parts = window.location.pathname.split('/').filter(Boolean);
-    if (parts.length > 0 && !RESERVED_SLUGS.includes(parts[0].toLowerCase())) {
-      return parts[0].toLowerCase();
+    return extractSlugFromPath(window.location.pathname);
+  });
+
+  // Store Profile & Settings (Cached / Live)
+  const [storeInfo, setStoreInfo] = useState<{ title?: string; logo_url?: string; theme?: string } | null>(() => {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('catavor_settings');
+        if (raw) {
+          const s = JSON.parse(raw);
+          return { title: s.store_title, logo_url: s.store_logo_url, theme: s.store_theme };
+        }
+      } catch {}
     }
     return null;
   });
@@ -74,6 +106,35 @@ export const App: React.FC = () => {
     document.body.setAttribute('data-theme', resolvedTheme);
     localStorage.setItem('catavor_theme', resolvedTheme);
   }, [storeTheme]);
+
+  // Fetch store profile and dynamic theme when activeSlug is available
+  useEffect(() => {
+    if (!activeSlug) return;
+    let isMounted = true;
+    const fetchStoreProfile = async () => {
+      try {
+        const res = await fetch(`/api/u/${encodeURIComponent(activeSlug)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data && isMounted) {
+            const st = json.data;
+            setStoreInfo({
+              title: st.store_title || st.name,
+              logo_url: st.store_logo_url,
+              theme: st.store_theme
+            });
+            if (st.store_theme) {
+              setStoreTheme(st.store_theme);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load store profile in tablet:', err);
+      }
+    };
+    fetchStoreProfile();
+    return () => { isMounted = false; };
+  }, [activeSlug]);
 
   // Session Token & RBAC Verification Hook on Mount
   useEffect(() => {
@@ -216,12 +277,8 @@ export const App: React.FC = () => {
     window.history.pushState({}, '', path);
     const pathname = path.split('?')[0].toLowerCase();
     setCurrentPath(pathname);
-    const parts = pathname.split('/').filter(Boolean);
-    if (parts.length > 0 && !RESERVED_SLUGS.includes(parts[0].toLowerCase())) {
-      setActiveSlug(parts[0].toLowerCase());
-    } else {
-      setActiveSlug(null);
-    }
+    const slug = extractSlugFromPath(pathname);
+    setActiveSlug(slug);
   };
 
   const isPlatformAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/') || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/');
@@ -229,7 +286,7 @@ export const App: React.FC = () => {
   // Industry-standard centralized 401/unauthorized session eviction handler
   const handleUnauthorized = (msg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.', customRedirectUrl?: string) => {
     const isStaff = isPlatformAdmin(currentUser);
-    const targetLoginUrl = customRedirectUrl || (isStaff || isPlatformAdminPath ? '/admin' : '/login');
+    const targetLoginUrl = customRedirectUrl || (isStaff || isPlatformAdminPath ? '/admin' : (activeSlug ? `/${activeSlug}/admin` : '/login'));
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
     localStorage.removeItem('catavor_stores');
@@ -615,7 +672,13 @@ export const App: React.FC = () => {
 
   const isLoginRoute = currentPath === '/login';
   const isCatalogChooser = isCatalogChooserRoute(currentPath);
-  const isStoreAdminRoute = Boolean(activeSlug) && (currentPath === `/${activeSlug}/admin` || currentPath.startsWith(`/${activeSlug}/admin/`));
+  const isStoreAdminRoute = Boolean(activeSlug) && (
+    currentPath === `/${activeSlug}/admin` ||
+    currentPath.startsWith(`/${activeSlug}/admin/`) ||
+    currentPath === `/${activeSlug}/login` ||
+    currentPath === `/login/${activeSlug}` ||
+    currentPath === `/login/${activeSlug}/admin`
+  );
   const merchantSlug = (() => {
     if ((currentUser as any)?.store_slug) return (currentUser as any).store_slug;
     if ((currentUser as any)?.active_store?.slug) return (currentUser as any).active_store.slug;
@@ -1017,112 +1080,154 @@ export const App: React.FC = () => {
           justifyContent: 'center',
           backgroundColor: 'var(--bg-deep)',
           color: 'var(--text-primary)',
-          padding: '2rem'
+          padding: '2rem 1.5rem',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             width: '100%',
-            maxWidth: '460px',
+            maxWidth: '440px',
             backgroundColor: 'var(--bg-card)',
             borderRadius: '1.25rem',
             border: '1px solid var(--border-light)',
-            padding: '2.5rem',
-            boxShadow: 'var(--shadow-premium)'
+            padding: '2.5rem 2.25rem',
+            boxShadow: 'var(--shadow-premium)',
+            boxSizing: 'border-box'
           }}>
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
               <div style={{
                 width: '56px',
                 height: '56px',
                 borderRadius: '1rem',
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                color: '#10b981',
+                backgroundColor: 'var(--primary-glow)',
+                border: '1.5px solid var(--border-light)',
+                color: 'var(--primary)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '1rem'
+                margin: '0 auto 0.85rem auto',
+                overflow: 'hidden'
               }}>
-                <Store size={28} />
+                {storeInfo?.logo_url ? (
+                  <img src={storeInfo.logo_url} alt={storeInfo.title || activeSlug || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <Store size={28} />
+                )}
               </div>
-              <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                Masuk Konsol Toko
+              <h1 style={{
+                fontSize: '1.35rem',
+                fontWeight: 800,
+                color: 'var(--text-primary)',
+                margin: '0 0 0.35rem 0',
+                letterSpacing: '-0.02em',
+                fontFamily: 'var(--font-heading)'
+              }}>
+                Login Administrator
               </h1>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
-                Kelola katalog &amp; etalase untuk profil {activeSlug}
+              <p style={{
+                fontSize: '0.84rem',
+                color: 'var(--text-secondary)',
+                margin: 0,
+                lineHeight: 1.5
+              }}>
+                Kelola etalase katalog &amp; pesanan {storeInfo?.title ? `"${storeInfo.title}"` : activeSlug ? `"${activeSlug}"` : 'bisnis Anda'}
               </p>
+              <div style={{ marginTop: '0.65rem' }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.2rem 0.65rem',
+                  borderRadius: '999px',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  border: '1px solid var(--border-light)',
+                  fontSize: '0.72rem',
+                  fontWeight: 700
+                }}>
+                  <ShieldCheck size={13} />
+                  <span>Panel Pengelola Toko</span>
+                </span>
+              </div>
             </div>
 
             {loginError && (
               <div style={{
                 padding: '0.75rem 1rem',
-                borderRadius: '0.5rem',
+                borderRadius: '0.75rem',
                 backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#ef4444',
-                fontSize: '0.85rem',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                color: 'var(--danger, #ef4444)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
                 marginBottom: '1.25rem',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem'
+                gap: '0.65rem',
+                lineHeight: 1.45
               }}>
-                <AlertCircle size={16} />
-                {loginError}
+                <AlertCircle size={17} style={{ flexShrink: 0 }} />
+                <span>{loginError}</span>
               </div>
             )}
 
-            <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+            <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
               <button
                 type="button"
                 onClick={handleGoogleSSO}
                 disabled={loginLoading}
                 style={{
-                  minHeight: '48px',
+                  width: '100%',
+                  minHeight: '46px',
                   padding: '0.75rem 1rem',
-                  borderRadius: '0.65rem',
+                  borderRadius: '0.75rem',
                   backgroundColor: 'var(--bg-deep)',
-                  border: '1px solid var(--border-light)',
+                  border: '1.5px solid var(--border-light)',
                   color: 'var(--text-primary)',
-                  fontSize: '0.92rem',
-                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '0.75rem',
-                  cursor: loginLoading ? 'not-allowed' : 'pointer'
+                  gap: '0.65rem',
+                  cursor: loginLoading ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  transition: 'all 0.15s ease'
                 }}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24">
+                <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
-                Masuk dengan Akun Google
+                <span>Masuk dengan Google</span>
               </button>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0.25rem 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', margin: '0.2rem 0', gap: '0.75rem' }}>
                 <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>atau email &amp; sandi</span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.06em' }}>ATAU MASUK MANUAL</span>
                 <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                  Alamat Email
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
+                  Email Administrator
                 </label>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.65rem',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '0.65rem',
+                  padding: '0.72rem 0.95rem',
+                  borderRadius: '0.75rem',
                   backgroundColor: 'var(--bg-deep)',
-                  border: '1px solid var(--border-light)'
+                  border: '1.5px solid var(--border-light)',
+                  minHeight: '44px'
                 }}>
-                  <Mail size={18} color="var(--text-muted)" />
+                  <Mail size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                   <input
                     type="email"
                     required
-                    placeholder="merchant@email.com"
+                    placeholder="admin@catavor.com"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     style={{
@@ -1130,27 +1235,31 @@ export const App: React.FC = () => {
                       background: 'transparent',
                       border: 'none',
                       color: 'var(--text-primary)',
-                      fontSize: '0.92rem',
-                      outline: 'none'
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                      width: '100%'
                     }}
                   />
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                  Kata Sandi
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                    Kata Sandi
+                  </label>
+                </div>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.65rem',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '0.65rem',
+                  padding: '0.72rem 0.95rem',
+                  borderRadius: '0.75rem',
                   backgroundColor: 'var(--bg-deep)',
-                  border: '1px solid var(--border-light)'
+                  border: '1.5px solid var(--border-light)',
+                  minHeight: '44px'
                 }}>
-                  <Lock size={18} color="var(--text-muted)" />
+                  <Lock size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                   <input
                     type="password"
                     required
@@ -1162,8 +1271,9 @@ export const App: React.FC = () => {
                       background: 'transparent',
                       border: 'none',
                       color: 'var(--text-primary)',
-                      fontSize: '0.92rem',
-                      outline: 'none'
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                      width: '100%'
                     }}
                   />
                 </div>
@@ -1173,34 +1283,49 @@ export const App: React.FC = () => {
                 type="submit"
                 disabled={loginLoading}
                 style={{
-                  minHeight: '48px',
-                  padding: '0.75rem',
-                  borderRadius: '0.65rem',
+                  width: '100%',
+                  minHeight: '46px',
+                  padding: '0.8rem',
+                  borderRadius: '0.75rem',
                   backgroundColor: 'var(--primary)',
                   color: '#ffffff',
                   border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
+                  fontWeight: 800,
+                  fontSize: '0.92rem',
                   cursor: loginLoading ? 'not-allowed' : 'pointer',
-                  marginTop: '0.5rem'
+                  boxShadow: '0 4px 14px var(--primary-glow)',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  marginTop: '0.25rem'
                 }}
               >
-                {loginLoading ? 'Memproses...' : 'Masuk ke Konsol Toko'}
+                {loginLoading ? 'Memverifikasi...' : 'Masuk ke Dashboard'}
               </button>
 
               <button
                 type="button"
-                onClick={() => navigateTo(`/${activeSlug}`)}
+                onClick={() => navigateTo(activeSlug ? `/${activeSlug}` : '/')}
                 style={{
+                  width: '100%',
                   minHeight: '40px',
                   background: 'transparent',
                   color: 'var(--text-muted)',
                   border: 'none',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer'
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  marginTop: '0.25rem'
                 }}
               >
-                &larr; Lihat Katalog Toko Publik
+                <ArrowLeft size={15} />
+                <span>Kembali ke Katalog Publik {activeSlug ? `(${activeSlug})` : ''}</span>
               </button>
             </form>
           </div>
