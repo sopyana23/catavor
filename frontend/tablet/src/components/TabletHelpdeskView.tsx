@@ -20,7 +20,11 @@ import {
   Store,
   RefreshCw,
   Image as ImageIcon,
-  Headphones
+  Headphones,
+  Bot,
+  User,
+  Tag,
+  Check
 } from 'lucide-react';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
@@ -641,14 +645,20 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
     }
   };
 
-  // Handle Download Document
-  const handleDownloadAttachment = async (att: TicketAttachment, e?: React.MouseEvent) => {
+  // Handle Download Document (PDF or Images with Auth Token)
+  const handleDownloadAttachment = async (att: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const fileName = att.file_name || 'Dokumen.pdf';
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const fileName = att.file_name || (isImage ? 'Lampiran_Gambar.jpg' : 'Dokumen.pdf');
+    const authToken = token || localStorage.getItem('catavor_token') || '';
+
     try {
       const targetUrl = att.id ? `/api/support/attachments/${att.id}?download=1` : att.file_url;
       const res = await fetch(targetUrl, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
       });
       if (res.ok) {
         const blob = await res.blob();
@@ -659,10 +669,12 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
         return;
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Tablet direct download blob error, falling back:', err);
+    }
 
     const link = document.createElement('a');
     link.href = att.id ? `/api/support/attachments/${att.id}?download=1` : att.file_url;
@@ -671,6 +683,161 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const openDocumentPreview = (att: any) => {
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const isPdf = (att.file_type || '').includes('pdf') || 
+      (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+      (att.file_url || '').toLowerCase().endsWith('.pdf');
+
+    setDocPreview({
+      isOpen: true,
+      id: att.id,
+      url: supportAttachmentSrc(att),
+      fileName: att.file_name || (isPdf ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran'),
+      fileSize: att.file_size,
+      fileType: att.file_type || (isPdf ? 'application/pdf' : isImage ? 'image/jpeg' : 'application/octet-stream')
+    });
+  };
+
+  const getTicketCategoryMeta = (val?: string) => {
+    const c = (val || 'general').toLowerCase();
+    switch (c) {
+      case 'compliance':
+      case 'suspension':
+      case 'appeal':
+        return {
+          label: 'Banding Kepatuhan & Akun',
+          bg: 'rgba(239, 68, 68, 0.12)',
+          color: '#dc2626',
+          border: '1px solid rgba(239, 68, 68, 0.3)'
+        };
+      case 'billing':
+      case 'payment':
+        return {
+          label: 'Pembayaran & Paket Pro',
+          bg: 'rgba(16, 185, 129, 0.12)',
+          color: '#059669',
+          border: '1px solid rgba(16, 185, 129, 0.3)'
+        };
+      case 'technical':
+        return {
+          label: 'Kendala Teknis & Fitur',
+          bg: 'rgba(99, 102, 241, 0.12)',
+          color: '#4f46e5',
+          border: '1px solid rgba(99, 102, 241, 0.3)'
+        };
+      case 'catalog_help':
+      case 'catalog':
+        return {
+          label: 'Bantuan Pengelolaan Katalog',
+          bg: 'rgba(245, 158, 11, 0.12)',
+          color: '#d97706',
+          border: '1px solid rgba(245, 158, 11, 0.3)'
+        };
+      case 'account':
+        return {
+          label: 'Kendala Akun & Profil',
+          bg: 'rgba(236, 72, 153, 0.12)',
+          color: '#db2777',
+          border: '1px solid rgba(236, 72, 153, 0.3)'
+        };
+      case 'general':
+      default:
+        return {
+          label: 'Pertanyaan Umum',
+          bg: 'rgba(14, 165, 233, 0.12)',
+          color: '#0284c7',
+          border: '1px solid rgba(14, 165, 233, 0.3)'
+        };
+    }
+  };
+
+  const getTicketPriorityMeta = (priority?: string) => {
+    const p = (priority || 'medium').toLowerCase();
+    switch (p) {
+      case 'urgent':
+        return {
+          label: 'Mendesak',
+          color: '#ef4444',
+          bg: 'rgba(239, 68, 68, 0.12)',
+          border: 'rgba(239, 68, 68, 0.28)'
+        };
+      case 'high':
+        return {
+          label: 'Tinggi',
+          color: '#ea580c',
+          bg: 'rgba(249, 115, 22, 0.12)',
+          border: 'rgba(249, 115, 22, 0.28)'
+        };
+      case 'low':
+        return {
+          label: 'Rendah',
+          color: '#64748b',
+          bg: 'rgba(100, 116, 139, 0.1)',
+          border: 'rgba(100, 116, 139, 0.22)'
+        };
+      case 'medium':
+      default:
+        return {
+          label: 'Sedang',
+          color: '#0284c7',
+          bg: 'rgba(2, 132, 199, 0.1)',
+          border: 'rgba(2, 132, 199, 0.22)'
+        };
+    }
+  };
+
+  const getTicketStatusBadge = (status?: string) => {
+    const s = (status || 'open').toLowerCase();
+    switch (s) {
+      case 'resolved':
+      case 'closed':
+        return {
+          label: 'Selesai',
+          icon: '✓',
+          color: '#10b981',
+          bg: 'rgba(16, 185, 129, 0.12)',
+          border: 'rgba(16, 185, 129, 0.28)'
+        };
+      case 'in_progress':
+        return {
+          label: 'Sedang Diproses',
+          icon: '●',
+          color: '#f59e0b',
+          bg: 'rgba(245, 158, 11, 0.12)',
+          border: 'rgba(245, 158, 11, 0.28)'
+        };
+      case 'waiting_agent':
+        return {
+          label: 'Menunggu CS',
+          icon: '●',
+          color: '#8b5cf6',
+          bg: 'rgba(139, 92, 246, 0.12)',
+          border: 'rgba(139, 92, 246, 0.28)'
+        };
+      case 'waiting_user':
+        return {
+          label: 'Menunggu Balasan Anda',
+          icon: '●',
+          color: '#ec4899',
+          bg: 'rgba(236, 72, 153, 0.12)',
+          border: 'rgba(236, 72, 153, 0.28)'
+        };
+      case 'open':
+      default:
+        return {
+          label: 'Tiket Terbuka',
+          icon: '●',
+          color: '#0284c7',
+          bg: 'rgba(2, 132, 199, 0.12)',
+          border: 'rgba(2, 132, 199, 0.28)'
+        };
+    }
   };
 
   // Check active appeal if suspended
@@ -1316,18 +1483,81 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                 
                 {/* Detail Header */}
                 <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', flexShrink: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <span style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: 800, padding: '0.15rem 0.5rem', borderRadius: '0.4rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
+                      <span style={{ fontSize: '0.82rem', fontFamily: 'monospace', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '0.45rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
                         #{ticketDetails.ticket_number || ticketDetails.id}
                       </span>
-                      {ticketDetails.store_slug && (
-                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <Store size={13} /> {ticketDetails.store?.name || ticketDetails.store_slug}
-                        </span>
-                      )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowOfficialContactModal(true)}
+                        style={{
+                          minHeight: '34px',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          cursor: 'pointer'
+                        }}
+                        title="Hubungi Kontak Resmi Platform"
+                      >
+                        <Headphones size={13} color="var(--primary)" />
+                        <span>Kontak Resmi</span>
+                      </button>
+
+                      {/* Priority Badge */}
+                      {(() => {
+                        const pMeta = getTicketPriorityMeta(ticketDetails.priority);
+                        return (
+                          <span style={{
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            padding: '0.25rem 0.65rem',
+                            borderRadius: '999px',
+                            backgroundColor: pMeta.bg,
+                            color: pMeta.color,
+                            border: `1px solid ${pMeta.border}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: pMeta.color }}></span>
+                            {pMeta.label}
+                          </span>
+                        );
+                      })()}
+
+                      {/* Status Badge */}
+                      {(() => {
+                        const sMeta = getTicketStatusBadge(ticketDetails.status);
+                        return (
+                          <span style={{
+                            fontSize: '0.74rem',
+                            fontWeight: 800,
+                            padding: '0.25rem 0.7rem',
+                            borderRadius: '999px',
+                            backgroundColor: sMeta.bg,
+                            color: sMeta.color,
+                            border: `1px solid ${sMeta.border}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}>
+                            <span>{sMeta.icon}</span>
+                            {sMeta.label}
+                          </span>
+                        );
+                      })()}
+
                       <button
                         type="button"
                         onClick={() => fetchTicketDetails(ticketDetails.id)}
@@ -1337,35 +1567,147 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                         <RefreshCw size={13} className={loadingTicketDetail ? 'animate-spin' : ''} />
                         <span>Segarkan</span>
                       </button>
-                      <span style={{
-                        fontSize: '0.74rem',
-                        fontWeight: 800,
-                        padding: '0.25rem 0.65rem',
-                        borderRadius: '999px',
-                        backgroundColor: ['resolved', 'closed'].includes(ticketDetails.status) ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                        color: ['resolved', 'closed'].includes(ticketDetails.status) ? '#10b981' : '#f59e0b'
-                      }}>
-                        {['resolved', 'closed'].includes(ticketDetails.status) ? '✓ Selesai' : '● Dalam Proses'}
-                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTicketId(null)}
+                        title="Tutup Percakapan"
+                        style={{ minHeight: '34px', width: '34px', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <X size={15} />
+                      </button>
                     </div>
                   </div>
 
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: '0 0 0.55rem 0', color: 'var(--text-primary)', lineHeight: 1.35, wordBreak: 'break-word' }}>
                     {ticketDetails.subject}
                   </h3>
 
-                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.76rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                    <span>Kategori: <strong>{ticketDetails.category || 'Teknis'}</strong></span>
-                    <span>Prioritas: <strong>{ticketDetails.priority || 'Normal'}</strong></span>
-                    <span>Dibuat: {ticketDetails.created_at}</span>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.74rem' }}>
+                    {ticketDetails.store && (
+                      <span style={{
+                        fontWeight: 700,
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '0.45rem',
+                        backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                        color: '#0284c7',
+                        border: '1px solid rgba(14, 165, 233, 0.25)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}>
+                        <Store size={12} color="#0284c7" />
+                        <span>{ticketDetails.store.name}</span>
+                        <span style={{
+                          fontSize: '0.58rem',
+                          padding: '0.08rem 0.42rem',
+                          borderRadius: '4px',
+                          background: ticketDetails.store.plan === 'enterprise'
+                            ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)'
+                            : ticketDetails.store.plan === 'pro'
+                              ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                              : 'rgba(148, 163, 184, 0.2)',
+                          color: (ticketDetails.store.plan === 'enterprise' || ticketDetails.store.plan === 'pro') ? '#ffffff' : 'var(--text-secondary)',
+                          fontWeight: 800,
+                          letterSpacing: '0.04em'
+                        }}>
+                          {String(ticketDetails.store.plan || 'FREE').toUpperCase()}
+                        </span>
+                      </span>
+                    )}
+
+                    {currentUser && (
+                      <span style={{
+                        fontWeight: 600,
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '0.45rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid var(--border-light)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}>
+                        <User size={12} style={{ color: 'var(--text-muted)' }} />
+                        <span>{currentUser.name || 'Pengelola'}</span>
+                      </span>
+                    )}
+
+                    {(() => {
+                      const catMeta = getTicketCategoryMeta(ticketDetails.category);
+                      return (
+                        <span style={{
+                          fontWeight: 700,
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '0.45rem',
+                          backgroundColor: catMeta.bg,
+                          color: catMeta.color,
+                          border: catMeta.border,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem'
+                        }}>
+                          <Tag size={11} style={{ color: catMeta.color }} />
+                          <span>{catMeta.label}</span>
+                        </span>
+                      );
+                    })()}
+
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 500 }}>
+                      Dibuat: {ticketDetails.created_at}
+                    </span>
                   </div>
                 </div>
 
                 {/* Messages Scroll Area */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {ticketDetails.messages.map((msg, index) => {
-                    const isStaff = msg.sender === 'support' || msg.sender === 'agent' || msg.sender === 'system';
+                    const isStaff = msg.sender === 'support' || msg.sender === 'agent';
+                    const isSystemBot = msg.sender === 'system';
                     const attList = msg.attachments || [];
+
+                    if (isSystemBot) {
+                      return (
+                        <div
+                          key={msg.id || index}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            margin: '0.35rem 0'
+                          }}
+                        >
+                          <div style={{
+                            maxWidth: '92%',
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            overflowWrap: 'anywhere',
+                            wordBreak: 'break-word',
+                            padding: '0.95rem 1.15rem',
+                            borderRadius: '1rem',
+                            background: 'rgba(56, 189, 248, 0.08)',
+                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                            color: 'var(--text-primary)',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.08)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.45rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <Bot size={16} color="#38bdf8" />
+                                <strong style={{ fontSize: '0.82rem', color: '#38bdf8', fontWeight: 800 }}>
+                                  Sistem Otomatis Catavor
+                                </strong>
+                              </div>
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{msg.timestamp}</span>
+                            </div>
+                            <p style={{ fontSize: '0.86rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                              {msg.message}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div
@@ -1384,7 +1726,14 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                               <strong>{msg.sender_name || 'Tim CS Catavor'}</strong>
                             </>
                           ) : (
-                            <strong>{msg.sender_name || 'Anda (Pengelola)'}</strong>
+                            <>
+                              <User size={13} color="var(--primary)" />
+                              <strong>
+                                {ticketDetails.store?.name 
+                                  ? `${ticketDetails.store.name} (${msg.sender_name || currentUser?.name || 'Pengelola'})` 
+                                  : (msg.sender_name || currentUser?.name || 'Pengelola')}
+                              </strong>
+                            </>
                           )}
                           <span>&bull;</span>
                           <span>{msg.timestamp}</span>
@@ -1392,88 +1741,163 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
 
                         <div style={{
                           maxWidth: '82%',
-                          padding: '0.85rem 1.15rem',
-                          borderRadius: '0.85rem',
+                          minWidth: (attList && attList.length > 0) ? '260px' : undefined,
+                          padding: '0.9rem 1.15rem',
+                          borderRadius: isStaff ? '1.1rem 1.1rem 1.1rem 0.25rem' : '1.1rem 1.1rem 0.25rem 1.1rem',
                           backgroundColor: isStaff ? 'var(--bg-deep)' : 'var(--primary-glow)',
                           border: isStaff ? '1px solid var(--border-light)' : '1px solid var(--primary)',
                           color: 'var(--text-primary)',
                           fontSize: '0.86rem',
                           lineHeight: 1.5,
                           whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word'
+                          wordBreak: 'break-word',
+                          boxShadow: '0 2px 10px rgba(0,0,0,0.04)'
                         }}>
                           {msg.message}
 
                           {/* Attachments rendering */}
                           {attList.length > 0 && (
-                            <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.5rem' }}>
-                              {attList.map((att, aIdx) => {
-                                const isPdf = (att.file_type || '').includes('pdf') || (att.file_name || '').toLowerCase().endsWith('.pdf');
-                                const src = supportAttachmentSrc(att);
+                            <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.65rem' }}>
+                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <Paperclip size={13} color="var(--primary)" /> {attList.length} Lampiran File:
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.6rem' }}>
+                                {attList.map((att: any, aIdx: number) => {
+                                  const isPdf = (att.file_type || '').includes('pdf') || (att.file_name || '').toLowerCase().endsWith('.pdf') || (att.file_url || '').toLowerCase().endsWith('.pdf');
 
-                                if (isPdf) {
                                   return (
                                     <div
                                       key={aIdx}
-                                      onClick={() => {
-                                        setDocPreview({
-                                          isOpen: true,
-                                          id: att.id,
-                                          url: src,
-                                          fileName: att.file_name || 'Dokumen.pdf',
-                                          fileSize: att.file_size,
-                                          fileType: 'application/pdf'
-                                        });
-                                      }}
+                                      role="button"
+                                      tabIndex={0}
                                       style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.45rem',
-                                        padding: '0.45rem 0.75rem',
-                                        borderRadius: '0.5rem',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '0.55rem',
+                                        padding: '0.75rem 0.85rem',
+                                        borderRadius: '0.8rem',
                                         backgroundColor: 'var(--bg-card)',
                                         border: '1px solid var(--border-light)',
-                                        cursor: 'pointer'
+                                        color: 'var(--text-primary)',
+                                        minWidth: '220px',
+                                        maxWidth: '340px',
+                                        width: '100%',
+                                        boxSizing: 'border-box'
                                       }}
                                     >
-                                      <FileText size={16} color="#ef4444" />
-                                      <span style={{ fontSize: '0.76rem', fontWeight: 600, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {att.file_name}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => handleDownloadAttachment(att, e)}
-                                        title="Unduh Berkas"
-                                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.15rem' }}
+                                      {/* File Info Header (Clickable for preview) */}
+                                      <div
+                                        onClick={() => openDocumentPreview(att)}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '0.65rem',
+                                          cursor: 'pointer',
+                                          width: '100%'
+                                        }}
+                                        title="Klik untuk pratinjau berkas lampiran"
                                       >
-                                        <Download size={14} />
-                                      </button>
+                                        <div style={{
+                                          width: '38px',
+                                          height: '38px',
+                                          borderRadius: '0.5rem',
+                                          backgroundColor: isPdf ? 'rgba(239, 68, 68, 0.12)' : 'rgba(14, 165, 233, 0.12)',
+                                          border: `1px solid ${isPdf ? 'rgba(239, 68, 68, 0.28)' : 'rgba(14, 165, 233, 0.28)'}`,
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          flexShrink: 0
+                                        }}>
+                                          {isPdf ? (
+                                            <FileText size={20} color="#ef4444" />
+                                          ) : (
+                                            <ImageIcon size={20} color="#0284c7" />
+                                          )}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                          <div style={{
+                                            fontWeight: 700,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                            fontSize: '0.82rem',
+                                            color: 'var(--text-primary)',
+                                            lineHeight: 1.3
+                                          }}>
+                                            {att.file_name || (isPdf ? 'Dokumen.pdf' : 'Lampiran_Gambar.jpg')}
+                                          </div>
+                                          <div style={{
+                                            fontSize: '0.68rem',
+                                            color: 'var(--text-secondary)',
+                                            marginTop: '0.12rem',
+                                            fontWeight: 500,
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis'
+                                          }}>
+                                            {isPdf ? 'Dokumen PDF' : 'Lampiran Gambar'} {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Action Buttons Row */}
+                                      <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr 1fr',
+                                        gap: '0.45rem',
+                                        paddingTop: '0.5rem',
+                                        borderTop: '1px solid var(--border-light)',
+                                        width: '100%',
+                                        boxSizing: 'border-box'
+                                      }}>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.35rem',
+                                            padding: '0.42rem 0.65rem',
+                                            borderRadius: '0.5rem',
+                                            backgroundColor: 'var(--primary, #0284c7)',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            fontSize: '0.74rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            boxShadow: '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))'
+                                          }}
+                                          title="Lihat Pratinjau Dokumen / Gambar"
+                                        >
+                                          <Eye size={13} strokeWidth={2.2} /> Preview
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleDownloadAttachment(att, e)}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.35rem',
+                                            padding: '0.42rem 0.65rem',
+                                            borderRadius: '0.5rem',
+                                            backgroundColor: 'var(--bg-deep)',
+                                            color: 'var(--text-primary)',
+                                            border: '1px solid var(--border-light)',
+                                            fontSize: '0.74rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                          }}
+                                          title="Unduh Berkas ke Perangkat"
+                                        >
+                                          <Download size={13} strokeWidth={2.2} /> Unduh
+                                        </button>
+                                      </div>
                                     </div>
                                   );
-                                }
-
-                                return (
-                                  <div
-                                    key={aIdx}
-                                    onClick={() => setActiveImageLightbox(src)}
-                                    style={{
-                                      width: '64px',
-                                      height: '64px',
-                                      borderRadius: '0.5rem',
-                                      overflow: 'hidden',
-                                      border: '1px solid var(--border-light)',
-                                      cursor: 'pointer',
-                                      position: 'relative'
-                                    }}
-                                  >
-                                    <img
-                                      src={src}
-                                      alt={att.file_name}
-                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    />
-                                  </div>
-                                );
-                              })}
+                                })}
+                              </div>
                             </div>
                           )}
                         </div>

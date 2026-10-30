@@ -8305,20 +8305,32 @@ Terima kasih.`;
   };
 
   const openDocumentPreview = (att: any) => {
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const isPdf = (att.file_type || '').includes('pdf') || 
+      (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+      (att.file_url || '').toLowerCase().endsWith('.pdf');
+
     setDocPreview({
       isOpen: true,
       id: att.id,
       url: supportAttachmentSrc(att),
-      fileName: att.file_name || 'Dokumen.pdf',
+      fileName: att.file_name || (isPdf ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran'),
       fileSize: att.file_size,
-      fileType: att.file_type || 'application/pdf'
+      fileType: att.file_type || (isPdf ? 'application/pdf' : isImage ? 'image/jpeg' : 'application/octet-stream')
     });
   };
 
   const handleDownloadDocument = async (att: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const fileName = att.file_name || (isImage ? 'Lampiran_Gambar.jpg' : 'Dokumen.pdf');
     const authToken = token || localStorage.getItem('catavor_token') || '';
-    const fileName = att.file_name || 'Dokumen.pdf';
 
     try {
       const targetUrl = att.id ? `/api/support/attachments/${att.id}?download=1` : att.file_url;
@@ -8334,7 +8346,7 @@ Terima kasih.`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
         return;
       }
     } catch (err) {
@@ -8358,56 +8370,19 @@ Terima kasih.`;
   } | null>(null);
 
   const openAttachmentLightbox = (
-    images?: { file_url: string; file_name?: string; file_type?: string }[],
-    indexOrTarget: number | string | { file_url: string } = 0
+    images?: any[],
+    indexOrTarget: number | string | any = 0
   ) => {
     if (!images || images.length === 0) return;
-    // Filter strictly to actual image attachments (exclude PDF, docs, and broken files)
-    const imageList = images.filter(att => {
-      if (!att || !att.file_url) return false;
-      const fileType = (att.file_type || '').toLowerCase().trim();
-      const name = (att.file_name || '').toLowerCase().trim();
-      const url = (att.file_url || '').toLowerCase().trim();
-
-      if (fileType.includes('pdf') || name.endsWith('.pdf') || url.endsWith('.pdf') || name.includes('.pdf') || url.includes('.pdf')) {
-        return false;
-      }
-      if (fileType.includes('document') || fileType.includes('sheet') || fileType.includes('zip') || fileType.includes('octet-stream')) {
-        return false;
-      }
-      if (fileType.startsWith('image/')) {
-        return true;
-      }
-      if (/\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(name) || /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(url)) {
-        return true;
-      }
-      return false;
-    });
-
-    if (imageList.length === 0) return;
-
-    let targetIdx = 0;
+    let selected: any = images[0];
     if (typeof indexOrTarget === 'number') {
-      const selectedItem = images[indexOrTarget];
-      if (selectedItem) {
-        const found = imageList.findIndex(img => img.file_url === selectedItem.file_url);
-        targetIdx = found !== -1 ? found : 0;
-      }
+      selected = images[indexOrTarget] || images[0];
     } else if (typeof indexOrTarget === 'string') {
-      const found = imageList.findIndex(img => img.file_url === indexOrTarget);
-      targetIdx = found !== -1 ? found : 0;
-    } else if (indexOrTarget && typeof indexOrTarget === 'object' && indexOrTarget.file_url) {
-      const found = imageList.findIndex(img => img.file_url === indexOrTarget.file_url);
-      targetIdx = found !== -1 ? found : 0;
+      selected = images.find(img => img.file_url === indexOrTarget || String(img.id) === indexOrTarget) || images[0];
+    } else if (indexOrTarget && typeof indexOrTarget === 'object') {
+      selected = images.find(img => (indexOrTarget.id && img.id === indexOrTarget.id) || (indexOrTarget.file_url && img.file_url === indexOrTarget.file_url)) || indexOrTarget;
     }
-
-    setAttachmentLightbox({
-      isOpen: true,
-      images: imageList,
-      currentIndex: Math.max(0, Math.min(targetIdx, imageList.length - 1))
-    });
-    setZoomScale(1);
-    setPanPosition({ x: 0, y: 0 });
+    openDocumentPreview(selected);
   };
 
   const closeAttachmentLightbox = () => {
@@ -30465,182 +30440,142 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '0.4rem' }}>
                                       {msg.attachments.map((att: any, idx: number) => {
                                         const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
-                                        if (isPDF) {
-                                          return (
-                                            <div
-                                              key={idx}
-                                              role="button"
-                                              tabIndex={0}
-                                              style={{
-                                                gridColumn: '1 / -1',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: '0.55rem',
-                                                padding: '0.7rem 0.8rem',
-                                                borderRadius: '0.8rem',
-                                                backgroundColor: isUser ? 'rgba(255, 255, 255, 0.16)' : 'var(--bg-card-hover, rgba(0, 0, 0, 0.04))',
-                                                border: isUser ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.1))',
-                                                boxShadow: isUser ? 'none' : '0 2px 10px rgba(0, 0, 0, 0.04)',
-                                                color: isUser ? '#ffffff' : 'var(--text-primary)',
-                                                minWidth: '230px',
-                                                maxWidth: '100%',
-                                                width: '100%',
-                                                boxSizing: 'border-box',
-                                                transition: 'all 0.15s ease'
-                                              }}
-                                            >
-                                              {/* File Info Header (Clickable for preview) */}
-                                              <div
-                                                onClick={() => openDocumentPreview(att)}
-                                                style={{
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '0.6rem',
-                                                  cursor: 'pointer',
-                                                  width: '100%'
-                                                }}
-                                                title="Klik untuk pratinjau dokumen di aplikasi"
-                                              >
-                                                <div style={{
-                                                  width: '36px',
-                                                  height: '36px',
-                                                  borderRadius: '0.5rem',
-                                                  backgroundColor: isUser ? 'rgba(255, 255, 255, 0.95)' : 'rgba(239, 68, 68, 0.12)',
-                                                  border: isUser ? 'none' : '1px solid rgba(239, 68, 68, 0.28)',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  justifyContent: 'center',
-                                                  flexShrink: 0,
-                                                  boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.15)' : 'none'
-                                                }}>
-                                                  <FileText size={19} color="#ef4444" />
-                                                </div>
-                                                <div style={{ minWidth: 0, flex: 1 }}>
-                                                  <div style={{
-                                                    fontWeight: 700,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
-                                                    fontSize: '0.8rem',
-                                                    color: isUser ? '#ffffff' : 'var(--text-primary)',
-                                                    lineHeight: 1.3
-                                                  }}>
-                                                    {att.file_name || 'Dokumen.pdf'}
-                                                  </div>
-                                                  <div style={{
-                                                    fontSize: '0.66rem',
-                                                    color: isUser ? 'rgba(255, 255, 255, 0.88)' : 'var(--text-secondary)',
-                                                    marginTop: '0.12rem',
-                                                    fontWeight: 500,
-                                                    whiteSpace: 'nowrap',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis'
-                                                  }}>
-                                                    Dokumen PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
-                                                  </div>
-                                                </div>
-                                              </div>
-
-                                              {/* Action Buttons Row */}
-                                              <div style={{
-                                                display: 'grid',
-                                                gridTemplateColumns: '1fr 1fr',
-                                                gap: '0.45rem',
-                                                paddingTop: '0.5rem',
-                                                borderTop: isUser ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.08))',
-                                                width: '100%',
-                                                boxSizing: 'border-box'
-                                              }}>
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
-                                                  style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    gap: '0.3rem',
-                                                    padding: '0.4rem 0.5rem',
-                                                    borderRadius: '0.45rem',
-                                                    backgroundColor: isUser ? '#ffffff' : 'var(--primary, #0284c7)',
-                                                    color: isUser ? '#0f172a' : '#ffffff',
-                                                    border: 'none',
-                                                    fontSize: '0.72rem',
-                                                    fontWeight: 700,
-                                                    cursor: 'pointer',
-                                                    boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.18)' : '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))'
-                                                  }}
-                                                  title="Lihat Pratinjau Dokumen"
-                                                >
-                                                  <Eye size={12} strokeWidth={2.2} /> Preview
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => handleDownloadDocument(att, e)}
-                                                  style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    gap: '0.3rem',
-                                                    padding: '0.4rem 0.5rem',
-                                                    borderRadius: '0.45rem',
-                                                    backgroundColor: isUser ? 'rgba(255, 255, 255, 0.22)' : 'var(--bg-card, rgba(0, 0, 0, 0.05))',
-                                                    color: isUser ? '#ffffff' : 'var(--text-primary)',
-                                                    border: isUser ? '1px solid rgba(255, 255, 255, 0.45)' : '1px solid var(--border-light)',
-                                                    fontSize: '0.72rem',
-                                                    fontWeight: 600,
-                                                    cursor: 'pointer'
-                                                  }}
-                                                  title="Unduh Berkas ke Perangkat"
-                                                >
-                                                  <Download size={12} strokeWidth={2.2} /> Unduh
-                                                </button>
-                                              </div>
-                                            </div>
-                                          );
-                                        }
                                         return (
                                           <div
                                             key={idx}
                                             role="button"
                                             tabIndex={0}
-                                            onClick={() => openAttachmentLightbox(msg.attachments, idx)}
                                             style={{
-                                              position: 'relative',
-                                              borderRadius: '0.55rem',
-                                              overflow: 'hidden',
-                                              border: isUser ? '1px solid rgba(255,255,255,0.35)' : '1px solid var(--border-light)',
-                                              aspectRatio: '1',
-                                              display: 'block',
-                                              backgroundColor: 'rgba(0,0,0,0.4)',
-                                              cursor: 'pointer',
-                                              transition: 'transform 0.15s ease, box-shadow 0.15s ease'
-                                            }}
-                                            title="Klik untuk memperbesar gambar"
-                                          >
-                                            <img
-                                              src={supportAttachmentSrc(att)}
-                                              alt={att.file_name || 'Screenshot'}
-                                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                            />
-                                            <div style={{
-                                              position: 'absolute',
-                                              bottom: 0,
-                                              left: 0,
-                                              right: 0,
-                                              padding: '0.15rem 0.35rem',
-                                              backgroundColor: 'rgba(0,0,0,0.75)',
-                                              backdropFilter: 'blur(3px)',
-                                              fontSize: '0.58rem',
-                                              color: '#ffffff',
-                                              whiteSpace: 'nowrap',
-                                              overflow: 'hidden',
-                                              textOverflow: 'ellipsis',
+                                              gridColumn: '1 / -1',
                                               display: 'flex',
-                                              alignItems: 'center',
-                                              justifyContent: 'space-between'
+                                              flexDirection: 'column',
+                                              gap: '0.55rem',
+                                              padding: '0.7rem 0.8rem',
+                                              borderRadius: '0.8rem',
+                                              backgroundColor: isUser ? 'rgba(255, 255, 255, 0.16)' : 'var(--bg-card-hover, rgba(0, 0, 0, 0.04))',
+                                              border: isUser ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.1))',
+                                              boxShadow: isUser ? 'none' : '0 2px 10px rgba(0, 0, 0, 0.04)',
+                                              color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                              minWidth: '230px',
+                                              maxWidth: '100%',
+                                              width: '100%',
+                                              boxSizing: 'border-box',
+                                              transition: 'all 0.15s ease'
+                                            }}
+                                          >
+                                            {/* File Info Header (Clickable for preview) */}
+                                            <div
+                                              onClick={() => openDocumentPreview(att)}
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.6rem',
+                                                cursor: 'pointer',
+                                                width: '100%'
+                                              }}
+                                              title="Klik untuk pratinjau lampiran di aplikasi"
+                                            >
+                                              <div style={{
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '0.5rem',
+                                                backgroundColor: isUser 
+                                                  ? 'rgba(255, 255, 255, 0.95)' 
+                                                  : (isPDF ? 'rgba(239, 68, 68, 0.12)' : 'rgba(14, 165, 233, 0.12)'),
+                                                border: isUser 
+                                                  ? 'none' 
+                                                  : `1px solid ${isPDF ? 'rgba(239, 68, 68, 0.28)' : 'rgba(14, 165, 233, 0.28)'}`,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0,
+                                                boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.15)' : 'none'
+                                              }}>
+                                                {isPDF ? (
+                                                  <FileText size={19} color="#ef4444" />
+                                                ) : (
+                                                  <Image size={19} color="#0284c7" />
+                                                )}
+                                              </div>
+                                              <div style={{ minWidth: 0, flex: 1 }}>
+                                                <div style={{
+                                                  fontWeight: 700,
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis',
+                                                  whiteSpace: 'nowrap',
+                                                  fontSize: '0.8rem',
+                                                  color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                  lineHeight: 1.3
+                                                }}>
+                                                  {att.file_name || (isPDF ? 'Dokumen.pdf' : 'Lampiran_Gambar.jpg')}
+                                                </div>
+                                                <div style={{
+                                                  fontSize: '0.66rem',
+                                                  color: isUser ? 'rgba(255, 255, 255, 0.88)' : 'var(--text-secondary)',
+                                                  marginTop: '0.12rem',
+                                                  fontWeight: 500,
+                                                  whiteSpace: 'nowrap',
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis'
+                                                }}>
+                                                  {isPDF ? 'Dokumen PDF' : 'Lampiran Gambar'} {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            {/* Action Buttons Row */}
+                                            <div style={{
+                                              display: 'grid',
+                                              gridTemplateColumns: '1fr 1fr',
+                                              gap: '0.45rem',
+                                              paddingTop: '0.5rem',
+                                              borderTop: isUser ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.08))',
+                                              width: '100%',
+                                              boxSizing: 'border-box'
                                             }}>
-                                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.file_name || `Foto ${idx + 1}`}</span>
-                                              <ZoomIn size={10} style={{ opacity: 0.85, flexShrink: 0, marginLeft: '2px' }} />
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
+                                                style={{
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  gap: '0.3rem',
+                                                  padding: '0.4rem 0.5rem',
+                                                  borderRadius: '0.45rem',
+                                                  backgroundColor: isUser ? '#ffffff' : 'var(--primary, #0284c7)',
+                                                  color: isUser ? '#0f172a' : '#ffffff',
+                                                  border: 'none',
+                                                  fontSize: '0.72rem',
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer',
+                                                  boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.18)' : '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))'
+                                                }}
+                                                title="Lihat Pratinjau Dokumen / Gambar"
+                                              >
+                                                <Eye size={12} strokeWidth={2.2} /> Preview
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => handleDownloadDocument(att, e)}
+                                                style={{
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  gap: '0.3rem',
+                                                  padding: '0.4rem 0.5rem',
+                                                  borderRadius: '0.45rem',
+                                                  backgroundColor: isUser ? 'rgba(255, 255, 255, 0.22)' : 'var(--bg-card, rgba(0, 0, 0, 0.05))',
+                                                  color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                  border: isUser ? '1px solid rgba(255, 255, 255, 0.45)' : '1px solid var(--border-light)',
+                                                  fontSize: '0.72rem',
+                                                  fontWeight: 600,
+                                                  cursor: 'pointer'
+                                                }}
+                                                title="Unduh Berkas ke Perangkat"
+                                              >
+                                                <Download size={12} strokeWidth={2.2} /> Unduh
+                                              </button>
                                             </div>
                                           </div>
                                         );

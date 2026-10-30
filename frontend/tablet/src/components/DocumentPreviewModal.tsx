@@ -372,13 +372,16 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
         createdBlobUrl = URL.createObjectURL(blob);
         setBlobUrl(createdBlobUrl);
 
-        if (isImage) {
+        const detectedIsImage = isImage || (blob.type && blob.type.startsWith('image/'));
+        const detectedIsPdf = isPDF || blob.type === 'application/pdf';
+
+        if (detectedIsImage && !detectedIsPdf) {
           setImageSrc(createdBlobUrl);
           setLoading(false);
           return;
         }
 
-        if (isPDF) {
+        if (detectedIsPdf || !detectedIsImage) {
           const arrayBuffer = await blob.arrayBuffer();
           if (!active) return;
 
@@ -797,17 +800,33 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
             </button>
           </div>
         ) : isImage && imageSrc ? (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            width: '100%',
+            height: '100%',
+            minHeight: '60vh',
+            padding: '0.75rem',
+            boxSizing: 'border-box',
+            overflow: 'auto'
+          }}>
             <img
               src={imageSrc}
-              alt={fileName || 'Gambar'}
+              alt={fileName || 'Gambar Lampiran'}
               style={{
                 maxWidth: '100%',
                 maxHeight: '78vh',
                 objectFit: 'contain',
                 borderRadius: '0.65rem',
-                boxShadow: '0 8px 30px rgba(0,0,0,0.5)'
+                boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+                transform: `scale(${scale})`,
+                transformOrigin: 'center center',
+                transition: 'transform 0.15s ease-out',
+                cursor: scale > 1 ? 'zoom-out' : 'zoom-in',
+                userSelect: 'none'
               }}
+              onClick={() => setScale(prev => (prev > 1.2 ? 1.0 : 2.0))}
             />
           </div>
         ) : isPDF && pdfDoc ? (
@@ -885,7 +904,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
       </div>
 
       {/* 3. Anchored Bottom Dock: Fixed to bottom of modal, perfectly separated, NO OVERLAPPING! */}
-      {isPDF && pdfDoc && !loading && !error && (
+      {((isPDF && pdfDoc) || (isImage && imageSrc)) && !loading && !error && (
         <div
           style={{
             padding: '0.5rem 0.9rem',
@@ -900,76 +919,82 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Navigation Group (Prev / Jump / Next) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <button
-              type="button"
-              onClick={handlePrevPage}
-              disabled={currentPage <= 1}
-              style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '0.35rem',
-                backgroundColor: currentPage <= 1 ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: currentPage <= 1 ? '#475569' : '#e2e8f0',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: currentPage <= 1 ? 'default' : 'pointer'
-              }}
-              title="Halaman Sebelumnya"
-            >
-              <ChevronLeft size={15} />
-            </button>
-
-            <form onSubmit={handleJumpSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={jumpInput}
-                onChange={(e) => setJumpInput(e.target.value)}
-                onBlur={handleJumpSubmit}
+          {/* Navigation Group (Prev / Jump / Next) or Format Label */}
+          {isPDF && numPages > 1 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <button
+                type="button"
+                onClick={handlePrevPage}
+                disabled={currentPage <= 1}
                 style={{
                   width: '28px',
-                  height: '24px',
-                  borderRadius: '0.3rem',
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#ffffff',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  outline: 'none'
+                  height: '28px',
+                  borderRadius: '0.35rem',
+                  backgroundColor: currentPage <= 1 ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: currentPage <= 1 ? '#475569' : '#e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: currentPage <= 1 ? 'default' : 'pointer'
                 }}
-                title="Nomor halaman (Enter)"
-              />
-              <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>
-                / {numPages}
-              </span>
-            </form>
+                title="Halaman Sebelumnya"
+              >
+                <ChevronLeft size={15} />
+              </button>
 
-            <button
-              type="button"
-              onClick={handleNextPage}
-              disabled={currentPage >= numPages}
-              style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '0.35rem',
-                backgroundColor: currentPage >= numPages ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: currentPage >= numPages ? '#475569' : '#e2e8f0',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: currentPage >= numPages ? 'default' : 'pointer'
-              }}
-              title="Halaman Berikutnya"
-            >
-              <ChevronRight size={15} />
-            </button>
-          </div>
+              <form onSubmit={handleJumpSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={jumpInput}
+                  onChange={(e) => setJumpInput(e.target.value)}
+                  onBlur={handleJumpSubmit}
+                  style={{
+                    width: '28px',
+                    height: '24px',
+                    borderRadius: '0.3rem',
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    outline: 'none'
+                  }}
+                  title="Nomor halaman (Enter)"
+                />
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>
+                  / {numPages}
+                </span>
+              </form>
+
+              <button
+                type="button"
+                onClick={handleNextPage}
+                disabled={currentPage >= numPages}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '0.35rem',
+                  backgroundColor: currentPage >= numPages ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: currentPage >= numPages ? '#475569' : '#e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: currentPage >= numPages ? 'default' : 'pointer'
+                }}
+                title="Halaman Berikutnya"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600 }}>
+              <span>{isImage ? 'Format: Gambar' : 'Dokumen PDF'}</span>
+            </div>
+          )}
 
           {/* Zoom Group (Out / Percent / In / Fit) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
