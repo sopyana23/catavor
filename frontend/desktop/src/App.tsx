@@ -18452,83 +18452,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       </button>
                     )}
 
-                    {/* Option 3 (Admin / Owner): Toggle Aktifkan / Arsipkan */}
-                    {canManageItem && (
-                      <button
-                        type="button"
-                        disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                        onClick={() => {
-                          setShowDetailActionDropdown(false);
-                          const curActive = (selectedFauna as any).is_active !== false;
-                          openArchiveConfirmModal(selectedFauna, !curActive);
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.65rem',
-                          width: '100%',
-                          padding: '0.55rem 0.75rem',
-                          fontSize: '0.84rem',
-                          fontWeight: 500,
-                          color: 'var(--text-primary)',
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: '0.45rem',
-                          cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
-                          textAlign: 'left',
-                          opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
-                          transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                      >
-                        {(selectedFauna as any).is_active !== false ? (
-                          <>
-                            <Archive size={15} style={{ color: '#d97706', flexShrink: 0 }} />
-                            <span>Arsipkan Item</span>
-                          </>
-                        ) : (
-                          <>
-                            <Eye size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
-                            <span>Aktifkan Item</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-
-                    {/* Option 4 (Admin / Owner): Edit Data */}
-                    {canManageItem && (
-                      <button
-                        type="button"
-                        disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                        onClick={() => {
-                          setShowDetailActionDropdown(false);
-                          openEditModal(selectedFauna);
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.65rem',
-                          width: '100%',
-                          padding: '0.55rem 0.75rem',
-                          fontSize: '0.84rem',
-                          fontWeight: 500,
-                          color: 'var(--text-primary)',
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: '0.45rem',
-                          cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
-                          textAlign: 'left',
-                          opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
-                          transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                      >
-                        <Edit3 size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                        <span>Edit Rincian Data</span>
-                      </button>
-                    )}
                     {/* Option (Admin / Owner): Kelola Kategori */}
                     {canManageItem && (
                       <button
@@ -19672,6 +19595,44 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   >
                     <Edit3 size={16} />
                     <span>Edit Data</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
+                    onClick={() => {
+                      if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
+                      const curActive = (selectedFauna as any).is_active !== false;
+                      openArchiveConfirmModal(selectedFauna, !curActive);
+                    }}
+                    style={{
+                      height: '42px',
+                      padding: '0 1.5rem',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      borderRadius: '0.5rem',
+                      backgroundColor: (selectedFauna as any).is_active !== false ? 'rgba(245, 158, 11, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                      color: (selectedFauna as any).is_active !== false ? '#d97706' : '#16a34a',
+                      border: `1px solid ${(selectedFauna as any).is_active !== false ? 'rgba(245, 158, 11, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
+                      cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      transition: 'all 0.15s ease',
+                      opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1
+                    }}
+                    title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : ((selectedFauna as any).is_active !== false ? 'Arsipkan item ini dari katalog' : 'Aktifkan kembali item ini ke katalog')}
+                  >
+                    {(selectedFauna as any).is_active !== false ? (
+                      <>
+                        <Archive size={16} />
+                        <span>Arsipkan Item</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye size={16} />
+                        <span>Aktifkan Item</span>
+                      </>
+                    )}
                   </button>
                   <button 
                     type="button" 

@@ -1993,6 +1993,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (res.ok) {
         showToast(targetActive ? 'Item berhasil diaktifkan kembali ke katalog!' : 'Item berhasil diarsipkan dari katalog.');
         setArchiveConfirmModal(null);
+        setPreviewProduct((prev: any) => (prev && prev.id === item.id) ? { ...prev, is_active: targetActive } : prev);
         await fetchProducts(
           productPage,
           productSearch,
@@ -7382,6 +7383,47 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     }}
                   >
                     Tutup
+                  </button>
+
+                  {/* Tombol Arsipkan / Aktifkan */}
+                  <button
+                    type="button"
+                    id="btn-arsip-dari-preview"
+                    data-testid="btn-arsip-dari-preview"
+                    disabled={storeSettings?.is_paused}
+                    onClick={() => {
+                      const curActive = prod.is_active !== false;
+                      openArchiveConfirmModal(prod, !curActive);
+                    }}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.55rem 1.25rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: prod.is_active !== false ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                      color: prod.is_active !== false ? '#d97706' : '#10b981',
+                      border: `1px solid ${prod.is_active !== false ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
+                      fontWeight: 700,
+                      fontSize: '0.86rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: storeSettings?.is_paused ? 'not-allowed' : 'pointer',
+                      opacity: storeSettings?.is_paused ? 0.5 : 1,
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={storeSettings?.is_paused ? 'Toko sedang dibekukan sementara' : (prod.is_active !== false ? 'Arsipkan produk ini dari katalog' : 'Aktifkan kembali produk ini ke katalog')}
+                  >
+                    {prod.is_active !== false ? (
+                      <>
+                        <Archive size={16} />
+                        <span>Arsipkan</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye size={16} />
+                        <span>Aktifkan</span>
+                      </>
+                    )}
                   </button>
 
                   {/* Tombol Edit Data */}

@@ -18806,30 +18806,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             </div>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              {isStoreOwner && (
-                <button
-                  type="button"
-                  disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                  onClick={() => openEditSheet(selectedFauna)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.35rem 0.65rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'rgba(var(--primary-rgb, 16, 185, 129), 0.12)',
-                    color: 'var(--primary)',
-                    border: '1px solid rgba(var(--primary-rgb, 16, 185, 129), 0.25)',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                  title="Edit Data Item"
-                >
-                  <Edit3 size={13} />
-                  <span>Edit</span>
-                </button>
-              )}
               <button
                 onClick={() => setActionMenuData({ type: 'item', item: selectedFauna })}
                 style={{
@@ -19506,10 +19482,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     borderRadius: '0.35rem',
                     ...((settings.dormancy_status === 'suspended' || settings.is_suspended) ? { opacity: 0.5, cursor: 'not-allowed' } : {})
                   }}
-                  title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : ''}
+                  title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : 'Edit data item ini'}
                 >
                   <Edit3 size={14} />
-                  Edit
+                  <span>Edit Data</span>
                 </button>
                 <button 
                   type="button" 
@@ -34174,28 +34150,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 </button>
 
                 {/* Option 2: Kelola Inventaris for Store (Owner), or Archive / Unarchive for Item (Owner), or Laporkan for Public */}
-                {isStoreOwner && actionMenuData.type === 'item' && (
-                  <button
-                    type="button"
-                    className="action-menu-btn"
-                    disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                    onClick={() => {
-                      const itemToEdit = actionMenuData.item;
-                      setActionMenuData(null);
-                      openEditSheet(itemToEdit);
-                    }}
-                  >
-                    <div className="action-menu-icon-box" style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
-                      <Edit3 size={18} />
-                    </div>
-                    <div className="action-menu-text-box">
-                      <span className="action-menu-title" style={{ color: 'var(--primary)' }}>Edit Informasi Item</span>
-                      <span className="action-menu-desc">Perbarui foto, harga, deskripsi, atau detail item</span>
-                    </div>
-                    <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                  </button>
-                )}
-
                 {isStoreOwner ? (
                   actionMenuData.type === 'store' ? (
                     <button
