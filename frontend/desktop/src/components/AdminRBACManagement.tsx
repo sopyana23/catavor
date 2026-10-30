@@ -69,8 +69,19 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     tableHeaderBg: isDark ? 'rgba(30, 41, 59, 0.4)' : '#f8fafc',
     tableRowHover: isDark ? 'rgba(255, 255, 255, 0.02)' : '#f8fafc',
     tabTrackBg: isDark ? 'rgba(15, 23, 42, 0.75)' : '#f1f5f9',
-    tabActiveBg: '#f43f5e',
+    tabActiveBg: isDark ? 'rgba(255, 255, 255, 0.12)' : '#0f172a',
+    tabActiveText: '#ffffff',
     tabInactiveText: isDark ? '#94a3b8' : '#64748b',
+    tabActiveShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.35)' : '0 2px 10px rgba(15, 23, 42, 0.15)',
+    primaryActionBg: '#2563eb',
+    primaryActionHover: '#1d4ed8',
+    primaryActionShadow: '0 4px 14px rgba(37, 99, 235, 0.25)',
+    saveActionBg: '#059669',
+    saveActionHover: '#047857',
+    saveActionShadow: '0 4px 14px rgba(5, 150, 105, 0.25)',
+    accentBadgeBg: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+    accentBadgeBorder: isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(2, 132, 199, 0.2)',
+    accentBadgeColor: isDark ? '#38bdf8' : '#0284c7',
     shadow: isDark ? '0 10px 30px -10px rgba(0, 0, 0, 0.5)' : '0 4px 20px -2px rgba(15, 23, 42, 0.06)',
     modalBg: isDark ? '#0f172a' : '#ffffff',
   };
@@ -410,12 +421,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               width: '46px',
               height: '46px',
               borderRadius: '0.85rem',
-              backgroundColor: 'rgba(244, 63, 94, 0.12)',
-              border: '1px solid rgba(244, 63, 94, 0.25)',
+              backgroundColor: colors.accentBadgeBg,
+              border: `1px solid ${colors.accentBadgeBorder}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#f43f5e'
+              color: colors.accentBadgeColor
             }}>
               <Shield size={24} />
             </div>
@@ -485,12 +496,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             width: '46px',
             height: '46px',
             borderRadius: '0.75rem',
-            backgroundColor: 'rgba(244, 63, 94, 0.12)',
-            border: '1px solid rgba(244, 63, 94, 0.25)',
+            backgroundColor: colors.accentBadgeBg,
+            border: `1px solid ${colors.accentBadgeBorder}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#f43f5e',
+            color: colors.accentBadgeColor,
             flexShrink: 0
           }}>
             <Users size={22} />
@@ -681,15 +692,15 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               padding: '0.6rem 1.25rem',
               borderRadius: '0.75rem',
               backgroundColor: activeTab === 'staff' ? colors.tabActiveBg : 'transparent',
-              color: activeTab === 'staff' ? '#ffffff' : colors.tabInactiveText,
-              border: 'none',
+              color: activeTab === 'staff' ? colors.tabActiveText : colors.tabInactiveText,
+              border: activeTab === 'staff' && isDark ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
               fontWeight: 800,
               fontSize: '0.84rem',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.5rem',
-              boxShadow: activeTab === 'staff' ? '0 4px 15px rgba(244, 63, 94, 0.35)' : 'none',
+              boxShadow: activeTab === 'staff' ? colors.tabActiveShadow : 'none',
               transition: 'all 0.18s ease'
             }}
           >
@@ -698,7 +709,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             <span style={{
               padding: '0.15rem 0.5rem',
               borderRadius: '999px',
-              backgroundColor: activeTab === 'staff' ? 'rgba(255, 255, 255, 0.25)' : colors.cardAlt,
+              backgroundColor: activeTab === 'staff' ? 'rgba(255, 255, 255, 0.2)' : colors.cardAlt,
               color: activeTab === 'staff' ? '#ffffff' : colors.textPrimary,
               fontSize: '0.72rem',
               fontWeight: 800
@@ -715,15 +726,15 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               padding: '0.6rem 1.25rem',
               borderRadius: '0.75rem',
               backgroundColor: activeTab === 'matrix' ? colors.tabActiveBg : 'transparent',
-              color: activeTab === 'matrix' ? '#ffffff' : colors.tabInactiveText,
-              border: 'none',
+              color: activeTab === 'matrix' ? colors.tabActiveText : colors.tabInactiveText,
+              border: activeTab === 'matrix' && isDark ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
               fontWeight: 800,
               fontSize: '0.84rem',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.5rem',
-              boxShadow: activeTab === 'matrix' ? '0 4px 15px rgba(244, 63, 94, 0.35)' : 'none',
+              boxShadow: activeTab === 'matrix' ? colors.tabActiveShadow : 'none',
               transition: 'all 0.18s ease'
             }}
           >
@@ -754,15 +765,15 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               padding: '0.6rem 1.25rem',
               borderRadius: '0.75rem',
               backgroundColor: activeTab === 'create_role' ? colors.tabActiveBg : 'transparent',
-              color: activeTab === 'create_role' ? '#ffffff' : colors.tabInactiveText,
-              border: 'none',
+              color: activeTab === 'create_role' ? colors.tabActiveText : colors.tabInactiveText,
+              border: activeTab === 'create_role' && isDark ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
               fontWeight: 800,
               fontSize: '0.84rem',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.5rem',
-              boxShadow: activeTab === 'create_role' ? '0 4px 15px rgba(244, 63, 94, 0.35)' : 'none',
+              boxShadow: activeTab === 'create_role' ? colors.tabActiveShadow : 'none',
               transition: 'all 0.18s ease'
             }}
           >
@@ -878,13 +889,13 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.45rem',
-                  backgroundColor: '#f43f5e',
+                  backgroundColor: colors.primaryActionBg,
                   color: '#ffffff',
                   fontWeight: 800,
                   borderRadius: '0.75rem',
                   border: 'none',
                   cursor: 'pointer',
-                  boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)',
+                  boxShadow: colors.primaryActionShadow,
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -1208,17 +1219,17 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                               onClick={() => handleSaveMatrix(r.slug)}
                               disabled={Boolean(savingMatrix)}
                               style={{
-                                padding: '0.3rem 0.65rem',
-                                fontSize: '0.72rem',
-                                borderRadius: '0.45rem',
-                                border: '1px solid #f43f5e',
-                                backgroundColor: isDark ? 'rgba(244, 63, 94, 0.15)' : '#fff1f2',
-                                color: '#f43f5e',
+                                padding: '0.35rem 0.75rem',
+                                fontSize: '0.74rem',
+                                borderRadius: '0.5rem',
+                                border: '1px solid #059669',
+                                backgroundColor: isDark ? 'rgba(5, 150, 105, 0.15)' : '#ecfdf5',
+                                color: isDark ? '#34d399' : '#059669',
                                 cursor: 'pointer',
                                 fontWeight: 800,
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.3rem',
+                                gap: '0.35rem',
                                 transition: 'all 0.15s ease'
                               }}
                               title={`Simpan hak akses untuk role ${r.name}`}
@@ -1265,7 +1276,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                             fontWeight: 900,
                             fontSize: '0.74rem',
                             textTransform: 'uppercase',
-                            color: '#f43f5e',
+                            color: colors.accentBadgeColor,
                             letterSpacing: '0.08em'
                           }}
                         >
@@ -1341,7 +1352,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                       width: '20px',
                                       height: '20px',
                                       cursor: 'pointer',
-                                      accentColor: '#f43f5e',
+                                      accentColor: colors.primaryActionBg,
                                       borderRadius: '0.35rem'
                                     }}
                                   />
@@ -1468,7 +1479,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 disabled={creatingRole}
                 style={{
                   height: '44px',
-                  backgroundColor: '#f43f5e',
+                  backgroundColor: colors.primaryActionBg,
                   color: '#ffffff',
                   fontWeight: 800,
                   fontSize: '0.84rem',
@@ -1479,7 +1490,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.45rem',
-                  boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)',
+                  boxShadow: colors.primaryActionShadow,
                   marginTop: '0.5rem'
                 }}
               >
@@ -1546,7 +1557,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#f43f5e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        <span style={{ fontSize: '0.76rem', fontWeight: 800, color: colors.accentBadgeColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                           DOMAIN: {grpKey}
                         </span>
                         <button
@@ -1588,8 +1599,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                 gap: '0.55rem',
                                 padding: '0.65rem 0.75rem',
                                 borderRadius: '0.6rem',
-                                backgroundColor: isSelected ? (isDark ? 'rgba(244, 63, 94, 0.15)' : '#fff1f2') : 'transparent',
-                                border: `1px solid ${isSelected ? 'rgba(244, 63, 94, 0.35)' : colors.border}`,
+                                backgroundColor: isSelected ? (isDark ? 'rgba(37, 99, 235, 0.15)' : '#eff6ff') : 'transparent',
+                                border: `1px solid ${isSelected ? 'rgba(37, 99, 235, 0.4)' : colors.border}`,
                                 cursor: 'pointer',
                                 transition: 'all 0.15s ease'
                               }}
@@ -1605,7 +1616,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                     return next;
                                   });
                                 }}
-                                style={{ marginTop: '2px', accentColor: '#f43f5e', cursor: 'pointer' }}
+                                style={{ marginTop: '2px', accentColor: colors.primaryActionBg, cursor: 'pointer' }}
                               />
                               <div>
                                 <div style={{ fontSize: '0.78rem', fontWeight: 800, color: colors.textPrimary }}>
@@ -1666,12 +1677,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   width: '42px',
                   height: '42px',
                   borderRadius: '0.75rem',
-                  backgroundColor: 'rgba(244, 63, 94, 0.12)',
-                  border: '1px solid rgba(244, 63, 94, 0.25)',
+                  backgroundColor: colors.accentBadgeBg,
+                  border: `1px solid ${colors.accentBadgeBorder}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#f43f5e'
+                  color: colors.accentBadgeColor
                 }}>
                   <Edit2 size={20} />
                 </div>
@@ -1759,14 +1770,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     fontSize: '0.82rem',
                     fontWeight: 800,
                     borderRadius: '0.75rem',
-                    backgroundColor: '#f43f5e',
+                    backgroundColor: colors.primaryActionBg,
                     color: '#ffffff',
                     border: 'none',
                     cursor: loading ? 'wait' : 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.45rem',
-                    boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)'
+                    boxShadow: colors.primaryActionShadow
                   }}
                 >
                   <Check size={16} />
@@ -1794,7 +1805,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#f43f5e',
+                    color: colors.accentBadgeColor,
                     fontSize: '0.8rem',
                     fontWeight: 700,
                     cursor: 'pointer',
@@ -1850,12 +1861,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   width: '44px',
                   height: '44px',
                   borderRadius: '0.85rem',
-                  backgroundColor: 'rgba(244, 63, 94, 0.12)',
-                  border: '1px solid rgba(244, 63, 94, 0.25)',
+                  backgroundColor: colors.accentBadgeBg,
+                  border: `1px solid ${colors.accentBadgeBorder}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#f43f5e'
+                  color: colors.accentBadgeColor
                 }}>
                   <UserPlus size={22} />
                 </div>
@@ -2025,14 +2036,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     fontSize: '0.82rem',
                     fontWeight: 800,
                     borderRadius: '0.75rem',
-                    backgroundColor: '#f43f5e',
+                    backgroundColor: colors.primaryActionBg,
                     color: '#ffffff',
                     border: 'none',
                     cursor: creatingStaff ? 'wait' : 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.45rem',
-                    boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)'
+                    boxShadow: colors.primaryActionShadow
                   }}
                 >
                   {creatingStaff ? (

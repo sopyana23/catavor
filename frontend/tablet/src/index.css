@@ -309,3 +309,25 @@ button, a, input, select, textarea {
     transform: scale(1) translateY(0);
   }
 }
+
+/* Tablet Elevated Secondary Button */
+.btn-secondary {
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #0f172a);
+  border: 1px solid var(--border-hover, #cbd5e1);
+  border-radius: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-card-hover, #f1f5f9);
+  border-color: var(--primary, #1e3a8a);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
