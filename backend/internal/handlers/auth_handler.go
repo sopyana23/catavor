@@ -315,15 +315,21 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	if isPlatformAdmin {
 		// Akun Staf Pengelola Platform WAJIB masuk melalui portal resmi /admin (portal: "admin")
 		if requestedPortal != "admin" {
-			logAuthEvent(h.db, c, "AUTH_LOGIN_PORTAL_MISMATCH", "Percobaan login akun staf pengelola melalui portal merchant ditolak", &user, map[string]interface{}{
+			logAuthEvent(h.db, c, "AUTH_LOGIN_PORTAL_MISMATCH", "Percobaan login akun staf pengelola melalui portal merchant diarahkan ke konsol pengelola", &user, map[string]interface{}{
 				"method": "password",
 				"portal": requestedPortal,
 				"reason": "admin_on_merchant_portal",
 			})
-			// Opsi 1 (Stealth Mode / OWASP): Kembalikan pesan umum seolah-olah akun tidak terdaftar di portal merchant
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"success": false,
-				"message": "Email atau kata sandi yang Anda masukkan salah.",
+			roleName := user.PlatformRole
+			if roleName == "" {
+				roleName = "Staf Pengelola"
+			}
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success":         false,
+				"code":            "STAFF_PORTAL_REQUIRED",
+				"message":         fmt.Sprintf("Akun Anda terdaftar sebagai Pengelola Platform (%s). Silakan masuk melalui Konsol Pengelola di /admin.", strings.ToUpper(roleName)),
+				"redirect_portal": "/admin",
+				"platform_role":   user.PlatformRole,
 			})
 		}
 	} else {
@@ -335,9 +341,10 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 				"reason": "merchant_on_admin_portal",
 			})
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"success": false,
-				"code":    "PORTAL_ACCESS_DENIED",
-				"message": "Akun Anda tidak memiliki hak akses ke konsol pengelola platform. Silakan masuk melalui portal merchant di /login.",
+				"success":         false,
+				"code":            "PORTAL_ACCESS_DENIED",
+				"message":         "Akun Anda tidak memiliki hak akses ke konsol pengelola platform. Silakan masuk melalui portal merchant di /login.",
+				"redirect_portal": "/login",
 			})
 		}
 	}
@@ -997,9 +1004,16 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 				"method": "google_sso",
 				"reason": "admin_on_merchant_portal",
 			})
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"success": false,
-				"message": "Akun pengelola platform wajib masuk melalui formulir resmi di /admin.",
+			roleName := user.PlatformRole
+			if roleName == "" {
+				roleName = "Staf Pengelola"
+			}
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success":         false,
+				"code":            "STAFF_PORTAL_REQUIRED",
+				"message":         fmt.Sprintf("Akun Anda terdaftar sebagai Pengelola Platform (%s). Silakan masuk melalui Konsol Pengelola di /admin.", strings.ToUpper(roleName)),
+				"redirect_portal": "/admin",
+				"platform_role":   user.PlatformRole,
 			})
 		}
 

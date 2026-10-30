@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   AlertCircle,
+  ArrowRight,
   Sparkles,
   Home
 } from 'lucide-react';
@@ -56,6 +57,7 @@ export const App: React.FC = () => {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginRedirectPortal, setLoginRedirectPortal] = useState<string | null>(null);
 
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
@@ -241,6 +243,7 @@ export const App: React.FC = () => {
     e.preventDefault();
     setLoginLoading(true);
     setLoginError(null);
+    setLoginRedirectPortal(null);
     const authPortal = isPlatformAdminPath ? 'admin' : 'merchant';
     try {
       const res = await fetch('/api/login', {
@@ -285,9 +288,15 @@ export const App: React.FC = () => {
         }
       } else {
         setLoginError(json.message || 'Email atau password tidak sesuai.');
+        if (json.redirect_portal) {
+          setLoginRedirectPortal(json.redirect_portal);
+        } else {
+          setLoginRedirectPortal(null);
+        }
       }
     } catch {
       setLoginError('Gagal menghubungi server. Periksa koneksi internet Anda.');
+      setLoginRedirectPortal(null);
     } finally {
       setLoginLoading(false);
     }
@@ -694,13 +703,41 @@ export const App: React.FC = () => {
               padding: '0.85rem 1rem',
               borderRadius: '0.75rem',
               fontSize: '0.82rem',
-              marginBottom: '1.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.65rem'
+              marginBottom: '1.5rem'
             }}>
-              <AlertCircle size={18} style={{ flexShrink: 0 }} />
-              <span>{loginError}</span>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <span style={{ lineHeight: 1.45 }}>{loginError}</span>
+              </div>
+              {loginRedirectPortal && (
+                <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px dashed rgba(239, 68, 68, 0.3)' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigateTo(loginRedirectPortal);
+                    }}
+                    style={{
+                      width: '100%',
+                      minHeight: '44px',
+                      padding: '0.55rem 0.85rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: '#ef4444',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>{loginRedirectPortal === '/admin' ? 'Buka Portal Konsol Pengelola (/admin)' : 'Buka Portal Merchant (/login)'}</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -858,19 +895,47 @@ export const App: React.FC = () => {
 
             {loginError && (
               <div style={{
-                padding: '0.75rem 1rem',
+                padding: '0.85rem 1rem',
                 borderRadius: '0.5rem',
                 backgroundColor: 'rgba(239, 68, 68, 0.12)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
                 color: '#ef4444',
                 fontSize: '0.85rem',
-                marginBottom: '1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
+                marginBottom: '1.25rem'
               }}>
-                <AlertCircle size={16} />
-                {loginError}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <span style={{ lineHeight: 1.45 }}>{loginError}</span>
+                </div>
+                {loginRedirectPortal && (
+                  <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px dashed rgba(239, 68, 68, 0.3)' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigateTo(loginRedirectPortal);
+                      }}
+                      style={{
+                        width: '100%',
+                        minHeight: '44px',
+                        padding: '0.55rem 0.85rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: '#ef4444',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span>{loginRedirectPortal === '/admin' ? 'Buka Portal Konsol Pengelola (/admin)' : 'Buka Portal Merchant (/login)'}</span>
+                      <ArrowRight size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1084,19 +1149,47 @@ export const App: React.FC = () => {
 
           {loginError && (
             <div style={{
-              padding: '0.75rem 1rem',
+              padding: '0.85rem 1rem',
               borderRadius: '0.5rem',
               backgroundColor: 'rgba(239, 68, 68, 0.12)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               color: '#ef4444',
               fontSize: '0.85rem',
-              marginBottom: '1.25rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
+              marginBottom: '1.25rem'
             }}>
-              <AlertCircle size={16} />
-              {loginError}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <span style={{ lineHeight: 1.45 }}>{loginError}</span>
+              </div>
+              {loginRedirectPortal && (
+                <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px dashed rgba(239, 68, 68, 0.3)' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigateTo(loginRedirectPortal);
+                    }}
+                    style={{
+                      width: '100%',
+                      minHeight: '44px',
+                      padding: '0.55rem 0.85rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: '#ef4444',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>{loginRedirectPortal === '/admin' ? 'Buka Portal Konsol Pengelola (/admin)' : 'Buka Portal Merchant (/login)'}</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

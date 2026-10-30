@@ -9807,6 +9807,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
+  const [loginRedirectPortal, setLoginRedirectPortal] = useState<string | null>(null)
 
   // First-time Password Change Form State
   const [firstPasswordForm, setFirstPasswordForm] = useState({
@@ -10950,6 +10951,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setShowStoreSwitcherModal(true);
       } else if (path === '/login') {
         setPortalTab('login');
+      } else if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) {
+        setStoreSlug(null);
+        setPortalTab('home');
+        if (token && isPlatformAdmin(adminUser)) {
+          setActiveTab('admin');
+        }
       } else if (path === '/register' || path === '/register/step-1') {
         setPortalTab('register');
         setRegisterStep(1);
@@ -12038,6 +12045,38 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
     isUserNavRef.current = false;
   }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error]);
+
+  // Auto-redirect or recovery if authenticated user lands on /login (Mobile)
+  useEffect(() => {
+    if (portalTab === 'login' && token) {
+      if (isPlatformAdmin(adminUser)) {
+        window.location.replace('/admin?tab=dashboard');
+        return;
+      }
+      const actSlug = localStorage.getItem('catavor_active_slug') || adminUser?.store_slug;
+      if (actSlug && !isReservedStoreSlug(actSlug)) {
+        window.location.replace(`/${actSlug}/admin`);
+        return;
+      }
+      try {
+        const rawStores = localStorage.getItem('catavor_stores');
+        if (rawStores) {
+          const parsed = JSON.parse(rawStores);
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.slug) {
+            window.location.replace(`/${parsed[0].slug}/admin`);
+            return;
+          }
+        }
+      } catch {}
+
+      // Fail-safe escape hatch: if unable to determine target dashboard after 1.5s, clear stale token so user can authenticate
+      const timeoutId = setTimeout(() => {
+        setToken(null);
+        localStorage.removeItem('catavor_token');
+      }, 1500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [portalTab, token, adminUser]);
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {
@@ -13162,6 +13201,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     e.preventDefault()
     setLoginLoading(true)
     setLoginError(null)
+    setLoginRedirectPortal(null)
 
     const currentRequestedSlug = getStoreSlug();
     const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().split('?')[0].replace(/\/+$/, '') : '';
@@ -13286,10 +13326,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
         return;
       } else {
         setLoginError(data.message || 'Email atau password salah.')
+        if (data.redirect_portal) {
+          setLoginRedirectPortal(data.redirect_portal)
+        } else {
+          setLoginRedirectPortal(null)
+        }
       }
     } catch (err) {
       console.error(err)
       setLoginError('Koneksi terputus ke server.')
+      setLoginRedirectPortal(null)
     } finally {
       setLoginLoading(false)
     }
@@ -15277,16 +15323,43 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               background: 'rgba(239, 68, 68, 0.15)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               color: '#fca5a5',
-              padding: '0.7rem 0.85rem',
+              padding: '0.75rem 0.85rem',
               borderRadius: '0.65rem',
               fontSize: '0.76rem',
-              marginBottom: '1.25rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
+              marginBottom: '1.25rem'
             }}>
-              <AlertCircle size={16} style={{ flexShrink: 0 }} />
-              <span>{loginError}</span>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <span style={{ lineHeight: 1.45 }}>{loginError}</span>
+              </div>
+              {loginRedirectPortal && (
+                <div style={{ marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px dashed rgba(239, 68, 68, 0.3)' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = loginRedirectPortal;
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: '#ef4444',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>{loginRedirectPortal === '/admin' ? 'Buka Portal Konsol Pengelola (/admin)' : 'Buka Portal Merchant (/login)'}</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -16097,9 +16170,39 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               </div>
               
               {loginError && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.75rem 0.9rem', borderRadius: '0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', fontWeight: 600 }}>
-                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                  <span>{loginError}</span>
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.85rem 0.95rem', borderRadius: '0.75rem', fontSize: '0.82rem', marginBottom: '1.25rem', fontWeight: 600 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span style={{ lineHeight: 1.45 }}>{loginError}</span>
+                  </div>
+                  {loginRedirectPortal && (
+                    <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px dashed #fca5a5' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.href = loginRedirectPortal;
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '0.55rem 0.85rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: '#dc2626',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span>{loginRedirectPortal === '/admin' ? 'Buka Portal Konsol Pengelola (/admin)' : 'Buka Portal Merchant (/login)'}</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -23994,8 +24097,48 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               </div>
 
               {loginError && (
-                <div className="alert-box alert-success" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                  {loginError}
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#ef4444',
+                  padding: '0.75rem 0.9rem',
+                  borderRadius: '0.75rem',
+                  fontSize: '0.82rem',
+                  marginBottom: '1.25rem',
+                  fontWeight: 600
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span style={{ lineHeight: 1.45 }}>{loginError}</span>
+                  </div>
+                  {loginRedirectPortal && (
+                    <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px dashed rgba(239, 68, 68, 0.3)' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.href = loginRedirectPortal;
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '0.55rem 0.85rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: '#ef4444',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span>{loginRedirectPortal === '/admin' ? 'Buka Portal Konsol Pengelola (/admin)' : 'Buka Portal Merchant (/login)'}</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
