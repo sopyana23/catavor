@@ -1,6 +1,5 @@
 /**
- * Notification Helper Utilities (Mobile)
- * Synchronized with Desktop notification helper logic.
+ * Notification Helper Utilities (Desktop)
  * Parses categories, moderation cases, contextual action links, and formats timestamps.
  */
 
@@ -363,8 +362,11 @@ export interface NormalizedNotification {
   isDirectNav: boolean;
   isExternal: boolean;
   isDetail: boolean;
+  hasDetailArticle: boolean;
+  isQuickNotif: boolean;
   displayLabel: string;
   displayType: 'navigate' | 'external' | 'detail' | null;
+  btnLabel: string;
 }
 
 export function normalizeNotification(item: any): NormalizedNotification {
@@ -392,41 +394,45 @@ export function normalizeNotification(item: any): NormalizedNotification {
   const rawActionLabel = item.action_label || item.actionLabel || '';
   const detailContent = item.detail_content || item.detailContent || '';
 
-  let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
-  if (
-    cleanLabel.toLowerCase().includes('pengumuman lengkap') ||
-    cleanLabel.toLowerCase() === 'buka pengumuman' ||
-    cleanLabel.toLowerCase() === 'buka menu terkait' ||
-    cleanLabel.toLowerCase() === 'buka tautan luar' ||
-    cleanLabel.toLowerCase() === 'kunjungi tautan'
-  ) {
-    cleanLabel = '';
-  }
+  // Clean trailing navigational arrows from inputted label while preserving custom text
+  const cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
 
-  let rawActionType = item.action_type || item.actionType;
+  let rawActionType = (item.action_type || item.actionType || 'none') as 'navigate' | 'external_link' | 'detail' | 'none';
   if (isModerationNotif) {
     rawActionType = 'detail';
   } else if (!rawActionType || rawActionType === 'none') {
     if (isTicketNotif) rawActionType = 'navigate';
-    else if (actionUrl) rawActionType = 'external_link';
-    else if (rawSubTab) rawActionType = 'navigate';
-    else if (detailContent) rawActionType = 'detail';
+    else if (actionUrl && !item.action_type) rawActionType = 'external_link';
+    else if (rawSubTab && !item.action_type) rawActionType = 'navigate';
+    else if (detailContent && !item.action_type) rawActionType = 'detail';
+    else if (item.action_enabled && detailContent) rawActionType = 'detail';
     else rawActionType = 'none';
   }
 
-  const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
-  const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
-  const isDetail = isModerationNotif || rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal);
+  // Exact 3-tier categorization:
+  // 1. hasDetailArticle: only true if there is genuine editorial article / formal legal decision sheet
+  const hasDetailArticle = isModerationNotif ||
+    item.id === 'system_suspended_notice' ||
+    rawActionType === 'detail' ||
+    (Boolean(detailContent) && detailContent.trim().length > 0 && detailContent.trim() !== (item.message || '').trim());
+
+  // 2. isDirectNav & isExternal: actionable jumps to designated sub-tab or external link (no article body)
+  const isDirectNav = !hasDetailArticle && ((rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif);
+  const isExternal = !hasDetailArticle && rawActionType === 'external_link' && Boolean(actionUrl);
+  const isDetail = hasDetailArticle;
+
+  // 3. isQuickNotif: brief informational message readable directly in-card (no article body, no navigation)
+  const isQuickNotif = !hasDetailArticle && !isDirectNav && !isExternal;
 
   const tabLabels: Record<string, string> = {
-    settings: 'Pengaturan Katalog',
-    items: 'Daftar Item Katalog',
+    settings: 'Pengaturan Toko',
+    items: 'Inventaris & Item',
     subscription: 'Paket Langganan',
     help: 'Pusat Bantuan & Tiket CS',
-    analytics: 'Statistik Katalog',
-    share: 'Bagikan Katalog / QR',
+    analytics: 'Statistik Toko',
+    share: 'Bagikan Toko / QR',
     articles: 'Artikel & Berita',
-    policies: 'Kebijakan Katalog',
+    policies: 'Kebijakan Toko',
     profile: 'Profil Pengguna',
     audit_logs: 'Log Aktivitas',
     rbac: 'Hak Akses Tim'
@@ -452,25 +458,50 @@ export function normalizeNotification(item: any): NormalizedNotification {
         displayLabel = 'Buka Tautan Luar';
       }
     }
-  } else if (isDetail) {
+  } else if (hasDetailArticle) {
     displayType = 'detail';
     if (!displayLabel) {
-      displayLabel = isModerationNotif
-        ? (modCase.actionTaken === 'item_banned' || modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned'
-            ? 'Lihat Salinan Keputusan'
-            : modCase.isAppealEligible ? 'Ajukan Banding Kepatuhan' : 'Buka Kasus Kepatuhan')
-        : 'Lihat Rincian';
+      if (isModerationNotif) {
+        if (modCase.actionTaken === 'item_banned' || modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned') {
+          displayLabel = 'Lihat Salinan Keputusan';
+        } else if (modCase.isAppealEligible) {
+          displayLabel = 'Ajukan Banding Kepatuhan';
+        } else if (modCase.actionTaken === 'item_needs_fix') {
+          displayLabel = 'Perbaiki Item Sekarang';
+        } else if (modCase.isRestored) {
+          displayLabel = 'Lihat Status Pemulihan';
+        } else {
+          displayLabel = 'Buka Kasus Kepatuhan';
+        }
+      } else {
+        displayLabel = 'Baca Artikel Lengkap';
+      }
     }
+  } else {
+    displayType = null;
+    displayLabel = '';
   }
 
-  // Category Color Theming
-  let category = String(item.category || '').toUpperCase();
-  let categoryColor = 'var(--primary)';
-  let categoryBg = 'var(--primary-glow)';
-  let categoryBorder = 'rgba(16, 185, 129, 0.3)';
+  let btnLabel = '';
+  if (displayType === 'navigate') {
+    btnLabel = `${displayLabel} →`;
+  } else if (displayType === 'external') {
+    btnLabel = `${displayLabel} ↗`;
+  } else if (displayType === 'detail') {
+    btnLabel = `${displayLabel} →`;
+  }
 
-  if (modCase.actionTaken === 'item_banned' || modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned' || item.type === 'danger' || category === 'BAHAYA' || category === 'DANGER') {
-    category = item.category ? `${item.category} • SANKSI` : 'KEAMANAN • SANKSI FATAL';
+  // Category Color Theming - 100% Aligned with Admin Pengelola Visual Specs
+  const rawCategory = String(item.category || '').toUpperCase().trim();
+  const itemType = String(item.type || 'info').toLowerCase().trim();
+
+  let category = rawCategory || 'PENGUMUMAN';
+  let categoryColor = '#0ea5e9'; // Sky-500
+  let categoryBg = 'rgba(14, 165, 233, 0.12)';
+  let categoryBorder = 'rgba(14, 165, 233, 0.35)';
+
+  if (modCase.actionTaken === 'item_banned' || modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned' || itemType === 'danger' || rawCategory === 'BAHAYA' || rawCategory === 'DANGER') {
+    category = rawCategory ? `${rawCategory} • SANKSI` : 'KEAMANAN • SANKSI FATAL';
     categoryColor = '#ef4444';
     categoryBg = 'rgba(239, 68, 68, 0.12)';
     categoryBorder = 'rgba(239, 68, 68, 0.35)';
@@ -489,36 +520,75 @@ export function normalizeNotification(item: any): NormalizedNotification {
     categoryColor = '#f59e0b';
     categoryBg = 'rgba(245, 158, 11, 0.12)';
     categoryBorder = 'rgba(245, 158, 11, 0.35)';
-  } else if (isModerationNotif) {
-    category = 'KEAMANAN';
+  } else if (isModerationNotif || rawCategory === 'KEAMANAN') {
+    category = rawCategory || 'KEAMANAN';
     categoryColor = '#f43f5e';
     categoryBg = 'rgba(244, 63, 94, 0.12)';
     categoryBorder = 'rgba(244, 63, 94, 0.35)';
-  } else if (isTicketNotif) {
+  } else if (isTicketNotif || rawCategory === 'BANTUAN CS') {
     category = 'BANTUAN CS';
-    categoryColor = '#38bdf8';
-    categoryBg = 'rgba(56, 189, 248, 0.12)';
-    categoryBorder = 'rgba(56, 189, 248, 0.35)';
-  } else if (item.type === 'order' || category === 'INVENTARIS') {
-    category = category || 'INVENTARIS';
-    categoryColor = '#10b981';
-    categoryBg = 'rgba(16, 185, 129, 0.12)';
-    categoryBorder = 'rgba(16, 185, 129, 0.3)';
-  } else if (item.type === 'warning' || category === 'PANDUAN') {
-    category = category || 'PANDUAN';
+    categoryColor = '#0284c7';
+    categoryBg = 'rgba(2, 132, 199, 0.12)';
+    categoryBorder = 'rgba(2, 132, 199, 0.35)';
+  } else if (rawCategory === 'PEMELIHARAAN') {
+    category = 'PEMELIHARAAN';
+    categoryColor = '#f97316';
+    categoryBg = 'rgba(249, 115, 22, 0.12)';
+    categoryBorder = 'rgba(249, 115, 22, 0.35)';
+  } else if (rawCategory === 'PANDUAN') {
+    category = 'PANDUAN';
     categoryColor = '#f59e0b';
     categoryBg = 'rgba(245, 158, 11, 0.12)';
     categoryBorder = 'rgba(245, 158, 11, 0.35)';
-  } else if (item.type === 'success' || category === 'PROMOSI') {
-    category = category || 'FITUR & PROMO';
+  } else if (rawCategory === 'PROMOSI') {
+    category = 'PROMOSI';
     categoryColor = '#a855f7';
     categoryBg = 'rgba(168, 85, 247, 0.12)';
     categoryBorder = 'rgba(168, 85, 247, 0.35)';
+  } else if (rawCategory === 'INVENTARIS' || itemType === 'order') {
+    category = 'INVENTARIS';
+    categoryColor = '#10b981';
+    categoryBg = 'rgba(16, 185, 129, 0.12)';
+    categoryBorder = 'rgba(16, 185, 129, 0.35)';
+  } else if (rawCategory === 'SISTEM' || itemType === 'system') {
+    category = 'SISTEM';
+    categoryColor = '#8b5cf6';
+    categoryBg = 'rgba(139, 92, 246, 0.12)';
+    categoryBorder = 'rgba(139, 92, 246, 0.35)';
+  } else if (rawCategory === 'PENGUMUMAN') {
+    category = 'PENGUMUMAN';
+    if (itemType === 'warning') {
+      categoryColor = '#f59e0b';
+      categoryBg = 'rgba(245, 158, 11, 0.12)';
+      categoryBorder = 'rgba(245, 158, 11, 0.35)';
+    } else if (itemType === 'success') {
+      categoryColor = '#10b981';
+      categoryBg = 'rgba(16, 185, 129, 0.12)';
+      categoryBorder = 'rgba(16, 185, 129, 0.35)';
+    } else if (itemType === 'system') {
+      categoryColor = '#8b5cf6';
+      categoryBg = 'rgba(139, 92, 246, 0.12)';
+      categoryBorder = 'rgba(139, 92, 246, 0.35)';
+    } else {
+      categoryColor = '#0ea5e9';
+      categoryBg = 'rgba(14, 165, 233, 0.12)';
+      categoryBorder = 'rgba(14, 165, 233, 0.35)';
+    }
   } else {
-    category = category || 'SISTEM';
-    categoryColor = '#94a3b8';
-    categoryBg = 'rgba(148, 163, 184, 0.12)';
-    categoryBorder = 'rgba(148, 163, 184, 0.25)';
+    // Custom category fallback
+    if (itemType === 'warning') {
+      categoryColor = '#f59e0b';
+      categoryBg = 'rgba(245, 158, 11, 0.12)';
+      categoryBorder = 'rgba(245, 158, 11, 0.35)';
+    } else if (itemType === 'success') {
+      categoryColor = '#10b981';
+      categoryBg = 'rgba(16, 185, 129, 0.12)';
+      categoryBorder = 'rgba(16, 185, 129, 0.35)';
+    } else if (itemType === 'system') {
+      categoryColor = '#8b5cf6';
+      categoryBg = 'rgba(139, 92, 246, 0.12)';
+      categoryBorder = 'rgba(139, 92, 246, 0.35)';
+    }
   }
 
   return {
@@ -545,15 +615,17 @@ export function normalizeNotification(item: any): NormalizedNotification {
     isDirectNav,
     isExternal,
     isDetail,
+    hasDetailArticle,
+    isQuickNotif,
     displayLabel,
-    displayType
+    displayType,
+    btnLabel
   };
 }
 
 /**
- * Generates a concise yet informative notification description for mobile view.
- * Simplifies lengthy moderation messages (official warning, edit & fix, locked severe violation, permanent ban)
- * on mobile cards while preserving full detail in the article modal/view.
+ * Generates a concise yet informative notification description.
+ * Simplifies lengthy moderation messages on cards while preserving full detail in the article modal/view.
  */
 export function getMobileNotificationDescription(item: any, modCaseInfo?: any): string {
   if (!item) return '';
@@ -666,4 +738,3 @@ export function getMobileNotificationDescription(item: any, modCaseInfo?: any): 
   // Default fallback: return standard message with bold asterisks stripped
   return (item.message || '').replace(/\*\*(.*?)\*\*/g, '$1');
 }
-

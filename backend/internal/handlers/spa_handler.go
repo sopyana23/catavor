@@ -105,6 +105,7 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	var targetDist string
 	var fallbackDist string
 
+	// 1. Explicit query parameter (?view=...) takes top priority for dev & testing override
 	if viewQuery == "tablet" {
 		targetDist = h.cfg.TabletDistDir
 		fallbackDist = h.cfg.DesktopDistDir
@@ -114,21 +115,26 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	} else if viewQuery == "desktop" {
 		targetDist = h.cfg.DesktopDistDir
 		fallbackDist = h.cfg.MobileDistDir
-	} else if deviceCookie == "tablet" {
+	// 2. Explicit Mobile Device signals (Mobile UA or Sec-CH-UA-Mobile: ?1) take precedence over stale desktop cookie!
+	// (Crucial for Chrome DevTools mobile emulation when developer previously visited desktop mode)
+	} else if mobileUARegex.MatchString(userAgent) || secCHMobile == "?1" {
+		targetDist = h.cfg.MobileDistDir
+		fallbackDist = h.cfg.DesktopDistDir
+	// 3. Tablet Device signals take precedence over stale desktop cookie!
+	} else if tabletUARegex.MatchString(userAgent) || (androidRegex.MatchString(userAgent) && !mobileSubRegex.MatchString(userAgent)) {
 		targetDist = h.cfg.TabletDistDir
 		fallbackDist = h.cfg.DesktopDistDir
+	// 4. Client-side classifier cookie (used when UA is desktop, e.g. DevTools Responsive mode or resized browser)
 	} else if deviceCookie == "mobile" {
 		targetDist = h.cfg.MobileDistDir
+		fallbackDist = h.cfg.DesktopDistDir
+	} else if deviceCookie == "tablet" {
+		targetDist = h.cfg.TabletDistDir
 		fallbackDist = h.cfg.DesktopDistDir
 	} else if deviceCookie == "desktop" {
 		targetDist = h.cfg.DesktopDistDir
 		fallbackDist = h.cfg.MobileDistDir
-	} else if tabletUARegex.MatchString(userAgent) || (androidRegex.MatchString(userAgent) && !mobileSubRegex.MatchString(userAgent)) {
-		targetDist = h.cfg.TabletDistDir
-		fallbackDist = h.cfg.DesktopDistDir
-	} else if mobileUARegex.MatchString(userAgent) || secCHMobile == "?1" {
-		targetDist = h.cfg.MobileDistDir
-		fallbackDist = h.cfg.DesktopDistDir
+	// 5. Default fallback
 	} else {
 		targetDist = h.cfg.DesktopDistDir
 		fallbackDist = h.cfg.MobileDistDir

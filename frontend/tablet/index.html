@@ -8,68 +8,99 @@
     <!-- Tri-Frontend Universal Device & Form-Factor Classifier Engine -->
     <script>
       (function() {
-        try {
-          var CURRENT_BUNDLE = 'tablet';
+        var CURRENT_BUNDLE = 'tablet';
+
+        function detectTarget() {
           var search = window.location.search || '';
 
-          // 1. Explicit query param (?view=desktop|tablet|mobile) takes absolute priority for testing/dev
+          // 1. Explicit query parameter (?view=desktop|tablet|mobile) takes absolute priority for testing/dev
           var queryMatch = search.match(/[?&]view=(desktop|tablet|mobile)(?:&|$)/i);
           if (queryMatch) {
             var forced = queryMatch[1].toLowerCase();
-            document.cookie = "catavor_device=" + forced + "; path=/; max-age=31536000; SameSite=Lax";
             try { sessionStorage.setItem('catavor_forced_view', forced); } catch (e) {}
-            if (CURRENT_BUNDLE !== forced) {
-              window.location.replace(window.location.href);
-            }
-            return;
+            return forced;
           }
 
-          var forcedView = null;
-          try { forcedView = sessionStorage.getItem('catavor_forced_view'); } catch (e) {}
+          // If query param ?view=auto or ?view=reset is passed, clear forced view
+          if (/[?&]view=(auto|reset)(?:&|$)/i.test(search)) {
+            try { sessionStorage.removeItem('catavor_forced_view'); } catch (e) {}
+          }
 
           // 2. Hardware and Pointer Capability Extraction
           var ua = navigator.userAgent || '';
           var navPlatform = navigator.platform || '';
           var maxTouch = navigator.maxTouchPoints || 0;
-          var hasTouchScreen = (maxTouch > 0) || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-
-          var sw = screen.width || 0;
-          var winW = window.innerWidth || document.documentElement.clientWidth || sw;
 
           // Universal Brand-Agnostic Tablet Signals
           var isAppleTablet = /ipad/i.test(ua) || (navPlatform === 'MacIntel' && maxTouch > 1);
           var isAndroid = /android/i.test(ua);
           var isAndroidTablet = isAndroid && !/mobile/i.test(ua);
           var isGenericTabletUA = /tablet|silk|kindle|playbook/i.test(ua);
+          var isMobileUA = /mobile|iphone|ipod|android.*mobile|windows phone|blackberry/i.test(ua);
 
-          var target = 'desktop';
+          // Accurate Viewport Measurement (Prioritizes CSS Media Query & innerWidth over physical screen)
+          var isMobileMedia = window.matchMedia ? window.matchMedia('(max-width: 767.98px)').matches : false;
+          var isTabletMedia = window.matchMedia ? window.matchMedia('(min-width: 768px) and (max-width: 1023.98px)').matches : false;
+          var winW = window.innerWidth || (document.documentElement ? document.documentElement.clientWidth : 0);
 
-          if (forcedView) {
-            target = forcedView;
-          } else if (winW < 768) {
-            target = 'mobile';
-          } else if (winW < 1024 || isAppleTablet || isAndroidTablet || isGenericTabletUA) {
-            target = 'tablet';
-          } else {
-            target = 'desktop';
+          // Classification logic:
+          // A. Mobile Viewport or Phone UA
+          if (isMobileMedia || (winW > 0 && winW < 768)) {
+            return 'mobile';
+          }
+          if (isMobileUA && !isAppleTablet && !isAndroidTablet && !isGenericTabletUA && !isTabletMedia && (winW === 0 || winW < 768)) {
+            return 'mobile';
           }
 
-          // 3. Persistent Cookie Synchronization
-          var cookieMatch = document.cookie.match(/(?:^|;\s*)catavor_device=([^;]+)/);
-          var currentCookie = cookieMatch ? cookieMatch[1].toLowerCase() : null;
-          if (currentCookie !== target) {
-            document.cookie = "catavor_device=" + target + "; path=/; max-age=31536000; SameSite=Lax";
+          // B. Tablet Viewport or Tablet UA
+          if (isTabletMedia || (winW >= 768 && winW < 1024) || isAppleTablet || isAndroidTablet || isGenericTabletUA) {
+            return 'tablet';
           }
 
-          // 4. Seamless Bundle Alignment (Preserves Clean URL Without Adding Query Params!)
-          if (CURRENT_BUNDLE !== target) {
-            var lastSwitch = sessionStorage.getItem('catavor_device_switched');
-            var now = Date.now();
-            if (!lastSwitch || (now - parseInt(lastSwitch, 10)) > 2000) {
-              sessionStorage.setItem('catavor_device_switched', now.toString());
-              window.location.replace(window.location.href);
+          // C. Desktop
+          return 'desktop';
+        }
+
+        function syncAndSwitch(target) {
+          try {
+            // Synchronize persistent cookie so Go backend serves the correct bundle on next request
+            var cookieMatch = document.cookie.match(/(?:^|;\s*)catavor_device=([^;]+)/);
+            var currentCookie = cookieMatch ? cookieMatch[1].toLowerCase() : null;
+            if (currentCookie !== target) {
+              document.cookie = "catavor_device=" + target + "; path=/; max-age=31536000; SameSite=Lax";
             }
+
+            if (CURRENT_BUNDLE !== target) {
+              var lastSwitch = sessionStorage.getItem('catavor_device_switched');
+              var now = Date.now();
+              if (!lastSwitch || (now - parseInt(lastSwitch, 10)) > 1500) {
+                sessionStorage.setItem('catavor_device_switched', now.toString());
+                window.location.replace(window.location.href);
+              }
+            }
+          } catch (e) {}
+        }
+
+        try {
+          var initialTarget = detectTarget();
+          syncAndSwitch(initialTarget);
+
+          // Dynamic Resize & DevTools Device Toggle Listener
+          // When a developer or user resizes window or toggles mobile emulation in DevTools,
+          // smoothly reload into the matching native bundle without manual page refresh.
+          var resizeTimeout = null;
+          function handleDynamicResize() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function() {
+              var updatedTarget = detectTarget();
+              if (updatedTarget !== CURRENT_BUNDLE) {
+                syncAndSwitch(updatedTarget);
+              }
+            }, 300);
           }
+
+          window.addEventListener('resize', handleDynamicResize);
+          window.addEventListener('orientationchange', handleDynamicResize);
         } catch (e) {}
       })();
     </script>

@@ -27693,113 +27693,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                           {filteredNotifications.map((item) => {
-                            const norm = (() => {
-                              const modCase = parseModerationCase(item);
-                              const isModerationNotif = modCase.isModeration;
-                              const ticketRef = extractTicketFromNotif(item);
-                              let rawSubTab = item.link_sub_tab || item.linkSubTab || '';
-                              if (rawSubTab === 'support') rawSubTab = 'help';
-                              if (rawSubTab === 'products') rawSubTab = 'items';
-
-                              const isTicketNotif = !isModerationNotif && (Boolean(ticketRef) || item.type === 'ticket' || rawSubTab === 'help' || (item.title && (item.title.includes('CS Catavor') || item.title.includes('Balasan Baru'))));
-                              const rawSettingsTab = item.link_settings_sub_tab || item.linkSettingsSubTab || item.link_mobile_settings_tab || item.linkMobileSettingsTab || '';
-                              
-                              const actionUrl = item.action_url || item.actionUrl || '';
-                              const rawActionLabel = item.action_label || item.actionLabel || '';
-                              const detailContent = item.detail_content || item.detailContent || '';
-
-                              let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
-                              if (
-                                cleanLabel.toLowerCase().includes('pengumuman lengkap') || 
-                                cleanLabel.toLowerCase() === 'buka pengumuman' || 
-                                cleanLabel.toLowerCase() === 'buka menu terkait' || 
-                                cleanLabel.toLowerCase() === 'buka tautan luar' ||
-                                cleanLabel.toLowerCase() === 'kunjungi tautan'
-                              ) {
-                                cleanLabel = '';
-                              }
-
-                              const isActionExplicitlyDisabled = item.action_enabled === false || item.actionEnabled === false;
-
-                              let rawActionType = item.action_type || item.actionType;
-                              if (isModerationNotif) {
-                                rawActionType = 'detail';
-                              } else if (isActionExplicitlyDisabled) {
-                                rawActionType = 'none';
-                              } else if (!rawActionType || rawActionType === 'none') {
-                                if (isTicketNotif) rawActionType = 'navigate';
-                                else if (actionUrl) rawActionType = 'external_link';
-                                else if (rawSubTab) rawActionType = 'navigate';
-                                else if (detailContent) rawActionType = 'detail';
-                                else rawActionType = 'none';
-                              }
-
-                              const isDirectNav = !isActionExplicitlyDisabled && ((rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif);
-                              const isExternal = !isActionExplicitlyDisabled && (rawActionType === 'external_link' && Boolean(actionUrl));
-                              const isDetail = !isActionExplicitlyDisabled && (rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal));
-                              const isNoneAction = !isDirectNav && !isDetail && !isExternal;
-
-                              const tabLabels: Record<string, string> = {
-                                settings: 'Pengaturan Toko',
-                                items: 'Katalog Produk',
-                                subscription: 'Paket Langganan',
-                                help: 'Pusat Bantuan & Tiket CS',
-                                analytics: 'Statistik Toko',
-                                share: 'Bagikan Toko / QR',
-                                articles: 'Artikel & Berita',
-                                policies: 'Kebijakan Toko',
-                                profile: 'Profil Pengguna',
-                                audit_logs: 'Log Aktivitas',
-                                rbac: 'Hak Akses Tim'
-                              };
-
-                              let displayLabel = isNoneAction ? '' : cleanLabel;
-                              let displayType: 'navigate' | 'external' | 'detail' | null = null;
-
-                              if (isNoneAction) {
-                                displayType = null;
-                                displayLabel = '';
-                              } else if (isTicketNotif) {
-                                displayType = 'navigate';
-                                if (!displayLabel) displayLabel = ticketRef ? `Lihat Tiket #${ticketRef}` : 'Buka Pusat Bantuan CS';
-                              } else if (isDirectNav && rawSubTab) {
-                                displayType = 'navigate';
-                                if (!displayLabel) displayLabel = `Buka ${tabLabels[rawSubTab] || rawSubTab}`;
-                              } else if (isExternal && actionUrl) {
-                                displayType = 'external';
-                                if (!displayLabel) {
-                                  try {
-                                    const fullUrl = actionUrl.startsWith('http') ? actionUrl : `https://${actionUrl}`;
-                                    const parsed = new URL(fullUrl);
-                                    displayLabel = `Kunjungi ${parsed.hostname.replace(/^www\./, '')}`;
-                                  } catch {
-                                    displayLabel = 'Buka Tautan Luar';
-                                  }
-                                }
-                              } else if (isDetail) {
-                                displayType = 'detail';
-                                if (!displayLabel) displayLabel = isModerationNotif ? 'Buka Lembar Kasus Kepatuhan' : 'Lihat Rincian Selengkapnya';
-                              }
-
-                              return {
-                                modCase,
-                                isModerationNotif,
-                                ticketRef,
-                                isTicketNotif,
-                                subTab: rawSubTab,
-                                settingsTab: rawSettingsTab,
-                                actionType: rawActionType,
-                                actionUrl,
-                                actionLabel: rawActionLabel,
-                                detailContent,
-                                isDirectNav,
-                                isExternal,
-                                isDetail,
-                                isNoneAction,
-                                displayLabel,
-                                displayType
-                              };
-                            })();
+                            const norm = normalizeNotification(item);
 
                             return (
                               <div
@@ -27809,12 +27703,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   // Mark as read in state & persist to backend database
                                   handleMarkAsRead(item.id);
 
-                                  const isSuspensionNotice = item.id === 'system_suspended_notice' || 
-                                    (item.category || '').toUpperCase() === 'KEPATUHAN' ||
-                                    (item.title || '').toLowerCase().includes('dibekukan') ||
-                                    (item.title || '').toLowerCase().includes('suspend');
-
-                                  if (isSuspensionNotice || norm.isModerationNotif) {
+                                  if (norm.hasDetailArticle) {
                                     setSelectedNotificationDetail(item);
                                     try {
                                       sessionStorage.setItem('catavor_active_desktop_notification_id', String(item.id));
@@ -27822,15 +27711,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     } catch {}
                                     const slug = storeSlug || getStoreSlug();
                                     if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
-                                    return;
-                                  }
-
-                                  if (norm.isTicketNotif) {
+                                  } else if (norm.isTicketNotif) {
                                     handleNavigateToTicketFromNotif(item);
-                                    return;
-                                  }
-
-                                  if (norm.isDirectNav && norm.subTab) {
+                                  } else if (norm.isDirectNav && norm.subTab) {
                                     if ((settings.is_suspended || settings.dormancy_status === 'suspended') && norm.subTab !== 'help') {
                                       showToast('Aksi dinonaktifkan sementara karena status operasional toko sedang dibekukan.', 'error');
                                       return;
@@ -27841,69 +27724,41 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     }
                                     const slug = getStoreSlug();
                                     if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
-                                  } else if (norm.isDetail) {
-                                    setSelectedNotificationDetail(item);
-                                    try {
-                                      sessionStorage.setItem('catavor_active_desktop_notification_id', String(item.id));
-                                      sessionStorage.setItem('catavor_active_desktop_notification_data', JSON.stringify(item));
-                                    } catch {}
-                                    const slug = storeSlug || getStoreSlug();
-                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
                                   } else if (norm.isExternal && norm.actionUrl) {
                                     handleSafeExternalRedirect(norm.actionUrl);
-                                  } else {
-                                    showToast('Notifikasi ditandai dibaca');
                                   }
                                 }}
                                 style={{
-                                  padding: '1.15rem 1.35rem',
+                                  padding: '1.25rem 1.45rem',
                                   borderRadius: '0.85rem',
                                   border: item.read 
                                     ? '1px solid var(--border-light)' 
-                                    : norm.modCase.isRestored
-                                      ? '1.5px solid #10b981'
-                                      : (norm.modCase.actionTaken === 'warning_issued' || norm.modCase.actionTaken === 'item_needs_fix')
-                                        ? '1.5px solid #f59e0b'
-                                        : norm.isModerationNotif 
-                                          ? '1.5px solid #f43f5e' 
-                                          : '1.5px solid var(--primary)',
+                                    : `1.5px solid ${norm.categoryColor}`,
                                   borderLeft: !item.read 
-                                    ? norm.modCase.isRestored 
-                                      ? '4px solid #10b981' 
-                                      : (norm.modCase.actionTaken === 'warning_issued' || norm.modCase.actionTaken === 'item_needs_fix')
-                                        ? '4px solid #f59e0b'
-                                        : norm.isModerationNotif 
-                                          ? '4px solid #f43f5e' 
-                                          : '4px solid var(--primary)' 
+                                    ? `4px solid ${norm.categoryColor}` 
                                     : '1px solid var(--border-light)',
                                   background: 'var(--card-bg-gradient)',
                                   cursor: 'pointer',
                                   display: 'flex',
-                                  alignItems: 'center',
+                                  alignItems: 'flex-start',
                                   justifyContent: 'space-between',
                                   gap: '1rem',
                                   boxShadow: item.read 
                                     ? '0 1px 3px rgba(0,0,0,0.04)' 
-                                    : norm.modCase.isRestored
-                                      ? '0 4px 18px rgba(16, 185, 129, 0.25)'
-                                      : (norm.modCase.actionTaken === 'warning_issued' || norm.modCase.actionTaken === 'item_needs_fix')
-                                        ? '0 4px 18px rgba(245, 158, 11, 0.22)'
-                                        : norm.isModerationNotif
-                                          ? '0 4px 18px rgba(244, 63, 94, 0.22)'
-                                          : '0 4px 18px var(--primary-glow)',
+                                    : `0 4px 18px ${norm.categoryBg}`,
                                   transition: 'all 0.15s ease'
                                 }}
                               >
                                 <div style={{ minWidth: 0, flex: 1 }}>
                                   {/* Top Meta Line: Category Badge + Timestamp */}
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.4rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                       {!item.read && (
                                         <span style={{
                                           width: '7px',
                                           height: '7px',
                                           borderRadius: '50%',
-                                          backgroundColor: norm.modCase.isRestored ? '#10b981' : (norm.modCase.actionTaken === 'warning_issued' || norm.modCase.actionTaken === 'item_needs_fix') ? '#f59e0b' : norm.isModerationNotif ? '#f43f5e' : 'var(--primary)',
+                                          backgroundColor: norm.categoryColor,
                                           display: 'inline-block'
                                         }} />
                                       )}
@@ -27914,23 +27769,34 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                         letterSpacing: '0.04em',
                                         padding: '0.15rem 0.5rem',
                                         borderRadius: '0.35rem',
-                                        color: norm.modCase.isRestored ? '#10b981' : (norm.modCase.actionTaken === 'warning_issued' || norm.modCase.actionTaken === 'item_needs_fix') ? '#f59e0b' : norm.isModerationNotif ? '#f43f5e' : item.type === 'warning' ? '#d97706' : item.type === 'success' ? '#059669' : item.type === 'order' ? '#2563eb' : 'var(--primary)',
-                                        backgroundColor: norm.modCase.isRestored ? 'rgba(16, 185, 129, 0.12)' : (norm.modCase.actionTaken === 'warning_issued' || norm.modCase.actionTaken === 'item_needs_fix') ? 'rgba(245, 158, 11, 0.12)' : norm.isModerationNotif ? 'rgba(244, 63, 94, 0.12)' : item.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : item.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : item.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
-                                        border: '1px solid currentColor'
+                                        color: norm.categoryColor,
+                                        backgroundColor: norm.categoryBg,
+                                        border: `1px solid ${norm.categoryBorder}`
                                       }}>
-                                        {norm.modCase.isRestored ? 'PEMULIHAN AKUN' : norm.modCase.actionTaken === 'warning_issued' ? 'PERINGATAN' : norm.modCase.actionTaken === 'item_needs_fix' ? 'PERBAIKAN' : norm.isModerationNotif ? 'KEAMANAN' : (item.category || (item.type === 'warning' ? 'PANDUAN' : item.type === 'success' ? 'PROMOSI' : item.type === 'order' ? 'INVENTARIS' : 'SISTEM'))}
+                                        {norm.category}
                                       </span>
                                     </div>
 
-                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                                      {item.timestamp || item.time}
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                        {item.timestamp || item.time}
+                                      </span>
+                                      {item.read ? (
+                                        <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 700, backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '0.1rem 0.45rem', borderRadius: '0.3rem' }}>
+                                          ✓ Terbaca
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 800, backgroundColor: 'var(--primary-glow)', padding: '0.1rem 0.45rem', borderRadius: '0.3rem' }}>
+                                          Baru
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   {/* Full Title (Never truncated) */}
                                   <h4 style={{
-                                    fontSize: '0.95rem',
-                                    fontWeight: 800,
+                                    fontSize: '0.98rem',
+                                    fontWeight: item.read ? 700 : 800,
                                     margin: '0 0 0.35rem 0',
                                     color: 'var(--text-primary)',
                                     lineHeight: 1.35
@@ -27938,135 +27804,199 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     {item.title}
                                   </h4>
 
-                                  {/* Message (Clamped to 2 lines, clean markdown ** removed) */}
+                                  {/* Message: Full text directly visible, never truncated */}
                                   <p style={{
-                                    fontSize: '0.82rem',
+                                    fontSize: '0.84rem',
                                     color: 'var(--text-secondary)',
                                     margin: 0,
-                                    lineHeight: 1.45,
+                                    lineHeight: 1.55,
                                     wordBreak: 'break-word',
-                                    ...(norm.isDetail ? {
-                                      display: '-webkit-box',
-                                      WebkitLineClamp: 2,
-                                      WebkitBoxOrient: 'vertical',
-                                      overflow: 'hidden'
-                                    } : {
-                                      display: 'block',
-                                      whiteSpace: 'pre-wrap'
-                                    })
+                                    whiteSpace: 'pre-wrap'
                                   }}>
                                     {(item.message || '').replace(/\*\*(.*?)\*\*/g, '$1')}
                                   </p>
 
-                                  {/* Action Hint Micro-Pill (Only when actionable) */}
-                                  {norm.modCase.isRestored ? (
-                                    <div
-                                      style={{
-                                        marginTop: '0.65rem',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.35rem',
-                                        padding: '0.22rem 0.65rem',
-                                        borderRadius: '0.45rem',
-                                        fontSize: '0.74rem',
-                                        fontWeight: 800,
-                                        backgroundColor: 'rgba(16, 185, 129, 0.14)',
-                                        color: '#10b981',
-                                        border: '1px solid rgba(16, 185, 129, 0.35)',
-                                        width: 'fit-content'
-                                      }}
-                                    >
-                                      <CheckCircle2 size={12} style={{ strokeWidth: 2.5 }} />
-                                      <span>Lihat Status Pemulihan</span>
-                                      <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
-                                    </div>
-                                  ) : norm.modCase.actionTaken === 'item_needs_fix' ? (
-                                    <div
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenFixItem(item);
-                                      }}
-                                      style={{
-                                        marginTop: '0.65rem',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.35rem',
-                                        padding: '0.22rem 0.65rem',
-                                        borderRadius: '0.45rem',
-                                        fontSize: '0.74rem',
-                                        fontWeight: 800,
-                                        backgroundColor: 'rgba(245, 158, 11, 0.16)',
-                                        color: '#f59e0b',
-                                        border: '1px solid rgba(245, 158, 11, 0.38)',
-                                        width: 'fit-content',
-                                        cursor: 'pointer'
-                                      }}
-                                      title="Buka detail item untuk perbaikan data"
-                                    >
-                                      <Wrench size={12} style={{ strokeWidth: 2.5 }} />
-                                      <span>Perbaiki Item Sekarang</span>
-                                      <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
-                                    </div>
-                                  ) : norm.isModerationNotif && norm.modCase.isAppealEligible ? (
-                                    <div
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenAppealTicket(item);
-                                      }}
-                                      style={{
-                                        marginTop: '0.65rem',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.35rem',
-                                        padding: '0.22rem 0.65rem',
-                                        borderRadius: '0.45rem',
-                                        fontSize: '0.74rem',
-                                        fontWeight: 800,
-                                        backgroundColor: 'rgba(244, 63, 94, 0.14)',
-                                        color: '#f43f5e',
-                                        border: '1px solid rgba(244, 63, 94, 0.35)',
-                                        width: 'fit-content',
-                                        cursor: 'pointer'
-                                      }}
-                                      title="Buka formulir pengajuan banding langsung ke CS"
-                                    >
-                                      <Scale size={12} style={{ strokeWidth: 2.5 }} />
-                                      <span>Ajukan Banding Kepatuhan</span>
-                                      <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
-                                    </div>
-                                  ) : norm.displayType && (
+                                  {/* Catatan Admin Pengelola Callout Box (if present) */}
+                                  {norm.modCase?.notes && !norm.modCase.notes.startsWith('Ditemukan ketidaksesuaian') && (
                                     <div style={{
-                                      marginTop: '0.65rem',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '0.35rem',
-                                      padding: '0.22rem 0.65rem',
-                                      borderRadius: '0.45rem',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 700,
-                                      backgroundColor: norm.displayType === 'external'
-                                        ? 'rgba(59, 130, 246, 0.1)'
-                                        : norm.displayType === 'navigate'
-                                          ? 'var(--primary-glow)'
-                                          : 'rgba(245, 158, 11, 0.1)',
-                                      color: norm.displayType === 'external'
-                                        ? '#3b82f6'
-                                        : norm.displayType === 'navigate'
-                                          ? 'var(--primary)'
-                                          : '#f59e0b',
-                                      border: `1px solid ${norm.displayType === 'external' ? 'rgba(59, 130, 246, 0.25)' : norm.displayType === 'navigate' ? 'var(--primary-glow)' : 'rgba(245, 158, 11, 0.25)'}`,
-                                      width: 'fit-content'
+                                      padding: '0.55rem 0.85rem',
+                                      borderRadius: '0.55rem',
+                                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                                      borderLeft: `3.5px solid ${norm.categoryColor}`,
+                                      fontSize: '0.8rem',
+                                      color: 'var(--text-primary)',
+                                      fontStyle: 'italic',
+                                      lineHeight: 1.45,
+                                      marginTop: '0.45rem'
                                     }}>
-                                      <span>{norm.displayLabel}</span>
-                                      {norm.displayType === 'external' && <ExternalLink size={12} style={{ strokeWidth: 2.5 }} />}
-                                      {norm.displayType === 'navigate' && <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />}
-                                      {norm.displayType === 'detail' && <ChevronRight size={12} style={{ strokeWidth: 2.5 }} />}
+                                      <span style={{ fontWeight: 800, fontStyle: 'normal', color: norm.categoryColor }}>
+                                        Catatan Tim Admin:{" "}
+                                      </span>
+                                      "{norm.modCase.notes}"
                                     </div>
                                   )}
+
+                                  {/* ACTION AREA ACCORDING TO NOTIFICATION TYPE */}
+                                  {/* 1. Type B: Direct Action Button (Navigation or External Link, no article) */}
+                                  {!norm.hasDetailArticle && (norm.isTicketNotif || norm.isDirectNav || norm.isExternal || norm.modCase?.actionTaken === 'item_needs_fix') && (
+                                    <div style={{ marginTop: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                      {norm.modCase?.actionTaken === 'item_needs_fix' ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenFixItem(item);
+                                          }}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem',
+                                            padding: '0.38rem 0.85rem',
+                                            borderRadius: '0.5rem',
+                                            fontSize: '0.76rem',
+                                            fontWeight: 700,
+                                            backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                                            color: '#f59e0b',
+                                            border: '1px solid rgba(245, 158, 11, 0.45)',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <Wrench size={12} style={{ strokeWidth: 2.5 }} />
+                                          <span>Perbaiki Item Sekarang</span>
+                                          <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
+                                        </button>
+                                      ) : norm.isTicketNotif ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleNavigateToTicketFromNotif(item);
+                                          }}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem',
+                                            padding: '0.38rem 0.85rem',
+                                            borderRadius: '0.5rem',
+                                            fontSize: '0.76rem',
+                                            fontWeight: 700,
+                                            backgroundColor: 'rgba(2, 132, 199, 0.14)',
+                                            color: '#0284c7',
+                                            border: '1px solid rgba(2, 132, 199, 0.4)',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <MessageSquare size={12} style={{ strokeWidth: 2.5 }} />
+                                          <span>{norm.ticketRef ? `Buka Ruang Tiket CS #${norm.ticketRef}` : 'Buka Pusat Bantuan CS'}</span>
+                                          <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
+                                        </button>
+                                      ) : norm.isDirectNav && norm.subTab ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAdminTab(norm.subTab as any);
+                                            if (norm.settingsTab) setSettingsSubTab(norm.settingsTab as any);
+                                            const slug = getStoreSlug();
+                                            if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
+                                          }}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem',
+                                            padding: '0.38rem 0.85rem',
+                                            borderRadius: '0.5rem',
+                                            fontSize: '0.76rem',
+                                            fontWeight: 700,
+                                            backgroundColor: 'var(--primary-glow)',
+                                            color: 'var(--primary)',
+                                            border: '1px solid var(--border-light)',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <Layers size={12} style={{ strokeWidth: 2.5 }} />
+                                          <span>{norm.btnLabel || norm.displayLabel || 'Buka Menu Terkait'}</span>
+                                          <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
+                                        </button>
+                                      ) : norm.isExternal && norm.actionUrl ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSafeExternalRedirect(norm.actionUrl);
+                                          }}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem',
+                                            padding: '0.38rem 0.85rem',
+                                            borderRadius: '0.5rem',
+                                            fontSize: '0.76rem',
+                                            fontWeight: 700,
+                                            backgroundColor: 'rgba(59, 130, 246, 0.14)',
+                                            color: '#3b82f6',
+                                            border: '1px solid rgba(59, 130, 246, 0.4)',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <ExternalLink size={12} style={{ strokeWidth: 2.5 }} />
+                                          <span>{norm.btnLabel || norm.displayLabel || 'Kunjungi Tautan Luar'}</span>
+                                          <ExternalLink size={12} style={{ strokeWidth: 2.5 }} />
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  )}
+
+                                  {/* 2. Type C: Editorial Article / Formal Moderation Document */}
+                                  {norm.hasDetailArticle && (
+                                    <div style={{ marginTop: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMarkAsRead(item.id);
+                                          setSelectedNotificationDetail(item);
+                                          try {
+                                            sessionStorage.setItem('catavor_active_desktop_notification_id', String(item.id));
+                                            sessionStorage.setItem('catavor_active_desktop_notification_data', JSON.stringify(item));
+                                          } catch {}
+                                          const slug = storeSlug || getStoreSlug();
+                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.4rem',
+                                          padding: '0.38rem 0.95rem',
+                                          borderRadius: '0.5rem',
+                                          fontSize: '0.76rem',
+                                          fontWeight: 700,
+                                          backgroundColor: 'var(--primary)',
+                                          color: '#ffffff',
+                                          border: 'none',
+                                          boxShadow: '0 2px 8px var(--primary-glow)',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        <FileText size={12} style={{ strokeWidth: 2.5 }} />
+                                        <span>
+                                          {norm.modCase?.actionTaken === 'item_banned' || norm.modCase?.actionTaken === 'account_banned' || norm.modCase?.actionTaken === 'catalog_banned'
+                                            ? 'Buka Salinan Keputusan Sanksi'
+                                            : norm.isModerationNotif && norm.modCase.isAppealEligible
+                                            ? 'Ajukan Banding Kepatuhan'
+                                            : 'Baca Artikel Lengkap'}
+                                        </span>
+                                        <ChevronRight size={12} style={{ strokeWidth: 2.5 }} />
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* 3. Type A: Notifikasi Singkat */}
+                                  {/* Full text directly readable above, without clutter or blank pages */}
                                 </div>
 
-                                {/* Trailing Action Icon Indicator (Clean & High Contrast) */}
-                                {(norm.isModerationNotif || norm.displayType) && (
+                                {/* Trailing Action Icon Indicator */}
+                                {(norm.hasDetailArticle || norm.isDirectNav || norm.isExternal) && (
                                   <div style={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -28077,10 +28007,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     borderRadius: '0.55rem',
                                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
                                     border: '1px solid var(--border-light)',
-                                    color: norm.isModerationNotif ? '#f43f5e' : norm.displayType === 'external' ? '#3b82f6' : norm.displayType === 'navigate' ? 'var(--primary)' : '#f59e0b',
+                                    color: norm.isModerationNotif ? '#f43f5e' : norm.isExternal ? '#3b82f6' : 'var(--primary)',
                                     marginLeft: '0.5rem'
                                   }}>
-                                    {norm.isModerationNotif ? <Scale size={16} /> : norm.displayType === 'external' ? <ExternalLink size={16} /> : norm.displayType === 'navigate' ? <ArrowRight size={16} /> : <ChevronRight size={16} />}
+                                    {norm.isModerationNotif ? <Scale size={16} /> : norm.isExternal ? <ExternalLink size={16} /> : norm.hasDetailArticle ? <FileText size={16} /> : <ArrowRight size={16} />}
                                   </div>
                                 )}
                               </div>

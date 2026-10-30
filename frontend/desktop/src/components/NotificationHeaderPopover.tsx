@@ -400,7 +400,7 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
           </div>
         ) : (
           displayedList.map((norm) => {
-            const hasDetail = Boolean(norm.detailContent) || norm.isDetail || norm.isModerationNotif || norm.item.id === 'system_suspended_notice';
+            const hasDetail = norm.hasDetailArticle;
             const isClickActionable = hasDetail || norm.isTicketNotif || norm.isDirectNav || norm.isExternal;
 
             return (

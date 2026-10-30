@@ -28867,6 +28867,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         }
 
                         // Standard Editorial Notification View
+                        const norm = normalizeNotification(selectedNotification);
                         return (
                           <div className="glass-panel" style={{
                             padding: '1.25rem 1.15rem',
@@ -28888,11 +28889,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   letterSpacing: '0.04em',
                                   padding: '0.2rem 0.6rem',
                                   borderRadius: '0.45rem',
-                                  color: selectedNotification.type === 'warning' ? '#d97706' : selectedNotification.type === 'success' ? '#059669' : selectedNotification.type === 'order' ? '#2563eb' : 'var(--primary)',
-                                  backgroundColor: selectedNotification.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : selectedNotification.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : selectedNotification.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
-                                  border: '1px solid currentColor'
+                                  color: norm.categoryColor,
+                                  backgroundColor: norm.categoryBg,
+                                  border: `1px solid ${norm.categoryBorder}`
                                 }}>
-                                  {selectedNotification.category || (selectedNotification.type === 'warning' ? 'PANDUAN' : selectedNotification.type === 'success' ? 'PROMOSI' : selectedNotification.type === 'order' ? 'INVENTARIS' : 'SISTEM')}
+                                  {norm.category}
                                 </span>
                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
                                   • {selectedNotification.timestamp || selectedNotification.time || 'Baru saja'}
@@ -28925,6 +28926,27 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             }}>
                               {selectedNotification.title}
                             </h2>
+
+                            {/* If both short message and detailed content exist and are distinct, show message as executive lead summary */}
+                            {norm.detailContent && norm.message && norm.detailContent.trim() !== norm.message.trim() && (
+                              <div style={{
+                                padding: '0.85rem 1rem',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'var(--bg-deep, rgba(0,0,0,0.03))',
+                                borderLeft: `4px solid ${norm.categoryColor}`,
+                                marginBottom: '0.5rem'
+                              }}>
+                                <p style={{
+                                  fontSize: '0.88rem',
+                                  color: 'var(--text-primary)',
+                                  fontWeight: 600,
+                                  lineHeight: 1.5,
+                                  margin: 0
+                                }}>
+                                  {norm.message.replace(/\*\*(.*?)\*\*/g, '$1')}
+                                </p>
+                              </div>
+                            )}
 
                             {/* Editorial Body Content Canvas (Full Width & Spacious Typography) */}
                             <div style={{
@@ -28968,86 +28990,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                             {/* Action Section & Dedicated Bottom Footer */}
                             {(() => {
-                              const norm = (() => {
-                                const ticketRef = extractTicketFromNotif(selectedNotification);
-                                let rawSubTab = selectedNotification.link_sub_tab || selectedNotification.linkSubTab || '';
-                                if (rawSubTab === 'support') rawSubTab = 'help';
-                                if (rawSubTab === 'products') rawSubTab = 'items';
-
-                                const isTicketNotif = Boolean(ticketRef) || selectedNotification.type === 'ticket' || rawSubTab === 'help' || (selectedNotification.title && (selectedNotification.title.includes('CS Catavor') || selectedNotification.title.includes('Balasan Baru')));
-                                const rawMobileSettingsTab = selectedNotification.link_mobile_settings_tab || selectedNotification.linkMobileSettingsTab || selectedNotification.link_settings_sub_tab || selectedNotification.linkSettingsSubTab || '';
-                                
-                                const actionUrl = selectedNotification.action_url || selectedNotification.actionUrl || '';
-                                const rawActionLabel = selectedNotification.action_label || selectedNotification.actionLabel || '';
-                                const detailContent = selectedNotification.detail_content || selectedNotification.detailContent || '';
-
-                                let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
-                                if (
-                                  cleanLabel.toLowerCase().includes('pengumuman lengkap') || 
-                                  cleanLabel.toLowerCase() === 'buka pengumuman' || 
-                                  cleanLabel.toLowerCase() === 'buka menu terkait' || 
-                                  cleanLabel.toLowerCase() === 'buka tautan luar' ||
-                                  cleanLabel.toLowerCase() === 'kunjungi tautan'
-                                ) {
-                                  cleanLabel = '';
-                                }
-
-                                let rawActionType = selectedNotification.action_type || selectedNotification.actionType;
-                                if (!rawActionType || rawActionType === 'none') {
-                                  if (isTicketNotif) rawActionType = 'navigate';
-                                  else if (actionUrl) rawActionType = 'external_link';
-                                  else if (rawSubTab) rawActionType = 'navigate';
-                                  else if (detailContent) rawActionType = 'detail';
-                                  else rawActionType = 'none';
-                                }
-
-                                const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
-                                const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
-
-                                const tabLabels: Record<string, string> = {
-                                  settings: 'Pengaturan Toko',
-                                  items: 'Daftar Item Katalog',
-                                  subscription: 'Paket Langganan',
-                                  help: 'Pusat Bantuan & Tiket CS',
-                                  analytics: 'Statistik Toko',
-                                  share: 'Bagikan Toko / QR',
-                                  articles: 'Artikel & Berita',
-                                  policies: 'Kebijakan Toko',
-                                  profile: 'Profil Pengguna',
-                                  audit_logs: 'Log Aktivitas',
-                                  rbac: 'Hak Akses Tim'
-                                };
-
-                                let btnLabel = '';
-                                if (isTicketNotif) {
-                                  btnLabel = cleanLabel ? `${cleanLabel} →` : (ticketRef ? `Lihat Tiket #${ticketRef} →` : 'Buka Pusat Bantuan CS →');
-                                } else if (isDirectNav && rawSubTab) {
-                                  btnLabel = cleanLabel ? `${cleanLabel} →` : `Buka ${tabLabels[rawSubTab] || rawSubTab} →`;
-                                } else if (isExternal && actionUrl) {
-                                  if (cleanLabel) {
-                                    btnLabel = `${cleanLabel} ↗`;
-                                  } else {
-                                    try {
-                                      const fullUrl = actionUrl.startsWith('http') ? actionUrl : `https://${actionUrl}`;
-                                      const parsed = new URL(fullUrl);
-                                      btnLabel = `Kunjungi ${parsed.hostname.replace(/^www\./, '')} ↗`;
-                                    } catch {
-                                      btnLabel = 'Kunjungi Tautan Luar ↗';
-                                    }
-                                  }
-                                }
-
-                                return {
-                                  ticketRef,
-                                  isTicketNotif,
-                                  subTab: rawSubTab,
-                                  mobileSettingsTab: rawMobileSettingsTab,
-                                  actionUrl,
-                                  btnLabel,
-                                  isDirectNav,
-                                  isExternal
-                                };
-                              })();
 
                               const isSuspensionNotif = selectedNotification.id === 'system_suspended_notice' || 
                                 (selectedNotification.category || '').toUpperCase() === 'KEPATUHAN' ||
@@ -29171,7 +29113,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         setSelectedNotification(null);
                                         if (norm.subTab) {
                                           setAdminSubTab(norm.subTab as any);
-                                          if (norm.mobileSettingsTab) setMobileSettingsTab(norm.mobileSettingsTab as any);
+                                          if (norm.settingsTab) setMobileSettingsTab(norm.settingsTab as any);
                                           const slug = getStoreSlug();
                                           if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
                                         }
@@ -29577,121 +29519,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                           {filteredNotifications.map((item) => {
-                            const norm = (() => {
-                              const modCase = parseModerationCase(item);
-                              const isModerationNotif = modCase.isModeration;
-                              const ticketRef = extractTicketFromNotif(item);
-                              let rawSubTab = item.link_sub_tab || item.linkSubTab || '';
-                              if (rawSubTab === 'support') rawSubTab = 'help';
-                              if (rawSubTab === 'products') rawSubTab = 'items';
-
-                              const isTicketNotif = !isModerationNotif && (Boolean(ticketRef) || item.type === 'ticket' || rawSubTab === 'help' || (item.title && (item.title.includes('CS Catavor') || item.title.includes('Balasan Baru'))));
-                              const rawMobileSettingsTab = item.link_mobile_settings_tab || item.linkMobileSettingsTab || item.link_settings_sub_tab || item.linkSettingsSubTab || '';
-                              
-                              const actionUrl = item.action_url || item.actionUrl || '';
-                              const rawActionLabel = item.action_label || item.actionLabel || '';
-                              const detailContent = item.detail_content || item.detailContent || '';
-
-                              // Clean action label: strip baked-in arrows and discard generic/unhelpful labels
-                              let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
-                              if (
-                                cleanLabel.toLowerCase().includes('pengumuman lengkap') || 
-                                cleanLabel.toLowerCase() === 'buka pengumuman' || 
-                                cleanLabel.toLowerCase() === 'buka menu terkait' || 
-                                cleanLabel.toLowerCase() === 'buka tautan luar' ||
-                                cleanLabel.toLowerCase() === 'kunjungi tautan'
-                              ) {
-                                cleanLabel = '';
-                              }
-
-                              const isActionExplicitlyDisabled = item.action_enabled === false || item.actionEnabled === false;
-
-                              // Determine accurate action type
-                              let rawActionType = item.action_type || item.actionType;
-                              if (isModerationNotif) {
-                                rawActionType = 'detail';
-                              } else if (isActionExplicitlyDisabled) {
-                                rawActionType = 'none';
-                              } else if (!rawActionType || rawActionType === 'none') {
-                                if (isTicketNotif) rawActionType = 'navigate';
-                                else if (actionUrl) rawActionType = 'external_link';
-                                else if (rawSubTab) rawActionType = 'navigate';
-                                else if (detailContent) rawActionType = 'detail';
-                                else rawActionType = 'none';
-                              }
-
-                              const isDirectNav = !isActionExplicitlyDisabled && ((rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif);
-                              const isExternal = !isActionExplicitlyDisabled && (rawActionType === 'external_link' && Boolean(actionUrl));
-                              const isDetail = isModerationNotif || (!isActionExplicitlyDisabled && (rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal)));
-                              const isNoneAction = !isDirectNav && !isDetail && !isExternal;
-
-                              const tabLabels: Record<string, string> = {
-                                settings: 'Pengaturan Toko',
-                                items: 'Daftar Item Katalog',
-                                subscription: 'Paket Langganan',
-                                help: 'Pusat Bantuan & Tiket CS',
-                                analytics: 'Statistik Toko',
-                                share: 'Bagikan Toko / QR',
-                                articles: 'Artikel & Berita',
-                                policies: 'Kebijakan Toko',
-                                profile: 'Profil Pengguna',
-                                audit_logs: 'Log Aktivitas',
-                                rbac: 'Hak Akses Tim'
-                              };
-
-                              let displayLabel = isNoneAction ? '' : cleanLabel;
-                              let displayType: 'navigate' | 'external' | 'detail' | null = null;
-
-                              if (isNoneAction) {
-                                displayType = null;
-                                displayLabel = '';
-                              } else if (isTicketNotif) {
-                                displayType = 'navigate';
-                                displayLabel = cleanLabel || (ticketRef ? `Lihat Tiket #${ticketRef}` : 'Buka Pusat Bantuan CS');
-                              } else if (isDirectNav && rawSubTab) {
-                                displayType = 'navigate';
-                                displayLabel = cleanLabel || `Buka ${tabLabels[rawSubTab] || rawSubTab}`;
-                              } else if (isExternal && actionUrl) {
-                                displayType = 'external';
-                                if (cleanLabel) {
-                                  displayLabel = cleanLabel;
-                                } else {
-                                  try {
-                                    const fullUrl = actionUrl.startsWith('http') ? actionUrl : `https://${actionUrl}`;
-                                    const parsed = new URL(fullUrl);
-                                    displayLabel = `Kunjungi ${parsed.hostname.replace(/^www\./, '')}`;
-                                  } catch {
-                                    displayLabel = 'Buka Tautan Luar';
-                                  }
-                                }
-                              } else if (isDetail) {
-                                displayType = 'detail';
-                                displayLabel = isModerationNotif 
-                                  ? (modCase.actionTaken === 'item_banned' || modCase.actionTaken === 'account_banned' || modCase.actionTaken === 'catalog_banned'
-                                      ? 'Lihat Salinan Keputusan'
-                                      : modCase.isAppealEligible ? 'Ajukan Banding Kepatuhan' : (modCase.actionTaken === 'item_needs_fix' ? 'Perbaiki Item Sekarang' : 'Lihat Salinan Keputusan'))
-                                  : (cleanLabel || 'Lihat Rincian Selengkapnya');
-                              }
-
-                              return {
-                                modCase,
-                                isModerationNotif,
-                                ticketRef,
-                                isTicketNotif,
-                                subTab: rawSubTab,
-                                mobileSettingsTab: rawMobileSettingsTab,
-                                actionType: rawActionType,
-                                actionUrl,
-                                actionLabel: cleanLabel,
-                                detailContent,
-                                isDirectNav,
-                                isExternal,
-                                isDetail,
-                                isNoneAction,
-                                displayLabel,
-                                displayType
-                              };
-                            })();
+                            const norm = normalizeNotification(item);
 
                             const isBannedNotif = norm.modCase?.actionTaken === 'item_banned' || 
                               norm.modCase?.actionTaken === 'account_banned' || 
@@ -29709,12 +29537,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   // Mark as read in state & persist to backend database
                                   handleMarkAsRead(item.id);
 
-                                  const isSuspensionNotice = item.id === 'system_suspended_notice' || 
-                                    (item.category || '').toUpperCase() === 'KEPATUHAN' ||
-                                    (item.title || '').toLowerCase().includes('dibekukan') ||
-                                    (item.title || '').toLowerCase().includes('suspend');
-
-                                  if (isSuspensionNotice) {
+                                  if (norm.hasDetailArticle) {
                                     setSelectedNotification(item);
                                     try {
                                       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -29739,30 +29562,19 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       return;
                                     }
                                     setAdminSubTab(norm.subTab as any);
-                                    if (norm.mobileSettingsTab) {
-                                      setMobileSettingsTab(norm.mobileSettingsTab as any);
+                                    if (norm.settingsTab) {
+                                      setMobileSettingsTab(norm.settingsTab as any);
                                     }
                                     const slug = getStoreSlug();
                                     if (slug) {
                                       window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
                                     }
-                                  } else if (norm.isDetail) {
-                                    // Open Full Page Notification Detail View
-                                    setSelectedNotification(item);
-                                    try {
-                                      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                                    } catch {
-                                      window.scrollTo(0, 0);
-                                    }
-                                    const slug = getStoreSlug();
-                                    if (slug) {
-                                      window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
-                                    }
-                                  } else if (norm.isExternal && norm.actionUrl) {
+                                    return;
+                                  }
+
+                                  if (norm.isExternal && norm.actionUrl) {
                                     handleSafeExternalRedirect(norm.actionUrl);
-                                  } else {
-                                    // action_type === 'none': simple short message feedback
-                                    showToast('Notifikasi ditandai dibaca');
+                                    return;
                                   }
                                 }}
                                 style={{
@@ -29817,13 +29629,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         textTransform: 'uppercase',
                                         padding: '0.12rem 0.5rem',
                                         borderRadius: '0.35rem',
-                                        color: isBannedNotif ? '#ef4444' : item.type === 'warning' ? '#d97706' : item.type === 'success' ? '#059669' : item.type === 'order' ? '#2563eb' : 'var(--primary)',
-                                        backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.12)' : item.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : item.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : item.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
-                                        border: isBannedNotif ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid currentColor'
+                                        color: isBannedNotif ? '#ef4444' : norm.categoryColor,
+                                        backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.12)' : norm.categoryBg,
+                                        border: isBannedNotif ? '1px solid rgba(239, 68, 68, 0.35)' : `1px solid ${norm.categoryBorder}`
                                       }}>
-                                        {isBannedNotif 
-                                          ? (item.category ? `${item.category} • SANKSI` : 'KEAMANAN • SANKSI FATAL')
-                                          : (item.category || (item.type === 'warning' ? 'PANDUAN' : item.type === 'success' ? 'PROMOSI' : item.type === 'order' ? 'INVENTARIS' : 'SISTEM'))}
+                                        {isBannedNotif ? 'KEAMANAN • SANKSI FATAL' : norm.category}
                                       </span>
                                     </div>
 
@@ -29964,28 +29774,55 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         <ChevronRight size={12} style={{ strokeWidth: 2.3 }} />
                                       </div>
                                     ) : (
-                                      <div style={{
-                                        marginTop: '0.55rem',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.35rem',
-                                        padding: '0.22rem 0.6rem',
-                                        borderRadius: '0.45rem',
-                                        fontSize: '0.72rem',
-                                        fontWeight: 700,
-                                        backgroundColor: norm.displayType === 'external'
-                                          ? 'rgba(59, 130, 246, 0.12)'
-                                          : norm.displayType === 'navigate'
-                                            ? 'var(--primary-glow)'
-                                            : 'rgba(245, 158, 11, 0.12)',
-                                        color: norm.displayType === 'external'
-                                          ? '#3b82f6'
-                                          : norm.displayType === 'navigate'
-                                            ? 'var(--primary)'
-                                            : '#f59e0b',
-                                        border: `1px solid ${norm.displayType === 'external' ? 'rgba(59, 130, 246, 0.3)' : norm.displayType === 'navigate' ? 'var(--primary-glow)' : 'rgba(245, 158, 11, 0.3)'}`,
-                                        width: 'fit-content'
-                                      }}>
+                                      <div
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMarkAsRead(item.id);
+                                          if (norm.isDirectNav && norm.subTab) {
+                                            if ((settings.is_suspended || settings.dormancy_status === 'suspended') && norm.subTab !== 'help') {
+                                              showToast('Aksi dinonaktifkan sementara karena status operasional toko sedang dibekukan.', 'error');
+                                              return;
+                                            }
+                                            setAdminSubTab(norm.subTab as any);
+                                            if (norm.settingsTab) setMobileSettingsTab(norm.settingsTab as any);
+                                            const slug = getStoreSlug();
+                                            if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
+                                          } else if (norm.isExternal && norm.actionUrl) {
+                                            handleSafeExternalRedirect(norm.actionUrl);
+                                          } else {
+                                            setSelectedNotification(item);
+                                            const slug = getStoreSlug();
+                                            if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
+                                          }
+                                        }}
+                                        style={{
+                                          marginTop: '0.55rem',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          padding: '0.22rem 0.6rem',
+                                          borderRadius: '0.45rem',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          backgroundColor: norm.displayType === 'external'
+                                            ? 'rgba(59, 130, 246, 0.12)'
+                                            : norm.displayType === 'navigate'
+                                              ? 'var(--primary-glow)'
+                                              : 'rgba(245, 158, 11, 0.12)',
+                                          color: norm.displayType === 'external'
+                                            ? '#3b82f6'
+                                            : norm.displayType === 'navigate'
+                                              ? 'var(--primary)'
+                                              : '#f59e0b',
+                                          border: `1px solid ${norm.displayType === 'external' ? 'rgba(59, 130, 246, 0.3)' : norm.displayType === 'navigate' ? 'var(--primary-glow)' : 'rgba(245, 158, 11, 0.3)'}`,
+                                          width: 'fit-content',
+                                          cursor: 'pointer'
+                                        }}
+                                        title={norm.displayType === 'external' ? 'Kunjungi tautan luar' : norm.displayType === 'navigate' ? 'Buka menu terkait' : 'Buka detail notifikasi'}
+                                      >
+                                        {norm.displayType === 'detail' && <FileText size={12} style={{ strokeWidth: 2.2 }} />}
+                                        {norm.displayType === 'navigate' && <Layers size={12} style={{ strokeWidth: 2.2 }} />}
+                                        {norm.displayType === 'external' && <ExternalLink size={12} style={{ strokeWidth: 2.2 }} />}
                                         <span>{norm.displayLabel}</span>
                                         {norm.displayType === 'external' && <ExternalLink size={12} style={{ strokeWidth: 2.5 }} />}
                                         {norm.displayType === 'navigate' && <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />}

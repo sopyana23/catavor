@@ -2348,6 +2348,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           setNotifSystemCount(json.system_count);
         }
         setSelectedNotif((prev: any) => {
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlId = urlParams.get('id');
+          if (urlId) {
+            const foundFromUrl = dataList.find((n: any) => String(n.id) === String(urlId));
+            if (foundFromUrl) return foundFromUrl;
+          }
           if (!prev) return null;
           const updated = dataList.find((n: any) => n.id === prev.id);
           return updated || prev;
@@ -2495,6 +2501,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     if (subTab === 'support') targetTab = 'help';
     if (validTabs.includes(targetTab)) {
       setActiveTab(targetTab);
+      const st = item.link_settings_sub_tab || item.linkSettingsSubTab || item.link_mobile_settings_tab || item.linkMobileSettingsTab;
+      if (st && targetTab === 'settings') {
+        setSettingsTab(st);
+      }
+      if (storeSlug) {
+        window.history.pushState({}, '', `/${storeSlug}/admin/${targetTab}`);
+      }
     }
   };
 
@@ -9523,165 +9536,554 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         )}
 
         {/* ===================================================================
-            TAB 7: PUSAT NOTIFIKASI (Master-Detail Split View)
+            TAB 7: PUSAT NOTIFIKASI TOKO (Redesigned Single-Flow Full-Width Feed)
             =================================================================== */}
         {activeTab === 'notifications' && (
-          <TabletMasterDetailView
-            title="Pusat Notifikasi Toko"
-            subtitle={`${notifTotal || notifications.length} riwayat pesan & aktivitas`}
-            headerAction={
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                {totalNotifUnread > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleMarkAllNotifsRead}
-                    style={{
-                      minHeight: '40px',
-                      padding: '0.45rem 0.95rem',
-                      borderRadius: '0.65rem',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-card)',
-                      color: 'var(--primary)',
-                      fontWeight: 700,
-                      fontSize: '0.82rem',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <CheckCheck size={15} />
-                    <span>Tandai Semua Dibaca</span>
-                  </button>
-                )}
-                {notifications.some(n => n.read) && (
-                  <button
-                    type="button"
-                    onClick={handleClearReadNotifications}
-                    style={{
-                      minHeight: '40px',
-                      padding: '0.45rem 0.95rem',
-                      borderRadius: '0.65rem',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-deep)',
-                      color: 'var(--text-muted)',
-                      fontWeight: 600,
-                      fontSize: '0.82rem',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="Bersihkan riwayat notifikasi yang sudah dibaca"
-                  >
-                    <Trash2 size={14} />
-                    <span>Bersihkan Terbaca</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => fetchNotifications(1, notifFilter, notifDebouncedSearch)}
-                  disabled={notifLoading}
-                  style={{
-                    minHeight: '40px',
-                    minWidth: '40px',
-                    padding: '0.45rem',
-                    borderRadius: '0.65rem',
-                    border: '1px solid var(--border-light)',
-                    backgroundColor: 'var(--bg-card)',
-                    color: 'var(--text-secondary)',
-                    cursor: notifLoading ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'all 0.15s ease'
-                  }}
-                  title="Segarkan notifikasi"
-                >
-                  <RefreshCw size={15} className={notifLoading ? 'animate-spin' : ''} />
-                </button>
-              </div>
-            }
-            selectedId={selectedNotif ? selectedNotif.id : null}
-            onClearSelection={() => setSelectedNotif(null)}
-            masterPane={
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
-                {/* 1. Summary Metric Cards (Total Masuk, Belum Dibaca, Terbaca) */}
-                <div style={{
-                  margin: '0.85rem 0.85rem 0.5rem 0.85rem',
-                  padding: '1rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem',
-                  borderRadius: '0.85rem',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-card)',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
-                }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                    <div
-                      onClick={() => handleNotifFilterChange('all')}
+          <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {selectedNotif && normalizeNotification(selectedNotif).hasDetailArticle ? (() => {
+              const norm = normalizeNotification(selectedNotif);
+              const modCase = norm.modCase;
+
+              if (modCase.isModeration) {
+                return (
+                  <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {/* Top Navigation Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedNotif(null);
+                          if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/notifications`);
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          padding: '0.5rem 1rem',
+                          borderRadius: '0.65rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-card)',
+                          color: 'var(--text-primary)',
+                          fontWeight: 700,
+                          fontSize: '0.84rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <ChevronLeft size={16} />
+                        <span>Kembali ke Pusat Notifikasi</span>
+                      </button>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          padding: '0.2rem 0.65rem',
+                          borderRadius: '0.4rem',
+                          color: modCase.statusColor,
+                          backgroundColor: `${modCase.statusColor}18`,
+                          border: `1px solid ${modCase.statusColor}40`
+                        }}>
+                          {modCase.statusBadge}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          • {modCase.issuedDateStr}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Incident Banner */}
+                    <div style={{
+                      padding: '1.25rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: modCase.isRestored
+                        ? 'rgba(16, 185, 129, 0.08)'
+                        : modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix'
+                        ? 'rgba(245, 158, 11, 0.08)'
+                        : 'rgba(239, 68, 68, 0.08)',
+                      border: `1px solid ${modCase.statusColor}40`,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '1rem'
+                    }}>
+                      <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '0.75rem',
+                        backgroundColor: `${modCase.statusColor}20`,
+                        border: `1px solid ${modCase.statusColor}50`,
+                        color: modCase.statusColor,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {modCase.isRestored ? <CheckCircle size={22} /> : modCase.actionTaken === 'item_needs_fix' ? <Edit3 size={22} /> : <ShieldAlert size={22} />}
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>
+                          {modCase.statusHeadline}
+                        </h3>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                          {selectedNotif.message}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Target & Report Info Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                      <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Entitas Terkait</span>
+                        <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>{modCase.targetName || (modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog')}</strong>
+                      </div>
+                      <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Nomor Berkas / Laporan</span>
+                        <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>#{modCase.reportNumber || 'RPT-MODERASI'}</strong>
+                      </div>
+                      <div style={{ gridColumn: 'span 2', padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Kategori Pelanggaran / Evaluasi</span>
+                        <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{modCase.reason}</strong>
+                      </div>
+                    </div>
+
+                    {/* Admin Notes Quote Box */}
+                    {modCase.notes && (
+                      <div style={{
+                        padding: '1rem 1.25rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: `${modCase.statusColor}10`,
+                        borderLeft: `4px solid ${modCase.statusColor}`,
+                        fontSize: '0.85rem',
+                        lineHeight: 1.55,
+                        fontStyle: 'italic',
+                        color: 'var(--text-primary)'
+                      }}>
+                        <span style={{ fontWeight: 800, fontStyle: 'normal', color: modCase.statusColor }}>Catatan Tim Kepatuhan: </span>
+                        "{modCase.notes}"
+                      </div>
+                    )}
+
+                    {/* Detail Content (FormattedText) */}
+                    {selectedNotif.detail_content && (
+                      <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7, padding: '0.5rem 0' }}>
+                        <FormattedText text={selectedNotif.detail_content} />
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedNotif(null);
+                          if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/notifications`);
+                        }}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.35rem',
+                          borderRadius: '0.65rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-secondary)',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Tutup Rincian
+                      </button>
+
+                      {modCase.actionTaken === 'item_needs_fix' && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenFixItemFromNotif(selectedNotif)}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.65rem 1.35rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: '#f59e0b',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontWeight: 700,
+                            fontSize: '0.88rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)'
+                          }}
+                        >
+                          <Edit3 size={16} />
+                          <span>Perbaiki Item Sekarang</span>
+                          <ArrowRight size={16} />
+                        </button>
+                      )}
+
+                      {modCase.isAppealEligible && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAppealFromNotif(selectedNotif)}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.65rem 1.35rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'var(--primary)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontWeight: 700,
+                            fontSize: '0.88rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            boxShadow: '0 4px 14px var(--primary-glow)'
+                          }}
+                        >
+                          <Scale size={16} />
+                          <span>Ajukan Banding Kepatuhan</span>
+                          <ArrowRight size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Standard Editorial Notification Article View
+              return (
+                <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Top Navigation Bar */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedNotif(null);
+                        if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/notifications`);
+                      }}
                       style={{
-                        padding: '0.65rem 0.5rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        padding: '0.5rem 1rem',
                         borderRadius: '0.65rem',
-                        textAlign: 'center',
-                        backgroundColor: notifFilter === 'all' ? 'var(--primary-glow)' : 'var(--bg-deep)',
-                        border: notifFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-primary)',
+                        fontWeight: 700,
+                        fontSize: '0.84rem',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: notifFilter === 'all' ? 'var(--primary)' : 'var(--text-muted)', display: 'block' }}>
-                        Total Masuk
-                      </span>
-                      <strong style={{ fontSize: '1.1rem', fontWeight: 800, color: notifFilter === 'all' ? 'var(--primary)' : 'var(--text-primary)' }}>
-                        {notifTotal || notifications.length}
-                      </strong>
-                    </div>
+                      <ChevronLeft size={16} />
+                      <span>Kembali ke Pusat Notifikasi</span>
+                    </button>
 
-                    <div
-                      onClick={() => handleNotifFilterChange('unread')}
-                      style={{
-                        padding: '0.65rem 0.5rem',
-                        borderRadius: '0.65rem',
-                        textAlign: 'center',
-                        backgroundColor: notifFilter === 'unread' ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
-                        border: notifFilter === 'unread' ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: notifUnreadCount > 0 ? '#ef4444' : 'var(--text-muted)', display: 'block' }}>
-                        Belum Dibaca
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        padding: '0.2rem 0.65rem',
+                        borderRadius: '0.4rem',
+                        color: norm.categoryColor,
+                        backgroundColor: norm.categoryBg,
+                        border: `1px solid ${norm.categoryBorder}`
+                      }}>
+                        {norm.category}
                       </span>
-                      <strong style={{ fontSize: '1.1rem', fontWeight: 800, color: notifUnreadCount > 0 ? '#ef4444' : 'var(--text-primary)' }}>
-                        {notifUnreadCount}
-                      </strong>
-                    </div>
-
-                    <div
-                      style={{
-                        padding: '0.65rem 0.5rem',
-                        borderRadius: '0.65rem',
-                        textAlign: 'center',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)'
-                      }}
-                    >
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#10b981', display: 'block' }}>
-                        Terbaca
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        • {norm.time}
                       </span>
-                      <strong style={{ fontSize: '1.1rem', fontWeight: 800, color: '#10b981' }}>
-                        {notifReadCount}
-                      </strong>
                     </div>
                   </div>
 
-                  {/* Search Bar */}
+                  {/* Title */}
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35 }}>
+                    {norm.title}
+                  </h2>
+
+                  {/* Executive Lead Summary (if distinct from detail) */}
+                  {norm.detailContent && norm.message && norm.detailContent.trim() !== norm.message.trim() && (
+                    <div style={{
+                      padding: '0.95rem 1.25rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      borderLeft: `4px solid ${norm.categoryColor}`,
+                      marginBottom: '0.25rem'
+                    }}>
+                      <p style={{
+                        fontSize: '0.88rem',
+                        color: 'var(--text-primary)',
+                        fontWeight: 600,
+                        lineHeight: 1.55,
+                        margin: 0
+                      }}>
+                        {norm.message.replace(/\*\*(.*?)\*\*/g, '$1')}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Full Body / Formatted Message */}
+                  <div style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.75, padding: '0.5rem 0' }}>
+                    <FormattedText text={norm.detailContent || norm.message} />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedNotif(null);
+                        if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/notifications`);
+                      }}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0.65rem 1.35rem',
+                        borderRadius: '0.65rem',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-deep)',
+                        color: 'var(--text-secondary)',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Tutup Rincian
+                    </button>
+
+                    {norm.isTicketNotif && (
+                      <button
+                        type="button"
+                        onClick={() => handleNavigateTicketFromNotif(selectedNotif)}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.35rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          boxShadow: '0 4px 14px var(--primary-glow)'
+                        }}
+                      >
+                        <MessageSquare size={16} />
+                        <span>{norm.ticketRef ? `Lihat Tiket CS #${norm.ticketRef}` : 'Buka Pusat Bantuan CS'}</span>
+                        <ArrowRight size={16} />
+                      </button>
+                    )}
+
+                    {norm.isDirectNav && norm.subTab && !norm.isTicketNotif && (
+                      <button
+                        type="button"
+                        onClick={() => handleNavigateSubTabFromNotif(norm.subTab, selectedNotif)}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.35rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          boxShadow: '0 4px 14px var(--primary-glow)'
+                        }}
+                      >
+                        <span>{norm.btnLabel || norm.displayLabel || 'Buka Menu Terkait'}</span>
+                        <ArrowRight size={16} />
+                      </button>
+                    )}
+
+                    {norm.isExternal && norm.actionUrl && (
+                      <button
+                        type="button"
+                        onClick={() => safeOpenUrl(norm.actionUrl)}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.35rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: '#3b82f6',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)'
+                        }}
+                      >
+                        <ExternalLink size={16} />
+                        <span>{norm.btnLabel || norm.displayLabel || 'Kunjungi Tautan Luar'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })() : (
+              /* Single-Flow Full-Width Notification Center Feed */
+              <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* Header Bar */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+                  <div>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Bell size={20} style={{ color: 'var(--primary)' }} />
+                      <span>Pusat Notifikasi Toko</span>
+                    </h2>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      Pantau pesanan, moderasi, pembaruan tiket CS, dan aktivitas toko Anda secara real-time.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                    {totalNotifUnread > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllNotifsRead}
+                        style={{
+                          minHeight: '38px',
+                          padding: '0.45rem 0.95rem',
+                          borderRadius: '0.65rem',
+                          border: '1px solid var(--primary)',
+                          backgroundColor: 'var(--primary-glow)',
+                          color: 'var(--primary)',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <CheckCheck size={15} />
+                        <span>Tandai Semua Dibaca</span>
+                      </button>
+                    )}
+                    {notifications.some(n => n.read) && (
+                      <button
+                        type="button"
+                        onClick={handleClearReadNotifications}
+                        style={{
+                          minHeight: '38px',
+                          padding: '0.45rem 0.95rem',
+                          borderRadius: '0.65rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-secondary)',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Bersihkan riwayat notifikasi yang sudah dibaca"
+                      >
+                        <Trash2 size={14} />
+                        <span>Bersihkan Terbaca</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => fetchNotifications(1, notifFilter, notifDebouncedSearch)}
+                      disabled={notifLoading}
+                      style={{
+                        minHeight: '38px',
+                        minWidth: '38px',
+                        padding: '0.45rem',
+                        borderRadius: '0.65rem',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-secondary)',
+                        cursor: notifLoading ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Segarkan notifikasi"
+                    >
+                      <RefreshCw size={15} className={notifLoading ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3 Metric Cards Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                  <div
+                    onClick={() => handleNotifFilterChange('all')}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: notifFilter === 'all' ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                      border: notifFilter === 'all' ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: notifFilter === 'all' ? 'var(--primary)' : 'var(--text-muted)', display: 'block' }}>
+                      Total Notifikasi Masuk
+                    </span>
+                    <strong style={{ fontSize: '1.25rem', fontWeight: 800, color: notifFilter === 'all' ? 'var(--primary)' : 'var(--text-primary)' }}>
+                      {notifTotal || notifications.length}
+                    </strong>
+                  </div>
+
+                  <div
+                    onClick={() => handleNotifFilterChange('unread')}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: notifFilter === 'unread' ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                      border: notifFilter === 'unread' ? '1.5px solid #ef4444' : '1px solid var(--border-light)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: notifUnreadCount > 0 ? '#ef4444' : 'var(--text-muted)', display: 'block' }}>
+                      Belum Dibaca
+                    </span>
+                    <strong style={{ fontSize: '1.25rem', fontWeight: 800, color: notifUnreadCount > 0 ? '#ef4444' : 'var(--text-primary)' }}>
+                      {notifUnreadCount}
+                    </strong>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)'
+                    }}
+                  >
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#10b981', display: 'block' }}>
+                      Terbaca
+                    </span>
+                    <strong style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981' }}>
+                      {notifReadCount}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Search Bar & Filter Tabs */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   <div style={{ position: 'relative', width: '100%' }}>
-                    <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                     <input
                       type="text"
                       placeholder="Cari judul, pesan, nomor laporan..."
@@ -9689,12 +10091,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       onChange={(e) => setNotifSearchQuery(e.target.value)}
                       style={{
                         width: '100%',
-                        padding: '0.55rem 2.2rem 0.55rem 2.2rem',
+                        padding: '0.6rem 2.2rem 0.6rem 2.4rem',
                         borderRadius: '0.65rem',
                         border: '1px solid var(--border-light)',
                         backgroundColor: 'var(--bg-deep)',
                         color: 'var(--text-primary)',
-                        fontSize: '0.82rem',
+                        fontSize: '0.84rem',
                         outline: 'none',
                         boxSizing: 'border-box'
                       }}
@@ -9705,14 +10107,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         onClick={() => setNotifSearchQuery('')}
                         style={{
                           position: 'absolute',
-                          right: '0.65rem',
+                          right: '0.75rem',
                           top: '50%',
                           transform: 'translateY(-50%)',
                           background: 'none',
                           border: 'none',
                           color: 'var(--text-muted)',
                           cursor: 'pointer',
-                          fontSize: '0.75rem',
+                          fontSize: '0.8rem',
                           padding: '0.2rem'
                         }}
                       >
@@ -9721,12 +10123,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     )}
                   </div>
 
-                  {/* Filter Pills with Badge Counters */}
-                  <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' }}>
+                  <div style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' }}>
                     {[
                       { key: 'all', label: 'Semua', count: notifTotal || notifications.length },
                       { key: 'unread', label: 'Belum Dibaca', count: notifUnreadCount, badgeColor: '#ef4444' },
-                      { key: 'security', label: 'Keamanan & Kepatuhan', count: notifSecurityCount, badgeColor: '#f43f5e' },
+                      { key: 'security', label: 'Keamanan & Moderasi', count: notifSecurityCount, badgeColor: '#f43f5e' },
                       { key: 'system', label: 'Sistem Toko', count: notifSystemCount }
                     ].map(f => {
                       const isActive = notifFilter === f.key;
@@ -9737,7 +10138,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           onClick={() => handleNotifFilterChange(f.key as any)}
                           style={{
                             minHeight: '36px',
-                            padding: '0.35rem 0.75rem',
+                            padding: '0.35rem 0.85rem',
                             borderRadius: '999px',
                             border: '1px solid',
                             borderColor: isActive ? 'var(--primary)' : 'var(--border-light)',
@@ -9749,14 +10150,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             whiteSpace: 'nowrap',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.35rem',
+                            gap: '0.4rem',
                             transition: 'all 0.15s ease'
                           }}
                         >
                           <span>{f.label}</span>
                           <span style={{
                             fontSize: '0.68rem',
-                            padding: '0.08rem 0.35rem',
+                            padding: '0.1rem 0.4rem',
                             borderRadius: '999px',
                             backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : (f.badgeColor ? `${f.badgeColor}22` : 'rgba(255, 255, 255, 0.08)'),
                             color: isActive ? '#ffffff' : (f.badgeColor || 'var(--text-muted)'),
@@ -9770,8 +10171,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Notifications List */}
-                <div style={{ flex: 1, padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', overflowY: 'auto' }}>
+                {/* Notifications Feed */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {notifLoading && notifications.length === 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1rem', gap: '0.75rem', color: 'var(--text-muted)' }}>
                       <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--primary)' }} />
@@ -9779,17 +10180,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </div>
                   ) : notifications.length === 0 ? (
                     notifSearchQuery.trim() ? (
-                      <div style={{ padding: '2.5rem 1rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
+                      <div style={{ padding: '2.5rem 1rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
                         <Search size={28} style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }} />
-                        <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: '0 0 0.3rem 0' }}>Tidak Ditemukan Notifikasi</h4>
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.75rem 0' }}>
-                          Tidak ada riwayat yang cocok dengan "{notifSearchQuery}".
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.3rem 0' }}>Tidak Ditemukan Notifikasi</h4>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 0.75rem 0' }}>
+                          Tidak ada riwayat yang cocok dengan kata kunci "{notifSearchQuery}".
                         </p>
                         <button
                           type="button"
                           onClick={() => setNotifSearchQuery('')}
                           style={{
-                            padding: '0.4rem 0.85rem',
+                            padding: '0.45rem 1rem',
                             borderRadius: '0.5rem',
                             backgroundColor: 'var(--primary)',
                             color: '#ffffff',
@@ -9803,16 +10204,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         </button>
                       </div>
                     ) : (
-                      <div style={{ padding: '3rem 1.5rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)' }}>
+                      <div style={{ padding: '3rem 1.5rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-deep)', color: 'var(--text-muted)' }}>
                         <Bell size={32} style={{ marginBottom: '0.65rem', opacity: 0.6 }} />
-                        <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.3rem 0' }}>Tidak Ada Notifikasi</h4>
-                        <p style={{ fontSize: '0.78rem', margin: 0 }}>Semua pembaruan sistem dan aktivitas toko akan tampil di sini.</p>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.3rem 0' }}>Tidak Ada Notifikasi</h4>
+                        <p style={{ fontSize: '0.8rem', margin: 0 }}>Semua pembaruan sistem dan aktivitas toko Anda akan tampil di sini.</p>
                       </div>
                     )
                   ) : (
                     notifications.map(rawNotif => {
                       const norm = normalizeNotification(rawNotif);
-                      const isSelected = selectedNotif?.id === rawNotif.id;
                       const isBannedNotif = norm.modCase?.actionTaken === 'item_banned' || norm.modCase?.actionTaken === 'account_banned' || norm.modCase?.actionTaken === 'catalog_banned';
                       const isWarningNotif = norm.modCase?.actionTaken === 'warning_issued' || norm.modCase?.actionTaken === 'item_needs_fix' || rawNotif.type === 'warning';
 
@@ -9820,169 +10220,282 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         <div
                           key={rawNotif.id}
                           onClick={() => {
-                            setSelectedNotif(rawNotif);
                             handleMarkNotifRead(rawNotif.id);
+                            if (norm.hasDetailArticle) {
+                              setSelectedNotif(rawNotif);
+                              if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/notifications?id=${rawNotif.id}`);
+                            } else if (norm.isTicketNotif) {
+                              handleNavigateTicketFromNotif(rawNotif);
+                            } else if (norm.isDirectNav && norm.subTab) {
+                              handleNavigateSubTabFromNotif(norm.subTab, rawNotif);
+                            } else if (norm.isExternal && norm.actionUrl) {
+                              safeOpenUrl(norm.actionUrl);
+                            }
                           }}
                           style={{
-                            padding: '0.85rem 1rem',
-                            borderRadius: '0.75rem',
-                            backgroundColor: isSelected
-                              ? 'var(--primary-glow)'
-                              : norm.read
-                              ? 'var(--bg-card)'
-                              : 'rgba(30, 58, 138, 0.08)',
-                            border: isSelected
-                              ? '1.5px solid var(--primary)'
-                              : isBannedNotif
-                              ? (norm.read ? '1px solid rgba(239, 68, 68, 0.35)' : '1.5px solid #ef4444')
-                              : isWarningNotif
-                              ? (norm.read ? '1px solid rgba(245, 158, 11, 0.35)' : '1.5px solid #f59e0b')
-                              : norm.read
+                            padding: '1.15rem 1.35rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: norm.read ? 'var(--bg-card)' : 'var(--card-bg-gradient)',
+                            border: norm.read
                               ? '1px solid var(--border-light)'
-                              : '1px solid var(--primary)',
-                            borderLeft: isBannedNotif
-                              ? '4px solid #ef4444'
+                              : isBannedNotif
+                              ? '1.5px solid #ef4444'
                               : isWarningNotif
-                              ? '4px solid #f59e0b'
-                              : !norm.read
-                              ? '4px solid var(--primary)'
+                              ? '1.5px solid #f59e0b'
+                              : `1.5px solid ${norm.categoryColor}`,
+                            borderLeft: !norm.read
+                              ? (isBannedNotif ? '4px solid #ef4444' : isWarningNotif ? '4px solid #f59e0b' : `4px solid ${norm.categoryColor}`)
                               : '1px solid var(--border-light)',
-                            boxShadow: isSelected
-                              ? '0 0 14px var(--primary-glow)'
-                              : !norm.read
-                              ? '0 2px 8px rgba(0, 0, 0, 0.04)'
-                              : 'none',
+                            boxShadow: !norm.read ? `0 4px 18px ${norm.categoryBg}` : '0 2px 6px rgba(0, 0, 0, 0.03)',
                             cursor: 'pointer',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '0.45rem',
+                            gap: '0.55rem',
                             transition: 'all 0.15s ease'
                           }}
                         >
-                          {/* Top Meta Line: Badge & Timestamp */}
+                          {/* Top Meta Line: Badge, Read Indicator & Timestamp */}
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                               {!norm.read && (
                                 <span style={{
                                   width: '7px',
                                   height: '7px',
                                   borderRadius: '50%',
-                                  backgroundColor: isBannedNotif ? '#ef4444' : isWarningNotif ? '#f59e0b' : 'var(--primary)',
+                                  backgroundColor: isBannedNotif ? '#ef4444' : isWarningNotif ? '#f59e0b' : norm.categoryColor,
                                   display: 'inline-block'
                                 }} />
                               )}
                               <span style={{
-                                fontSize: '0.65rem',
+                                fontSize: '0.66rem',
                                 fontWeight: 800,
                                 textTransform: 'uppercase',
                                 letterSpacing: '0.04em',
-                                padding: '0.12rem 0.45rem',
+                                padding: '0.12rem 0.5rem',
                                 borderRadius: '0.35rem',
-                                color: norm.categoryColor,
-                                backgroundColor: norm.categoryBg,
-                                border: `1px solid ${norm.categoryBorder}`
+                                color: isBannedNotif ? '#ef4444' : norm.categoryColor,
+                                backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.12)' : norm.categoryBg,
+                                border: isBannedNotif ? '1px solid rgba(239, 68, 68, 0.35)' : `1px solid ${norm.categoryBorder}`
                               }}>
                                 {isBannedNotif ? 'KEAMANAN • SANKSI' : norm.category}
                               </span>
                             </div>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                              {norm.time}
-                            </span>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                {norm.time}
+                              </span>
+                              {norm.read ? (
+                                <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 700, backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '0.1rem 0.45rem', borderRadius: '0.3rem' }}>
+                                  ✓ Terbaca
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.68rem', color: isBannedNotif ? '#ef4444' : 'var(--primary)', fontWeight: 800, backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.1)' : 'var(--primary-glow)', padding: '0.1rem 0.45rem', borderRadius: '0.3rem' }}>
+                                  Baru
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          {/* Title */}
-                          <h4 style={{
-                            fontSize: '0.88rem',
+                          {/* Full Title (Never truncated) */}
+                          <h3 style={{
+                            fontSize: '0.98rem',
                             fontWeight: norm.read ? 700 : 800,
                             color: 'var(--text-primary)',
                             margin: 0,
                             lineHeight: 1.35
                           }}>
                             {norm.title}
-                          </h4>
+                          </h3>
 
-                          {/* Summary text */}
+                          {/* Message Body: FULL TEXT SHOWN DIRECTLY, NO TRUNCATION! */}
                           <p style={{
-                            fontSize: '0.78rem',
+                            fontSize: '0.84rem',
                             color: 'var(--text-secondary)',
                             margin: 0,
-                            lineHeight: 1.45,
-                            overflow: 'hidden',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical'
+                            lineHeight: 1.55,
+                            wordBreak: 'break-word',
+                            whiteSpace: 'pre-wrap'
                           }}>
-                            {norm.message}
+                            {(norm.message || '').replace(/\*\*(.*?)\*\*/g, '$1')}
                           </p>
 
-                          {/* Catatan Admin Callout */}
+                          {/* Catatan Admin Pengelola Callout Box (if present) */}
                           {norm.modCase?.notes && !norm.modCase.notes.startsWith('Ditemukan ketidaksesuaian') && (
                             <div style={{
-                              padding: '0.35rem 0.55rem',
-                              borderRadius: '0.45rem',
-                              backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)',
-                              borderLeft: isBannedNotif ? '3px solid #ef4444' : '3px solid #f59e0b',
-                              fontSize: '0.72rem',
+                              padding: '0.5rem 0.75rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.08)' : isWarningNotif ? 'rgba(245, 158, 11, 0.08)' : 'rgba(255, 255, 255, 0.04)',
+                              borderLeft: isBannedNotif ? '3.5px solid #ef4444' : isWarningNotif ? '3.5px solid #f59e0b' : '3.5px solid var(--primary)',
+                              fontSize: '0.78rem',
                               color: 'var(--text-primary)',
                               fontStyle: 'italic',
-                              lineHeight: 1.35
+                              lineHeight: 1.45,
+                              marginTop: '0.2rem'
                             }}>
-                              <span style={{ fontWeight: 800, fontStyle: 'normal', color: isBannedNotif ? '#ef4444' : '#f59e0b' }}>
-                                Catatan Admin:{" "}
+                              <span style={{ fontWeight: 800, fontStyle: 'normal', color: isBannedNotif ? '#ef4444' : isWarningNotif ? '#f59e0b' : 'var(--primary)' }}>
+                                Catatan Tim Admin:{" "}
                               </span>
                               "{norm.modCase.notes}"
                             </div>
                           )}
 
-                          {/* Action Micro-Pill */}
-                          {norm.displayType && (
-                            <div style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.18rem 0.55rem',
-                              borderRadius: '0.35rem',
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              backgroundColor: norm.modCase?.actionTaken === 'item_needs_fix'
-                                ? 'rgba(245, 158, 11, 0.14)'
-                                : isBannedNotif
-                                ? 'rgba(239, 68, 68, 0.12)'
-                                : norm.displayType === 'external'
-                                ? 'rgba(59, 130, 246, 0.12)'
-                                : 'var(--primary-glow)',
-                              color: norm.modCase?.actionTaken === 'item_needs_fix'
-                                ? '#f59e0b'
-                                : isBannedNotif
-                                ? '#ef4444'
-                                : norm.displayType === 'external'
-                                ? '#3b82f6'
-                                : 'var(--primary)',
-                              border: '1px solid currentColor',
-                              width: 'fit-content',
-                              marginTop: '0.2rem'
-                            }}>
-                              <span>
-                                {norm.modCase?.actionTaken === 'item_needs_fix'
-                                  ? 'Perbaiki Item Sekarang'
-                                  : norm.isModerationNotif && norm.modCase.isAppealEligible
-                                  ? 'Ajukan Banding Kepatuhan'
-                                  : isBannedNotif
-                                  ? 'Lihat Salinan Keputusan'
-                                  : norm.displayLabel}
-                              </span>
-                              {norm.displayType === 'external' && <ExternalLink size={11} />}
-                              {norm.displayType === 'navigate' && <ArrowRight size={11} />}
-                              {norm.displayType === 'detail' && <ChevronRight size={11} />}
+                          {/* ACTION BUTTON AREA */}
+                          {/* 1. Type B: Direct Action / Navigation / External Link */}
+                          {(norm.isTicketNotif || norm.isDirectNav || norm.isExternal || norm.modCase?.actionTaken === 'item_needs_fix') && !norm.hasDetailArticle && (
+                            <div style={{ marginTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              {norm.modCase?.actionTaken === 'item_needs_fix' ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenFixItemFromNotif(rawNotif);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    padding: '0.4rem 0.95rem',
+                                    borderRadius: '0.55rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                                    color: '#f59e0b',
+                                    border: '1px solid rgba(245, 158, 11, 0.45)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Edit3 size={13} style={{ strokeWidth: 2.5 }} />
+                                  <span>Perbaiki Item Sekarang</span>
+                                  <ArrowRight size={13} style={{ strokeWidth: 2.5 }} />
+                                </button>
+                              ) : norm.isTicketNotif ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleNavigateTicketFromNotif(rawNotif);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    padding: '0.4rem 0.95rem',
+                                    borderRadius: '0.55rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    backgroundColor: 'rgba(2, 132, 199, 0.14)',
+                                    color: '#0284c7',
+                                    border: '1px solid rgba(2, 132, 199, 0.4)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <MessageSquare size={13} style={{ strokeWidth: 2.5 }} />
+                                  <span>{norm.ticketRef ? `Buka Ruang Tiket CS #${norm.ticketRef}` : 'Buka Pusat Bantuan CS'}</span>
+                                  <ArrowRight size={13} style={{ strokeWidth: 2.5 }} />
+                                </button>
+                              ) : norm.isDirectNav && norm.subTab ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleNavigateSubTabFromNotif(norm.subTab, rawNotif);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    padding: '0.4rem 0.95rem',
+                                    borderRadius: '0.55rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    backgroundColor: 'var(--primary-glow)',
+                                    color: 'var(--primary)',
+                                    border: '1px solid var(--border-light)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Layers size={13} style={{ strokeWidth: 2.5 }} />
+                                  <span>{norm.btnLabel || norm.displayLabel || 'Buka Menu Terkait'}</span>
+                                  <ArrowRight size={13} style={{ strokeWidth: 2.5 }} />
+                                </button>
+                              ) : norm.isExternal && norm.actionUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    safeOpenUrl(norm.actionUrl);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    padding: '0.4rem 0.95rem',
+                                    borderRadius: '0.55rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    backgroundColor: 'rgba(59, 130, 246, 0.14)',
+                                    color: '#3b82f6',
+                                    border: '1px solid rgba(59, 130, 246, 0.4)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <ExternalLink size={13} style={{ strokeWidth: 2.5 }} />
+                                  <span>{norm.btnLabel || norm.displayLabel || 'Kunjungi Tautan Luar'}</span>
+                                  <ExternalLink size={13} style={{ strokeWidth: 2.5 }} />
+                                </button>
+                              ) : null}
                             </div>
                           )}
+
+                          {/* 2. Type C: Editorial Article / Formal Moderation Decision */}
+                          {norm.hasDetailArticle && (
+                            <div style={{ marginTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMarkNotifRead(rawNotif.id);
+                                  setSelectedNotif(rawNotif);
+                                  if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/notifications?id=${rawNotif.id}`);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.4rem',
+                                  padding: '0.4rem 0.95rem',
+                                  borderRadius: '0.55rem',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.14)' : 'var(--primary)',
+                                  color: '#ffffff',
+                                  border: isBannedNotif ? '1px solid rgba(239, 68, 68, 0.4)' : 'none',
+                                  boxShadow: isBannedNotif ? 'none' : '0 2px 8px var(--primary-glow)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <FileText size={13} style={{ strokeWidth: 2.5 }} />
+                                <span>
+                                  {norm.modCase?.actionTaken === 'item_banned' || norm.modCase?.actionTaken === 'account_banned' || norm.modCase?.actionTaken === 'catalog_banned'
+                                    ? 'Buka Salinan Keputusan Sanksi'
+                                    : norm.isModerationNotif && norm.modCase.isAppealEligible
+                                    ? 'Ajukan Banding Kepatuhan'
+                                    : 'Baca Artikel Lengkap'}
+                                </span>
+                                <ChevronRight size={13} style={{ strokeWidth: 2.5 }} />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* 3. Type A: Notifikasi Singkat */}
+                          {/* Teks lengkap sudah tampil di atas tanpa terpotong, tanpa tombol palsu */}
                         </div>
                       );
                     })
                   )}
                 </div>
 
-                {/* 3. Segmented Pagination at Master Pane Bottom */}
+                {/* Segmented Pagination at Bottom */}
                 <TabletSegmentedPagination
                   currentPage={notifPage}
                   totalPages={Math.ceil((notifTotal || notifications.length) / notifLimit) || 1}
@@ -9992,355 +10505,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   isLoading={notifLoading}
                 />
               </div>
-            }
-            detailPane={
-              selectedNotif ? (() => {
-                const norm = normalizeNotification(selectedNotif);
-                const modCase = norm.modCase;
-
-                if (modCase.isModeration) {
-                  return (
-                    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
-                      {/* Header */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.04em',
-                            padding: '0.2rem 0.65rem',
-                            borderRadius: '0.4rem',
-                            color: modCase.statusColor,
-                            backgroundColor: `${modCase.statusColor}18`,
-                            border: `1px solid ${modCase.statusColor}40`
-                          }}>
-                            {modCase.statusBadge}
-                          </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                            • {modCase.issuedDateStr}
-                          </span>
-                        </div>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 700, backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.55rem', borderRadius: '999px', border: '1px solid var(--border-light)' }}>
-                          ✓ Terbaca
-                        </span>
-                      </div>
-
-                      {/* Incident Banner */}
-                      <div style={{
-                        padding: '1.25rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: modCase.isRestored
-                          ? 'rgba(16, 185, 129, 0.08)'
-                          : modCase.actionTaken === 'warning_issued' || modCase.actionTaken === 'item_needs_fix'
-                          ? 'rgba(245, 158, 11, 0.08)'
-                          : 'rgba(239, 68, 68, 0.08)',
-                        border: `1px solid ${modCase.statusColor}40`,
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '1rem'
-                      }}>
-                        <div style={{
-                          width: '42px',
-                          height: '42px',
-                          borderRadius: '0.75rem',
-                          backgroundColor: `${modCase.statusColor}20`,
-                          border: `1px solid ${modCase.statusColor}50`,
-                          color: modCase.statusColor,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          {modCase.isRestored ? <CheckCircle size={22} /> : modCase.actionTaken === 'item_needs_fix' ? <Edit3 size={22} /> : <ShieldAlert size={22} />}
-                        </div>
-                        <div>
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>
-                            {modCase.statusHeadline}
-                          </h3>
-                          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                            {selectedNotif.message}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Target & Report Info Grid */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
-                        <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Entitas Terkait</span>
-                          <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{modCase.targetName || (modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog')}</strong>
-                        </div>
-                        <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Nomor Berkas / Laporan</span>
-                          <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>#{modCase.reportNumber || 'RPT-MODERASI'}</strong>
-                        </div>
-                        <div style={{ gridColumn: 'span 2', padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Kategori Pelanggaran / Evaluasi</span>
-                          <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{modCase.reason}</strong>
-                        </div>
-                      </div>
-
-                      {/* Admin Notes Quote Box */}
-                      {modCase.notes && (
-                        <div style={{
-                          padding: '0.85rem 1rem',
-                          borderRadius: '0.75rem',
-                          backgroundColor: `${modCase.statusColor}10`,
-                          borderLeft: `4px solid ${modCase.statusColor}`,
-                          fontSize: '0.82rem',
-                          lineHeight: 1.5,
-                          fontStyle: 'italic',
-                          color: 'var(--text-primary)'
-                        }}>
-                          <span style={{ fontWeight: 800, fontStyle: 'normal', color: modCase.statusColor }}>Catatan Tim Kepatuhan: </span>
-                          "{modCase.notes}"
-                        </div>
-                      )}
-
-                      {/* Detail Content (FormattedText) */}
-                      {selectedNotif.detail_content && (
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                          <FormattedText text={selectedNotif.detail_content} />
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
-                        {modCase.actionTaken === 'item_needs_fix' && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenFixItemFromNotif(selectedNotif)}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.65rem 1.25rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: '#f59e0b',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.5rem',
-                              boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)'
-                            }}
-                          >
-                            <Edit3 size={16} />
-                            <span>Perbaiki Item Sekarang</span>
-                            <ArrowRight size={16} />
-                          </button>
-                        )}
-
-                        {modCase.isAppealEligible && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenAppealFromNotif(selectedNotif)}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.65rem 1.25rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: 'var(--primary)',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.5rem',
-                              boxShadow: '0 4px 14px var(--primary-glow)'
-                            }}
-                          >
-                            <Scale size={16} />
-                            <span>Ajukan Banding Kepatuhan</span>
-                            <ArrowRight size={16} />
-                          </button>
-                        )}
-
-                        {modCase.actionTaken === 'item_banned' && (
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab('items')}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.65rem 1.25rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              color: 'var(--text-primary)',
-                              border: '1px solid var(--border-light)',
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.5rem'
-                            }}
-                          >
-                            <Package size={16} />
-                            <span>Buka Inventaris Item</span>
-                          </button>
-                        )}
-
-                        {modCase.isRestored && (
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab('items')}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.65rem 1.25rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: '#10b981',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.5rem',
-                              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
-                            }}
-                          >
-                            <CheckCircle size={16} />
-                            <span>Kembali ke Inventaris Katalog</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Standard Editorial Notification View
-                return (
-                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
-                    {/* Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.04em',
-                          padding: '0.2rem 0.65rem',
-                          borderRadius: '0.4rem',
-                          color: norm.categoryColor,
-                          backgroundColor: norm.categoryBg,
-                          border: `1px solid ${norm.categoryBorder}`
-                        }}>
-                          {norm.category}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                          • {norm.time}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 700, backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.55rem', borderRadius: '999px', border: '1px solid var(--border-light)' }}>
-                        ✓ Terbaca
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35 }}>
-                      {norm.title}
-                    </h2>
-
-                    {/* Full Body / Formatted Message */}
-                    <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                      <FormattedText text={norm.detailContent || norm.message} />
-                    </div>
-
-                    {/* Action Buttons */}
-                    {(norm.isTicketNotif || norm.isDirectNav || norm.isExternal) && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
-                        {norm.isTicketNotif && (
-                          <button
-                            type="button"
-                            onClick={() => handleNavigateTicketFromNotif(selectedNotif)}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.65rem 1.25rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: 'var(--primary)',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.5rem',
-                              boxShadow: '0 4px 14px var(--primary-glow)'
-                            }}
-                          >
-                            <MessageSquare size={16} />
-                            <span>{norm.ticketRef ? `Lihat Tiket CS #${norm.ticketRef}` : 'Buka Pusat Bantuan CS'}</span>
-                            <ArrowRight size={16} />
-                          </button>
-                        )}
-
-                        {norm.isDirectNav && norm.subTab && !norm.isTicketNotif && (
-                          <button
-                            type="button"
-                            onClick={() => handleNavigateSubTabFromNotif(norm.subTab, selectedNotif)}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.65rem 1.25rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: 'var(--primary)',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.5rem',
-                              boxShadow: '0 4px 14px var(--primary-glow)'
-                            }}
-                          >
-                            <span>{norm.displayLabel || `Buka Menu Terkait`}</span>
-                            <ArrowRight size={16} />
-                          </button>
-                        )}
-
-                        {norm.isExternal && norm.actionUrl && (
-                          <button
-                            type="button"
-                            onClick={() => safeOpenUrl(norm.actionUrl)}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.65rem 1.25rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: '#3b82f6',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.5rem',
-                              boxShadow: '0 4px 14px rgba(59, 130, 246, 0.35)'
-                            }}
-                          >
-                            <ExternalLink size={16} />
-                            <span>{norm.displayLabel || 'Kunjungi Tautan Luar'}</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })() : null
-            }
-          />
+            )}
+          </div>
         )}
 
         {/* ===================================================================
