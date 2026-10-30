@@ -558,3 +558,4 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({ onOpenHe
     </div>
   );
 };
+
