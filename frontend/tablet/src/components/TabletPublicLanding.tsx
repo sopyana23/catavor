@@ -31,6 +31,8 @@ import {
   Compass
 } from 'lucide-react';
 
+import { TabletPoliciesView } from './TabletPoliciesView';
+
 export const CATALOG_TYPES_INFO = [
   {
     id: 'physical',
@@ -149,6 +151,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   currentUser
 }) => {
   const [selectedCatalogFormat, setSelectedCatalogFormat] = useState<string>('physical');
+  const [showPolicyModal, setShowPolicyModal] = useState<boolean>(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [selectedPlanTab, setSelectedPlanTab] = useState<'free' | 'pro_starter' | 'pro_business'>('pro_starter');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -2316,14 +2319,101 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           </div>
 
           <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            <span>Syarat &amp; Ketentuan</span>
+            <button
+              type="button"
+              onClick={() => setShowPolicyModal(true)}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
+            >
+              Syarat &amp; Ketentuan
+            </button>
             <span>&bull;</span>
-            <span>Kebijakan Privasi</span>
+            <button
+              type="button"
+              onClick={() => setShowPolicyModal(true)}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
+            >
+              Kebijakan Privasi
+            </button>
             <span>&bull;</span>
-            <span>Ketentuan Penggunaan</span>
+            <button
+              type="button"
+              onClick={() => setShowPolicyModal(true)}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
+            >
+              Ketentuan Penggunaan
+            </button>
           </div>
         </div>
       </footer>
+
+      {/* Tablet Public Landing Policy Modal */}
+      {showPolicyModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem'
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-main, #0b1120)',
+              border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
+              borderRadius: '1.25rem',
+              width: '100%',
+              maxWidth: '960px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+            }}
+          >
+            <div
+              style={{
+                padding: '1rem 1.5rem',
+                borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: 'var(--bg-card, #0f172a)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Scale size={18} style={{ color: 'var(--primary, #10b981)' }} />
+                <span style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff' }}>
+                  Pedoman Legal &amp; Kebijakan Platform
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPolicyModal(false)}
+                style={{
+                  padding: '0.45rem 1rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  color: '#ffffff',
+                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+              <TabletPoliciesView />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
