@@ -32,6 +32,8 @@ import {
   EyeOff,
   Mail,
   User,
+  Layers,
+  Info
 } from 'lucide-react';
 import {
   type PlatformRole,
@@ -46,6 +48,7 @@ interface AdminRBACManagementProps {
   currentUserEmail?: string;
   themeMode?: 'dark' | 'light';
   onClose?: () => void;
+  hideHeader?: boolean;
 }
 
 export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
@@ -53,25 +56,27 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   currentUserEmail,
   themeMode = 'dark',
   onClose,
+  hideHeader = false,
 }) => {
   const isDark = themeMode === 'dark';
 
   const theme = {
     bg: isDark ? '#090d16' : '#f8fafc',
     surface: isDark ? '#0f172a' : '#ffffff',
-    card: isDark ? '#1e293b' : '#ffffff',
-    cardAlt: isDark ? '#141d2e' : '#f1f5f9',
-    border: isDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0',
-    borderStrong: isDark ? 'rgba(255, 255, 255, 0.16)' : '#cbd5e1',
+    card: isDark ? 'rgba(30, 41, 59, 0.65)' : '#ffffff',
+    cardAlt: isDark ? 'rgba(15, 23, 42, 0.75)' : '#f1f5f9',
+    border: isDark ? 'rgba(148, 163, 184, 0.12)' : '#e2e8f0',
+    borderStrong: isDark ? 'rgba(148, 163, 184, 0.22)' : '#cbd5e1',
     textPrimary: isDark ? '#f8fafc' : '#0f172a',
     textSecondary: isDark ? '#94a3b8' : '#475569',
     textMuted: isDark ? '#64748b' : '#94a3b8',
-    inputBg: isDark ? '#1e293b' : '#ffffff',
-    inputBorder: isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1',
+    inputBg: isDark ? 'rgba(15, 23, 42, 0.85)' : '#ffffff',
+    inputBorder: isDark ? 'rgba(148, 163, 184, 0.2)' : '#cbd5e1',
     modalBg: isDark ? '#0f172a' : '#ffffff',
-    modalOverlay: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.45)',
-    cardShadow: isDark ? '0 4px 15px rgba(0,0,0,0.2)' : '0 2px 10px rgba(0,0,0,0.04)',
-    tabInactiveBg: isDark ? '#1e293b' : '#f1f5f9',
+    modalOverlay: 'rgba(0, 0, 0, 0.75)',
+    cardShadow: isDark ? '0 8px 30px rgba(0,0,0,0.45)' : '0 4px 20px rgba(15, 23, 42, 0.06)',
+    tabTrackBg: isDark ? 'rgba(15, 23, 42, 0.75)' : '#f1f5f9',
+    tabActiveBg: '#f43f5e',
     tabInactiveText: isDark ? '#94a3b8' : '#64748b'
   };
 
@@ -86,9 +91,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   const [roles, setRoles] = useState<PlatformRole[]>([]);
   const [permissions, setPermissions] = useState<PlatformPermission[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Active accordion role in matrix tab
-  const [expandedRoleSlug, setExpandedRoleSlug] = useState<string>('compliance');
+  const [matrixSearch, setMatrixSearch] = useState('');
+  const [selectedRoleSlug, setSelectedRoleSlug] = useState('support');
 
   // Matrix edit state: roleSlug -> Set of permission keys
   const [matrixState, setMatrixState] = useState<Record<string, Set<string>>>({});
@@ -98,9 +102,9 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   // Modals / Bottom Sheets
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedStaffEmail, setSelectedStaffEmail] = useState('');
-  const [selectedRoleSlug, setSelectedRoleSlug] = useState('support');
+  const [targetRoleSlug, setTargetRoleSlug] = useState('support');
   const [staffActionLoading, setStaffActionLoading] = useState(false);
-  // Intercept back navigation for assign modal
+
   useModalBackHandler({
     isOpen: showAssignModal,
     onClose: () => setShowAssignModal(false)
@@ -115,7 +119,6 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   const [showStaffPassword, setShowStaffPassword] = useState(false);
   const [creatingStaff, setCreatingStaff] = useState(false);
 
-  // Intercept back navigation for create staff modal
   useModalBackHandler({
     isOpen: showCreateStaffModal,
     onClose: () => setShowCreateStaffModal(false)
@@ -179,8 +182,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     setAssignSheetDragY(0);
   };
 
-  // New Custom Role Form
-
+  // New Custom Role Form State
   const [newRoleSlug, setNewRoleSlug] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDesc, setNewRoleDesc] = useState('');
@@ -214,14 +216,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         'Content-Type': 'application/json',
       };
 
-      // Fetch staff list
+      // 1. Fetch staff list
       const staffRes = await fetch('/api/admin/rbac/staff', { headers });
       const staffData = await staffRes.json();
       if (staffData.success) {
         setStaffList(staffData.data || []);
       }
 
-      // Fetch matrix
+      // 2. Fetch matrix
       const matrixRes = await fetch('/api/admin/rbac/matrix', { headers });
       const matrixData = await matrixRes.json();
       if (matrixData.success) {
@@ -230,7 +232,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         setRoles(loadedRoles);
         setPermissions(loadedPerms);
 
-        // Build matrix state map
+        if (loadedRoles.length > 0 && !selectedRoleSlug) {
+          setSelectedRoleSlug(loadedRoles[0].slug);
+        }
+
         const stateMap: Record<string, Set<string>> = {};
         loadedRoles.forEach((r) => {
           const permSet = new Set<string>();
@@ -253,7 +258,6 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     fetchRBACData();
   }, [token]);
 
-  // Toggle permission in role matrix
   const handleToggleMatrixPerm = (roleSlug: string, permKey: string) => {
     if (roleSlug === 'superadmin') return;
 
@@ -270,10 +274,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
       };
     });
 
-    setHasUnsavedChanges(prev => ({ ...prev, [roleSlug]: true }));
+    setHasUnsavedChanges((prev) => ({
+      ...prev,
+      [roleSlug]: true,
+    }));
   };
 
-  // Save specific role matrix changes
   const handleSaveMatrix = async (roleSlug: string) => {
     setSavingMatrixRole(roleSlug);
     try {
@@ -290,9 +296,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         }),
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        showNotification(`Matriks hak akses role ${roleSlug.toUpperCase()} berhasil disimpan!`, true);
-        setHasUnsavedChanges(prev => ({ ...prev, [roleSlug]: false }));
+      if (data.success) {
+        showNotification(`Izin role '${roleSlug}' berhasil disimpan realtime.`, true);
+        setHasUnsavedChanges((prev) => ({ ...prev, [roleSlug]: false }));
+        fetchRBACData();
       } else {
         showNotification(data.message || 'Gagal menyimpan perubahan matriks.', false);
       }
@@ -303,14 +310,9 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     }
   };
 
-  // Assign staff role
   const handleAssignRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStaffEmail.trim()) {
-      showNotification('Email pengguna wajib diisi.', false);
-      return;
-    }
-
+    if (!selectedStaffEmail.trim() || !targetRoleSlug) return;
     setStaffActionLoading(true);
     try {
       const res = await fetch('/api/admin/rbac/staff/assign', {
@@ -321,34 +323,33 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         },
         body: JSON.stringify({
           email: selectedStaffEmail.trim(),
-          role_slug: selectedRoleSlug,
+          role_slug: targetRoleSlug,
         }),
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        showNotification(`Role ${selectedRoleSlug.toUpperCase()} berhasil ditugaskan ke ${selectedStaffEmail}!`, true);
+      if (data.success) {
+        showNotification(`Role staf '${selectedStaffEmail}' berhasil diubah.`, true);
         setShowAssignModal(false);
         setSelectedStaffEmail('');
         fetchRBACData();
       } else {
-        showNotification(data.message || 'Gagal menugaskan role staf.', false);
+        showNotification(data.message || 'Gagal mengubah role staf.', false);
       }
     } catch (err: any) {
-      showNotification('Kesalahan koneksi saat menugaskan staf.', false);
+      showNotification('Kesalahan jaringan.', false);
     } finally {
       setStaffActionLoading(false);
     }
   };
 
-  // Create new staff account directly
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStaffName.trim() || !newStaffEmail.trim() || !newStaffPassword) {
-      showNotification('Nama lengkap, email, dan password wajib diisi.', false);
+      showNotification('Nama, email, dan password wajib diisi.', false);
       return;
     }
     if (newStaffPassword.length < 8) {
-      showNotification('Password petugas minimal 8 karakter.', false);
+      showNotification('Password minimal 8 karakter.', false);
       return;
     }
 
@@ -368,8 +369,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         }),
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        showNotification(`Akun petugas '${newStaffName.trim()}' (${newStaffEmail.trim()}) berhasil dibuat!`, true);
+      if (data.success) {
+        showNotification(`Akun petugas '${newStaffName.trim()}' berhasil dibuat.`, true);
         setShowCreateStaffModal(false);
         setNewStaffName('');
         setNewStaffEmail('');
@@ -378,52 +379,45 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         setShowStaffPassword(false);
         fetchRBACData();
       } else {
-        showNotification(data.message || 'Gagal menambahkan akun petugas baru.', false);
+        showNotification(data.message || 'Gagal membuat akun staf.', false);
       }
     } catch (err: any) {
-      showNotification('Terjadi kesalahan jaringan.', false);
+      showNotification('Kesalahan jaringan saat membuat staf.', false);
     } finally {
       setCreatingStaff(false);
     }
   };
 
-  // Revoke staff role
   const handleRevokeRole = async (userId: number, email: string) => {
-    if (email === 'admin@catavor.com') {
-      showNotification('Superadmin utama platform tidak dapat dicabut.', false);
+    if (!window.confirm(`Yakin ingin mencabut hak akses admin dari '${email}'? Pengguna akan kembali menjadi merchant biasa.`)) {
       return;
     }
-    if (!confirm(`Cabut wewenang staf admin dari ${email}? User akan kembali menjadi akun merchant reguler.`)) {
-      return;
-    }
-
+    setLoading(true);
     try {
       const res = await fetch(`/api/admin/rbac/staff/${userId}/revoke`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        showNotification(`Wewenang staf dicabut dari ${email}.`, true);
+      if (data.success) {
+        showNotification(`Hak akses admin '${email}' berhasil dicabut.`, true);
         fetchRBACData();
       } else {
-        showNotification(data.message || 'Gagal mencabut role staf.', false);
+        showNotification(data.message || 'Gagal mencabut hak akses admin.', false);
       }
     } catch (err: any) {
-      showNotification('Kesalahan jaringan saat mencabut role staf.', false);
+      showNotification('Kesalahan jaringan.', false);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Create custom role
   const handleCreateCustomRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoleSlug.trim() || !newRoleName.trim()) {
-      showNotification('Kode slug dan nama role wajib diisi.', false);
-      return;
-    }
-
+    if (!newRoleSlug.trim() || !newRoleName.trim()) return;
     setCreatingRole(true);
     try {
       const res = await fetch('/api/admin/rbac/roles', {
@@ -433,15 +427,15 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          slug: newRoleSlug.trim().toLowerCase().replace(/[^a-z0-9_]/g, ''),
+          slug: newRoleSlug.trim(),
           name: newRoleName.trim(),
           description: newRoleDesc.trim(),
           permission_keys: Array.from(newRolePerms),
         }),
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        showNotification(`Role custom "${newRoleName}" berhasil dibuat!`, true);
+      if (data.success) {
+        showNotification(`Role kustom '${newRoleName}' berhasil dibuat.`, true);
         setNewRoleSlug('');
         setNewRoleName('');
         setNewRoleDesc('');
@@ -458,64 +452,42 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     }
   };
 
-  // Filtered staff list
+  // Group permissions by category
+  const permissionGroups: Record<string, PlatformPermission[]> = {};
+  permissions.forEach((p) => {
+    const grp = p.group || 'Umum';
+    if (!permissionGroups[grp]) permissionGroups[grp] = [];
+    permissionGroups[grp].push(p);
+  });
+
   const filteredStaff = staffList.filter((s) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
       (s.name && s.name.toLowerCase().includes(q)) ||
       (s.email && s.email.toLowerCase().includes(q)) ||
+      (s.role_name && s.role_name.toLowerCase().includes(q)) ||
       (s.platform_role && s.platform_role.toLowerCase().includes(q))
     );
   });
 
-  // Group permissions by category
-  const permissionGroups = permissions.reduce<Record<string, PlatformPermission[]>>((acc, p) => {
-    const groupName = p.group || 'Umum';
-    if (!acc[groupName]) acc[groupName] = [];
-    acc[groupName].push(p);
-    return acc;
-  }, {});
-
-  const getGroupIcon = (groupName: string) => {
-    switch (groupName.toLowerCase()) {
-      case 'kepatuhan':
-      case 'compliance':
-        return <ShieldAlert size={14} color="#f59e0b" />;
-      case 'support':
-      case 'helpdesk':
-        return <HelpCircle size={14} color="#0ea5e9" />;
-      case 'finance':
-      case 'keuangan':
-        return <CreditCard size={14} color="#10b981" />;
-      case 'konten':
-      case 'content':
-      case 'monetisasi':
-      case 'monetization':
-        return <Sparkles size={14} color="#f43f5e" />;
-      case 'audit':
-        return <Activity size={14} color="#38bdf8" />;
-      default:
-        return <Sliders size={14} color="#f43f5e" />;
-    }
-  };
+  const anyUnsaved = Object.values(hasUnsavedChanges).some(Boolean);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-      {/* Toast Alert */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', width: '100%', paddingBottom: '6rem', boxSizing: 'border-box' }}>
+      {/* 1. Alerts */}
       {successMsg && (
         <div style={{
-          padding: '0.75rem 1rem',
+          padding: '0.8rem 1rem',
           borderRadius: '0.75rem',
           backgroundColor: '#10b981',
-          color: '#fff',
+          color: '#ffffff',
           fontSize: '0.8rem',
           fontWeight: 700,
           display: 'flex',
           alignItems: 'center',
-          gap: '0.45rem',
-          boxShadow: '0 8px 25px rgba(0,0,0,0.25)',
-          animation: 'fadeInDown 0.25s ease'
+          gap: '0.5rem',
+          boxShadow: '0 8px 25px rgba(0,0,0,0.25)'
         }}>
           <CheckCircle size={16} />
           <span>{successMsg}</span>
@@ -523,216 +495,349 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
       )}
       {errorMsg && (
         <div style={{
-          padding: '0.75rem 1rem',
+          padding: '0.8rem 1rem',
           borderRadius: '0.75rem',
           backgroundColor: '#ef4444',
-          color: '#fff',
+          color: '#ffffff',
           fontSize: '0.8rem',
           fontWeight: 700,
           display: 'flex',
           alignItems: 'center',
-          gap: '0.45rem',
-          boxShadow: '0 8px 25px rgba(0,0,0,0.25)',
-          animation: 'fadeInDown 0.25s ease'
+          gap: '0.5rem',
+          boxShadow: '0 8px 25px rgba(0,0,0,0.25)'
         }}>
           <AlertCircle size={16} />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* Sub-Navigation: Staff / Matrix / Create Role */}
+      {/* 2. Mobile 4 KPI Metric Cards (2x2 Grid) */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '0.35rem',
-        backgroundColor: theme.tabInactiveBg,
-        padding: '0.25rem',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gap: '0.75rem'
+      }}>
+        {/* Metric 1 */}
+        <div style={{
+          backgroundColor: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: '0.85rem',
+          padding: '0.9rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          boxShadow: theme.cardShadow
+        }}>
+          <div style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '0.65rem',
+            backgroundColor: 'rgba(244, 63, 94, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#f43f5e',
+            flexShrink: 0
+          }}>
+            <Users size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.66rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
+              Petugas Staf
+            </div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 900, color: theme.textPrimary, lineHeight: 1.2 }}>
+              {staffList.length}
+            </div>
+          </div>
+        </div>
+
+        {/* Metric 2 */}
+        <div style={{
+          backgroundColor: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: '0.85rem',
+          padding: '0.9rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          boxShadow: theme.cardShadow
+        }}>
+          <div style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '0.65rem',
+            backgroundColor: 'rgba(59, 130, 246, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#3b82f6',
+            flexShrink: 0
+          }}>
+            <Shield size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.66rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
+              Peran RBAC
+            </div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 900, color: theme.textPrimary, lineHeight: 1.2 }}>
+              {roles.length}
+            </div>
+          </div>
+        </div>
+
+        {/* Metric 3 */}
+        <div style={{
+          backgroundColor: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: '0.85rem',
+          padding: '0.9rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          boxShadow: theme.cardShadow
+        }}>
+          <div style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '0.65rem',
+            backgroundColor: 'rgba(245, 158, 11, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#f59e0b',
+            flexShrink: 0
+          }}>
+            <Key size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.66rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
+              Izin Granular
+            </div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 900, color: theme.textPrimary, lineHeight: 1.2 }}>
+              {permissions.length}
+            </div>
+          </div>
+        </div>
+
+        {/* Metric 4 */}
+        <div style={{
+          backgroundColor: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: '0.85rem',
+          padding: '0.9rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          boxShadow: theme.cardShadow
+        }}>
+          <div style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '0.65rem',
+            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#10b981',
+            flexShrink: 0
+          }}>
+            <CheckCircle size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.66rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
+              Penegakan
+            </div>
+            <div style={{ fontSize: '1rem', fontWeight: 900, color: '#10b981', lineHeight: 1.2 }}>
+              Aktif Realtime
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Sub-Navigation Tabs */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gap: '0.3rem',
+        backgroundColor: theme.tabTrackBg,
+        padding: '0.3rem',
         borderRadius: '0.85rem',
         border: `1px solid ${theme.border}`
       }}>
         <button
+          type="button"
           onClick={() => setActiveTab('staff')}
           style={{
-            padding: '0.6rem 0.4rem',
+            minHeight: '44px',
             borderRadius: '0.65rem',
-            backgroundColor: activeTab === 'staff' ? '#f43f5e' : 'transparent',
+            backgroundColor: activeTab === 'staff' ? theme.tabActiveBg : 'transparent',
             color: activeTab === 'staff' ? '#ffffff' : theme.tabInactiveText,
             border: 'none',
-            fontSize: '0.75rem',
+            fontSize: '0.78rem',
             fontWeight: 800,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '0.3rem',
-            transition: 'all 0.2s'
+            gap: '0.3rem'
           }}
         >
-          <Users size={13} />
-          <span>Daftar Staf</span>
+          <Users size={14} />
+          <span>Staf ({staffList.length})</span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('matrix')}
           style={{
-            padding: '0.6rem 0.4rem',
+            minHeight: '44px',
             borderRadius: '0.65rem',
-            backgroundColor: activeTab === 'matrix' ? '#f43f5e' : 'transparent',
+            backgroundColor: activeTab === 'matrix' ? theme.tabActiveBg : 'transparent',
             color: activeTab === 'matrix' ? '#ffffff' : theme.tabInactiveText,
             border: 'none',
-            fontSize: '0.75rem',
+            fontSize: '0.78rem',
             fontWeight: 800,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '0.3rem',
-            transition: 'all 0.2s'
+            gap: '0.3rem'
           }}
         >
-          <Key size={13} />
+          <Key size={14} />
           <span>Matriks Izin</span>
+          {anyUnsaved && (
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+          )}
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('create_role')}
           style={{
-            padding: '0.6rem 0.4rem',
+            minHeight: '44px',
             borderRadius: '0.65rem',
-            backgroundColor: activeTab === 'create_role' ? '#f43f5e' : 'transparent',
+            backgroundColor: activeTab === 'create_role' ? theme.tabActiveBg : 'transparent',
             color: activeTab === 'create_role' ? '#ffffff' : theme.tabInactiveText,
             border: 'none',
-            fontSize: '0.75rem',
+            fontSize: '0.78rem',
             fontWeight: 800,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '0.3rem',
-            transition: 'all 0.2s'
+            gap: '0.3rem'
           }}
         >
-          <Plus size={13} />
+          <Plus size={14} />
           <span>Buat Role</span>
         </button>
       </div>
 
       {/* ========================================================================= */}
-      {/* TAB 1: DAFTAR STAF ADMIN (Mobile Stacked Cards)                           */}
+      {/* 4. TAB 1: DAFTAR STAF (Mobile Stacked Touch Cards)                        */}
       {/* ========================================================================= */}
       {activeTab === 'staff' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
           {/* Action Header */}
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <div style={{ position: 'relative', flex: 1 }}>
-              <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+              <Search size={14} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
               <input
                 type="text"
                 placeholder="Cari nama / email staf..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.6rem 0.75rem 0.6rem 2.2rem',
+                  height: '44px',
+                  paddingLeft: '2.4rem',
+                  paddingRight: '0.75rem',
                   borderRadius: '0.75rem',
                   backgroundColor: theme.inputBg,
                   border: `1px solid ${theme.inputBorder}`,
                   color: theme.textPrimary,
-                  fontSize: '0.78rem',
+                  fontSize: '0.8rem',
                   boxSizing: 'border-box'
                 }}
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-              <button
-                onClick={() => {
-                  setNewStaffName('');
-                  setNewStaffEmail('');
-                  setNewStaffPassword('');
-                  setNewStaffRoleSlug('support');
-                  setShowStaffPassword(false);
-                  setShowCreateStaffModal(true);
-                }}
-                style={{
-                  minHeight: '40px',
-                  padding: '0.55rem 0.75rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: '#f43f5e',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  whiteSpace: 'nowrap',
-                  boxShadow: '0 4px 14px rgba(244, 63, 94, 0.35)'
-                }}
-              >
-                <UserPlus size={14} />
-                <span>+ Petugas</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setSelectedStaffEmail('');
-                  setSelectedRoleSlug('support');
-                  setShowAssignModal(true);
-                }}
-                style={{
-                  minHeight: '40px',
-                  padding: '0.55rem 0.65rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: theme.cardAlt,
-                  color: theme.textPrimary,
-                  border: `1px solid ${theme.borderStrong}`,
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <Edit2 size={13} />
-                <span>Ubah</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setNewStaffName('');
+                setNewStaffEmail('');
+                setNewStaffPassword('');
+                setNewStaffRoleSlug('support');
+                setShowStaffPassword(false);
+                setShowCreateStaffModal(true);
+              }}
+              style={{
+                minHeight: '44px',
+                padding: '0 0.95rem',
+                borderRadius: '0.75rem',
+                backgroundColor: '#f43f5e',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '0.8rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                whiteSpace: 'nowrap',
+                boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)'
+              }}
+            >
+              <UserPlus size={15} />
+              <span>+ Petugas</span>
+            </button>
           </div>
 
-          {/* Staff Cards Feed */}
+          {/* Cards Feed */}
           {filteredStaff.length === 0 ? (
-            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <Users size={32} color="#64748b" style={{ margin: '0 auto 0.5rem' }} />
-              <p style={{ margin: 0, color: theme.textSecondary, fontSize: '0.78rem' }}>Tidak ada staf admin yang cocok dengan pencarian.</p>
+            <div style={{
+              padding: '3rem 1.25rem',
+              textAlign: 'center',
+              backgroundColor: theme.surface,
+              borderRadius: '1rem',
+              border: `1px solid ${theme.border}`,
+              boxShadow: theme.cardShadow
+            }}>
+              <Users size={32} color={theme.textMuted} style={{ margin: '0 auto 0.5rem' }} />
+              <p style={{ margin: 0, color: theme.textPrimary, fontSize: '0.85rem', fontWeight: 800 }}>
+                Tidak Ada Staf Ditemukan
+              </p>
+              <p style={{ margin: '0.2rem 0 0 0', color: theme.textSecondary, fontSize: '0.75rem' }}>
+                Sesuaikan kata kunci pencarian Anda.
+              </p>
             </div>
           ) : (
             filteredStaff.map((staff) => {
               const badge = getRoleBadge(staff.platform_role);
               const isPrimaryAdmin = staff.email === 'admin@catavor.com';
+              const isSelf = staff.email === currentUserEmail;
 
               return (
                 <div
                   key={staff.id}
                   style={{
-                    padding: '1rem',
+                    padding: '1.15rem',
                     borderRadius: '1rem',
                     backgroundColor: theme.surface,
                     border: `1px solid ${theme.border}`,
                     boxShadow: theme.cardShadow,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.65rem'
+                    gap: '0.85rem'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <div style={{
-                        width: '38px',
-                        height: '38px',
+                        width: '40px',
+                        height: '40px',
                         borderRadius: '0.75rem',
                         backgroundColor: badge.bg,
                         border: `1px solid ${badge.border}`,
@@ -741,84 +846,118 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 900,
-                        fontSize: '0.9rem'
+                        fontSize: '0.92rem',
+                        flexShrink: 0
                       }}>
-                        {staff.name ? staff.name.charAt(0).toUpperCase() : 'A'}
+                        {staff.name ? staff.name.charAt(0).toUpperCase() : 'P'}
                       </div>
                       <div>
-                        <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                          {staff.name || 'Admin Platform'}
-                        </h4>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
+                            {staff.name || 'Petugas Platform'}
+                          </h4>
+                          {isSelf && (
+                            <span style={{
+                              padding: '0.05rem 0.35rem',
+                              borderRadius: '999px',
+                              backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                              color: '#60a5fa',
+                              fontSize: '0.62rem',
+                              fontWeight: 800
+                            }}>
+                              Anda
+                            </span>
+                          )}
+                        </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
-                          <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>{staff.email}</span>
+                          <span style={{ fontSize: '0.74rem', color: theme.textSecondary, fontFamily: 'monospace' }}>
+                            {staff.email}
+                          </span>
                           <button
+                            type="button"
                             onClick={() => handleCopy(staff.email)}
                             style={{ background: 'none', border: 'none', color: copiedEmail === staff.email ? '#10b981' : theme.textMuted, cursor: 'pointer', padding: 0 }}
                           >
-                            {copiedEmail === staff.email ? <CheckCheck size={11} /> : <Copy size={11} />}
+                            {copiedEmail === staff.email ? <CheckCheck size={12} /> : <Copy size={12} />}
                           </button>
                         </div>
                       </div>
                     </div>
 
                     <span style={{
-                      padding: '0.15rem 0.5rem',
+                      padding: '0.2rem 0.55rem',
                       borderRadius: '999px',
-                      fontSize: '0.65rem',
+                      fontSize: '0.68rem',
                       fontWeight: 800,
                       backgroundColor: badge.bg,
                       color: badge.color,
                       border: `1px solid ${badge.border}`
                     }}>
-                      {badge.label}
+                      {staff.role_name}
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem', borderTop: `1px solid ${theme.border}` }}>
-                    <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                      ID #{staff.id} &bull; Staf Platform
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingTop: '0.75rem',
+                    borderTop: `1px solid ${theme.border}`
+                  }}>
+                    <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                      ID #{staff.id} &bull; Petugas
                     </span>
 
                     {isPrimaryAdmin ? (
-                      <span style={{ fontSize: '0.68rem', color: '#f43f5e', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <Lock size={11} />
-                        Superadmin Utama
+                      <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Lock size={12} />
+                        <span>Superadmin Utama</span>
                       </span>
                     ) : (
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <div style={{ display: 'flex', gap: '0.45rem' }}>
                         <button
+                          type="button"
                           onClick={() => {
                             setSelectedStaffEmail(staff.email);
-                            setSelectedRoleSlug(staff.platform_role || 'support');
+                            setTargetRoleSlug(staff.platform_role || 'support');
                             setShowAssignModal(true);
                           }}
+                          className="btn-secondary"
                           style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: theme.cardAlt,
-                            border: `1px solid ${theme.border}`,
-                            color: theme.textPrimary,
-                            fontSize: '0.72rem',
+                            minHeight: '44px',
+                            padding: '0 0.85rem',
+                            borderRadius: '0.65rem',
+                            fontSize: '0.76rem',
                             fontWeight: 700,
-                            cursor: 'pointer'
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
                           }}
                         >
-                          Ubah Role
+                          <Edit2 size={13} />
+                          <span>Ubah Role</span>
                         </button>
+
                         <button
+                          type="button"
                           onClick={() => handleRevokeRole(staff.id, staff.email)}
                           style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                            border: '1px solid rgba(239, 68, 68, 0.35)',
-                            color: '#f87171',
-                            fontSize: '0.72rem',
+                            minHeight: '44px',
+                            padding: '0 0.85rem',
+                            borderRadius: '0.65rem',
+                            fontSize: '0.76rem',
                             fontWeight: 700,
-                            cursor: 'pointer'
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            color: '#f87171',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
                           }}
                         >
-                          Cabut
+                          <Trash2 size={13} />
+                          <span>Cabut</span>
                         </button>
                       </div>
                     )}
@@ -831,586 +970,427 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: MATRIKS HAK AKSES DINAMIS (Mobile Accordion Per Role)              */}
+      {/* 5. TAB 2: MATRIKS HAK AKSES (Mobile Role Switcher & Native Cards)         */}
       {/* ========================================================================= */}
       {activeTab === 'matrix' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div style={{ padding: '0.75rem 1rem', borderRadius: '0.85rem', backgroundColor: isDark ? 'rgba(244, 63, 94, 0.1)' : 'rgba(244, 63, 94, 0.08)', border: '1px solid rgba(244, 63, 94, 0.25)', fontSize: '0.75rem', color: theme.textPrimary, lineHeight: 1.45 }}>
-            <strong style={{ color: isDark ? '#fb7185' : '#e11d48' }}>Matriks Dinamis Real-Time:</strong> Ketuk nama role untuk membuka daftar hak akses. Perubahan izin langsung berlaku seketika tanpa restart server.
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+          {/* Horizontal Role Selector */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
+              Pilih Role Pengelola:
+            </span>
+            <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.35rem' }}>
+              {roles.map((r) => {
+                const isSelected = selectedRoleSlug === r.slug;
+                const hasChanges = Boolean(hasUnsavedChanges[r.slug]);
 
-          {roles.map((role) => {
-            const isExpanded = expandedRoleSlug === role.slug;
-            const badge = getRoleBadge(role.slug);
-            const isSuper = role.slug === 'superadmin';
-            const rolePermSet = matrixState[role.slug] || new Set();
-            const hasChanges = Boolean(hasUnsavedChanges[role.slug]);
-            const isSaving = savingMatrixRole === role.slug;
-
-            return (
-              <div
-                key={role.id || role.slug}
-                style={{
-                  borderRadius: '1rem',
-                  backgroundColor: theme.surface,
-                  border: isExpanded ? `1.5px solid ${badge.color}60` : `1px solid ${theme.border}`,
-                  overflow: 'hidden',
-                  boxShadow: theme.cardShadow,
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                {/* Accordion Header */}
-                <div
-                  onClick={() => setExpandedRoleSlug(isExpanded ? '' : role.slug)}
-                  style={{
-                    padding: '1rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    backgroundColor: isExpanded ? (isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc') : 'transparent'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <div style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '0.65rem',
-                      backgroundColor: badge.bg,
-                      border: `1px solid ${badge.border}`,
-                      color: badge.color,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Shield size={18} />
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
-                          {role.name}
-                        </h4>
-                        <span style={{ fontSize: '0.65rem', color: theme.textMuted }}>({role.slug})</span>
-                      </div>
-                      <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
-                        {isSuper ? 'Bypass Seluruh Hak Akses (16/16)' : `${rolePermSet.size} dari 16 Izin Aktif`}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {hasChanges && (
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
-                    )}
-                    {isExpanded ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
-                  </div>
-                </div>
-
-                {/* Accordion Expanded Content */}
-                {isExpanded && (
-                  <div style={{ padding: '0.5rem 1rem 1.15rem 1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ margin: 0, fontSize: '0.75rem', color: theme.textSecondary, fontStyle: 'italic' }}>
-                      {role.description || 'Tidak ada deskripsi peranan.'}
-                    </p>
-
-                    {/* Permission Groups */}
-                    {Object.entries(permissionGroups).map(([groupName, groupPerms]) => (
-                      <div key={groupName} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.35rem' }}>
-                          {getGroupIcon(groupName)}
-                          <span style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textPrimary, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                            {groupName}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                          {groupPerms.map((perm) => {
-                            const isChecked = isSuper || rolePermSet.has(perm.key);
-
-                            return (
-                              <div
-                                key={perm.key}
-                                onClick={() => !isSuper && handleToggleMatrixPerm(role.slug, perm.key)}
-                                style={{
-                                  padding: '0.65rem 0.75rem',
-                                  borderRadius: '0.65rem',
-                                  backgroundColor: isChecked ? (isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9') : (isDark ? 'rgba(0,0,0,0.2)' : '#f8fafc'),
-                                  border: isChecked ? (isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid #cbd5e1') : `1px solid ${theme.border}`,
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                  cursor: isSuper ? 'default' : 'pointer'
-                                }}
-                              >
-                                <div style={{ flex: 1, minWidth: 0, paddingRight: '0.5rem' }}>
-                                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: isChecked ? theme.textPrimary : theme.textMuted }}>
-                                    {perm.name}
-                                  </div>
-                                  <div style={{ fontSize: '0.68rem', color: theme.textMuted, marginTop: '0.1rem' }}>
-                                    {perm.key}
-                                  </div>
-                                </div>
-
-                                {/* iOS Style Toggle Switch */}
-                                <div style={{
-                                  width: '38px',
-                                  height: '22px',
-                                  borderRadius: '999px',
-                                  backgroundColor: isChecked ? (isSuper ? '#fbbf24' : '#10b981') : (isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1'),
-                                  padding: '2px',
-                                  boxSizing: 'border-box',
-                                  position: 'relative',
-                                  transition: 'all 0.2s ease',
-                                  flexShrink: 0
-                                }}>
-                                  <div style={{
-                                    width: '18px',
-                                    height: '18px',
-                                    borderRadius: '50%',
-                                    backgroundColor: '#ffffff',
-                                    position: 'absolute',
-                                    top: '2px',
-                                    left: isChecked ? '18px' : '2px',
-                                    transition: 'all 0.2s ease',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.25)'
-                                  }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Save Button for Non-Superadmin */}
-                    {!isSuper && (
-                      <button
-                        onClick={() => handleSaveMatrix(role.slug)}
-                        disabled={!hasChanges || isSaving}
-                        style={{
-                          marginTop: '0.5rem',
-                          padding: '0.75rem',
-                          borderRadius: '0.75rem',
-                          backgroundColor: hasChanges ? '#10b981' : (isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'),
-                          color: hasChanges ? '#ffffff' : theme.textMuted,
-                          border: 'none',
-                          fontSize: '0.8rem',
-                          fontWeight: 800,
-                          cursor: hasChanges ? 'pointer' : 'not-allowed',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.4rem',
-                          boxShadow: hasChanges ? '0 4px 15px rgba(16, 185, 129, 0.35)' : 'none'
-                        }}
-                      >
-                        <Save size={15} />
-                        <span>{isSaving ? 'Menyimpan Matriks...' : `Simpan Matriks ${role.name}`}</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 3: BUAT CUSTOM ROLE BARU (Mobile Form)                                */}
-      {/* ========================================================================= */}
-      {activeTab === 'create_role' && (
-        <form onSubmit={handleCreateCustomRole} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          <div style={{ padding: '0.75rem 1rem', borderRadius: '0.85rem', backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', fontSize: '0.75rem', color: theme.textPrimary, lineHeight: 1.45 }}>
-            <strong style={{ color: isDark ? '#60a5fa' : '#2563eb' }}>Custom Role Generator:</strong> Buat peranan administrator baru untuk divisi khusus (misal: *Marketing Specialist*, *Security Auditor*).
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
-              Kode Role Slug (Unik, huruf kecil &amp; underscore)
-            </label>
-            <input
-              type="text"
-              placeholder="contoh: marketing_lead"
-              value={newRoleSlug}
-              onChange={e => setNewRoleSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-              style={{
-                width: '100%',
-                padding: '0.65rem',
-                borderRadius: '0.65rem',
-                backgroundColor: theme.inputBg,
-                border: `1px solid ${theme.inputBorder}`,
-                color: theme.textPrimary,
-                fontSize: '0.8rem',
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
-              Nama Jabatan / Peran
-            </label>
-            <input
-              type="text"
-              placeholder="contoh: Tim Marketing & Promo"
-              value={newRoleName}
-              onChange={e => setNewRoleName(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.65rem',
-                borderRadius: '0.65rem',
-                backgroundColor: theme.inputBg,
-                border: `1px solid ${theme.inputBorder}`,
-                color: theme.textPrimary,
-                fontSize: '0.8rem',
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
-              Deskripsi Tugas
-            </label>
-            <textarea
-              rows={2}
-              placeholder="Deskripsi singkat wewenang dan tanggung jawab role ini..."
-              value={newRoleDesc}
-              onChange={e => setNewRoleDesc(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.65rem',
-                borderRadius: '0.65rem',
-                backgroundColor: theme.inputBg,
-                border: `1px solid ${theme.inputBorder}`,
-                color: theme.textPrimary,
-                fontSize: '0.8rem',
-                boxSizing: 'border-box',
-                resize: 'none'
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: theme.textPrimary, marginBottom: '0.45rem' }}>
-              Pilih Hak Akses Role ({newRolePerms.size} dipilih)
-            </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '240px', overflowY: 'auto', padding: '0.5rem', backgroundColor: theme.cardAlt, borderRadius: '0.75rem', border: `1px solid ${theme.border}` }}>
-              {permissions.map((p) => {
-                const isSelected = newRolePerms.has(p.key);
                 return (
-                  <div
-                    key={p.key}
-                    onClick={() => {
-                      setNewRolePerms(prev => {
-                        const next = new Set(prev);
-                        if (next.has(p.key)) next.delete(p.key);
-                        else next.add(p.key);
-                        return next;
-                      });
-                    }}
+                  <button
+                    key={r.slug}
+                    type="button"
+                    onClick={() => setSelectedRoleSlug(r.slug)}
                     style={{
-                      padding: '0.5rem 0.65rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: isSelected ? 'rgba(244, 63, 94, 0.15)' : 'transparent',
-                      border: isSelected ? '1px solid rgba(244, 63, 94, 0.35)' : '1px solid transparent',
-                      display: 'flex',
+                      minHeight: '44px',
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isSelected ? '#f43f5e' : theme.cardAlt,
+                      color: isSelected ? '#ffffff' : theme.textPrimary,
+                      border: `1px solid ${isSelected ? '#f43f5e' : theme.border}`,
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.5rem',
-                      cursor: 'pointer'
+                      gap: '0.35rem',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
                     }}
                   >
-                    <div style={{
-                      width: '16px',
-                      height: '16px',
-                      borderRadius: '0.35rem',
-                      border: isSelected ? 'none' : `1px solid ${theme.borderStrong}`,
-                      backgroundColor: isSelected ? '#f43f5e' : 'transparent',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      fontSize: '0.65rem'
-                    }}>
-                      {isSelected && <Check size={12} />}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.76rem', fontWeight: 700, color: isSelected ? theme.textPrimary : theme.textSecondary }}>{p.name}</div>
-                      <div style={{ fontSize: '0.65rem', color: theme.textMuted }}>{p.key}</div>
-                    </div>
-                  </div>
+                    <Shield size={13} />
+                    <span>{r.name}</span>
+                    {hasChanges && (
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                    )}
+                  </button>
                 );
               })}
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={creatingRole || !newRoleSlug.trim() || !newRoleName.trim()}
-            style={{
-              marginTop: '0.5rem',
-              padding: '0.85rem',
-              borderRadius: '0.75rem',
-              backgroundColor: '#f43f5e',
-              color: '#ffffff',
-              border: 'none',
-              fontSize: '0.82rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.4rem',
-              boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)'
-            }}
-          >
-            <Plus size={16} />
-            <span>{creatingRole ? 'Membuat Role...' : 'Buat Role Kustom Sekarang'}</span>
-          </button>
-        </form>
+          {/* Quick Search */}
+          <div style={{ position: 'relative', width: '100%' }}>
+            <Search size={14} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+            <input
+              type="text"
+              placeholder="Filter hak akses..."
+              value={matrixSearch}
+              onChange={(e) => setMatrixSearch(e.target.value)}
+              style={{
+                width: '100%',
+                height: '44px',
+                paddingLeft: '2.4rem',
+                paddingRight: '0.75rem',
+                borderRadius: '0.75rem',
+                backgroundColor: theme.inputBg,
+                border: `1px solid ${theme.inputBorder}`,
+                color: theme.textPrimary,
+                fontSize: '0.8rem',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          {/* Categorized Permissions */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {Object.keys(permissionGroups).map((groupKey) => {
+              const grpPerms = permissionGroups[groupKey].filter(
+                (p) =>
+                  !matrixSearch.trim() ||
+                  p.name.toLowerCase().includes(matrixSearch.toLowerCase()) ||
+                  p.key.toLowerCase().includes(matrixSearch.toLowerCase()) ||
+                  (p.description && p.description.toLowerCase().includes(matrixSearch.toLowerCase()))
+              );
+
+              if (grpPerms.length === 0) return null;
+
+              const isSuper = selectedRoleSlug === 'superadmin';
+              const activePermSet = matrixState[selectedRoleSlug] || new Set();
+
+              return (
+                <div
+                  key={groupKey}
+                  style={{
+                    backgroundColor: theme.surface,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '1rem',
+                    padding: '1rem',
+                    boxShadow: theme.cardShadow
+                  }}
+                >
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    paddingBottom: '0.65rem',
+                    borderBottom: `1px solid ${theme.border}`,
+                    marginBottom: '0.75rem'
+                  }}>
+                    <Layers size={15} color="#f43f5e" />
+                    <span style={{ fontSize: '0.78rem', fontWeight: 900, color: theme.textPrimary, textTransform: 'uppercase' }}>
+                      DOMAIN: {groupKey}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                    {grpPerms.map((perm) => {
+                      const isChecked = isSuper || activePermSet.has(perm.key);
+
+                      return (
+                        <div
+                          key={perm.key}
+                          onClick={() => {
+                            if (!isSuper) handleToggleMatrixPerm(selectedRoleSlug, perm.key);
+                          }}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.75rem 0.85rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: isChecked ? (isDark ? 'rgba(244, 63, 94, 0.12)' : '#fff1f2') : theme.cardAlt,
+                            border: `1px solid ${isChecked ? 'rgba(244, 63, 94, 0.3)' : theme.border}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.65rem',
+                            cursor: isSuper ? 'default' : 'pointer'
+                          }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 800, color: theme.textPrimary }}>
+                              {perm.name}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: theme.textMuted, marginTop: '0.1rem' }}>
+                              <code>{perm.key}</code>
+                            </div>
+                          </div>
+
+                          {isSuper ? (
+                            <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 800, display: 'inline-flex', alignItems: 'center' }}>
+                              <Lock size={13} />
+                            </span>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleMatrixPerm(selectedRoleSlug, perm.key)}
+                              style={{ width: '20px', height: '20px', accentColor: '#f43f5e' }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Sticky Floating Save Bar on Mobile */}
+          {selectedRoleSlug !== 'superadmin' && (
+            <div style={{
+              position: 'sticky',
+              bottom: '1rem',
+              zIndex: 20,
+              padding: '0.5rem 0'
+            }}>
+              <button
+                type="button"
+                onClick={() => handleSaveMatrix(selectedRoleSlug)}
+                disabled={Boolean(savingMatrixRole)}
+                style={{
+                  width: '100%',
+                  minHeight: '48px',
+                  borderRadius: '0.85rem',
+                  backgroundColor: '#f43f5e',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 8px 25px rgba(244, 63, 94, 0.45)'
+                }}
+              >
+                <Save size={16} className={savingMatrixRole === selectedRoleSlug ? 'animate-spin' : ''} />
+                <span>Simpan Perubahan Izin ({selectedRoleSlug})</span>
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ========================================================================= */}
-      {/* 4. BOTTOM SHEET: TUGASKAN STAF ROLE                                      */}
+      {/* 6. TAB 3: BUAT ROLE KUSTOM (Mobile Clean Form)                            */}
       {/* ========================================================================= */}
-      {showAssignModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: theme.modalOverlay,
-          backdropFilter: 'blur(6px)',
-          zIndex: 99999,
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'center'
-        }} onClick={() => setShowAssignModal(false)}>
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxHeight: '85vh',
-              backgroundColor: theme.modalBg,
-              borderTopLeftRadius: '1.5rem',
-              borderTopRightRadius: '1.5rem',
-              border: `1px solid ${theme.borderStrong}`,
-              boxShadow: theme.cardShadow,
-              padding: '0.75rem 1.25rem 1.5rem 1.25rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.85rem',
-              overflowY: 'auto',
-              transform: `translateY(${Math.max(0, assignSheetDragY)}px)`,
-              transition: isAssignSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
-            }}
-          >
-            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                padding: '0.25rem 0 0.5rem 0',
-                cursor: 'grab',
-                touchAction: 'none'
-              }}
-              onTouchStart={(e) => handleAssignDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleAssignDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleAssignDragEnd}
-              onMouseDown={(e) => handleAssignDragStart(e.clientY)}
-              onMouseMove={(e) => handleAssignDragMove(e.clientY)}
-              onMouseUp={handleAssignDragEnd}
-            >
-              <div
+      {activeTab === 'create_role' && (
+        <form onSubmit={handleCreateCustomRole} style={{ width: '100%' }}>
+          <div style={{
+            backgroundColor: theme.surface,
+            border: `1px solid ${theme.border}`,
+            borderRadius: '1rem',
+            padding: '1.25rem',
+            boxShadow: theme.cardShadow,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.15rem'
+          }}>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.2rem 0', color: theme.textPrimary }}>
+                Definisikan Peran Kustom
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.76rem', color: theme.textSecondary }}>
+                Buat tingkat wewenang baru untuk tim operasional Anda.
+              </p>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.35rem' }}>
+                Slug Role (ID Unik) <span style={{ color: '#f43f5e' }}>*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="misal: junior_support"
+                value={newRoleSlug}
+                onChange={(e) => setNewRoleSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                 style={{
-                  width: '44px',
-                  height: '5px',
-                  borderRadius: '3px',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1'
+                  width: '100%',
+                  height: '44px',
+                  padding: '0 0.85rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: theme.inputBg,
+                  border: `1px solid ${theme.inputBorder}`,
+                  color: theme.textPrimary,
+                  fontSize: '0.82rem',
+                  boxSizing: 'border-box'
+                }}
+                required
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.35rem' }}>
+                Nama Tampilan Role <span style={{ color: '#f43f5e' }}>*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="misal: Junior Support & Helpdesk"
+                value={newRoleName}
+                onChange={(e) => setNewRoleName(e.target.value)}
+                style={{
+                  width: '100%',
+                  height: '44px',
+                  padding: '0 0.85rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: theme.inputBg,
+                  border: `1px solid ${theme.inputBorder}`,
+                  color: theme.textPrimary,
+                  fontSize: '0.82rem',
+                  boxSizing: 'border-box'
+                }}
+                required
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.35rem' }}>
+                Deskripsi Tanggung Jawab
+              </label>
+              <textarea
+                placeholder="Jelaskan wewenang dan tugas role ini..."
+                value={newRoleDesc}
+                onChange={(e) => setNewRoleDesc(e.target.value)}
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: theme.inputBg,
+                  border: `1px solid ${theme.inputBorder}`,
+                  color: theme.textPrimary,
+                  fontSize: '0.82rem',
+                  boxSizing: 'border-box',
+                  resize: 'vertical',
+                  fontFamily: 'inherit'
                 }}
               />
             </div>
 
-            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, or footer actions) */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                cursor: 'grab',
-                touchAction: 'none'
-              }}
-              onTouchStart={(e) => handleAssignDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleAssignDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleAssignDragEnd}
-              onMouseDown={(e) => handleAssignDragStart(e.clientY)}
-              onMouseMove={(e) => handleAssignDragMove(e.clientY)}
-              onMouseUp={handleAssignDragEnd}
-            >
-              <div
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(244, 63, 94, 0.15)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#f43f5e',
-                  flexShrink: 0
-                }}
-              >
-                <UserPlus size={18} />
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Tugaskan Peran Staf Admin
-                </h3>
-                <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>
-                  Tentukan wewenang operasional untuk akun staf
-                </span>
-              </div>
-            </div>
-
-            <form onSubmit={handleAssignRole} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
-                  Alamat Email Akun Staf
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                <label style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary }}>
+                  Pilih Izin Awal ({newRolePerms.size} terpilih):
                 </label>
-                <input
-                  type="email"
-                  placeholder="staf@catavor.com"
-                  value={selectedStaffEmail}
-                  onChange={e => setSelectedStaffEmail(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.65rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: theme.inputBg,
-                    border: `1px solid ${theme.inputBorder}`,
-                    color: theme.textPrimary,
-                    fontSize: '0.8rem',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
-                  Pilih Role Wewenang
-                </label>
-                <MobileCustomSelect
-                  value={selectedRoleSlug}
-                  onChange={(val) => setSelectedRoleSlug(val)}
-                  options={roles.map(r => ({
-                    value: r.slug,
-                    label: r.name,
-                    description: `Slug: ${r.slug}`
-                  }))}
-                  title="Pilih Role Platform"
-                  subtitle="Tugaskan wewenang operasional untuk staf terpilih"
-                  placeholder="Pilih Role Wewenang..."
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '0.65rem', marginTop: '0.65rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowAssignModal(false)}
-                  style={{
-                    minHeight: '44px',
-                    padding: '0.8rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: theme.cardAlt,
-                    color: theme.textSecondary,
-                    border: `1px solid ${theme.border}`,
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={staffActionLoading || !selectedStaffEmail.trim()}
-                  style={{
-                    minHeight: '44px',
-                    padding: '0.8rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: '#f43f5e',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontSize: '0.82rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.4rem',
-                    boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)',
-                    opacity: staffActionLoading || !selectedStaffEmail.trim() ? 0.6 : 1
-                  }}
-                >
-                  <Check size={16} />
-                  <span>{staffActionLoading ? 'Menugaskan...' : 'Tugaskan Role'}</span>
-                </button>
-              </div>
-
-              <div style={{ marginTop: '0.4rem', textAlign: 'center' }}>
                 <button
                   type="button"
                   onClick={() => {
-                    setShowAssignModal(false);
-                    setNewStaffName('');
-                    setNewStaffEmail('');
-                    setNewStaffPassword('');
-                    setNewStaffRoleSlug('support');
-                    setShowStaffPassword(false);
-                    setShowCreateStaffModal(true);
+                    if (newRolePerms.size === permissions.length) {
+                      setNewRolePerms(new Set());
+                    } else {
+                      setNewRolePerms(new Set(permissions.map((p) => p.key)));
+                    }
                   }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#f43f5e',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    padding: '0.4rem 0.6rem'
-                  }}
+                  className="btn-secondary"
+                  style={{ minHeight: '36px', padding: '0 0.65rem', fontSize: '0.72rem', fontWeight: 700 }}
                 >
-                  <UserPlus size={13} />
-                  <span>Petugas belum punya akun? Buat akun baru</span>
+                  {newRolePerms.size === permissions.length ? 'Batal Semua' : 'Pilih Semua'}
                 </button>
               </div>
-            </form>
+
+              <div style={{
+                maxHeight: '260px',
+                overflowY: 'auto',
+                border: `1px solid ${theme.border}`,
+                borderRadius: '0.75rem',
+                padding: '0.65rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.45rem'
+              }}>
+                {permissions.map((p) => {
+                  const isSelected = newRolePerms.has(p.key);
+                  return (
+                    <label
+                      key={p.key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.6rem 0.75rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: isSelected ? (isDark ? 'rgba(244, 63, 94, 0.12)' : '#fff1f2') : 'transparent',
+                        border: `1px solid ${isSelected ? 'rgba(244, 63, 94, 0.3)' : theme.border}`,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {
+                          setNewRolePerms((prev) => {
+                            const n = new Set(prev);
+                            if (n.has(p.key)) n.delete(p.key);
+                            else n.add(p.key);
+                            return n;
+                          });
+                        }}
+                        style={{ accentColor: '#f43f5e' }}
+                      />
+                      <span style={{ fontSize: '0.76rem', color: theme.textPrimary, fontWeight: 700 }}>
+                        {p.name}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={creatingRole}
+              style={{
+                minHeight: '46px',
+                backgroundColor: '#f43f5e',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: '0.84rem',
+                borderRadius: '0.75rem',
+                border: 'none',
+                cursor: creatingRole ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)',
+                marginTop: '0.4rem'
+              }}
+            >
+              {creatingRole ? (
+                <>
+                  <RefreshCw size={15} className="animate-spin" />
+                  <span>Mendaftarkan Role...</span>
+                </>
+              ) : (
+                <>
+                  <Plus size={16} />
+                  <span>Buat Role Kustom Sekarang</span>
+                </>
+              )}
+            </button>
           </div>
-        </div>
+        </form>
       )}
 
-      {/* CREATE STAFF MODAL (Slide-Up Bottom Sheet Mobile) */}
-      {showCreateStaffModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: theme.modalOverlay,
-          backdropFilter: 'blur(6px)',
-          zIndex: 99999,
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'center'
-        }} onClick={() => setShowCreateStaffModal(false)}>
+      {/* ========================================================================= */}
+      {/* 7. MODAL 1: UBAH ROLE STAF (Mobile Slide-Up Bottom Sheet)                  */}
+      {/* ========================================================================= */}
+      {showAssignModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: theme.modalOverlay,
+            backdropFilter: 'blur(6px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center'
+          }}
+          onClick={() => setShowAssignModal(false)}
+        >
           <div
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
               maxHeight: '90vh',
@@ -1419,17 +1399,203 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               borderTopRightRadius: '1.5rem',
               border: `1px solid ${theme.borderStrong}`,
               boxShadow: theme.cardShadow,
-              padding: '0.75rem 1.25rem 1.5rem 1.25rem',
+              padding: '0.75rem 1.25rem 2rem 1.25rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.85rem',
+              gap: '1rem',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              transform: `translateY(${Math.max(0, assignSheetDragY)}px)`,
+              transition: isAssignSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Sheet Drag Handle Bar (touchAction: none) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.25rem 0 0.5rem 0',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleAssignDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleAssignDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleAssignDragEnd}
+              onMouseDown={(e) => handleAssignDragStart(e.clientY)}
+              onMouseMove={(e) => handleAssignDragMove(e.clientY)}
+              onMouseUp={handleAssignDragEnd}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '3px',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1'
+                }}
+              />
+            </div>
+
+            {/* Clean Header without X button */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+              onTouchStart={(e) => handleAssignDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleAssignDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleAssignDragEnd}
+              onMouseDown={(e) => handleAssignDragStart(e.clientY)}
+              onMouseMove={(e) => handleAssignDragMove(e.clientY)}
+              onMouseUp={handleAssignDragEnd}
+            >
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(244, 63, 94, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f43f5e',
+                flexShrink: 0
+              }}>
+                <Edit2 size={18} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary }}>
+                  Penugasan Peran Staf
+                </h3>
+                <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>
+                  Tetapkan wewenang operasional pengguna internal
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleAssignRole} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.35rem' }}>
+                  Email Staf <span style={{ color: '#f43f5e' }}>*</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+                  <input
+                    type="email"
+                    placeholder="nama@catavor.com"
+                    value={selectedStaffEmail}
+                    onChange={(e) => setSelectedStaffEmail(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: '44px',
+                      paddingLeft: '2.4rem',
+                      paddingRight: '0.85rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: theme.inputBg,
+                      border: `1px solid ${theme.inputBorder}`,
+                      color: theme.textPrimary,
+                      fontSize: '0.82rem',
+                      boxSizing: 'border-box'
+                    }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.35rem' }}>
+                  Pilih Role Platform <span style={{ color: '#f43f5e' }}>*</span>
+                </label>
+                <MobileCustomSelect
+                  value={targetRoleSlug}
+                  onChange={(val) => setTargetRoleSlug(val)}
+                  options={roles.map((r) => ({
+                    value: r.slug,
+                    label: `${r.name} (${r.slug})`
+                  }))}
+                  placeholder="Pilih Role Platform..."
+                  style={{ width: '100%' }}
+                  triggerStyle={{ height: '44px', borderRadius: '0.75rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAssignModal(false)}
+                  className="btn-secondary"
+                  style={{ flex: 1, minHeight: '46px', fontSize: '0.82rem', borderRadius: '0.75rem', fontWeight: 700 }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={staffActionLoading}
+                  style={{
+                    flex: 1,
+                    minHeight: '46px',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    borderRadius: '0.75rem',
+                    backgroundColor: '#f43f5e',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: staffActionLoading ? 'wait' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)'
+                  }}
+                >
+                  <Check size={16} />
+                  <span>Simpan Perubahan</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 8. MODAL 2: TAMBAH PETUGAS BARU (Mobile Slide-Up Bottom Sheet)             */}
+      {/* ========================================================================= */}
+      {showCreateStaffModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: theme.modalOverlay,
+            backdropFilter: 'blur(6px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center'
+          }}
+          onClick={() => setShowCreateStaffModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxHeight: '90vh',
+              backgroundColor: theme.modalBg,
+              borderTopLeftRadius: '1.5rem',
+              borderTopRightRadius: '1.5rem',
+              border: `1px solid ${theme.borderStrong}`,
+              boxShadow: theme.cardShadow,
+              padding: '0.75rem 1.25rem 2rem 1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
               overflowY: 'auto',
               overscrollBehavior: 'contain',
               transform: `translateY(${Math.max(0, createSheetDragY)}px)`,
               transition: isCreateSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
           >
-            {/* Sheet Drag Handle Bar */}
+            {/* Sheet Drag Handle Bar (touchAction: none) */}
             <div
               style={{
                 display: 'flex',
@@ -1455,7 +1621,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               />
             </div>
 
-            {/* Clean Header (No X button) */}
+            {/* Clean Header without X button */}
             <div
               style={{
                 display: 'flex',
@@ -1471,180 +1637,155 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               onMouseMove={(e) => handleCreateDragMove(e.clientY)}
               onMouseUp={handleCreateDragEnd}
             >
-              <div
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(244, 63, 94, 0.15)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#f43f5e',
-                  flexShrink: 0
-                }}
-              >
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(244, 63, 94, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f43f5e',
+                flexShrink: 0
+              }}>
                 <UserPlus size={18} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: theme.textPrimary }}>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary }}>
                   Tambah Akun Petugas Baru
                 </h3>
                 <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>
-                  Buat akun staf operasional internal & wewenang
+                  Daftarkan akun staf operasional internal
                 </span>
               </div>
             </div>
 
-            <form onSubmit={handleCreateStaff} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {/* Nama Lengkap */}
+            <form onSubmit={handleCreateStaff} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.35rem' }}>
                   Nama Lengkap Petugas <span style={{ color: '#f43f5e' }}>*</span>
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <User size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+                  <User size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
                   <input
                     type="text"
                     placeholder="Contoh: Budi Santoso"
                     value={newStaffName}
-                    onChange={e => setNewStaffName(e.target.value)}
-                    required
+                    onChange={(e) => setNewStaffName(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '0.65rem 0.65rem 0.65rem 2.2rem',
-                      borderRadius: '0.65rem',
+                      height: '44px',
+                      paddingLeft: '2.4rem',
+                      paddingRight: '0.85rem',
+                      borderRadius: '0.75rem',
                       backgroundColor: theme.inputBg,
                       border: `1px solid ${theme.inputBorder}`,
                       color: theme.textPrimary,
-                      fontSize: '0.8rem',
+                      fontSize: '0.82rem',
                       boxSizing: 'border-box'
                     }}
+                    required
                   />
                 </div>
               </div>
 
-              {/* Email */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.35rem' }}>
                   Alamat Email <span style={{ color: '#f43f5e' }}>*</span>
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Mail size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+                  <Mail size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
                   <input
                     type="email"
                     placeholder="petugas@catavor.com"
                     value={newStaffEmail}
-                    onChange={e => setNewStaffEmail(e.target.value)}
-                    required
+                    onChange={(e) => setNewStaffEmail(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '0.65rem 0.65rem 0.65rem 2.2rem',
-                      borderRadius: '0.65rem',
+                      height: '44px',
+                      paddingLeft: '2.4rem',
+                      paddingRight: '0.85rem',
+                      borderRadius: '0.75rem',
                       backgroundColor: theme.inputBg,
                       border: `1px solid ${theme.inputBorder}`,
                       color: theme.textPrimary,
-                      fontSize: '0.8rem',
+                      fontSize: '0.82rem',
                       boxSizing: 'border-box'
                     }}
+                    required
                   />
                 </div>
-                <span style={{ fontSize: '0.68rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>
-                  Email untuk login ke portal staf admin.
-                </span>
               </div>
 
-              {/* Password */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.35rem' }}>
                   Kata Sandi Awal <span style={{ color: '#f43f5e' }}>*</span>
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Lock size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+                  <Lock size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
                   <input
                     type={showStaffPassword ? 'text' : 'password'}
                     placeholder="Minimal 8 karakter..."
                     value={newStaffPassword}
-                    onChange={e => setNewStaffPassword(e.target.value)}
-                    required
+                    onChange={(e) => setNewStaffPassword(e.target.value)}
                     minLength={8}
                     style={{
                       width: '100%',
-                      padding: '0.65rem 2.5rem 0.65rem 2.2rem',
-                      borderRadius: '0.65rem',
+                      height: '44px',
+                      paddingLeft: '2.4rem',
+                      paddingRight: '2.6rem',
+                      borderRadius: '0.75rem',
                       backgroundColor: theme.inputBg,
                       border: `1px solid ${theme.inputBorder}`,
                       color: theme.textPrimary,
-                      fontSize: '0.8rem',
+                      fontSize: '0.82rem',
                       boxSizing: 'border-box'
                     }}
+                    required
                   />
                   <button
                     type="button"
                     onClick={() => setShowStaffPassword(!showStaffPassword)}
                     style={{
                       position: 'absolute',
-                      right: '0.75rem',
+                      right: '0.85rem',
                       top: '50%',
                       transform: 'translateY(-50%)',
                       background: 'none',
                       border: 'none',
                       color: theme.textMuted,
                       cursor: 'pointer',
-                      padding: 0,
-                      display: 'flex',
-                      alignItems: 'center',
+                      padding: 0
                     }}
                   >
                     {showStaffPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                <span style={{ fontSize: '0.68rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>
-                  Minimal 8 karakter. Petugas dapat menggantinya nanti.
-                </span>
               </div>
 
-              {/* Role */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
-                  Pilih Role Wewenang <span style={{ color: '#f43f5e' }}>*</span>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary, marginBottom: '0.35rem' }}>
+                  Peran &amp; Hak Akses Awal <span style={{ color: '#f43f5e' }}>*</span>
                 </label>
                 <MobileCustomSelect
                   value={newStaffRoleSlug}
                   onChange={(val) => setNewStaffRoleSlug(val)}
-                  options={roles.map(r => ({
+                  options={roles.map((r) => ({
                     value: r.slug,
-                    label: `${r.name} (${r.slug})`,
-                    description: r.description || `Wewenang operasional role ${r.name}`,
+                    label: `${r.name} (${r.slug})`
                   }))}
-                  searchable={roles.length >= 5}
-                  triggerStyle={{
-                    minHeight: '44px',
-                    backgroundColor: theme.inputBg,
-                    borderColor: theme.inputBorder,
-                    color: theme.textPrimary,
-                    fontSize: '0.82rem'
-                  }}
-                  title="Pilih Wewenang Petugas"
+                  placeholder="Pilih Peran Platform..."
+                  style={{ width: '100%' }}
+                  triggerStyle={{ height: '44px', borderRadius: '0.75rem' }}
                 />
               </div>
 
-              {/* Buttons */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '0.65rem', marginTop: '0.65rem' }}>
+              <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
                   onClick={() => setShowCreateStaffModal(false)}
-                  style={{
-                    minHeight: '44px',
-                    padding: '0.8rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: theme.cardAlt,
-                    color: theme.textSecondary,
-                    border: `1px solid ${theme.border}`,
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
+                  className="btn-secondary"
+                  style={{ flex: 1, minHeight: '46px', fontSize: '0.82rem', borderRadius: '0.75rem', fontWeight: 700 }}
                 >
                   Batal
                 </button>
@@ -1652,32 +1793,31 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   type="submit"
                   disabled={creatingStaff}
                   style={{
-                    minHeight: '44px',
-                    padding: '0.8rem',
+                    flex: 1,
+                    minHeight: '46px',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
                     borderRadius: '0.75rem',
                     backgroundColor: '#f43f5e',
                     color: '#ffffff',
                     border: 'none',
-                    fontSize: '0.82rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
+                    cursor: creatingStaff ? 'wait' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.4rem',
-                    boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)',
-                    opacity: creatingStaff ? 0.6 : 1
+                    boxShadow: '0 4px 15px rgba(244, 63, 94, 0.35)'
                   }}
                 >
                   {creatingStaff ? (
                     <>
-                      <RefreshCw size={15} className="spin" />
-                      <span>Membuat Akun...</span>
+                      <RefreshCw size={15} className="animate-spin" />
+                      <span>Mendaftarkan...</span>
                     </>
                   ) : (
                     <>
                       <Check size={16} />
-                      <span>Buat Akun Petugas</span>
+                      <span>Buat Petugas</span>
                     </>
                   )}
                 </button>
