@@ -52,8 +52,52 @@ func (h *SubscriptionHandler) GetStoreQuota(c *fiber.Ctx) error {
 	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		user, _ := c.Locals("user").(*models.User)
+		userRole, _ := c.Locals("platform_role").(string)
+		isSuperadmin, _ := c.Locals("is_superadmin").(bool)
+		if (user != nil && user.IsPlatformStaff()) || models.IsPlatformStaffRole(userRole) || isSuperadmin {
+			quota := services.StoreQuotaInfo{
+				StoreID:    0,
+				StoreSlug:  "platform-admin",
+				StoreTitle: "Platform Admin Console",
+				Plan: models.SubscriptionPlan{
+					Code:               "platform_staff",
+					Name:               "Platform Console",
+					BadgeLabel:         "Console",
+					Description:        "Platform Staff Console Access",
+					StorageLimitBytes:  0,
+					MaxItems:           -1,
+					MaxImagesPerItem:   10,
+					HasCustomDomain:    true,
+					HasVerifiedBadge:   true,
+					HasPrioritySearch:  true,
+					HasPrioritySupport: true,
+					IsActive:           true,
+				},
+				PlanStatus:          "active",
+				DaysRemaining:       9999,
+				IsInGracePeriod:     false,
+				ActiveItemsCount:    0,
+				ArchivedItemsCount:  0,
+				TotalItemsCount:     0,
+				MaxItems:            -1,
+				StorageUsedBytes:    0,
+				StorageLimitBytes:   0,
+				StorageUsagePercent: 0,
+				ItemsUsagePercent:   0,
+				IsStorageOverLimit:  false,
+				IsItemsOverLimit:    false,
+				CustomDomainStatus:  "none",
+			}
+			return c.JSON(fiber.Map{
+				"success": true,
+				"data":    quota,
+			})
+		}
+
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
+			"code":    "STORE_REQUIRED",
 			"message": "Autentikasi toko diperlukan.",
 		})
 	}
@@ -84,8 +128,9 @@ func (h *SubscriptionHandler) UpgradePlan(c *fiber.Ctx) error {
 	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
+			"code":    "STORE_REQUIRED",
 			"message": "Autentikasi toko diperlukan.",
 		})
 	}
@@ -146,8 +191,9 @@ func (h *SubscriptionHandler) ScheduleDowngrade(c *fiber.Ctx) error {
 	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
+			"code":    "STORE_REQUIRED",
 			"message": "Autentikasi toko diperlukan.",
 		})
 	}
@@ -194,8 +240,9 @@ func (h *SubscriptionHandler) UpdateCustomDomain(c *fiber.Ctx) error {
 	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
+			"code":    "STORE_REQUIRED",
 			"message": "Autentikasi toko diperlukan.",
 		})
 	}
@@ -274,9 +321,16 @@ func (h *SubscriptionHandler) CreateOrder(c *fiber.Ctx) error {
 	}
 	storeIDVal := c.Locals("store_id")
 	userIDVal := c.Locals("user_id")
-	if storeIDVal == nil || userIDVal == nil {
+	if userIDVal == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
+	if storeIDVal == nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STORE_REQUIRED",
 			"message": "Autentikasi toko diperlukan.",
 		})
 	}
@@ -323,8 +377,18 @@ func (h *SubscriptionHandler) GetOrders(c *fiber.Ctx) error {
 	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		user, _ := c.Locals("user").(*models.User)
+		userRole, _ := c.Locals("platform_role").(string)
+		isSuperadmin, _ := c.Locals("is_superadmin").(bool)
+		if (user != nil && user.IsPlatformStaff()) || models.IsPlatformStaffRole(userRole) || isSuperadmin {
+			return c.JSON(fiber.Map{
+				"success": true,
+				"data":    []models.SubscriptionOrder{},
+			})
+		}
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
+			"code":    "STORE_REQUIRED",
 			"message": "Autentikasi toko diperlukan.",
 		})
 	}
@@ -354,8 +418,9 @@ func (h *SubscriptionHandler) CancelDowngrade(c *fiber.Ctx) error {
 	}
 	storeIDVal := c.Locals("store_id")
 	if storeIDVal == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
+			"code":    "STORE_REQUIRED",
 			"message": "Autentikasi toko diperlukan.",
 		})
 	}

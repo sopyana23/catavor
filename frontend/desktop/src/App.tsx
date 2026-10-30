@@ -12721,6 +12721,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setLoginForm({ email: '', password: '' })
         
         if (isPlatformAdmin(data.user)) {
+          localStorage.removeItem('catavor_active_slug');
+          sessionStorage.removeItem('catavor_active_slug_selected');
           broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
           window.location.href = '/admin?tab=dashboard';
           return;

@@ -9550,7 +9550,9 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   const [supportUnreadCount, setSupportUnreadCount] = useState<number>(0);
 
   const fetchTicketsPing = useCallback(async () => {
-    if (!token) return;
+    const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    const isPlatformAdminPath = !isCatalogChooserRoute(curPath) && (curPath === '/admin' || curPath.startsWith('/admin/') || curPath === '/platform' || curPath.startsWith('/platform/') || curPath === '/ops' || curPath.startsWith('/ops/'));
+    if (!token || isPlatformAdmin(adminUser) || isPlatformAdminPath) return;
     try {
       const slug = storeSlug || getStoreSlug() || '';
       const queryParams = new URLSearchParams();
@@ -11149,7 +11151,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Subscription Plans & Merchant Quota Fetchers (Mobile)
   const fetchMyQuota = async () => {
-    if (!token || isSuspendedAccountState || checkIsStoreSuspended(storeSlug)) return;
+    const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    const isPlatformAdminPath = !isCatalogChooserRoute(curPath) && (curPath === '/admin' || curPath.startsWith('/admin/') || curPath === '/platform' || curPath.startsWith('/platform/') || curPath === '/ops' || curPath.startsWith('/ops/'));
+    if (!token || isPlatformAdmin(adminUser) || isPlatformAdminPath || isSuspendedAccountState || checkIsStoreSuspended(storeSlug)) return;
     try {
       const res = await fetch(`${API_BASE}/subscription/my-quota`, {
         headers: getAuthHeaders()
@@ -11185,10 +11189,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   useEffect(() => {
     fetchSubscriptionPlans();
-    if (token && !isSuspendedAccountState) {
+    const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    const isPlatformAdminPath = !isCatalogChooserRoute(curPath) && (curPath === '/admin' || curPath.startsWith('/admin/') || curPath === '/platform' || curPath.startsWith('/platform/') || curPath === '/ops' || curPath.startsWith('/ops/'));
+    if (token && !isPlatformAdmin(adminUser) && !isPlatformAdminPath && !isSuspendedAccountState) {
       fetchMyQuota();
     }
-  }, [token, isSuspendedAccountState]);
+  }, [token, adminUser, isSuspendedAccountState]);
 
   // Window Focus & Visibility Passive Revalidation (Mobile)
   // Dua tingkat: >60 detik segarkan kuota ringan; >5 menit lakukan resync penuh
@@ -11206,7 +11212,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
       if (away <= IDLE_LIGHT_MS) return;
       lastFocusSync = now;
 
-      const canSync = token && !isSuspendedAccountState && !checkIsStoreSuspended(storeSlug);
+      const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+      const isPlatformAdminPath = !isCatalogChooserRoute(curPath) && (curPath === '/admin' || curPath.startsWith('/admin/') || curPath === '/platform' || curPath.startsWith('/platform/') || curPath === '/ops' || curPath.startsWith('/ops/'));
+      const canSync = token && !isPlatformAdmin(adminUser) && !isPlatformAdminPath && !isSuspendedAccountState && !checkIsStoreSuspended(storeSlug);
       if (!canSync) return;
 
       fetchMyQuota();
@@ -13218,6 +13226,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setLoginForm({ email: '', password: '' })
         
         if (isPlatformAdmin(data.user)) {
+          localStorage.removeItem('catavor_active_slug');
+          sessionStorage.removeItem('catavor_active_slug_selected');
           broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
           window.location.href = '/admin?tab=dashboard';
           return;

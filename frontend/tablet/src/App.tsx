@@ -272,6 +272,8 @@ export const App: React.FC = () => {
         setLoginPassword('');
         broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: json.user?.id, token: json.token });
         if (isPlatformAdmin(json.user)) {
+          localStorage.removeItem('catavor_active_slug');
+          sessionStorage.removeItem('catavor_active_slug_selected');
           navigateTo('/admin?tab=dashboard');
         } else {
           const targetSlug = json.active_store?.slug || json.user?.store_slug || localStorage.getItem('catavor_active_slug');
@@ -325,6 +327,8 @@ export const App: React.FC = () => {
           localStorage.setItem('catavor_active_slug', data.active_store.slug);
         }
         if (isPlatformAdmin(data.user)) {
+          localStorage.removeItem('catavor_active_slug');
+          sessionStorage.removeItem('catavor_active_slug_selected');
           navigateTo('/admin?tab=dashboard');
         } else {
           const targetSlug = data.active_store?.slug || data.user?.store_slug || localStorage.getItem('catavor_active_slug');

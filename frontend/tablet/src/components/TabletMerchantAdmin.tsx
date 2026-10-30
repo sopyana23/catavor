@@ -92,6 +92,7 @@ import { TabletCustomSelect } from './TabletCustomSelect';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { useModalBackHandler } from '../utils/navigation';
 import { createAuthFetch, isTokenExpired } from '../utils/auth';
+import { isPlatformAdmin } from '../utils/rbac';
 import { safeOpenUrl } from '../utils/urlSecurity';
 import { normalizeNotification, parseModerationCase, extractTicketFromNotif } from '../utils/notificationHelpers';
 import {
@@ -2164,7 +2165,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [isSubModalOpen, setIsSubModalOpen] = useState<boolean>(false);
 
   const fetchQuota = useCallback(async () => {
-    if (!token) return;
+    if (!token || isPlatformAdmin(currentUser)) return;
     try {
       const res = await fetch('/api/subscription/my-quota', {
         headers: {
@@ -2179,10 +2180,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         }
       }
     } catch {}
-  }, [token, storeSlug]);
+  }, [token, storeSlug, currentUser]);
 
   const fetchSubscriptionOrders = useCallback(async () => {
-    if (!token) return;
+    if (!token || isPlatformAdmin(currentUser)) return;
     try {
       const res = await fetch('/api/subscription/orders', {
         headers: {
@@ -2197,7 +2198,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         }
       }
     } catch {}
-  }, [token, storeSlug]);
+  }, [token, storeSlug, currentUser]);
 
   // =========================================================================
   // 6. SUPPORT TICKETS & REAL-TIME REPLIES
