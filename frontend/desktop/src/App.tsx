@@ -114,6 +114,7 @@ import {
   PackageCheck,
   BadgeCheck,
   LifeBuoy,
+  Headphones,
   User,
   Trees,
   Waves,
@@ -159,6 +160,7 @@ import { AdSenseUnit } from './components/AdSenseUnit'
 import { AdminRBACManagement } from './components/AdminRBACManagement'
 import { PlatformRolePortal } from './components/PlatformRolePortal'
 import { MerchantAdminShell } from './components/MerchantAdminShell'
+import { DesktopShareCatalogView } from './components/DesktopShareCatalogView'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
 import { StoreChooserModal, type CatalogStoreItem } from './components/StoreChooserModal'
 import { DesktopCustomSelect } from './components/DesktopCustomSelect'
@@ -173,12 +175,18 @@ import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { OfficialContactModal } from './components/OfficialContactModal'
+import { PlatformPoliciesView } from './components/PlatformPoliciesView'
 import { normalizeNotification } from './utils/notificationHelpers'
 import { 
   getSavedUserSlug, 
   saveUserActiveSlug, 
+  clearUserActiveSlug,
+  appendViewParam,
   broadcastAuthEvent, 
-  subscribeAuthSync 
+  subscribeAuthSync,
+  resolveAuthenticatedRedirect,
+  hasValidSessionToken
 } from './utils/authSync'
 
 export interface UserStoreSummary {
@@ -238,7 +246,16 @@ export function getStoreSlug(): string | null {
   const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
   
   if (parts.length === 0) return null;
-  if (reservedPortal.includes(parts[0])) return null;
+  if (parts[0] === 'login' && parts.length > 1 && !reservedPortal.includes(parts[1])) {
+    return parts[1];
+  }
+  if (reservedPortal.includes(parts[0])) {
+    try {
+      const q = new URLSearchParams(window.location.search).get('slug');
+      if (q && !reservedPortal.includes(q.toLowerCase())) return q.toLowerCase();
+    } catch {}
+    return null;
+  }
   
   return parts[0];
 }
@@ -267,7 +284,17 @@ export function resolveActiveStoreSlug(): string | null {
       const u = JSON.parse(userRaw);
       if (u.store_slug && !isInvalid(u.store_slug)) return u.store_slug;
       if (u.active_store?.slug && !isInvalid(u.active_store.slug)) return u.active_store.slug;
+      if (Array.isArray(u.stores) && u.stores.length > 0 && u.stores[0]?.slug && !isInvalid(u.stores[0].slug)) return u.stores[0].slug;
       if (u.username && !isInvalid(u.username)) return u.username;
+    }
+  } catch {}
+  try {
+    const rawStores = localStorage.getItem('catavor_stores');
+    if (rawStores) {
+      const stores = JSON.parse(rawStores);
+      if (Array.isArray(stores) && stores.length > 0 && stores[0]?.slug && !isInvalid(stores[0].slug)) {
+        return stores[0].slug;
+      }
     }
   } catch {}
   return null;
@@ -692,10 +719,7 @@ export function isTokenExpired(token: string | null): boolean {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return true;
-    let payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    while (payloadBase64.length % 4 !== 0) {
-      payloadBase64 += '=';
-    }
+    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const jsonPayload = decodeURIComponent(
       atob(payloadBase64)
         .split('')
@@ -708,8 +732,7 @@ export function isTokenExpired(token: string | null): boolean {
     // Expired if exp timestamp is less than current time + 5s buffer
     return parsed.exp < (currentTime + 5);
   } catch {
-    // Defensive engineering: Do not falsely mark token expired on decoding error; let /api/auth/verify decide
-    return false;
+    return true;
   }
 }
 
@@ -2416,75 +2439,28 @@ export const HeadingDropdown: React.FC<{
   isZen?: boolean;
 }> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  const calculateCoords = () => {
-    if (!buttonRef.current) return { top: 0, left: 0 };
-    const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = isZen ? 210 : 195;
-    const menuHeight = 150;
-    let top = rect.bottom + 5;
-    if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 10) {
-      top = Math.max(10, rect.top - menuHeight - 5);
-    }
-    let left = rect.left;
-    if (left + menuWidth > window.innerWidth - 10) {
-      left = Math.max(10, rect.right - menuWidth);
-    }
-    if (left < 10) left = 10;
-    return { top, left };
-  };
-
-  const handleToggle = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isOpen) {
-      setCoords(calculateCoords());
-    }
-    setIsOpen(prev => !prev);
-  };
+  const [alignDirection, setAlignDirection] = useState<'left' | 'right'>('left');
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleScrollOrResize = () => {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        setIsOpen(false);
-        return;
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const menuWidth = isZen ? 210 : 195;
+      const spaceRight = window.innerWidth - rect.left;
+      if (spaceRight < menuWidth + 16) {
+        setAlignDirection('right');
+      } else {
+        setAlignDirection('left');
       }
-      setCoords(calculateCoords());
-    };
-
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as Node;
-      if (
-        buttonRef.current && !buttonRef.current.contains(target) &&
-        menuRef.current && !menuRef.current.contains(target)
-      ) {
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
-    };
-
-    window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, true);
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, isZen]);
 
   const handleSelect = (level: 1 | 2 | 3) => {
@@ -2493,43 +2469,38 @@ export const HeadingDropdown: React.FC<{
   };
 
   return (
-    <>
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 99999 : 1 }}>
       <button
-        ref={buttonRef}
         type="button"
         className={btnClassName}
         title="Pilih Ukuran Judul (Heading H1, H2, H3)"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={handleToggle}
+        onClick={() => setIsOpen(!isOpen)}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '4px',
           backgroundColor: isOpen ? 'var(--primary-glow, rgba(59,130,246,0.15))' : undefined,
           borderColor: isOpen ? 'var(--primary)' : undefined,
-          color: isOpen ? 'var(--primary)' : undefined,
-          cursor: 'pointer',
-          flexShrink: 0
+          color: isOpen ? 'var(--primary)' : undefined
         }}
       >
         <span style={{ fontWeight: 700 }}>Judul</span>
         <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
       </button>
 
-      {isOpen && createPortal(
+      {isOpen && (
         <div
-          ref={menuRef}
           style={{
-            position: 'fixed',
-            top: coords.top,
-            left: coords.left,
-            zIndex: 9999999,
+            position: 'absolute',
+            top: 'calc(100% + 5px)',
+            ...(alignDirection === 'right' ? { right: 0, left: 'auto' } : { left: 0, right: 'auto' }),
+            zIndex: 999999,
             minWidth: isZen ? '210px' : '195px',
             maxWidth: 'calc(100vw - 24px)',
             backgroundColor: 'var(--bg-card)',
             border: '1px solid var(--border-light)',
             borderRadius: '0.6rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.55), 0 4px 14px rgba(0,0,0,0.2)',
+            boxShadow: '0 14px 35px rgba(0,0,0,0.35), 0 4px 14px rgba(0,0,0,0.2)',
             padding: '0.45rem',
             display: 'flex',
             flexDirection: 'column',
@@ -2539,7 +2510,6 @@ export const HeadingDropdown: React.FC<{
         >
           <button
             type="button"
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect(1)}
             style={{
               display: 'flex',
@@ -2573,7 +2543,6 @@ export const HeadingDropdown: React.FC<{
 
           <button
             type="button"
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect(2)}
             style={{
               display: 'flex',
@@ -2607,7 +2576,6 @@ export const HeadingDropdown: React.FC<{
 
           <button
             type="button"
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect(3)}
             style={{
               display: 'flex',
@@ -2638,10 +2606,9 @@ export const HeadingDropdown: React.FC<{
             </div>
             <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>###</code>
           </button>
-        </div>,
-        document.body
+        </div>
       )}
-    </>
+    </div>
   );
 };
 
@@ -2651,75 +2618,28 @@ export const ListDropdown: React.FC<{
   isZen?: boolean;
 }> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  const calculateCoords = () => {
-    if (!buttonRef.current) return { top: 0, left: 0 };
-    const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = isZen ? 205 : 190;
-    const menuHeight = 110;
-    let top = rect.bottom + 5;
-    if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 10) {
-      top = Math.max(10, rect.top - menuHeight - 5);
-    }
-    let left = rect.left;
-    if (left + menuWidth > window.innerWidth - 10) {
-      left = Math.max(10, rect.right - menuWidth);
-    }
-    if (left < 10) left = 10;
-    return { top, left };
-  };
-
-  const handleToggle = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isOpen) {
-      setCoords(calculateCoords());
-    }
-    setIsOpen(prev => !prev);
-  };
+  const [alignDirection, setAlignDirection] = useState<'left' | 'right'>('left');
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleScrollOrResize = () => {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        setIsOpen(false);
-        return;
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const menuWidth = isZen ? 205 : 190;
+      const spaceRight = window.innerWidth - rect.left;
+      if (spaceRight < menuWidth + 16) {
+        setAlignDirection('right');
+      } else {
+        setAlignDirection('left');
       }
-      setCoords(calculateCoords());
-    };
-
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as Node;
-      if (
-        buttonRef.current && !buttonRef.current.contains(target) &&
-        menuRef.current && !menuRef.current.contains(target)
-      ) {
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
-    };
-
-    window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, true);
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, isZen]);
 
   const handleSelect = (type: 'bullet' | 'number') => {
@@ -2728,43 +2648,38 @@ export const ListDropdown: React.FC<{
   };
 
   return (
-    <>
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 99999 : 1 }}>
       <button
-        ref={buttonRef}
         type="button"
         className={btnClassName}
         title="Pilih Format Daftar (Daftar Poin, Nomor)"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={handleToggle}
+        onClick={() => setIsOpen(!isOpen)}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '4px',
           backgroundColor: isOpen ? 'var(--primary-glow, rgba(59,130,246,0.15))' : undefined,
           borderColor: isOpen ? 'var(--primary)' : undefined,
-          color: isOpen ? 'var(--primary)' : undefined,
-          cursor: 'pointer',
-          flexShrink: 0
+          color: isOpen ? 'var(--primary)' : undefined
         }}
       >
         <span style={{ fontWeight: 700 }}>List</span>
         <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
       </button>
 
-      {isOpen && createPortal(
+      {isOpen && (
         <div
-          ref={menuRef}
           style={{
-            position: 'fixed',
-            top: coords.top,
-            left: coords.left,
-            zIndex: 9999999,
+            position: 'absolute',
+            top: 'calc(100% + 5px)',
+            ...(alignDirection === 'right' ? { right: 0, left: 'auto' } : { left: 0, right: 'auto' }),
+            zIndex: 999999,
             minWidth: isZen ? '205px' : '190px',
             maxWidth: 'calc(100vw - 24px)',
             backgroundColor: 'var(--bg-card)',
             border: '1px solid var(--border-light)',
             borderRadius: '0.6rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.55), 0 4px 14px rgba(0,0,0,0.2)',
+            boxShadow: '0 14px 35px rgba(0,0,0,0.35), 0 4px 14px rgba(0,0,0,0.2)',
             padding: '0.45rem',
             display: 'flex',
             flexDirection: 'column',
@@ -2774,7 +2689,6 @@ export const ListDropdown: React.FC<{
         >
           <button
             type="button"
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect('bullet')}
             style={{
               display: 'flex',
@@ -2808,7 +2722,6 @@ export const ListDropdown: React.FC<{
 
           <button
             type="button"
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect('number')}
             style={{
               display: 'flex',
@@ -2839,10 +2752,9 @@ export const ListDropdown: React.FC<{
             </div>
             <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>1.</code>
           </button>
-        </div>,
-        document.body
+        </div>
       )}
-    </>
+    </div>
   );
 };
 
@@ -5057,29 +4969,30 @@ function App() {
     const parts = path.split('/').filter(Boolean);
     if (parts.length === 0) return null;
     
+    if (parts[0] === 'login' && parts.length > 1 && !isReservedStoreSlug(parts[1])) {
+      return parts[1];
+    }
+
     if (!isReservedStoreSlug(parts[0])) {
       return parts[0];
     }
+
+    try {
+      const q = new URLSearchParams(window.location.search).get('slug');
+      if (q && !isReservedStoreSlug(q)) return q;
+    } catch {}
+
     return null;
   };
   const [storeSlug, setStoreSlug] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      const p = window.location.pathname.toLowerCase().trim().replace(/\/+$/, '') || '/';
-      if (
-        isCatalogChooserRoute(p) ||
-        p === '/admin' || p.startsWith('/admin/') ||
-        p === '/platform' || p.startsWith('/platform/') ||
-        p === '/ops' || p.startsWith('/ops/') ||
-        p === '/login' ||
-        p === '/register' || p.startsWith('/register/') ||
-        p === '/' || p === ''
-      ) {
-        return null;
-      }
+    if (typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)) {
+      return null;
     }
     const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
     const urlSlug = getStoreSlug();
     if (urlSlug && isValid(urlSlug)) return urlSlug;
+    const activeResolved = resolveActiveStoreSlug();
+    if (activeResolved && isValid(activeResolved)) return activeResolved;
     return null;
   });
 
@@ -5102,7 +5015,12 @@ function App() {
       let pathStep: 1 | 2 | 3 = 1;
 
       if (path === '/login') {
-        pathTab = 'login';
+        const curToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null;
+        if (curToken && !isTokenExpired(curToken)) {
+          pathTab = 'home';
+        } else {
+          pathTab = 'login';
+        }
       } else if (path === '/register' || path === '/register/step-1') {
         pathTab = 'register';
         pathStep = 1;
@@ -5598,6 +5516,15 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const desktopFetchTicketsPingRef = useRef<(() => void) | null>(null);
   // checkTokenValidity dideklarasikan setelah effect resync idle, jadi via ref
   const desktopCheckTokenValidityRef = useRef<((force?: boolean) => void) | null>(null);
+  const desktopVerifiedTokenRef = useRef<string | null>(null);
+  const desktopLastTokenCheckTimeRef = useRef<number>(0);
+  const desktopLastQuotaFetchTimeRef = useRef<number>(0);
+  const desktopLastLoadedSlugRef = useRef<string | null>(null);
+  const desktopLastLoadedTimeRef = useRef<number>(0);
+  const portalTabRef = useRef(portalTab);
+  portalTabRef.current = portalTab;
+  const storeSlugRef = useRef(storeSlug);
+  storeSlugRef.current = storeSlug;
   const desktopIsFetchingTicketsRef = useRef<boolean>(false);
   const desktopLastTicketsFetchTimeRef = useRef<number>(0);
   const desktopIsFetchingTicketDetailsRef = useRef<string | number | null>(null);
@@ -6648,16 +6575,20 @@ Terima kasih.`;
         return savedView as any;
       }
       const path = window.location.pathname.toLowerCase();
-      if (path.includes('/admin') || (path.split('/').filter(Boolean).length === 2 && path.endsWith('/login'))) {
+      if (
+        path.includes('/admin') ||
+        (path.split('/').filter(Boolean).length === 2 && path.endsWith('/login')) ||
+        (path.startsWith('/login/') && path.split('/').filter(Boolean).length >= 2)
+      ) {
         return 'admin';
       }
     }
     return 'catalog';
   });
-  const [adminTab, setAdminTab] = useState<'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal'>(() => {
+  const [adminTab, setAdminTab] = useState<'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share'>(() => {
     if (typeof window !== 'undefined') {
       const savedTab = sessionStorage.getItem('catavor_desktop_admin_tab');
-      if (savedTab && ['items', 'categories', 'analytics', 'notifications', 'settings', 'profile', 'policies', 'help', 'subscription', 'audit_logs', 'rbac', 'portal'].includes(savedTab)) {
+      if (savedTab && ['items', 'categories', 'analytics', 'notifications', 'settings', 'profile', 'policies', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(savedTab)) {
         sessionStorage.removeItem('catavor_desktop_admin_tab');
         return savedTab as any;
       }
@@ -6690,15 +6621,22 @@ Terima kasih.`;
       ) {
         return 'categories';
       }
+      if (
+        ['share', 'bagikan', 'qrcode', 'qr'].includes(rawTabParam) ||
+        (parts[0] === 'admin' && ['share', 'bagikan', 'qrcode', 'qr'].includes(parts[1])) ||
+        (parts.length >= 3 && parts[1] === 'admin' && ['share', 'bagikan', 'qrcode', 'qr'].includes(parts[2]))
+      ) {
+        return 'share';
+      }
       if (parts[0] === 'admin' && parts[1]) {
         const sub = parts[1];
-        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
           return sub as any;
         }
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
         const sub = parts[2];
-        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
           return sub as any;
         }
       }
@@ -6709,6 +6647,7 @@ Terima kasih.`;
       if (['subscription', 'langganan', 'paket'].includes(rawTabParam)) return 'subscription';
       if (['audit_logs', 'audit'].includes(rawTabParam)) return 'audit_logs';
       if (['rbac', 'akses'].includes(rawTabParam)) return 'rbac';
+      if (['share', 'bagikan'].includes(rawTabParam)) return 'share';
     }
     return 'items';
   });
@@ -7630,6 +7569,8 @@ Terima kasih.`;
   const [adminUser, setAdminUser] = useState<{id?: number, name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[], has_custom_password?: boolean, is_password_changed?: boolean} | null>(
     localStorage.getItem('catavor_user') ? JSON.parse(localStorage.getItem('catavor_user')!) : null
   )
+  const adminUserRef = useRef(adminUser);
+  adminUserRef.current = adminUser;
   const [isPasswordChanged, setIsPasswordChanged] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     try {
@@ -7653,9 +7594,25 @@ Terima kasih.`;
     if (hasActiveSlug) return false;
     return isCatalogChooserRoute(window.location.pathname);
   });
-  const [showStoreSwitcherModal, setShowStoreSwitcherModal] = useState<boolean>(() => 
-    typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)
-  );
+  const [showStoreSwitcherModal, setShowStoreSwitcherModal] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    if (!isCatalogChooserRoute(window.location.pathname)) return false;
+    try {
+      const rawStores = localStorage.getItem('catavor_stores');
+      let parsed = rawStores ? JSON.parse(rawStores) : [];
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        const rawUser = localStorage.getItem('catavor_user');
+        if (rawUser) {
+          const u = JSON.parse(rawUser);
+          if (Array.isArray(u?.stores)) parsed = u.stores;
+        }
+      }
+      if (Array.isArray(parsed) && parsed.length === 1 && parsed[0]?.slug) {
+        return false;
+      }
+    } catch {}
+    return true;
+  });
   const [storeChooserComplianceAlert, setStoreChooserComplianceAlert] = useState<{
     type: 'banned' | 'suspended' | 'info';
     message: string;
@@ -7717,6 +7674,25 @@ Terima kasih.`;
         try {
           localStorage.setItem('catavor_stores', JSON.stringify(normalizedStores));
         } catch {}
+
+        const activeStores = normalizedStores.filter(s => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+        const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+        if (isCatalogChooserRoute(curPath) && activeStores.length === 1 && activeStores[0]?.slug) {
+          const singleSlug = activeStores[0].slug;
+          try {
+            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+            localStorage.setItem('catavor_active_slug', singleSlug);
+          } catch {}
+          setShowStoreSwitcherModal(false);
+          setIsFirstTimeLogin(false);
+          setStoreSlug(singleSlug);
+          setView('admin');
+          setAdminTab('items');
+          window.history.replaceState({}, '', `/${singleSlug}/admin`);
+          loadData(singleSlug);
+          return;
+        }
+
         const currentSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
         const activeMatch = normalizedStores.find(st => st.slug.toLowerCase() === currentSlug);
         if (activeMatch) {
@@ -7739,6 +7715,31 @@ Terima kasih.`;
     const handleRouteSync = () => {
       const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
       if (isCatalogChooserRoute(path)) {
+        let parsedStores: any[] = [];
+        try {
+          const raw = localStorage.getItem('catavor_stores');
+          if (raw) parsedStores = JSON.parse(raw);
+        } catch {}
+        if (!parsedStores.length && Array.isArray((adminUser as any)?.stores)) {
+          parsedStores = (adminUser as any).stores;
+        }
+        parsedStores = parsedStores.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+        if (parsedStores.length === 1 && parsedStores[0]?.slug) {
+          const singleSlug = parsedStores[0].slug;
+          try {
+            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+            localStorage.setItem('catavor_active_slug', singleSlug);
+          } catch {}
+          setShowStoreSwitcherModal(false);
+          setIsFirstTimeLogin(false);
+          setStoreSlug(singleSlug);
+          setView('admin');
+          setAdminTab('items');
+          window.history.replaceState({}, '', appendViewParam(`/${singleSlug}/admin`));
+          loadData(singleSlug);
+          return;
+        }
+
         setShowStoreSwitcherModal(true);
         const hasActiveSlug = Boolean(localStorage.getItem('catavor_active_slug') || sessionStorage.getItem('catavor_active_slug_selected'));
         setIsFirstTimeLogin(!hasActiveSlug);
@@ -7754,7 +7755,7 @@ Terima kasih.`;
     handleRouteSync();
     window.addEventListener('popstate', handleRouteSync);
     return () => window.removeEventListener('popstate', handleRouteSync);
-  }, [token]);
+  }, [token, adminUser]);
 
   // Desktop Route Guard for Suspended Merchant Account (Strict URL Injection Protection)
   useEffect(() => {
@@ -7790,44 +7791,49 @@ Terima kasih.`;
 
   const openStoreChooserModal = () => {
     setIsFirstTimeLogin(false);
+    if (!userStores || userStores.length === 0) {
+      try {
+        const raw = localStorage.getItem('catavor_stores');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setUserStores(parsed);
+          }
+        }
+      } catch {}
+    }
     fetchMyStores();
     setShowStoreSwitcherModal(true);
-    if (typeof window !== 'undefined' && !isCatalogChooserRoute(window.location.pathname)) {
-      window.history.pushState({ chooser: true }, '', '/catalogs');
-    }
   };
 
   const handleCloseStoreChooserModal = () => {
     setShowStoreSwitcherModal(false);
     setStoreChooserComplianceAlert(null);
     setIsFirstTimeLogin(false);
-    const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
-    const activeSlug = 
-      (isValid(storeSlug) ? storeSlug : null) ||
-      (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) ||
-      (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
-      (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
-      null;
-
     const isChooserUrl = typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname);
+    if (isChooserUrl) {
+      const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+      const activeSlug = 
+        (isValid(storeSlug) ? storeSlug : null) ||
+        (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) ||
+        (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
+        (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
+        null;
 
-    if (activeSlug && isValid(activeSlug)) {
-      setStoreSlug(activeSlug);
-      try { localStorage.setItem('catavor_active_slug', activeSlug); } catch {}
-      setView('admin');
-      if (typeof window !== 'undefined') {
-        if (isChooserUrl && window.history.length > 1) {
+      if (activeSlug && isValid(activeSlug)) {
+        setStoreSlug(activeSlug);
+        try { localStorage.setItem('catavor_active_slug', activeSlug); } catch {}
+        setView('admin');
+        if (window.history.length > 1) {
           window.history.back();
         } else {
-          window.history.pushState({}, '', `/${activeSlug}/admin`);
+          window.history.pushState({}, '', appendViewParam(`/${activeSlug}/admin`));
         }
-      }
-      loadData(activeSlug);
-    } else {
-      setView('catalog');
-      setPortalTab('home');
-      if (typeof window !== 'undefined') {
-        if (isChooserUrl && window.history.length > 1) {
+        loadData(activeSlug);
+      } else {
+        setView('catalog');
+        setPortalTab('home');
+        if (window.history.length > 1) {
           window.history.back();
         } else {
           window.history.pushState({}, '', '/');
@@ -7835,6 +7841,12 @@ Terima kasih.`;
       }
     }
   };
+
+  useModalBackHandler({
+    isOpen: showStoreSwitcherModal,
+    onClose: handleCloseStoreChooserModal,
+    modalId: 'desktop-store-switcher'
+  });
 
   useEffect(() => {
     if (token) {
@@ -8212,20 +8224,12 @@ Terima kasih.`;
   const [ticketLimit] = useState<number>(15);
   const [ticketMetrics, setTicketMetrics] = useState<{ total: number; active: number; resolved: number }>({ total: 0, active: 0, resolved: 0 });
 
-  // Debounce ticketSearch input by 350ms to prevent server overload
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedTicketSearch(ticketSearch);
-      setTicketPage(1);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [ticketSearch]);
-
   // Reset to page 1 on filter tab change
   useEffect(() => {
     setTicketPage(1);
   }, [ticketFilter]);
   const [showCreateTicketModal, setShowCreateTicketModal] = useState<boolean>(false);
+  const [showOfficialContactModal, setShowOfficialContactModal] = useState<boolean>(false);
   const [ticketReplyText, setTicketReplyText] = useState<string>('');
   const merchantTicketTextareaRef = useRef<HTMLTextAreaElement>(null);
   const desktopTicketChatContainerRef = useRef<HTMLDivElement>(null);
@@ -8328,20 +8332,32 @@ Terima kasih.`;
   };
 
   const openDocumentPreview = (att: any) => {
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const isPdf = (att.file_type || '').includes('pdf') || 
+      (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+      (att.file_url || '').toLowerCase().endsWith('.pdf');
+
     setDocPreview({
       isOpen: true,
       id: att.id,
       url: supportAttachmentSrc(att),
-      fileName: att.file_name || 'Dokumen.pdf',
+      fileName: att.file_name || (isPdf ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran'),
       fileSize: att.file_size,
-      fileType: att.file_type || 'application/pdf'
+      fileType: att.file_type || (isPdf ? 'application/pdf' : isImage ? 'image/jpeg' : 'application/octet-stream')
     });
   };
 
   const handleDownloadDocument = async (att: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const fileName = att.file_name || (isImage ? 'Lampiran_Gambar.jpg' : 'Dokumen.pdf');
     const authToken = token || localStorage.getItem('catavor_token') || '';
-    const fileName = att.file_name || 'Dokumen.pdf';
 
     try {
       const targetUrl = att.id ? `/api/support/attachments/${att.id}?download=1` : att.file_url;
@@ -8357,7 +8373,7 @@ Terima kasih.`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
         return;
       }
     } catch (err) {
@@ -8381,57 +8397,19 @@ Terima kasih.`;
   } | null>(null);
 
   const openAttachmentLightbox = (
-    images?: { file_url: string; file_name?: string; file_type?: string }[],
-    indexOrTarget: number | string | { file_url: string } = 0
+    images?: any[],
+    indexOrTarget: number | string | any = 0
   ) => {
     if (!images || images.length === 0) return;
-    // Filter strictly to actual image attachments (exclude PDF, docs, and broken files)
-    const imageList = images.filter(att => {
-      if (!att || !att.file_url) return false;
-      const fileType = (att.file_type || '').toLowerCase().trim();
-      const name = (att.file_name || '').toLowerCase().trim();
-      const url = (att.file_url || '').toLowerCase().trim();
-
-      if (fileType.includes('pdf') || name.endsWith('.pdf') || url.endsWith('.pdf') || name.includes('.pdf') || url.includes('.pdf')) {
-        return false;
-      }
-      if (fileType.includes('document') || fileType.includes('sheet') || fileType.includes('zip') || fileType.includes('octet-stream')) {
-        return false;
-      }
-      if (fileType.startsWith('image/')) {
-        return true;
-      }
-      if (/\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(name) || /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(url)) {
-        return true;
-      }
-      return false;
-    });
-
-    if (imageList.length === 0) return;
-
-    let targetIdx = 0;
+    let selected: any = images[0];
     if (typeof indexOrTarget === 'number') {
-      const selectedItem = images[indexOrTarget];
-      if (selectedItem) {
-        const found = imageList.findIndex(img => img.file_url === selectedItem.file_url);
-        targetIdx = found !== -1 ? found : 0;
-      }
+      selected = images[indexOrTarget] || images[0];
     } else if (typeof indexOrTarget === 'string') {
-      const found = imageList.findIndex(img => img.file_url === indexOrTarget);
-      targetIdx = found !== -1 ? found : 0;
-    } else if (indexOrTarget && typeof indexOrTarget === 'object' && indexOrTarget.file_url) {
-      const found = imageList.findIndex(img => img.file_url === indexOrTarget.file_url);
-      targetIdx = found !== -1 ? found : 0;
+      selected = images.find(img => img.file_url === indexOrTarget || String(img.id) === indexOrTarget) || images[0];
+    } else if (indexOrTarget && typeof indexOrTarget === 'object') {
+      selected = images.find(img => (indexOrTarget.id && img.id === indexOrTarget.id) || (indexOrTarget.file_url && img.file_url === indexOrTarget.file_url)) || indexOrTarget;
     }
-
-    setAttachmentLightbox({
-      isOpen: true,
-      images: imageList,
-      currentIndex: Math.max(0, Math.min(targetIdx, imageList.length - 1))
-    });
-    setZoomScale(1);
-    setPanPosition({ x: 0, y: 0 });
-    setIsDragging(false);
+    openDocumentPreview(selected);
   };
 
   const closeAttachmentLightbox = () => {
@@ -8497,8 +8475,8 @@ Terima kasih.`;
   // Auto-populate appeal draft template whenever create ticket modal is opened for a suspended store
   useEffect(() => {
     if (showCreateTicketModal && (settings.dormancy_status === 'suspended' || settings.is_suspended)) {
-      const appealSub = `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`;
-      const appealMsg = `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`;
+      const appealSub = `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`;
+      const appealMsg = `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`;
 
       setNewTicketForm(prev => ({
         subject: (!prev.subject || !prev.subject.trim() || prev.subject.includes('Banding Kepatuhan')) ? appealSub : prev.subject,
@@ -8564,6 +8542,89 @@ Terima kasih.`;
           bg: 'rgba(14, 165, 233, 0.12)',
           color: '#0284c7',
           border: '1px solid rgba(14, 165, 233, 0.3)'
+        };
+    }
+  };
+
+  const getTicketPriorityMeta = (priority?: string) => {
+    const p = (priority || 'medium').toLowerCase();
+    switch (p) {
+      case 'urgent':
+        return {
+          label: 'Mendesak',
+          color: '#ef4444',
+          bg: 'rgba(239, 68, 68, 0.12)',
+          border: 'rgba(239, 68, 68, 0.28)'
+        };
+      case 'high':
+        return {
+          label: 'Tinggi',
+          color: '#ea580c',
+          bg: 'rgba(249, 115, 22, 0.12)',
+          border: 'rgba(249, 115, 22, 0.28)'
+        };
+      case 'low':
+        return {
+          label: 'Rendah',
+          color: '#64748b',
+          bg: 'rgba(100, 116, 139, 0.1)',
+          border: 'rgba(100, 116, 139, 0.22)'
+        };
+      case 'medium':
+      default:
+        return {
+          label: 'Sedang',
+          color: '#0284c7',
+          bg: 'rgba(2, 132, 199, 0.1)',
+          border: 'rgba(2, 132, 199, 0.22)'
+        };
+    }
+  };
+
+  const getTicketStatusBadge = (status?: string) => {
+    const s = (status || 'open').toLowerCase();
+    switch (s) {
+      case 'resolved':
+      case 'closed':
+        return {
+          label: 'Selesai',
+          icon: '✓',
+          color: '#10b981',
+          bg: 'rgba(16, 185, 129, 0.12)',
+          border: 'rgba(16, 185, 129, 0.28)'
+        };
+      case 'in_progress':
+        return {
+          label: 'Sedang Diproses',
+          icon: '●',
+          color: '#f59e0b',
+          bg: 'rgba(245, 158, 11, 0.12)',
+          border: 'rgba(245, 158, 11, 0.28)'
+        };
+      case 'waiting_agent':
+        return {
+          label: 'Menunggu CS',
+          icon: '●',
+          color: '#8b5cf6',
+          bg: 'rgba(139, 92, 246, 0.12)',
+          border: 'rgba(139, 92, 246, 0.28)'
+        };
+      case 'waiting_user':
+        return {
+          label: 'Menunggu Balasan Anda',
+          icon: '●',
+          color: '#ec4899',
+          bg: 'rgba(236, 72, 153, 0.12)',
+          border: 'rgba(236, 72, 153, 0.28)'
+        };
+      case 'open':
+      default:
+        return {
+          label: 'Tiket Terbuka',
+          icon: '●',
+          color: '#3b82f6',
+          bg: 'rgba(59, 130, 246, 0.12)',
+          border: 'rgba(59, 130, 246, 0.28)'
         };
     }
   };
@@ -9723,7 +9784,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
-  const [loginRedirectPortal, setLoginRedirectPortal] = useState<string | null>(null)
 
   // First-time Password Change Form State
   const [firstPasswordForm, setFirstPasswordForm] = useState({
@@ -10115,11 +10175,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
         return;
       }
 
-      const savedStoresRaw = localStorage.getItem('catavor_stores');
       let parsedStores: any[] = [];
       try {
-        parsedStores = savedStoresRaw ? JSON.parse(savedStoresRaw) : [];
+        const raw = localStorage.getItem('catavor_stores');
+        if (raw) parsedStores = JSON.parse(raw);
       } catch {}
+      if (!parsedStores.length && Array.isArray((adminUser as any)?.stores)) {
+        parsedStores = (adminUser as any).stores;
+      }
+      parsedStores = parsedStores.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
 
       if (parsedStores.length === 1 && parsedStores[0]?.slug) {
         const singleSlug = parsedStores[0].slug;
@@ -10127,12 +10191,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
           sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
           localStorage.setItem('catavor_active_slug', singleSlug);
         } catch {}
-        setStoreSlug(singleSlug);
-        setIsFirstTimeLogin(false);
         setShowStoreSwitcherModal(false);
+        setIsFirstTimeLogin(false);
+        setStoreSlug(singleSlug);
         setView('admin');
         setAdminTab('items');
-        setPortalTab('home');
         window.history.replaceState({}, '', `/${singleSlug}/admin`);
         loadData(singleSlug);
         return;
@@ -10153,42 +10216,144 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return;
     }
 
-    if (path === '/login') {
+    const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
+
+    if (isPlatformAdminPath) {
+      if (token && isPlatformAdmin(adminUser)) {
+        setView('admin');
+        setStoreSlug(null);
+        return;
+      }
+      if (token && !isPlatformAdmin(adminUser)) {
+        if (path === '/admin' || path.startsWith('/admin/')) {
+          const dest = resolveAuthenticatedRedirect(adminUser, storeSlug);
+          const pathOnly = dest.split('?')[0];
+          if (pathOnly !== '/admin') {
+            if (pathOnly === '/catalogs') {
+              let userStoresList: any[] = [];
+              try {
+                const s = localStorage.getItem('catavor_stores');
+                if (s) userStoresList = JSON.parse(s);
+              } catch {}
+              if (!userStoresList.length && Array.isArray((adminUser as any)?.stores)) {
+                userStoresList = (adminUser as any).stores;
+              }
+              if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+                const targetSlug = userStoresList[0].slug;
+                setStoreSlug(targetSlug);
+                setView('admin');
+                setAdminTab('items');
+                window.history.replaceState({}, '', appendViewParam(`/${targetSlug}/admin`));
+                loadData(targetSlug);
+                return;
+              }
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              window.history.replaceState({}, '', dest);
+              return;
+            } else {
+              const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+              setStoreSlug(targetSlug);
+              setView('admin');
+              setAdminTab('items');
+              window.history.replaceState({}, '', dest);
+              loadData(targetSlug);
+              return;
+            }
+          } else {
+            const fallbackSlug = (adminUser as any)?.store_slug || (adminUser as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+            if (fallbackSlug) {
+              setStoreSlug(fallbackSlug);
+              setView('admin');
+              setAdminTab('items');
+              window.history.replaceState({}, '', appendViewParam(`/${fallbackSlug}/admin`));
+              loadData(fallbackSlug);
+              return;
+            } else {
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              window.history.replaceState({}, '', appendViewParam('/catalogs'));
+              return;
+            }
+          }
+        }
+      }
+    }
+
+    const isLoginRoute = path === '/login' || (path.split('/').filter(Boolean).length === 2 && path.endsWith('/login') && !isReservedStoreSlug(path.split('/').filter(Boolean)[0]));
+    if (isLoginRoute) {
       const savedToken = token || localStorage.getItem('catavor_token');
-      if (savedToken) {
+      if (savedToken && !isTokenExpired(savedToken)) {
         const savedUserStr = localStorage.getItem('catavor_user');
         let u: any = adminUser;
         if (!u && savedUserStr) {
           try { u = JSON.parse(savedUserStr); } catch {}
         }
-        if (isPlatformAdmin(u)) {
-          window.location.replace('/admin?tab=dashboard');
-          return;
-        }
-        const targetSlug = resolveActiveStoreSlug() || u?.store_slug || localStorage.getItem('catavor_active_slug');
-        if (targetSlug && !isReservedStoreSlug(targetSlug)) {
-          window.location.replace(`/${targetSlug}/admin/items`);
+        const requestedSlug = path !== '/login' ? path.split('/').filter(Boolean)[0] : null;
+        const redirectUrl = resolveAuthenticatedRedirect(u, requestedSlug);
+        const pathOnly = redirectUrl.split('?')[0];
+        if (pathOnly === '/admin') {
+          if (isPlatformAdmin(u)) {
+            setView('admin');
+            setStoreSlug(null);
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+            return;
+          } else {
+            const fallbackSlug = (u as any)?.store_slug || (u as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+            if (fallbackSlug) {
+              const targetUrl = appendViewParam(`/${fallbackSlug}/admin`);
+              setStoreSlug(fallbackSlug);
+              setView('admin');
+              setAdminTab('items');
+              setPortalTab('home');
+              window.history.replaceState({}, '', targetUrl);
+              loadData(fallbackSlug);
+              return;
+            } else {
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              setPortalTab('home');
+              window.history.replaceState({}, '', appendViewParam('/catalogs'));
+              return;
+            }
+          }
+        } else if (pathOnly === '/catalogs') {
+          let userStoresList: any[] = [];
+          try {
+            const s = localStorage.getItem('catavor_stores');
+            if (s) userStoresList = JSON.parse(s);
+          } catch {}
+          if (!userStoresList.length && Array.isArray(u?.stores)) {
+            userStoresList = u.stores;
+          }
+          if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+            const targetSlug = userStoresList[0].slug;
+            const targetUrl = appendViewParam(`/${targetSlug}/admin`);
+            setStoreSlug(targetSlug);
+            setView('admin');
+            setAdminTab('items');
+            setPortalTab('home');
+            window.history.replaceState({}, '', targetUrl);
+            loadData(targetSlug);
+            return;
+          }
+          setStoreSlug(null);
+          setShowStoreSwitcherModal(true);
+          setPortalTab('home');
+          window.history.replaceState({}, '', redirectUrl);
           return;
         } else {
-          window.location.replace('/catalogs');
+          const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+          setStoreSlug(targetSlug);
+          setView('admin');
+          setAdminTab('items');
+          setPortalTab('home');
+          window.history.replaceState({}, '', redirectUrl);
+          loadData(targetSlug);
           return;
         }
-      } else {
-        setStoreSlug(null);
-        setPortalTab('login');
-        return;
       }
-    }
-
-    const cleanPath = (path || '').split('?')[0].toLowerCase().trim().replace(/\/+$/, '') || '/';
-    const isPlatformAdminPath = !isCatalogChooserRoute(cleanPath) && (cleanPath === '/admin' || cleanPath.startsWith('/admin/') || cleanPath === '/platform' || cleanPath.startsWith('/platform/') || cleanPath === '/ops' || cleanPath.startsWith('/ops/'));
-
-    if (isPlatformAdminPath) {
-      setStoreSlug(null);
-      if (token && isPlatformAdmin(adminUser)) {
-        setView('admin');
-      }
-      return;
     }
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -10242,7 +10407,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
     // Access Guard for /{slug}/admin: Prevent accessing without prior catalog profile selection
     if (path.includes('/admin') && !isPlatformAdminPath) {
       if (!savedToken) {
-        setStoreSlug(null);
         setPortalTab('login');
         try {
           sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: window.location.pathname + window.location.search }));
@@ -10405,8 +10569,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
             fetchActivityLogs(1, false);
           } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
             setAdminTab('rbac');
-          } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
-            setShowQRModal(true);
+          } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr' || pageSub === 'bagikan') {
+            setAdminTab('share');
           } else setAdminTab('items');
         } else if (sub === 'about') {
           setView('catalog');
@@ -10483,11 +10647,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     }
 
-    // STRICT FLOW: Flag password change requirement if the user is the default seeded admin
+    // STRICT FLOW: Only enforce re-login if the user is explicitly the default seeded system admin
     if (token && localStorage.getItem('catavor_password_changed') === 'false' && adminUser?.email === 'admin@catavor.local') {
+      localStorage.removeItem('catavor_token')
+      localStorage.removeItem('catavor_user')
+      localStorage.removeItem('catavor_password_changed')
+      setToken(null)
+      setAdminUser(null)
       setIsPasswordChanged(false)
     }
-  }, [adminUser, token])
+  }, [token])
 
   // Auto-open fauna item modal if ?item=ID is in URL or /admin/items/edit/ID
   useEffect(() => {
@@ -10537,6 +10706,47 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   }, [showCrudModal])
 
+  // Auto-redirect merchant users who land on generic /admin directly to their store dashboard or /catalogs
+  useEffect(() => {
+    const currentP = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    if (token && !isPlatformAdmin(adminUser) && (currentP === '/admin' || currentP.startsWith('/admin/'))) {
+      const dest = resolveAuthenticatedRedirect(adminUser, storeSlug);
+      const pathOnly = dest.split('?')[0];
+      if (pathOnly !== '/admin') {
+        if (pathOnly === '/catalogs') {
+          let userStoresList: any[] = [];
+          try {
+            const s = localStorage.getItem('catavor_stores');
+            if (s) userStoresList = JSON.parse(s);
+          } catch {}
+          if (!userStoresList.length && Array.isArray((adminUser as any)?.stores)) {
+            userStoresList = (adminUser as any).stores;
+          }
+          userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+          if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+            const targetSlug = userStoresList[0].slug;
+            setStoreSlug(targetSlug);
+            setView('admin');
+            setAdminTab('items');
+            window.history.replaceState({}, '', appendViewParam(`/${targetSlug}/admin`));
+            loadData(targetSlug);
+            return;
+          }
+          setStoreSlug(null);
+          setShowStoreSwitcherModal(true);
+          window.history.replaceState({}, '', dest);
+        } else {
+          const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+          setStoreSlug(targetSlug);
+          setView('admin');
+          setAdminTab('items');
+          window.history.replaceState({}, '', dest);
+          loadData(targetSlug);
+        }
+      }
+    }
+  }, [token, adminUser, storeSlug]);
+
   // Listen to popstate for back navigation & gesture support across clean URL paths (/ , /login , /register/step-X)
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -10547,21 +10757,89 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
       isPopStateRef.current = true;
       const path = window.location.pathname.toLowerCase();
-      const cleanPath = (path || '').split('?')[0].toLowerCase().trim().replace(/\/+$/, '') || '/';
-      const isPlatformAdminPath = !isCatalogChooserRoute(cleanPath) && (cleanPath === '/admin' || cleanPath.startsWith('/admin/') || cleanPath === '/platform' || cleanPath.startsWith('/platform/') || cleanPath === '/ops' || cleanPath.startsWith('/ops/'));
+      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
       if (isPlatformAdminPath) {
-        setStoreSlug(null);
         if (token && isPlatformAdmin(adminUser)) {
           setView('admin');
+          setStoreSlug(null);
+          return;
         }
+        if (token && !isPlatformAdmin(adminUser)) {
+          if (path === '/admin' || path.startsWith('/admin/')) {
+            const dest = resolveAuthenticatedRedirect(adminUser, storeSlug);
+            const pathOnly = dest.split('?')[0];
+            if (pathOnly !== '/admin') {
+              if (pathOnly === '/catalogs') {
+                let userStoresList: any[] = [];
+                try {
+                  const s = localStorage.getItem('catavor_stores');
+                  if (s) userStoresList = JSON.parse(s);
+                } catch {}
+                if (!userStoresList.length && Array.isArray((adminUser as any)?.stores)) {
+                  userStoresList = (adminUser as any).stores;
+                }
+                userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+                if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+                  const targetSlug = userStoresList[0].slug;
+                  setStoreSlug(targetSlug);
+                  setView('admin');
+                  setAdminTab('items');
+                  window.history.replaceState({}, '', appendViewParam(`/${targetSlug}/admin`));
+                  loadData(targetSlug);
+                  return;
+                }
+                setStoreSlug(null);
+                setShowStoreSwitcherModal(true);
+                window.history.replaceState({}, '', dest);
+                return;
+              } else {
+                const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+                setStoreSlug(targetSlug);
+                setView('admin');
+                setAdminTab('items');
+                window.history.replaceState({}, '', dest);
+                loadData(targetSlug);
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      if (isCatalogChooserRoute(path)) {
+        let parsedStores: any[] = userStores;
+        if (!parsedStores.length) {
+          try {
+            const raw = localStorage.getItem('catavor_stores');
+            if (raw) parsedStores = JSON.parse(raw);
+          } catch {}
+        }
+        if (Array.isArray(parsedStores) && parsedStores.length === 1 && parsedStores[0]?.slug) {
+          const singleSlug = parsedStores[0].slug;
+          try {
+            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+            localStorage.setItem('catavor_active_slug', singleSlug);
+          } catch {}
+          setShowStoreSwitcherModal(false);
+          setIsFirstTimeLogin(false);
+          setStoreSlug(singleSlug);
+          setView('admin');
+          setAdminTab('items');
+          window.history.replaceState({}, '', `/${singleSlug}/admin`);
+          loadData(singleSlug);
+          return;
+        }
+        setShowStoreSwitcherModal(true);
+        fetchMyStores();
         return;
       }
 
       const slug = getStoreSlug();
       setStoreSlug(slug);
       if (slug) {
-        setShowStoreSwitcherModal(false);
-        setStoreChooserComplianceAlert(null);
+        if (!showStoreSwitcherModal) {
+          setStoreChooserComplianceAlert(null);
+        }
         const parts = path.split('/').filter(Boolean);
         const urlParams = new URLSearchParams(window.location.search);
         const popItemId = urlParams.get('item');
@@ -10581,7 +10859,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
         if (parts.length >= 2) {
           const sub = parts[1];
-          if (sub === 'admin') {
+          if (sub === 'admin' || sub === 'login' || parts[0] === 'login') {
             setView('admin');
             const pageSub = parts[2] || urlParams.get('sub');
             const subSub = parts[3];
@@ -10679,8 +10957,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
             } else if (pageSub === 'portal' || pageSub === 'compliance' || pageSub === 'support' || pageSub === 'finance' || pageSub === 'content') {
               setAdminTab('portal');
               setView('admin');
-            } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
-              setShowQRModal(true);
+            } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr' || pageSub === 'bagikan') {
+              setAdminTab('share');
               setView('admin');
             } else {
               setAdminTab('items');
@@ -10701,6 +10979,28 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const urlPlan = urlParams.get('plan');
 
       if (isCatalogChooserRoute(path)) {
+        let parsedStores: any[] = userStores;
+        if (!parsedStores.length) {
+          try {
+            const raw = localStorage.getItem('catavor_stores');
+            if (raw) parsedStores = JSON.parse(raw);
+          } catch {}
+        }
+        if (Array.isArray(parsedStores) && parsedStores.length === 1 && parsedStores[0]?.slug) {
+          const singleSlug = parsedStores[0].slug;
+          try {
+            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+            localStorage.setItem('catavor_active_slug', singleSlug);
+          } catch {}
+          setShowStoreSwitcherModal(false);
+          setIsFirstTimeLogin(false);
+          setStoreSlug(singleSlug);
+          setView('admin');
+          setAdminTab('items');
+          window.history.replaceState({}, '', `/${singleSlug}/admin`);
+          loadData(singleSlug);
+          return;
+        }
         setStoreSlug(null);
         setIsFirstTimeLogin(true);
         fetchMyStores();
@@ -10708,7 +11008,37 @@ Terima kasih atas perhatian dan kerja samanya.`;
         document.body.setAttribute('data-theme', 'navy');
         setShowStoreSwitcherModal(true);
       } else if (path === '/login') {
-        setPortalTab('login');
+        const curToken = token || localStorage.getItem('catavor_token');
+        if (curToken && !isTokenExpired(curToken)) {
+          const rawUser = localStorage.getItem('catavor_user');
+          let u: any = adminUser;
+          if (!u && rawUser) {
+            try { u = JSON.parse(rawUser); } catch {}
+          }
+          const redirectUrl = resolveAuthenticatedRedirect(u);
+          const pathOnly = redirectUrl.split('?')[0];
+          if (pathOnly === '/admin') {
+            setView('admin');
+            setStoreSlug(null);
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+          } else if (pathOnly === '/catalogs') {
+            setStoreSlug(null);
+            setShowStoreSwitcherModal(true);
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+          } else {
+            const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+            setStoreSlug(targetSlug);
+            setView('admin');
+            setAdminTab('items');
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+            loadData(targetSlug);
+          }
+        } else {
+          setPortalTab('login');
+        }
       } else if (path === '/register' || path === '/register/step-1') {
         setPortalTab('register');
         setRegisterStep(1);
@@ -10785,12 +11115,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   };
 
   // Reset Auth & Industry-standard session expiration handler
-  const handleUnauthorized = (
-    msg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.',
-    preserveRedirect = true,
-    shouldBroadcast = true,
-    customRedirectUrl?: string
-  ) => {
+  const handleUnauthorized = (msg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.', preserveRedirect = true) => {
     if (preserveRedirect && typeof window !== 'undefined') {
       try {
         const currentPath = window.location.pathname + window.location.search;
@@ -10813,6 +11138,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     localStorage.removeItem('catavor_settings');
     localStorage.removeItem('catavor_active_slug');
     sessionStorage.removeItem('catavor_active_slug_selected');
+    clearUserActiveSlug(adminUser?.id);
     document.documentElement.setAttribute('data-theme', 'navy');
     document.body.setAttribute('data-theme', 'navy');
     setToken(null);
@@ -10823,15 +11149,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setAdminTab('items');
     setLoginForm({ email: '', password: '' });
     setLoginError(msg);
-    const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().split('?')[0].replace(/\/+$/, '') : '';
-    const isPlatformAdminPath = curPath === '/admin' || curPath.startsWith('/admin/') || curPath === '/platform' || curPath === '/ops';
-    const targetUrl = customRedirectUrl || (isPlatformAdminPath ? '/admin' : (storeSlug && !isReservedStoreSlug(storeSlug) ? `/${storeSlug}/admin` : '/login'));
+    const targetUrl = storeSlug && !isReservedStoreSlug(storeSlug) ? `/${storeSlug}/admin` : '/login';
     if (typeof window !== 'undefined' && window.location.pathname !== targetUrl) {
       window.history.pushState({}, '', targetUrl);
     }
-    if (shouldBroadcast) {
-      broadcastAuthEvent({ type: 'LOGOUT' });
-    }
+    broadcastAuthEvent({ type: 'LOGOUT' });
     showToast(msg, 'error');
   };
 
@@ -11036,11 +11358,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       } catch {}
     } else if (response.status === 401) {
-      const activeToken = localStorage.getItem('catavor_token');
-      if (currentToken && activeToken && activeToken !== currentToken) {
-        setToken(activeToken);
-        return response;
-      }
       try {
         const clone = response.clone();
         const data = await clone.json();
@@ -11058,22 +11375,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Proactive token verification & expired session check (Throttled 60 detik untuk efisiensi resource)
   useEffect(() => {
-    let lastChecked = 0;
     const THROTTLE_MS = 60000; // Minimal jeda 60 detik antar verifikasi token di background
 
     const checkTokenValidity = async (force: boolean = false) => {
       const now = Date.now();
-      if (!force && now - lastChecked < THROTTLE_MS) return;
+      if (!force && now - desktopLastTokenCheckTimeRef.current < THROTTLE_MS) return;
 
-      const currentToken = localStorage.getItem('catavor_token');
+      const currentToken = localStorage.getItem('catavor_token') || token;
       if (!currentToken) return;
+
+      // Anti-loop safeguard: Hindari verifikasi berulang pada token yang sama jika baru diverifikasi < THROTTLE_MS
+      if (desktopVerifiedTokenRef.current === currentToken && !force && (now - desktopLastTokenCheckTimeRef.current < THROTTLE_MS)) {
+        return;
+      }
 
       if (isTokenExpired(currentToken)) {
         handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
         return;
       }
 
-      lastChecked = now;
+      desktopLastTokenCheckTimeRef.current = now;
+      desktopVerifiedTokenRef.current = currentToken;
       try {
         const res = await fetch(`${API_BASE}/auth/verify`, {
           headers: {
@@ -11094,18 +11416,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
           if (data.success) {
             if (data.stores && Array.isArray(data.stores)) {
               setUserStores(prev => {
-                return data.stores.map((st: any) => {
+                const mapped = data.stores.map((st: any) => {
                   const existing = prev.find((p: any) => p.id === st.id || p.slug === st.slug);
                   return {
                     ...st,
                     item_count: st.item_count ?? existing?.item_count ?? 0
                   };
                 });
+                if (prev.length === mapped.length && prev.every((p: any, idx: number) => p.id === mapped[idx].id && p.slug === mapped[idx].slug && p.item_count === mapped[idx].item_count && p.is_suspended === mapped[idx].is_suspended)) {
+                  return prev;
+                }
+                return mapped;
               });
               localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
             }
             if (data.user) {
-              setAdminUser(data.user);
+              setAdminUser(prev => {
+                if (prev && prev.id === data.user.id && prev.email === data.user.email && prev.platform_role === data.user.platform_role && prev.store_slug === data.user.store_slug && prev.is_password_changed === data.user.is_password_changed) {
+                  return prev;
+                }
+                return data.user;
+              });
               localStorage.setItem('catavor_user', JSON.stringify(data.user));
               const isPassChanged = Boolean(
                 data.user?.email === 'admin@catavor.local' && data.user?.is_password_changed === false
@@ -11117,11 +11448,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           }
         } else if (res.status === 401) {
-          const activeToken = localStorage.getItem('catavor_token');
-          if (currentToken && activeToken && activeToken !== currentToken) {
-            setToken(activeToken);
-            return;
-          }
           const data = await res.json().catch(() => ({}));
           const msg = data.code === 'TOKEN_EXPIRED'
             ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
@@ -11134,7 +11460,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
     };
 
     if (token) {
-      checkTokenValidity(true);
+      const now = Date.now();
+      if (desktopVerifiedTokenRef.current !== token || now - desktopLastTokenCheckTimeRef.current >= THROTTLE_MS) {
+        checkTokenValidity(false);
+      }
     }
 
     // Ekspos ke effect resync idle (>5 menit) yang dideklarasikan lebih awal.
@@ -11143,8 +11472,91 @@ Terima kasih atas perhatian dan kerja samanya.`;
     };
 
     const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible' && localStorage.getItem('catavor_token')) {
-        checkTokenValidity(false);
+      if (document.visibilityState === 'visible') {
+        const storedToken = localStorage.getItem('catavor_token');
+        if (storedToken && !isTokenExpired(storedToken)) {
+          if (storedToken !== token) {
+            setToken(storedToken);
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = null;
+            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch {}
+            if (parsedUser) setAdminUser(parsedUser);
+            const rawStores = localStorage.getItem('catavor_stores');
+            if (rawStores) {
+              try { setUserStores(JSON.parse(rawStores)); } catch {}
+            }
+          }
+          const currentP = window.location.pathname.toLowerCase();
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs';
+          if (isGenericAuthOrRoot) {
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = adminUserRef.current;
+            if (!parsedUser && rawUser) {
+              try { parsedUser = JSON.parse(rawUser); } catch {}
+            }
+            const redirectUrl = resolveAuthenticatedRedirect(parsedUser, storeSlug);
+            const pathOnly = redirectUrl.split('?')[0];
+            if (pathOnly === '/admin') {
+              if (isPlatformAdmin(parsedUser)) {
+                setView('admin');
+                setStoreSlug(null);
+                setPortalTab('home');
+                window.history.replaceState({}, '', redirectUrl);
+              } else {
+                const fallbackSlug = (parsedUser as any)?.store_slug || (parsedUser as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+                if (fallbackSlug) {
+                  const targetUrl = appendViewParam(`/${fallbackSlug}/admin`);
+                  setStoreSlug(fallbackSlug);
+                  setView('admin');
+                  setAdminTab('items');
+                  setPortalTab('home');
+                  window.history.replaceState({}, '', targetUrl);
+                  loadData(fallbackSlug);
+                } else {
+                  setStoreSlug(null);
+                  setShowStoreSwitcherModal(true);
+                  setPortalTab('home');
+                  window.history.replaceState({}, '', appendViewParam('/catalogs'));
+                }
+              }
+            } else if (pathOnly === '/catalogs') {
+              let userStoresList: any[] = [];
+              try {
+                const s = localStorage.getItem('catavor_stores');
+                if (s) userStoresList = JSON.parse(s);
+              } catch {}
+              if (!userStoresList.length && Array.isArray(parsedUser?.stores)) {
+                userStoresList = parsedUser.stores;
+              }
+              userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+              if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+                const targetSlug = userStoresList[0].slug;
+                const targetUrl = appendViewParam(`/${targetSlug}/admin`);
+                setStoreSlug(targetSlug);
+                setView('admin');
+                setAdminTab('items');
+                setPortalTab('home');
+                window.history.replaceState({}, '', targetUrl);
+                loadData(targetSlug);
+              } else {
+                setStoreSlug(null);
+                setShowStoreSwitcherModal(true);
+                setPortalTab('home');
+                window.history.replaceState({}, '', redirectUrl);
+              }
+            } else {
+              const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+              setStoreSlug(targetSlug);
+              setView('admin');
+              setAdminTab('items');
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+              loadData(targetSlug);
+            }
+            return;
+          }
+          checkTokenValidity(false);
+        }
       }
     };
 
@@ -11162,29 +11574,93 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const unsubscribe = subscribeAuthSync((event) => {
       if (event.type === 'LOGOUT') {
         if (token) {
-          // Pass shouldBroadcast = false so this tab DOES NOT re-broadcast LOGOUT back to other tabs!
-          handleUnauthorized('Sesi akun telah keluar dari tab lain.', false, false);
+          handleUnauthorized('Sesi akun telah keluar dari tab lain.', false);
         }
       } else if (event.type === 'LOGIN_SUCCESS') {
         const storedToken = localStorage.getItem('catavor_token') || event.token;
         if (storedToken) {
-          setToken(storedToken);
-          const rawUser = localStorage.getItem('catavor_user');
-          let parsedUser: any = null;
-          if (rawUser) {
-            try {
-              parsedUser = JSON.parse(rawUser);
-              setAdminUser(parsedUser);
-            } catch {}
-          }
-          const currentPath = window.location.pathname.toLowerCase();
-          const isPlatformPath = currentPath === '/admin' || currentPath.startsWith('/admin') || currentPath === '/platform' || currentPath === '/ops';
-          if (isPlatformPath && isPlatformAdmin(parsedUser || adminUser)) {
-            const currentTab = new URLSearchParams(window.location.search).get('tab');
-            if (!currentTab || currentTab === 'login') {
-              window.history.pushState({}, '', '/admin?tab=dashboard');
+          if (storedToken !== token) {
+            setToken(storedToken);
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = null;
+            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch {}
+            if (parsedUser) setAdminUser(parsedUser);
+            const rawStores = localStorage.getItem('catavor_stores');
+            if (rawStores) {
+              try { setUserStores(JSON.parse(rawStores)); } catch {}
             }
-            showToast('Sesi pengelola disinkronkan dari tab lain.', 'info');
+          }
+
+          const currentP = window.location.pathname.toLowerCase();
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs';
+          if (isGenericAuthOrRoot) {
+            const rawUser = localStorage.getItem('catavor_user');
+            let parsedUser: any = adminUser;
+            if (!parsedUser && rawUser) {
+              try { parsedUser = JSON.parse(rawUser); } catch {}
+            }
+            const redirectUrl = resolveAuthenticatedRedirect(parsedUser, storeSlug);
+            const pathOnly = redirectUrl.split('?')[0];
+            if (pathOnly === '/admin') {
+              if (isPlatformAdmin(parsedUser)) {
+                setView('admin');
+                setStoreSlug(null);
+                setPortalTab('home');
+                window.history.replaceState({}, '', redirectUrl);
+              } else {
+                const fallbackSlug = (parsedUser as any)?.store_slug || (parsedUser as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+                if (fallbackSlug) {
+                  const targetUrl = appendViewParam(`/${fallbackSlug}/admin`);
+                  setStoreSlug(fallbackSlug);
+                  setView('admin');
+                  setAdminTab('items');
+                  setPortalTab('home');
+                  window.history.replaceState({}, '', targetUrl);
+                  loadData(fallbackSlug);
+                } else {
+                  setStoreSlug(null);
+                  setShowStoreSwitcherModal(true);
+                  setPortalTab('home');
+                  window.history.replaceState({}, '', appendViewParam('/catalogs'));
+                }
+              }
+            } else if (pathOnly === '/catalogs') {
+              let userStoresList: any[] = [];
+              try {
+                const s = localStorage.getItem('catavor_stores');
+                if (s) userStoresList = JSON.parse(s);
+              } catch {}
+              if (!userStoresList.length && Array.isArray(parsedUser?.stores)) {
+                userStoresList = parsedUser.stores;
+              }
+              userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+              if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+                const targetSlug = userStoresList[0].slug;
+                const targetUrl = appendViewParam(`/${targetSlug}/admin`);
+                setStoreSlug(targetSlug);
+                setView('admin');
+                setAdminTab('items');
+                setPortalTab('home');
+                window.history.replaceState({}, '', targetUrl);
+                loadData(targetSlug);
+              } else {
+                setStoreSlug(null);
+                setShowStoreSwitcherModal(true);
+                setPortalTab('home');
+                window.history.replaceState({}, '', redirectUrl);
+              }
+            } else {
+              const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+              setStoreSlug(targetSlug);
+              setView('admin');
+              setAdminTab('items');
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+              loadData(targetSlug);
+            }
+            showToast('Sesi akun terhubung dari tab lain.', 'success');
+          } else if (storedToken !== token) {
+            showToast('Sesi akun telah diperbarui di tab lain.', 'info');
           }
         }
       } else if (event.type === 'STORE_CHANGED') {
@@ -11205,7 +11681,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     });
 
     return () => unsubscribe();
-  }, [token, storeSlug]);
+  }, [token, storeSlug, portalTab]);
 
 
 
@@ -11253,6 +11729,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
     const slug = overrideSlug || getStoreSlug() || storeSlug || adminUser?.store_slug;
     
+    // Deduplication guard: Hindari pemanggilan loadData berulang untuk slug yang sama dalam waktu singkat (< 1200ms)
+    const now = Date.now();
+    if (slug && slug.toLowerCase() === desktopLastLoadedSlugRef.current && (now - desktopLastLoadedTimeRef.current < 1200) && !overrideSlug) {
+      return;
+    }
+    if (slug) {
+      desktopLastLoadedSlugRef.current = slug.toLowerCase();
+      desktopLastLoadedTimeRef.current = now;
+    }
+
     try {
       if (slug && !isReservedStoreSlug(slug)) {
         try { localStorage.setItem('catavor_active_slug', slug); } catch {}
@@ -11592,8 +12078,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
   }, [storeSlug])
   // Sync view state, admin tab, sub-sub-paths, settings section, public tab & open modals to browser URL pathname
   useEffect(() => {
-    if (!storeSlug || error || isInvalidRoute()) return;
+    if (!storeSlug || error || isInvalidRoute() || showStoreSwitcherModal) return;
     const path = window.location.pathname.toLowerCase();
+    if (isCatalogChooserRoute(path)) return;
     if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) return;
     if (isPlatformAdmin(adminUser) && (!storeSlug || path === '/admin' || path.startsWith('/admin/'))) return;
 
@@ -11628,7 +12115,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       } else if (adminTab === 'profile') {
         targetPath += `/admin/profile`;
       } else if (adminTab === 'policies') {
-        targetPath += `/admin/policies`;
+        targetPath += `/admin`;
       } else if (adminTab === 'notifications') {
         targetPath += `/admin/notifications`;
         const activeNotifId = selectedNotificationDetail?.id ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('id') : null) ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_active_desktop_notification_id') : null);
@@ -11647,7 +12134,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       } else if (adminTab === 'audit_logs') {
         targetPath += `/admin/audit-logs`;
-      } else if (showQRModal) {
+      } else if (adminTab === 'share' || showQRModal) {
         targetPath += `/admin/share`;
       } else {
         targetPath += `/admin/items`;
@@ -11712,46 +12199,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
       isInitialLoadRef.current = false;
     }
     isUserNavRef.current = false;
-  }, [view, adminTab, isSuspendedAccount, desktopSuspendedView, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, isDetailActive, selectedFauna, selectedTicket, selectedNotificationDetail, storeSlug, error]);
-
-  // Auto-redirect or recovery if authenticated user lands on /login (Desktop)
-  useEffect(() => {
-    if (portalTab === 'login' && token) {
-      if (isPlatformAdmin(adminUser)) {
-        window.location.replace('/admin?tab=dashboard');
-        return;
-      }
-      const actSlug = localStorage.getItem('catavor_active_slug') || adminUser?.store_slug;
-      if (actSlug && !isReservedStoreSlug(actSlug)) {
-        window.location.replace(`/${actSlug}/admin/items`);
-        return;
-      }
-      try {
-        const rawStores = localStorage.getItem('catavor_stores');
-        if (rawStores) {
-          const parsed = JSON.parse(rawStores);
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.slug) {
-            window.location.replace(`/${parsed[0].slug}/admin/items`);
-            return;
-          }
-        }
-      } catch {}
-
-      // Fail-safe escape hatch: if unable to determine target dashboard after 1.5s, clear stale token so user can authenticate
-      const timeoutId = setTimeout(() => {
-        setToken(null);
-        localStorage.removeItem('catavor_token');
-      }, 1500);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [portalTab, token, adminUser]);
+  }, [view, adminTab, isSuspendedAccount, desktopSuspendedView, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, isDetailActive, selectedFauna, selectedTicket, selectedNotificationDetail, storeSlug, error, showStoreSwitcherModal]);
 
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs (/ , /login , /register/step-X)
   useEffect(() => {
+    if (storeSlug || error || isInvalidRoute() || showStoreSwitcherModal) return;
     const path = window.location.pathname.toLowerCase();
-    if (storeSlug || error || isInvalidRoute()) return;
-    if (token && (view === 'admin' || path.includes('/admin'))) return;
     if (isCatalogChooserRoute(path)) return;
     if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) return;
     if (token && isPlatformAdmin(adminUser) && (!storeSlug || path === '/admin' || path.startsWith('/admin/'))) return;
@@ -11943,7 +12397,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setIsPasswordChanged(true);
 
           if (isPlatformAdmin(data.user)) {
-            window.location.href = '/admin?tab=dashboard';
+            setStoreSlug(null);
+            setPortalTab('home');
+            setView('admin');
+            window.history.pushState({}, '', '/admin');
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+            showToast('Selamat datang di Platform Console!', 'success');
             return;
           }
 
@@ -11952,52 +12411,93 @@ Terima kasih atas perhatian dan kerja samanya.`;
             sessionStorage.removeItem('catavor_auth_redirect');
             const targetSlug = currentRequestedSlug;
             saveUserActiveSlug(data.user.id, targetSlug);
-            localStorage.setItem('catavor_active_slug', targetSlug);
             broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-            window.location.href = `/${targetSlug}/admin/items`;
+            setStoreSlug(targetSlug);
+            setIsFirstTimeLogin(false);
+            setShowStoreSwitcherModal(false);
+            setPortalTab('home');
+            setView('admin');
+            setAdminTab('items');
+            window.history.pushState({}, '', `/${targetSlug}/admin/items`);
+            loadData(targetSlug);
+            showToast(`Selamat datang di ${data.active_store?.store_title || targetSlug}!`, 'success');
             return;
           }
 
-          // Case 2: Restored redirect
+          // Case 2: General login from root /login
+          const availableStores = (data.stores && Array.isArray(data.stores)) ? data.stores : [];
+          if (availableStores.length === 1 && availableStores[0]?.slug) {
+            const singleSlug = availableStores[0].slug;
+            saveUserActiveSlug(data.user.id, singleSlug);
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+            setStoreSlug(singleSlug);
+            setIsFirstTimeLogin(false);
+            setShowStoreSwitcherModal(false);
+            setPortalTab('home');
+            setView('admin');
+            setAdminTab('items');
+            window.history.pushState({}, '', `/${singleSlug}/admin/items`);
+            loadData(singleSlug);
+            showToast(`Selamat datang di ${availableStores[0].store_title || singleSlug}!`, 'success');
+            return;
+          }
+
+          // Case 3: Merchant with >= 2 stores - Check if user has a remembered active store
+          const rememberedSlug = getSavedUserSlug(data.user.id);
+          if (rememberedSlug && availableStores.some((s: any) => s.slug === rememberedSlug)) {
+            saveUserActiveSlug(data.user.id, rememberedSlug);
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+            setStoreSlug(rememberedSlug);
+            setIsFirstTimeLogin(false);
+            setShowStoreSwitcherModal(false);
+            setPortalTab('home');
+            setView('admin');
+            setAdminTab('items');
+            window.history.pushState({}, '', `/${rememberedSlug}/admin/items`);
+            loadData(rememberedSlug);
+            const matchedStore = availableStores.find((s: any) => s.slug === rememberedSlug);
+            showToast(`Selamat datang kembali di ${matchedStore?.store_title || rememberedSlug}!`, 'success');
+            return;
+          }
+
+          let redirectRestored = false;
           try {
             const savedRedirect = sessionStorage.getItem('catavor_auth_redirect');
             if (savedRedirect) {
               sessionStorage.removeItem('catavor_auth_redirect');
               const parsed = JSON.parse(savedRedirect);
               if (parsed.path && parsed.path.includes('/admin')) {
+                window.history.pushState({}, '', parsed.path);
+                setView('admin');
+                if (parsed.tab) setAdminTab(parsed.tab);
+                if (parsed.settingsSubTab) setSettingsSubTab(parsed.settingsSubTab);
+                redirectRestored = true;
                 const pathSlug = parsed.path.split('/').filter(Boolean)[0];
                 if (pathSlug && !isReservedStoreSlug(pathSlug)) {
                   saveUserActiveSlug(data.user.id, pathSlug);
-                  localStorage.setItem('catavor_active_slug', pathSlug);
+                  broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+                  setStoreSlug(pathSlug);
+                  loadData(pathSlug);
                 }
-                broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-                window.location.href = parsed.path;
-                return;
               }
             }
           } catch (e) {}
 
-          // Case 3: Target Store Resolution for Merchants (single, remembered, active, or user store_slug)
-          const availableStores = (data.stores && Array.isArray(data.stores)) ? data.stores : [];
-          const rememberedSlug = getSavedUserSlug(data.user.id);
-          const resolvedTargetSlug =
-            data.active_store?.slug ||
-            data.user?.store_slug ||
-            (rememberedSlug && availableStores.some((s: any) => s.slug === rememberedSlug) ? rememberedSlug : null) ||
-            (availableStores.length > 0 ? availableStores[0]?.slug : null) ||
-            localStorage.getItem('catavor_active_slug');
-
-          if (resolvedTargetSlug && !isReservedStoreSlug(resolvedTargetSlug)) {
-            saveUserActiveSlug(data.user.id, resolvedTargetSlug);
-            localStorage.setItem('catavor_active_slug', resolvedTargetSlug);
+          if (!redirectRestored) {
             broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-            window.location.href = `/${resolvedTargetSlug}/admin/items`;
-            return;
+            try {
+              sessionStorage.removeItem('catavor_active_slug_selected');
+            } catch {}
+            setStoreSlug(null);
+            setIsFirstTimeLogin(true);
+            setShowStoreSwitcherModal(true);
+            setStoreChooserComplianceAlert(null);
+            document.documentElement.setAttribute('data-theme', 'navy');
+            document.body.setAttribute('data-theme', 'navy');
+            window.history.pushState({}, '', '/catalogs');
+            fetchMyStores();
+            showToast('Silakan pilih profil katalog yang ingin Anda kelola.', 'info');
           }
-
-          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-          window.location.href = '/catalogs';
-          return;
         } else {
           // New User OR User without completed store_slug -> Redirect to Store Setup Screen (Step 2)
           if (data.token && data.user) {
@@ -12342,8 +12842,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setAdminUser(data.user);
           setIsPasswordChanged(true);
           setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
-          window.location.href = `/${data.user.store_slug}/admin/items`;
-          return;
+          setStoreSlug(data.user.store_slug);
+          setPortalTab('home');
+          setView('admin');
+          setAdminTab('items');
+          window.history.pushState({}, '', `/${data.user.store_slug}/admin/items`);
+          loadData(data.user.store_slug);
+          showToast('Selamat Datang! Akun dan katalog usaha Anda berhasil dibuat.');
         } else {
           if (data.errors) {
             const firstErr = Object.values(data.errors)[0] as string[];
@@ -12424,8 +12929,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setAdminUser(regData.user);
           setIsPasswordChanged(true);
           setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
-          window.location.href = `/${regData.user.store_slug}/admin/items`;
-          return;
+          setStoreSlug(regData.user.store_slug);
+          setPortalTab('home');
+          setView('admin');
+          setAdminTab('items');
+          window.history.pushState({}, '', `/${regData.user.store_slug}/admin/items`);
+          loadData(regData.user.store_slug);
+          showToast('Selamat Datang! Akun usaha Anda berhasil diaktifkan.');
         } else {
           setRegisterError(regData.message || 'Gagal menyelesaikan pendaftaran.');
         }
@@ -12586,11 +13096,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setAdminUser(data.user);
         setIsPasswordChanged(true);
         if (data.user?.store_slug) {
-          saveUserActiveSlug(data.user.id, data.user.store_slug);
-          localStorage.setItem('catavor_active_slug', data.user.store_slug);
-          window.location.href = `/${data.user.store_slug}/admin/items`;
-          return;
+          setStoreSlug(data.user.store_slug);
+          window.history.pushState({}, '', `/${data.user.store_slug}/admin/items`);
+          loadData(data.user.store_slug);
         }
+        setPortalTab('home');
+        setView('admin');
+        setAdminTab('items');
+        setShowPaymentSuccessModal(true);
 
         const planName = registerPlan === 'pro_business' ? 'Pro Bisnis' : 'Pro Starter';
         const newNotifs: any[] = [
@@ -12706,12 +13219,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     e.preventDefault()
     setLoginLoading(true)
     setLoginError(null)
-    setLoginRedirectPortal(null)
 
     const currentRequestedSlug = getStoreSlug();
-    const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().split('?')[0].replace(/\/+$/, '') : '';
-    const isPlatformAdminPortal = curPath === '/admin' || curPath.startsWith('/admin') || curPath === '/platform' || curPath === '/ops';
-    const authPortal = isPlatformAdminPortal ? 'admin' : 'merchant';
 
     try {
       const res = await fetch(`${API_BASE}/login`, {
@@ -12719,18 +13228,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Auth-Portal': authPortal,
           ...(currentRequestedSlug ? { 'X-Store-Slug': currentRequestedSlug } : {})
         },
         body: JSON.stringify({
           ...loginForm,
-          portal: authPortal,
           store_slug: currentRequestedSlug || ''
         })
       })
 
       const data = await res.json()
       if (res.ok && data.success) {
+        desktopLastTokenCheckTimeRef.current = Date.now();
+        desktopVerifiedTokenRef.current = data.token;
         localStorage.setItem('catavor_token', data.token)
         localStorage.setItem('catavor_user', JSON.stringify(data.user))
         if (data.stores) {
@@ -12755,10 +13264,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setLoginForm({ email: '', password: '' })
         
         if (isPlatformAdmin(data.user)) {
-          localStorage.removeItem('catavor_active_slug');
-          sessionStorage.removeItem('catavor_active_slug_selected');
+          setStoreSlug(null);
+          setPortalTab('home');
+          setView('admin');
+          window.history.pushState({}, '', '/admin');
           broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-          window.location.href = '/admin?tab=dashboard';
+          showToast('Selamat datang di Platform Console!', 'success');
           return;
         }
 
@@ -12767,64 +13278,99 @@ Terima kasih atas perhatian dan kerja samanya.`;
           sessionStorage.removeItem('catavor_auth_redirect');
           const targetSlug = currentRequestedSlug;
           saveUserActiveSlug(data.user.id, targetSlug);
-          localStorage.setItem('catavor_active_slug', targetSlug);
           broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-          window.location.href = `/${targetSlug}/admin/items`;
+          setStoreSlug(targetSlug);
+          setIsFirstTimeLogin(false);
+          setShowStoreSwitcherModal(false);
+          setPortalTab('home');
+          setView('admin');
+          setAdminTab('items');
+          window.history.pushState({}, '', `/${targetSlug}/admin/items`);
+          loadData(targetSlug);
+          showToast(`Selamat datang di ${data.active_store?.store_title || targetSlug}!`, 'success');
           return;
         }
 
-        // Case 2: Restored redirect
+        // Case 2: General login from root /login
+        const availableStores = (data.stores && Array.isArray(data.stores)) ? data.stores : [];
+        if (availableStores.length === 1 && availableStores[0]?.slug) {
+          const singleSlug = availableStores[0].slug;
+          saveUserActiveSlug(data.user.id, singleSlug);
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+          setStoreSlug(singleSlug);
+          setIsFirstTimeLogin(false);
+          setShowStoreSwitcherModal(false);
+          setPortalTab('home');
+          setView('admin');
+          setAdminTab('items');
+          window.history.pushState({}, '', `/${singleSlug}/admin/items`);
+          loadData(singleSlug);
+          showToast(`Selamat datang di ${availableStores[0].store_title || singleSlug}!`, 'success');
+          return;
+        }
+
+        // Case 3: Merchant with >= 2 stores - Check if user has a remembered active store
+        const rememberedSlug = getSavedUserSlug(data.user.id);
+        if (rememberedSlug && availableStores.some((s: any) => s.slug === rememberedSlug)) {
+          saveUserActiveSlug(data.user.id, rememberedSlug);
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+          setStoreSlug(rememberedSlug);
+          setIsFirstTimeLogin(false);
+          setShowStoreSwitcherModal(false);
+          setPortalTab('home');
+          setView('admin');
+          setAdminTab('items');
+          window.history.pushState({}, '', `/${rememberedSlug}/admin/items`);
+          loadData(rememberedSlug);
+          const matchedStore = availableStores.find((s: any) => s.slug === rememberedSlug);
+          showToast(`Selamat datang kembali di ${matchedStore?.store_title || rememberedSlug}!`, 'success');
+          return;
+        }
+
+        let redirectRestored = false;
         try {
           const savedRedirect = sessionStorage.getItem('catavor_auth_redirect');
           if (savedRedirect) {
             sessionStorage.removeItem('catavor_auth_redirect');
             const parsed = JSON.parse(savedRedirect);
             if (parsed.path && parsed.path.includes('/admin')) {
+              window.history.pushState({}, '', parsed.path);
+              setView('admin');
+              if (parsed.tab) setAdminTab(parsed.tab);
+              if (parsed.settingsSubTab) setSettingsSubTab(parsed.settingsSubTab);
+              redirectRestored = true;
               const pathSlug = parsed.path.split('/').filter(Boolean)[0];
               if (pathSlug && !isReservedStoreSlug(pathSlug)) {
                 saveUserActiveSlug(data.user.id, pathSlug);
-                localStorage.setItem('catavor_active_slug', pathSlug);
+                broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+                setStoreSlug(pathSlug);
+                loadData(pathSlug);
               }
-              broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-              window.location.href = parsed.path;
-              return;
             }
           }
         } catch (e) {}
 
-        // Case 3: Target Store Resolution for Merchants (single, remembered, active, or user store_slug)
-        const availableStores = (data.stores && Array.isArray(data.stores)) ? data.stores : [];
-        const rememberedSlug = getSavedUserSlug(data.user.id);
-        const resolvedTargetSlug =
-          data.active_store?.slug ||
-          data.user?.store_slug ||
-          (rememberedSlug && availableStores.some((s: any) => s.slug === rememberedSlug) ? rememberedSlug : null) ||
-          (availableStores.length > 0 ? availableStores[0]?.slug : null) ||
-          localStorage.getItem('catavor_active_slug');
-
-        if (resolvedTargetSlug && !isReservedStoreSlug(resolvedTargetSlug)) {
-          saveUserActiveSlug(data.user.id, resolvedTargetSlug);
-          localStorage.setItem('catavor_active_slug', resolvedTargetSlug);
+        if (!redirectRestored) {
           broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-          window.location.href = `/${resolvedTargetSlug}/admin/items`;
-          return;
+          try {
+            sessionStorage.removeItem('catavor_active_slug_selected');
+          } catch {}
+          setStoreSlug(null);
+          setIsFirstTimeLogin(true);
+          setShowStoreSwitcherModal(true);
+          setStoreChooserComplianceAlert(null);
+          document.documentElement.setAttribute('data-theme', 'navy');
+          document.body.setAttribute('data-theme', 'navy');
+          window.history.pushState({}, '', '/catalogs');
+          fetchMyStores();
+          showToast('Silakan pilih profil katalog yang ingin Anda kelola.', 'info');
         }
-
-        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-        window.location.href = '/catalogs';
-        return;
       } else {
         setLoginError(data.message || 'Email atau password salah.')
-        if (data.redirect_portal) {
-          setLoginRedirectPortal(data.redirect_portal)
-        } else {
-          setLoginRedirectPortal(null)
-        }
       }
     } catch (err) {
       console.error(err)
       setLoginError('Koneksi terputus ke server.')
-      setLoginRedirectPortal(null)
     } finally {
       setLoginLoading(false)
     }
@@ -12902,12 +13448,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
 
   // Handle Logout
-  const handleLogout = async (customRedirectUrl?: string | React.MouseEvent) => {
+  const handleLogout = async () => {
     const isStaff = isPlatformAdmin(adminUser) || isSuperAdmin(adminUser);
-    const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().split('?')[0].replace(/\/+$/, '') : '';
-    const isPlatformAdminPath = curPath === '/admin' || curPath.startsWith('/admin/') || curPath === '/platform' || curPath === '/ops';
-    const redirectUrlStr = typeof customRedirectUrl === 'string' ? customRedirectUrl : undefined;
-    const targetLoginUrl = redirectUrlStr || (isStaff || isPlatformAdminPath ? '/admin' : '/login');
+    const targetLoginUrl = isStaff ? '/admin' : '/login';
     try {
       await fetch(`${API_BASE}/logout`, {
         method: 'POST',
@@ -12918,7 +13461,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     } finally {
       setShowStoreSwitcherModal(false)
       setStoreSlug(null)
-      handleUnauthorized('Sesi telah ditutup.', false, true, targetLoginUrl)
+      handleUnauthorized('Sesi telah ditutup.', false)
       setPortalTab('login')
       if (typeof window !== 'undefined') {
         window.location.href = targetLoginUrl;
@@ -13092,30 +13635,30 @@ Terima kasih atas perhatian dan kerja samanya.`;
   }
 
   const handleSendProfileBackupOTP = async () => {
-    const emailToUse = ((profileForm.email || (adminUser as any)?.email) || '').trim().toLowerCase();
-    if (!emailToUse) {
-      setProfileOtpError('Alamat email akun tidak ditemukan.');
-      return;
-    }
     setProfileOtpLoading(true);
     setProfileOtpError(null);
     setProfileOtpSuccess(null);
     try {
-      const res = await fetch(`${API_BASE}/forgot-password`, {
+      const res = await fetch(`${API_BASE}/profile/request-password-otp`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailToUse })
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setProfileOtpSent(true);
         setProfileOtpCooldown(60);
-        setProfileOtpSuccess(`Kode OTP berhasil dikirimkan ke ${emailToUse}. Silakan periksa inbox/spam email Anda.`);
+        const sMsg = data.message || 'Kode verifikasi telah dikirim ke WhatsApp / Email akun Anda.';
+        setProfileOtpSuccess(sMsg);
+        showToast(sMsg, 'success');
       } else {
-        setProfileOtpError(data.message || 'Gagal mengirim kode OTP pemulihan.');
+        const errMsg = data.message || 'Gagal mengirim kode verifikasi.';
+        setProfileOtpError(errMsg);
+        showToast(errMsg, 'error');
       }
     } catch {
-      setProfileOtpError('Gagal menghubungi server. Silakan periksa koneksi internet Anda.');
+      const netErr = 'Gagal menghubungi server. Periksa koneksi internet Anda.';
+      setProfileOtpError(netErr);
+      showToast(netErr, 'error');
     } finally {
       setProfileOtpLoading(false);
     }
@@ -13123,35 +13666,64 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   const handleResetProfileBackupPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const emailToUse = ((profileForm.email || (adminUser as any)?.email) || '').trim().toLowerCase();
     const otp = profileOtpCode.trim();
     const pwd = backupPasswordForm.password;
     const confirmPwd = backupPasswordForm.confirm_password;
 
     if (otp.length !== 6) {
-      setProfileOtpError('Kode OTP harus berjumlah 6 digit angka.');
+      const msg = 'Kode OTP harus berjumlah 6 digit angka.';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (pwd.length < 8) {
-      setProfileOtpError('Kata sandi baru minimal 8 karakter.');
+      const msg = 'Kata sandi baru minimal 8 karakter.';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[A-Z]/.test(pwd)) {
+      const msg = 'Kata sandi baru harus mengandung minimal 1 huruf besar (A-Z).';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[a-z]/.test(pwd)) {
+      const msg = 'Kata sandi baru harus mengandung minimal 1 huruf kecil (a-z).';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[0-9]/.test(pwd)) {
+      const msg = 'Kata sandi baru harus mengandung minimal 1 angka (0-9).';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[^a-zA-Z0-9\s]/.test(pwd)) {
+      const msg = 'Kata sandi baru harus mengandung minimal 1 karakter khusus atau simbol.';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (pwd !== confirmPwd) {
-      setProfileOtpError('Konfirmasi kata sandi baru tidak cocok.');
+      const msg = 'Konfirmasi kata sandi baru tidak cocok.';
+      setProfileOtpError(msg);
+      showToast(msg, 'error');
       return;
     }
 
     setProfileOtpLoading(true);
     setProfileOtpError(null);
     try {
-      const res = await fetch(`${API_BASE}/reset-password`, {
+      const res = await fetch(`${API_BASE}/profile`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
-          email: emailToUse,
-          otp: otp,
-          new_password: pwd,
-          confirm_password: confirmPwd
+          name: profileForm.name || (adminUser as any)?.name || 'Admin',
+          password: pwd,
+          confirm_password: confirmPwd,
+          otp: otp
         })
       });
       const data = await res.json();
@@ -13160,8 +13732,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
           localStorage.setItem('catavor_token', data.token);
           setToken(data.token);
         }
-        if (adminUser) {
-          const updatedUser = { ...adminUser, has_custom_password: true };
+        if (data.user) {
+          const updatedUser = { ...(adminUser || {}), ...data.user, has_custom_password: true, is_password_changed: true };
+          setAdminUser(updatedUser as any);
+          localStorage.setItem('catavor_user', JSON.stringify(updatedUser));
+        } else if (adminUser) {
+          const updatedUser = { ...adminUser, has_custom_password: true, is_password_changed: true };
           setAdminUser(updatedUser as any);
           localStorage.setItem('catavor_user', JSON.stringify(updatedUser));
         }
@@ -13174,12 +13750,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setProfilePasswordMode('standard');
         setProfileOtpError(null);
         setProfileOtpSuccess(null);
-        showToast('Kata sandi akun Anda berhasil diperbarui via verifikasi OTP!', 'success');
+        const sMsg = 'Kata sandi akun Anda berhasil diperbarui via verifikasi OTP!';
+        setBackupPasswordSuccess(sMsg);
+        showToast(sMsg, 'success');
       } else {
-        setProfileOtpError(data.message || 'Gagal memperbarui kata sandi dengan OTP.');
+        const errMsg = data.message || 'Gagal memperbarui kata sandi dengan OTP.';
+        setProfileOtpError(errMsg);
+        showToast(errMsg, 'error');
       }
     } catch {
-      setProfileOtpError('Gagal menghubungi server. Silakan coba kembali.');
+      const netMsg = 'Gagal menghubungi server. Silakan coba kembali.';
+      setProfileOtpError(netMsg);
+      showToast(netMsg, 'error');
     } finally {
       setProfileOtpLoading(false);
     }
@@ -13509,6 +14091,49 @@ Terima kasih atas perhatian dan kerja samanya.`;
       showToast('Koneksi terputus. Gagal memperbarui status produk.', 'error');
     }
   };
+
+  // Catalog Items Data Export Handler (CSV / JSON)
+  const handleExportCatalog = useCallback(async (format: 'csv' | 'json' = 'csv') => {
+    const slug = storeSlug || getStoreSlug() || '';
+    if (!token) {
+      showToast('Sesi autentikasi tidak ditemukan', 'error');
+      return;
+    }
+    showToast(`Menyiapkan berkas ekspor data item ${format.toUpperCase()}...`);
+    try {
+      const queryParams = new URLSearchParams({ format });
+      if (slug) queryParams.set('slug', slug);
+      const res = await fetch(`${API_BASE}/products/export?${queryParams.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        showToast(errJson.message || 'Gagal mengekspor data item katalog', 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = `katalog-items-${slug}-${format === 'csv' ? 'data.csv' : 'items.json'}`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Data item katalog (${format.toUpperCase()}) berhasil diunduh!`);
+    } catch {
+      showToast(`Gagal mengunduh berkas ekspor ${format.toUpperCase()}`, 'error');
+    }
+  }, [storeSlug, token]);
 
   // Open CRUD modal for create with dynamic quota guard
   const openCreateModal = (initialType: ItemCategoryType = 'physical') => {
@@ -14496,128 +15121,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
     );
   }
 
-  // Authenticated but NON-PLATFORM STAFF (Merchant logged in attempting /admin access) (Desktop)
-  if (isPlatformAdminPath && token && !isPlatformAdmin(adminUser)) {
-    const merchantSlug = storeSlug || adminUser?.store_slug || resolveActiveStoreSlug() || (userStores?.[0]?.slug) || '';
-    return (
-      <div style={{
-        minHeight: '100vh',
-        width: '100%',
-        backgroundColor: '#0b0f19',
-        color: '#f8fafc',
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '2rem 1.5rem',
-        boxSizing: 'border-box'
-      }}>
-        <div style={{
-          width: '100%',
-          maxWidth: '520px',
-          background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.95) 100%)',
-          border: '1px solid rgba(148, 163, 184, 0.18)',
-          borderRadius: '1.5rem',
-          padding: '2.5rem 2.25rem',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.6)',
-          backdropFilter: 'blur(16px)',
-          boxSizing: 'border-box',
-          textAlign: 'center'
-        }}>
-          <div style={{
-            width: '60px',
-            height: '60px',
-            borderRadius: '1.15rem',
-            backgroundColor: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.28)',
-            color: '#ef4444',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: '1.25rem'
-          }}>
-            <ShieldAlert size={30} />
-          </div>
-          <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-            Akses Dibatasi — Staf Platform
-          </h1>
-          <p style={{ fontSize: '0.9rem', color: '#94a3b8', margin: '0 0 1.5rem 0', lineHeight: 1.6 }}>
-            Akun Anda saat ini (<strong>{adminUser?.email || 'Merchant'}</strong>) terdaftar sebagai merchant/penjual, bukan staf pengelola platform Catavor.
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <button
-              type="button"
-              onClick={() => {
-                if (merchantSlug) {
-                  setStoreSlug(merchantSlug);
-                  setView('admin');
-                  setAdminTab('items');
-                  setPortalTab('home');
-                  window.history.pushState({}, '', `/${merchantSlug}/admin/items`);
-                  loadData(merchantSlug);
-                } else {
-                  setPortalTab('home');
-                  window.history.pushState({}, '', '/catalogs');
-                }
-              }}
-              style={{
-                minHeight: '48px',
-                padding: '0.75rem 1.25rem',
-                borderRadius: '0.65rem',
-                backgroundColor: '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.95rem',
-                cursor: 'pointer'
-              }}
-            >
-              Buka Dashboard Toko Saya
-            </button>
-            <button
-              type="button"
-              onClick={() => handleLogout('/admin')}
-              style={{
-                minHeight: '44px',
-                padding: '0.75rem 1.25rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'rgba(30, 41, 59, 0.8)',
-                color: '#f8fafc',
-                border: '1px solid rgba(148, 163, 184, 0.25)',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                cursor: 'pointer'
-              }}
-            >
-              Keluar &amp; Masuk Akun Pengelola
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPortalTab('home');
-                window.history.pushState({}, '', '/');
-              }}
-              style={{
-                minHeight: '38px',
-                background: 'transparent',
-                color: '#94a3b8',
-                border: 'none',
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                marginTop: '0.25rem'
-              }}
-            >
-              &larr; Kembali ke Halaman Utama
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Dedicated Platform Staff Login Screen for Unauthenticated Platform Routes (Desktop)
-  if (isPlatformAdminPath && !token) {
+  if (isPlatformAdminPath && (!token || !isPlatformAdmin(adminUser))) {
+    if (token && !isPlatformAdmin(adminUser) && (currentPath === '/admin' || currentPath.startsWith('/admin/'))) {
+      const redirectUrl = resolveAuthenticatedRedirect(adminUser, storeSlug);
+      const pathOnly = redirectUrl.split('?')[0];
+      const fallbackSlug = (adminUser as any)?.store_slug || (adminUser as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+      const targetUrl = (pathOnly !== '/admin') ? redirectUrl : (fallbackSlug ? appendViewParam(`/${fallbackSlug}/admin`) : appendViewParam('/catalogs'));
+      window.location.replace(targetUrl);
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#0b0f19',
+          color: '#f8fafc'
+        }}>
+          <div style={{ color: '#94a3b8', fontSize: '0.95rem' }}>Mengarahkan ke dashboard katalog...</div>
+        </div>
+      );
+    }
     return (
       <div style={{
         minHeight: '100vh',
@@ -14692,40 +15216,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
               padding: '0.85rem 1rem',
               borderRadius: '0.75rem',
               fontSize: '0.82rem',
-              marginBottom: '1.5rem'
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.65rem'
             }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
-                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
-                <span style={{ lineHeight: 1.45 }}>{loginError}</span>
-              </div>
-              {loginRedirectPortal && (
-                <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px dashed rgba(239, 68, 68, 0.3)' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.href = loginRedirectPortal;
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.85rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: '#ef4444',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.8rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <span>{loginRedirectPortal === '/admin' ? 'Buka Portal Konsol Pengelola (/admin)' : 'Buka Portal Merchant (/login)'}</span>
-                    <ArrowRight size={14} />
-                  </button>
-                </div>
-              )}
+              <AlertCircle size={18} style={{ flexShrink: 0 }} />
+              <span>{loginError}</span>
             </div>
           )}
 
@@ -15708,15 +16205,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         )}
 
         {portalTab === 'login' && (
-          token ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '5rem 1.5rem', minHeight: 'calc(100vh - 120px)', alignItems: 'center' }}>
-              <div style={{ textAlign: 'center' }}>
-                <Loader2 size={32} className="animate-spin" style={{ color: '#2563eb', margin: '0 auto 1rem' }} />
-                <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>Mengarahkan ke dashboard...</p>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '5rem 1.5rem', minHeight: 'calc(100vh - 120px)', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '5rem 1.5rem', minHeight: 'calc(100vh - 120px)', alignItems: 'center' }}>
             <div style={{ width: '100%', maxWidth: '420px', padding: '2.5rem 2.25rem', borderRadius: '1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.1), 0 0 1px rgba(15, 23, 42, 0.08)' }} className="animate-fade-in">
               <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
                 <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.85rem auto', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)' }}>
@@ -15731,39 +16220,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
               </div>
               
               {loginError && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.85rem 1rem', borderRadius: '0.75rem', fontSize: '0.82rem', marginBottom: '1.25rem', fontWeight: 600 }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                    <span style={{ lineHeight: 1.45 }}>{loginError}</span>
-                  </div>
-                  {loginRedirectPortal && (
-                    <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px dashed #fca5a5' }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          window.location.href = loginRedirectPortal;
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '0.55rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: '#dc2626',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontWeight: 700,
-                          fontSize: '0.78rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.4rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <span>{loginRedirectPortal === '/admin' ? 'Buka Portal Konsol Pengelola (/admin)' : 'Buka Portal Merchant (/login)'}</span>
-                        <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  )}
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.75rem 0.9rem', borderRadius: '0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', fontWeight: 600 }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>{loginError}</span>
                 </div>
               )}
 
@@ -15925,7 +16384,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
               </div>
             </div>
           </div>
-          )
         )}
 
         {portalTab === 'register' && (
@@ -18051,83 +18509,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       </button>
                     )}
 
-                    {/* Option 3 (Admin / Owner): Toggle Aktifkan / Arsipkan */}
-                    {canManageItem && (
-                      <button
-                        type="button"
-                        disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                        onClick={() => {
-                          setShowDetailActionDropdown(false);
-                          const curActive = (selectedFauna as any).is_active !== false;
-                          openArchiveConfirmModal(selectedFauna, !curActive);
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.65rem',
-                          width: '100%',
-                          padding: '0.55rem 0.75rem',
-                          fontSize: '0.84rem',
-                          fontWeight: 500,
-                          color: 'var(--text-primary)',
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: '0.45rem',
-                          cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
-                          textAlign: 'left',
-                          opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
-                          transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                      >
-                        {(selectedFauna as any).is_active !== false ? (
-                          <>
-                            <Archive size={15} style={{ color: '#d97706', flexShrink: 0 }} />
-                            <span>Arsipkan Item</span>
-                          </>
-                        ) : (
-                          <>
-                            <Eye size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
-                            <span>Aktifkan Item</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-
-                    {/* Option 4 (Admin / Owner): Edit Data */}
-                    {canManageItem && (
-                      <button
-                        type="button"
-                        disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                        onClick={() => {
-                          setShowDetailActionDropdown(false);
-                          openEditModal(selectedFauna);
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.65rem',
-                          width: '100%',
-                          padding: '0.55rem 0.75rem',
-                          fontSize: '0.84rem',
-                          fontWeight: 500,
-                          color: 'var(--text-primary)',
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: '0.45rem',
-                          cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
-                          textAlign: 'left',
-                          opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
-                          transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                      >
-                        <Edit3 size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                        <span>Edit Rincian Data</span>
-                      </button>
-                    )}
                     {/* Option (Admin / Owner): Kelola Kategori */}
                     {canManageItem && (
                       <button
@@ -19277,6 +19658,44 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
                     onClick={() => {
                       if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
+                      const curActive = (selectedFauna as any).is_active !== false;
+                      openArchiveConfirmModal(selectedFauna, !curActive);
+                    }}
+                    style={{
+                      height: '42px',
+                      padding: '0 1.5rem',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      borderRadius: '0.5rem',
+                      backgroundColor: (selectedFauna as any).is_active !== false ? 'rgba(245, 158, 11, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                      color: (selectedFauna as any).is_active !== false ? '#d97706' : '#16a34a',
+                      border: `1px solid ${(selectedFauna as any).is_active !== false ? 'rgba(245, 158, 11, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
+                      cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      transition: 'all 0.15s ease',
+                      opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1
+                    }}
+                    title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : ((selectedFauna as any).is_active !== false ? 'Arsipkan item ini dari katalog' : 'Aktifkan kembali item ini ke katalog')}
+                  >
+                    {(selectedFauna as any).is_active !== false ? (
+                      <>
+                        <Archive size={16} />
+                        <span>Arsipkan Item</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye size={16} />
+                        <span>Aktifkan Item</span>
+                      </>
+                    )}
+                  </button>
+                  <button 
+                    type="button" 
+                    disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
+                    onClick={() => {
+                      if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
                       setItemToDelete(selectedFauna);
                     }}
                     style={{
@@ -19451,9 +19870,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
         {renderStoreOwnerPreviewBar()}
 
         {/* Unified Desktop Top Stack - Sticky only in Admin, Static in Public Catalog (leaving floating solely to smart quick-search) */}
-        {!(view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged) && (
+        {view !== 'admin' && (
         <ErrorBoundary sectionName="Bilah Navigasi Atas (Desktop)">
-        <div className={view === 'admin' ? `desktop-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}` : 'desktop-public-top-stack'}>
+        <div className="desktop-public-top-stack">
 
         {/* Header (Shows stylish Catavor brand header on 404 error pages, and store header on valid pages) */}
         {error ? (
@@ -19493,24 +19912,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
             </div>
           </header>
         ) : (
-          <header className={`app-header ${view === 'catalog' ? 'public-storefront-header' : ''}`}>
+          <header className="app-header public-storefront-header">
             <div className="container header-content">
               <div className="logo-area">
-                {view === 'admin' ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    {renderStoreLogo(!error ? settings?.store_logo_url : undefined, 'logo-icon', 26)}
-                    <h1 
-                      className="logo-text" 
-                      style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }} 
-                    >
-                      {settings?.store_title || 'Pengelola Toko'}
-                    </h1>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '6px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
-                      Admin
-                    </span>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <a 
                       href="/" 
                       style={{ 
@@ -19550,7 +19955,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       Platform Katalog
                     </span>
                   </div>
-                )}
               </div>
               {!error && settings && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
                 <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -21277,6 +21681,23 @@ Terima kasih atas perhatian dan kerja samanya.`;
               currentUser={adminUser}
               onLogout={handleLogout}
             />
+          ) : token && !isPlatformAdmin(adminUser) && (typeof window !== 'undefined' && (window.location.pathname.toLowerCase() === '/admin' || window.location.pathname.toLowerCase().startsWith('/admin/'))) ? (
+            /* MERCHANT USER ON GENERIC /admin ROUTE -> AUTO-REDIRECT TO STORE DASHBOARD */
+            (() => {
+              const dest = resolveAuthenticatedRedirect(adminUser, storeSlug);
+              const pathOnly = dest.split('?')[0];
+              if (pathOnly !== '/admin') {
+                window.location.replace(dest);
+              } else {
+                const fallbackSlug = (adminUser as any)?.store_slug || (adminUser as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+                window.location.replace(appendViewParam(fallbackSlug ? `/${fallbackSlug}/admin` : '/catalogs'));
+              }
+              return (
+                <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                  Mengarahkan ke dashboard katalog...
+                </div>
+              );
+            })()
           ) : token && !isStoreOwner ? (
             /* 403 FORBIDDEN ACCESS CARD FOR OTHER STORE OWNER */
             <div className="glass-panel animate-fade-in" style={{ maxWidth: '520px', margin: '4rem auto', padding: '2.5rem', textAlign: 'center' }}>
@@ -21330,132 +21751,269 @@ Terima kasih atas perhatian dan kerja samanya.`;
               </div>
             </div>
           ) : !token ? (
-            /* ADMIN LOGIN SCREEN (DYNAMIC HIGH-CONTRAST DESIGN) */
-            <div className="glass-panel animate-fade-in" style={{ maxWidth: '420px', margin: '4rem auto', padding: '2.5rem' }}>
-              <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <Lock size={36} style={{ color: 'var(--primary)', marginBottom: '0.5rem' }} />
-                <h2 style={{ fontSize: '1.5rem', color: 'var(--text-primary)' }}>Login Administrator</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                  Autentikasi login diperlukan untuk masuk ke dashboard admin.
-                </p>
-              </div>
-
-              {loginError && (
-                <div style={{
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#ef4444',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.75rem',
-                  fontSize: '0.82rem',
-                  marginBottom: '1.25rem',
-                  fontWeight: 600
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                    <span style={{ lineHeight: 1.45 }}>{loginError}</span>
+            /* ADMIN LOGIN SCREEN (DYNAMIC HIGH-CONTRAST DESIGN - PURE FORM WITHOUT HEADER) */
+            <div style={{
+              minHeight: '100vh',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'var(--bg-deep)',
+              color: 'var(--text-primary)',
+              padding: '2.5rem 1.5rem',
+              boxSizing: 'border-box'
+            }}>
+              <div style={{
+                width: '100%',
+                maxWidth: '440px',
+                backgroundColor: 'var(--bg-card)',
+                borderRadius: '1.25rem',
+                border: '1px solid var(--border-light)',
+                padding: '2.5rem 2.25rem',
+                boxShadow: 'var(--shadow-premium)',
+                boxSizing: 'border-box'
+              }} className="animate-fade-in">
+                <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+                  <div style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '1rem',
+                    backgroundColor: 'var(--primary-glow)',
+                    border: '1.5px solid var(--border-light)',
+                    color: 'var(--primary)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 0.85rem auto',
+                    overflow: 'hidden'
+                  }}>
+                    {settings?.store_logo_url ? (
+                      <img src={settings.store_logo_url} alt={settings.store_title || storeSlug || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Store size={28} />
+                    )}
                   </div>
-                  {loginRedirectPortal && (
-                    <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px dashed rgba(239, 68, 68, 0.3)' }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          window.location.href = loginRedirectPortal;
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '0.55rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: '#ef4444',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontWeight: 700,
-                          fontSize: '0.78rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.4rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <span>{loginRedirectPortal === '/admin' ? 'Buka Portal Konsol Pengelola (/admin)' : 'Buka Portal Merchant (/login)'}</span>
-                        <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  )}
+                  <h1 style={{
+                    fontSize: '1.35rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    margin: '0 0 0.35rem 0',
+                    letterSpacing: '-0.02em',
+                    fontFamily: 'var(--font-heading, "Outfit", sans-serif)'
+                  }}>
+                    Login Administrator
+                  </h1>
+                  <p style={{
+                    fontSize: '0.84rem',
+                    color: 'var(--text-secondary)',
+                    margin: 0,
+                    lineHeight: 1.5
+                  }}>
+                    Kelola etalase katalog &amp; pesanan {settings?.store_title ? `"${settings.store_title}"` : storeSlug ? `"${storeSlug}"` : 'bisnis Anda'}
+                  </p>
+                  <div style={{ marginTop: '0.65rem' }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.2rem 0.65rem',
+                      borderRadius: '999px',
+                      backgroundColor: 'var(--primary-glow)',
+                      color: 'var(--primary)',
+                      border: '1px solid var(--border-light)',
+                      fontSize: '0.72rem',
+                      fontWeight: 700
+                    }}>
+                      <ShieldCheck size={13} />
+                      <span>Panel Pengelola Toko</span>
+                    </span>
+                  </div>
                 </div>
-              )}
 
-              {/* Google SSO Login Button */}
-              <button 
-                type="button" 
-                onClick={handleGoogleSSO}
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem 1rem', 
-                  borderRadius: '0.75rem', 
-                  backgroundColor: '#ffffff', 
-                  border: '1.5px solid #cbd5e1', 
-                  color: '#1e293b', 
-                  fontSize: '0.86rem', 
-                  fontWeight: 700, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '0.65rem', 
-                  marginBottom: '1.25rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-                <span>Masuk dengan Google</span>
-              </button>
+                {loginError && (
+                  <div style={{
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: 'var(--danger, #ef4444)',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    marginBottom: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.65rem',
+                    lineHeight: 1.45
+                  }}>
+                    <AlertCircle size={17} style={{ flexShrink: 0 }} />
+                    <span>{loginError}</span>
+                  </div>
+                )}
 
-              <div style={{ display: 'flex', alignItems: 'center', margin: '1.25rem 0', gap: '0.75rem' }}>
-                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-                <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 800, letterSpacing: '0.06em' }}>ATAU LOGIN MANUAL</span>
-                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-              </div>
-
-              <form onSubmit={handleLoginSubmit}>
-                <div className="form-group">
-                  <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Alamat Email Admin *</label>
-                  <input 
-                    type="email" 
-                    className="form-input" 
-                    placeholder="admin@catavor.com"
-                    required
-                    value={loginForm.email}
-                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Kata Sandi *</label>
-                  <input 
-                    type="password" 
-                    className="form-input" 
-                    placeholder="password123"
-                    required
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  />
-                </div>
+                {/* Google SSO Login Button */}
                 <button 
-                  type="submit" 
-                  className="btn-primary btn-full" 
+                  type="button" 
+                  onClick={handleGoogleSSO}
                   disabled={loginLoading}
-                  style={{ fontWeight: 800 }}
+                  style={{ 
+                    width: '100%', 
+                    minHeight: '46px',
+                    padding: '0.75rem 1rem', 
+                    borderRadius: '0.75rem', 
+                    backgroundColor: 'var(--bg-deep)', 
+                    border: '1.5px solid var(--border-light)', 
+                    color: 'var(--text-primary)', 
+                    fontSize: '0.88rem', 
+                    fontWeight: 700, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '0.65rem', 
+                    marginBottom: '1rem',
+                    cursor: loginLoading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                    transition: 'all 0.15s ease'
+                  }}
                 >
-                  {loginLoading ? 'Memverifikasi...' : 'Masuk'}
+                  <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                  <span>Masuk dengan Google</span>
                 </button>
-              </form>
+
+                <div style={{ display: 'flex', alignItems: 'center', margin: '0.2rem 0', gap: '0.75rem' }}>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, letterSpacing: '0.06em' }}>ATAU MASUK MANUAL</span>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+                </div>
+
+                <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', marginTop: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
+                      Email Administrator
+                    </label>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      padding: '0.72rem 0.95rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1.5px solid var(--border-light)',
+                      minHeight: '44px'
+                    }}>
+                      <Mail size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                      <input 
+                        type="email" 
+                        required 
+                        placeholder="admin@catavor.com" 
+                        value={loginForm.email} 
+                        onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                        style={{
+                          flex: 1,
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.9rem',
+                          outline: 'none',
+                          width: '100%'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                        Kata Sandi
+                      </label>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      padding: '0.72rem 0.95rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1.5px solid var(--border-light)',
+                      minHeight: '44px'
+                    }}>
+                      <Lock size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                      <input 
+                        type="password" 
+                        required 
+                        placeholder="••••••••" 
+                        value={loginForm.password} 
+                        onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                        style={{
+                          flex: 1,
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.9rem',
+                          outline: 'none',
+                          width: '100%'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={loginLoading}
+                    style={{
+                      width: '100%',
+                      minHeight: '46px',
+                      padding: '0.8rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 800,
+                      fontSize: '0.92rem',
+                      cursor: loginLoading ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 4px 14px var(--primary-glow)',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      marginTop: '0.25rem'
+                    }}
+                  >
+                    {loginLoading ? 'Memverifikasi...' : 'Masuk ke Dashboard'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = storeSlug && !isReservedStoreSlug(storeSlug) ? `/${storeSlug}` : '/';
+                      window.location.href = target;
+                    }}
+                    style={{
+                      width: '100%',
+                      minHeight: '40px',
+                      background: 'transparent',
+                      color: 'var(--text-muted)',
+                      border: 'none',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.45rem',
+                      marginTop: '0.25rem'
+                    }}
+                  >
+                    <ArrowLeft size={15} />
+                    <span>Kembali ke Katalog Publik {settings?.store_title || storeSlug ? `(${settings?.store_title || storeSlug})` : ''}</span>
+                  </button>
+                </form>
+              </div>
             </div>
           ) : (!isPasswordChanged && adminUser?.email === 'admin@catavor.local' && adminUser?.is_password_changed === false) ? (
             /* FIRST TIME PASSWORD REQUIREMENT */
@@ -21587,6 +22145,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 }
               }}
               onOpenCreateItem={() => openCreateModal('physical')}
+              onExportCatalog={handleExportCatalog}
               isPlatformAdminUser={isPlatformAdmin(adminUser)}
               isSuperAdminUser={isSuperAdmin(adminUser)}
             >
@@ -23401,12 +23960,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                   {/* Desktop Settings Segmented Sub-Tab Bar (Full-Width Responsive Grid) */}
                   {(() => {
-                    const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain'; label: string; icon: any; isPro?: boolean }> = [
+                    const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'domain'; label: string; icon: any; isPro?: boolean }> = [
                       { id: 'general', label: 'Profil & Identitas Utama', icon: Store },
                       { id: 'contact', label: 'Kontak & Saluran Resmi', icon: MessageCircle },
                       { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
                       { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
-                      { id: 'master', label: 'Master Data Katalog', icon: Database },
                       ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', icon: Globe, isPro: true }] : [])
                     ];
 
@@ -24369,35 +24927,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   )}
 
-                  {/* Master Data Management Section */}
-                  {settingsSubTab === 'master' && (
-                    <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
-                      {/* Top Header Banner */}
-                      <div style={{
-                        padding: '1.25rem 1.5rem',
-                        borderRadius: '0.85rem',
-                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(59, 130, 246, 0.04) 100%)',
-                        border: '1px solid var(--border-light)',
-                        marginBottom: '1.25rem'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          <span style={{ padding: '0.3rem 0.6rem', borderRadius: '0.45rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', fontWeight: 800, fontSize: '0.72rem' }}>
-                            SISTEM TAKSONOMI KATALOG
-                          </span>
-                          <h3 style={{ fontSize: '1.15rem', margin: 0, fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Kelola Master Kategori Etalase
-                          </h3>
-                        </div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0.35rem 0 0 0' }}>
-                          Kelola taksonomi kategori etalase katalog per model bisnis. Kategori standar sistem terkunci permanen untuk konsistensi platform, sedangkan kategori kustom dapat Anda tambah, ubah nama, atau hapus secara mandiri.
-                        </p>
-                      </div>
-
-                      {/* Dedicated Category Taxonomy Manager */}
-                      {renderCategoryTaxonomyManager()}
-                    </div>
-                  )}
-
+                  {/* End of Settings Content */}
                 </>
               )}
 
@@ -24665,9 +25195,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           padding: '0.85rem 1rem',
                           fontSize: '0.78rem',
                           color: 'var(--text-secondary)',
-                          lineHeight: 1.5
+                          lineHeight: 1.5,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.55rem'
                         }}>
-                          💡 <strong>Catatan Keamanan Akun:</strong> Kata sandi dan email akun Anda tersinkronisasi dengan sistem autentikasi pusat. Jika memerlukan pemulihan akses, gunakan fitur lupa sandi di halaman login utama.
+                          <Info size={16} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+                          <div>
+                            <strong style={{ color: 'var(--text-primary)' }}>Catatan Keamanan Akun:</strong> Kata sandi dan email akun Anda tersinkronisasi dengan sistem autentikasi pusat. Jika memerlukan pemulihan akses, gunakan fitur lupa sandi di halaman login utama.
+                          </div>
                         </div>
 
                         <div>
@@ -25725,233 +26261,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
               )}
 
               {adminTab === 'policies' && (
-                <div className="glass-panel animate-fade-in" style={{ padding: '2rem', marginTop: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-                    <div>
-                      <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>
-                        Manajemen Kebijakan, Privasi & Audit Trail Pengguna
-                      </h2>
-                      <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0.25rem 0 0 0' }}>
-                        Kelola isi kebijakan platform, terbitkan versi baru (immutable versioning), dan pantau log bukti persetujuan pengguna.
-                      </p>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#34d399', backgroundColor: 'rgba(16,185,129,0.12)', padding: '0.35rem 0.75rem', borderRadius: '999px', border: '1px solid rgba(16,185,129,0.25)' }}>
-                        UU PDP & Consumer Protection Compliant
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Policy Cards Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.25rem', marginBottom: '2rem' }}>
-                    {[
-                      { key: 'terms', name: 'Syarat & Ketentuan', icon: FileText },
-                      { key: 'privacy', name: 'Kebijakan Privasi', icon: Shield },
-                      { key: 'acceptable_use', name: 'Ketentuan Penggunaan', icon: Lock }
-                    ].map(item => {
-                      const pol = policies[item.key] || { version: 'v1.0.0', title: item.name, content: '' };
-                      const IconComp = item.icon;
-                      return (
-                        <div key={item.key} style={{ backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-light)', borderRadius: '0.85rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <IconComp size={18} color="var(--primary)" />
-                              </div>
-                              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#34d399', backgroundColor: 'rgba(16,185,129,0.12)', padding: '0.15rem 0.55rem', borderRadius: '999px' }}>
-                                Versi {pol.version}
-                              </span>
-                            </div>
-                            <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 0.5rem 0', color: '#ffffff' }}>
-                              {pol.title}
-                            </h3>
-                            <p style={{ fontSize: '0.78rem', color: '#94a3b8', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: 0, lineHeight: 1.4 }}>
-                              {pol.content}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={() => {
-                              setEditingPolicy({
-                                type: item.key,
-                                version: pol.version,
-                                title: pol.title,
-                                content: pol.content
-                              });
-                            }}
-                            style={{ marginTop: '1.25rem', padding: '0.45rem 0.85rem', fontSize: '0.78rem', width: '100%', justifyContent: 'center' }}
-                          >
-                            <Edit size={14} />
-                            <span>Edit & Terbitkan Versi Baru</span>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Policy Edit Form */}
-                  {editingPolicy && (
-                    <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.95)', border: '1px solid var(--primary)', borderRadius: '1rem', padding: '1.5rem', marginBottom: '2rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>
-                          Edit & Terbitkan Versi Baru: {editingPolicy.title}
-                        </h3>
-                        <button type="button" onClick={() => setEditingPolicy(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                          <X size={18} />
-                        </button>
-                      </div>
-
-                      {policySaveMsg && (
-                        <div style={{ padding: '0.65rem 1rem', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.82rem', backgroundColor: policySaveMsg.type === 'success' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: policySaveMsg.type === 'success' ? '#34d399' : '#f87171', border: '1px solid currentColor' }}>
-                          {policySaveMsg.text}
-                        </div>
-                      )}
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                        <div>
-                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e5e7eb', display: 'block', marginBottom: '0.35rem' }}>Judul Dokumen</label>
-                          <input
-                            type="text"
-                            className="form-input"
-                            value={editingPolicy.title}
-                            onChange={(e) => setEditingPolicy({ ...editingPolicy, title: e.target.value })}
-                            style={{ borderRadius: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e5e7eb', display: 'block', marginBottom: '0.35rem' }}>Nomor Versi Baru (Misal v1.1.0)</label>
-                          <input
-                            type="text"
-                            className="form-input"
-                            value={editingPolicy.version}
-                            onChange={(e) => setEditingPolicy({ ...editingPolicy, version: e.target.value })}
-                            placeholder="v1.1.0"
-                            style={{ borderRadius: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-                          />
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: '1.25rem' }}>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e5e7eb', display: 'block', marginBottom: '0.35rem' }}>Isi Dokumen Kebijakan</label>
-                        <textarea
-                          className="form-input"
-                          rows={8}
-                          value={editingPolicy.content}
-                          onChange={(e) => setEditingPolicy({ ...editingPolicy, content: e.target.value })}
-                          style={{ borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.85rem', lineHeight: '1.6', width: '100%' }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                        <button type="button" className="btn-secondary" onClick={() => setEditingPolicy(null)} style={{ padding: '0.5rem 1rem', fontSize: '0.82rem' }}>
-                          Batal
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          disabled={policySaveLoading}
-                          onClick={async () => {
-                            setPolicySaveLoading(true);
-                            setPolicySaveMsg(null);
-                            try {
-                              const res = await fetch(`${API_BASE}/settings/policies`, {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'Authorization': `Bearer ${token}`
-                                },
-                                body: JSON.stringify({
-                                  policy_type: editingPolicy.type,
-                                  version: editingPolicy.version,
-                                  title: editingPolicy.title,
-                                  content: editingPolicy.content
-                                })
-                              });
-                              const data = await res.json();
-                              if (data.success) {
-                                setPolicySaveMsg({ type: 'success', text: data.message });
-                                fetchPolicies();
-                                setTimeout(() => setEditingPolicy(null), 1200);
-                              } else {
-                                setPolicySaveMsg({ type: 'error', text: 'Gagal memperbarui kebijakan.' });
-                              }
-                            } catch (err) {
-                              setPolicySaveMsg({ type: 'error', text: 'Koneksi gagal. Coba lagi.' });
-                            } finally {
-                              setPolicySaveLoading(false);
-                            }
-                          }}
-                          style={{ padding: '0.5rem 1.25rem', fontSize: '0.82rem' }}
-                        >
-                          {policySaveLoading ? 'Mempublikasikan...' : 'Publikasikan Versi Baru'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Audit Trail Log Section */}
-                  <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                      <div>
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>
-                          Log Audit Persetujuan Pengguna (Immutable Audit Trail)
-                        </h3>
-                        <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '0.2rem 0 0 0' }}>
-                          Catatan permanen persetujuan pengguna saat registrasi. Teks versi lama tersimpan tak terubah walau ada kebijakan baru.
-                        </p>
-                      </div>
-                      <button type="button" className="btn-secondary" onClick={fetchPolicyAuditLogs} style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}>
-                        Muat Ulang Log
-                      </button>
-                    </div>
-
-                    <div style={{ overflowX: 'auto', borderRadius: '0.75rem', border: '1px solid var(--border-light)' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-                        <thead>
-                          <tr style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#cbd5e1', borderBottom: '1px solid var(--border-light)' }}>
-                            <th style={{ padding: '0.75rem 1rem' }}>ID / Waktu</th>
-                            <th style={{ padding: '0.75rem 1rem' }}>Pengguna / Toko</th>
-                            <th style={{ padding: '0.75rem 1rem' }}>Jenis Kebijakan</th>
-                            <th style={{ padding: '0.75rem 1rem' }}>Versi Disetujui</th>
-                            <th style={{ padding: '0.75rem 1rem' }}>IP Address</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {policyAuditLogs.length === 0 ? (
-                            <tr>
-                              <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
-                                Belum ada log pendaftaran persetujuan pengguna.
-                              </td>
-                            </tr>
-                          ) : (
-                            policyAuditLogs.map((log: any) => (
-                              <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#e2e8f0' }}>
-                                <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace' }}>
-                                  #{log.id} • {new Date(log.agreed_at || log.created_at).toLocaleString('id-ID')}
-                                </td>
-                                <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#ffffff' }}>
-                                  {log.store_slug || `User #${log.user_id}`}
-                                </td>
-                                <td style={{ padding: '0.75rem 1rem', textTransform: 'capitalize' }}>
-                                  {log.policy_type === 'terms' ? 'Syarat & Ketentuan' : log.policy_type === 'privacy' ? 'Kebijakan Privasi' : 'Ketentuan Penggunaan'}
-                                </td>
-                                <td style={{ padding: '0.75rem 1rem' }}>
-                                  <span style={{ fontWeight: 800, color: '#34d399', backgroundColor: 'rgba(16,185,129,0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                                    {log.version}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '0.75rem 1rem', color: '#94a3b8', fontFamily: 'monospace' }}>
-                                  {log.ip_address || '127.0.0.1'}
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
+                <PlatformPoliciesView
+                  onOpenHelpdesk={() => {
+                    setAdminTab('help');
+                    const slug = storeSlug || getStoreSlug();
+                    if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                  }}
+                />
               )}
 
               {adminTab === 'notifications' && (
@@ -27952,7 +28268,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Pusat Banding Kepatuhan & Tiket' : 'Pusat Tiket Support Catavor'}
                         </h3>
                         <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                          {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Layanan Klarifikasi dan Pemulihan Akun Toko' : 'Layanan Bantuan & Monitoring Kendala Pengelolaan Katalog'}
+                          {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Layanan Klarifikasi dan Pemulihan Profil Katalog' : 'Layanan Bantuan & Monitoring Kendala Pengelolaan Katalog'}
                         </span>
                       </div>
                     </div>
@@ -27970,6 +28286,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         </div>
                       </div>
 
+                      {/* Official Contact Button (Desktop) */}
+                      <button
+                        type="button"
+                        onClick={() => setShowOfficialContactModal(true)}
+                        style={{
+                          padding: '0.65rem 1.15rem',
+                          borderRadius: '0.75rem',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Headphones size={16} color="var(--primary)" />
+                        <span>Kontak Resmi</span>
+                      </button>
+
                       {!(isSuspendedAccount && activeAppeal) ? (
                         <button
                           type="button"
@@ -27977,10 +28316,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           onClick={() => {
                             if (isSuspendedAccount) {
                               setNewTicketForm({
-                                subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
+                                subject: `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`,
                                 category: 'compliance',
                                 priority: 'high',
-                                message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                                message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                               });
                             }
                             setShowCreateTicketModal(true);
@@ -28047,6 +28386,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             </button>
                           )}
                         </div>
+
 
                         {/* Filter Tabs */}
                         <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--bg-deep)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)' }}>
@@ -28404,18 +28744,76 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 </span>
                               </div>
 
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                                <span style={{
-                                  fontSize: '0.75rem',
-                                  fontWeight: 800,
-                                  padding: '0.25rem 0.75rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' : selectedTicket.status === 'waiting_agent' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                                  color: selectedTicket.status === 'resolved' ? '#10b981' : selectedTicket.status === 'in_progress' ? '#f59e0b' : selectedTicket.status === 'waiting_agent' ? '#a855f7' : '#3b82f6',
-                                  border: `1px solid ${selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.3)' : selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
-                                }}>
-                                  {selectedTicket.status === 'resolved' ? '✓ Tiket Selesai' : selectedTicket.status === 'in_progress' ? '● Dalam Proses' : selectedTicket.status === 'waiting_agent' ? '● Menunggu Agen CS' : '● Tiket Open'}
-                                </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowOfficialContactModal(true)}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    padding: '0.28rem 0.65rem',
+                                    borderRadius: '0.5rem',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    color: 'var(--text-secondary)',
+                                    border: '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  title="Hubungi Kontak Resmi Bantuan Platform"
+                                >
+                                  <Headphones size={13} color="var(--primary)" />
+                                  <span>Kontak Resmi</span>
+                                </button>
+
+                                {(() => {
+                                  const sMeta = getTicketStatusBadge(selectedTicket.status);
+                                  return (
+                                    <span style={{
+                                      fontSize: '0.74rem',
+                                      fontWeight: 800,
+                                      padding: '0.25rem 0.75rem',
+                                      borderRadius: '999px',
+                                      backgroundColor: sMeta.bg,
+                                      color: sMeta.color,
+                                      border: `1px solid ${sMeta.border}`,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem'
+                                    }}>
+                                      <span>{sMeta.icon}</span>
+                                      {sMeta.label}
+                                    </span>
+                                  );
+                                })()}
+
+                                <button
+                                  type="button"
+                                  onClick={() => fetchTicketDetails(selectedTicket.id)}
+                                  title="Segarkan Percakapan Tiket"
+                                  style={{
+                                    background: 'var(--bg-deep)',
+                                    border: '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-secondary)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    padding: '0.28rem 0.65rem',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 600,
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-light)'; }}
+                                >
+                                  <RefreshCw size={13} />
+                                  <span>Segarkan</span>
+                                </button>
+
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -28528,9 +28926,26 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   </span>
                                 );
                               })()}
-                              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)', color: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? '#ef4444' : 'var(--text-secondary)' }}>
-                                Urgensi: {String(selectedTicket.priority).toUpperCase()}
-                              </span>
+                              {(() => {
+                                const pMeta = getTicketPriorityMeta(selectedTicket.priority);
+                                return (
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    padding: '0.2rem 0.6rem',
+                                    borderRadius: '4px',
+                                    backgroundColor: pMeta.bg,
+                                    color: pMeta.color,
+                                    border: `1px solid ${pMeta.border}`,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem'
+                                  }}>
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: pMeta.color }}></span>
+                                    <span>Urgensi: {pMeta.label}</span>
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
 
@@ -28633,193 +29048,153 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                         borderTop: msg.message ? '1px dashed var(--border-light)' : 'none'
                                       }}>
                                         <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                          <Paperclip size={13} color="var(--primary)" /> {msg.attachments.length} Lampiran File:
+                                          <Paperclip size={13} color="var(--primary)" /> {msg.attachments.length} Lampiran Berkas:
                                         </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.6rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
                                           {msg.attachments.map((att: any, idx: number) => {
-                                            const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
-                                            if (isPDF) {
-                                              return (
-                                                <div
-                                                  key={idx}
-                                                  role="button"
-                                                  tabIndex={0}
-                                                  style={{
-                                                    gridColumn: '1 / -1',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '0.6rem',
-                                                    padding: '0.75rem 0.85rem',
-                                                    borderRadius: '0.85rem',
-                                                    backgroundColor: 'var(--bg-card)',
-                                                    border: '1px solid var(--border-light)',
-                                                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
-                                                    color: 'var(--text-primary)',
-                                                    minWidth: '240px',
-                                                    maxWidth: '380px',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box',
-                                                    transition: 'all 0.15s ease'
-                                                  }}
-                                                >
-                                                  {/* File Info Header (Clickable for preview) */}
-                                                  <div
-                                                    onClick={() => openDocumentPreview(att)}
-                                                    style={{
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      gap: '0.65rem',
-                                                      cursor: 'pointer',
-                                                      width: '100%'
-                                                    }}
-                                                    title="Klik untuk pratinjau dokumen di aplikasi"
-                                                  >
-                                                    <div style={{
-                                                      width: '38px',
-                                                      height: '38px',
-                                                      borderRadius: '0.5rem',
-                                                      backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                                                      border: '1px solid rgba(239, 68, 68, 0.28)',
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      justifyContent: 'center',
-                                                      flexShrink: 0
-                                                    }}>
-                                                      <FileText size={20} color="#ef4444" />
-                                                    </div>
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                      <div style={{
-                                                        fontWeight: 700,
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap',
-                                                        fontSize: '0.82rem',
-                                                        color: 'var(--text-primary)',
-                                                        lineHeight: 1.3
-                                                      }}>
-                                                        {att.file_name || 'Dokumen.pdf'}
-                                                      </div>
-                                                      <div style={{
-                                                        fontSize: '0.68rem',
-                                                        color: 'var(--text-secondary)',
-                                                        marginTop: '0.15rem',
-                                                        fontWeight: 500,
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis'
-                                                      }}>
-                                                        Dokumen PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
-                                                      </div>
-                                                    </div>
-                                                  </div>
+                                            const isPDF = (att.file_type || '').includes('pdf') || 
+                                              (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+                                              (att.file_url || '').toLowerCase().endsWith('.pdf');
+                                            const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+                                              /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+                                              /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
 
-                                                  {/* Action Buttons Row */}
+                                            return (
+                                              <div
+                                                key={idx}
+                                                role="button"
+                                                tabIndex={0}
+                                                style={{
+                                                  display: 'flex',
+                                                  flexDirection: 'column',
+                                                  gap: '0.55rem',
+                                                  padding: '0.75rem 0.85rem',
+                                                  borderRadius: '0.85rem',
+                                                  backgroundColor: 'var(--bg-card)',
+                                                  border: '1px solid var(--border-light)',
+                                                  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+                                                  color: 'var(--text-primary)',
+                                                  minWidth: '240px',
+                                                  maxWidth: '380px',
+                                                  width: '100%',
+                                                  boxSizing: 'border-box',
+                                                  transition: 'all 0.15s ease'
+                                                }}
+                                              >
+                                                {/* File Info Header (Clickable for preview) */}
+                                                <div
+                                                  onClick={() => openDocumentPreview(att)}
+                                                  style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.65rem',
+                                                    cursor: 'pointer',
+                                                    width: '100%'
+                                                  }}
+                                                  title="Klik untuk pratinjau berkas di aplikasi"
+                                                >
                                                   <div style={{
-                                                    display: 'grid',
-                                                    gridTemplateColumns: '1fr 1fr',
-                                                    gap: '0.5rem',
-                                                    paddingTop: '0.55rem',
-                                                    borderTop: '1px solid var(--border-light)',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box'
+                                                    width: '38px',
+                                                    height: '38px',
+                                                    borderRadius: '0.5rem',
+                                                    backgroundColor: isPDF ? 'rgba(239, 68, 68, 0.12)' : 'rgba(14, 165, 233, 0.12)',
+                                                    border: `1px solid ${isPDF ? 'rgba(239, 68, 68, 0.28)' : 'rgba(14, 165, 233, 0.28)'}`,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0
                                                   }}>
-                                                    <button
-                                                      type="button"
-                                                      onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
-                                                      style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '0.35rem',
-                                                        padding: '0.42rem 0.65rem',
-                                                        borderRadius: '0.5rem',
-                                                        backgroundColor: 'var(--primary)',
-                                                        color: '#ffffff',
-                                                        border: 'none',
-                                                        fontSize: '0.74rem',
-                                                        fontWeight: 700,
-                                                        cursor: 'pointer',
-                                                        boxShadow: '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))',
-                                                        transition: 'all 0.15s ease'
-                                                      }}
-                                                      title="Lihat Pratinjau Dokumen"
-                                                    >
-                                                      <Eye size={13} strokeWidth={2.2} /> Preview
-                                                    </button>
-                                                    <button
-                                                      type="button"
-                                                      onClick={(e) => handleDownloadDocument(att, e)}
-                                                      style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '0.35rem',
-                                                        padding: '0.42rem 0.65rem',
-                                                        borderRadius: '0.5rem',
-                                                        backgroundColor: 'var(--bg-deep)',
-                                                        color: 'var(--text-primary)',
-                                                        border: '1px solid var(--border-light)',
-                                                        fontSize: '0.74rem',
-                                                        fontWeight: 600,
-                                                        cursor: 'pointer',
-                                                        transition: 'all 0.15s ease'
-                                                      }}
-                                                      title="Unduh Berkas Langsung"
-                                                    >
-                                                      <Download size={13} strokeWidth={2.2} /> Unduh
-                                                    </button>
+                                                    {isPDF ? (
+                                                      <FileText size={20} color="#ef4444" />
+                                                    ) : (
+                                                      <Image size={20} color="#0284c7" />
+                                                    )}
+                                                  </div>
+                                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{
+                                                      fontWeight: 700,
+                                                      overflow: 'hidden',
+                                                      textOverflow: 'ellipsis',
+                                                      whiteSpace: 'nowrap',
+                                                      fontSize: '0.82rem',
+                                                      color: 'var(--text-primary)',
+                                                      lineHeight: 1.3
+                                                    }}>
+                                                      {att.file_name || (isPDF ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran')}
+                                                    </div>
+                                                    <div style={{
+                                                      fontSize: '0.68rem',
+                                                      color: 'var(--text-secondary)',
+                                                      marginTop: '0.15rem',
+                                                      fontWeight: 500,
+                                                      whiteSpace: 'nowrap',
+                                                      overflow: 'hidden',
+                                                      textOverflow: 'ellipsis'
+                                                    }}>
+                                                      {isPDF ? 'Dokumen PDF' : isImage ? 'Lampiran Gambar' : 'Berkas Lampiran'} {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
+                                                    </div>
                                                   </div>
                                                 </div>
-                                              );
-                                            }
-                                            return (
-                                            <div
-                                              key={idx}
-                                              role="button"
-                                              tabIndex={0}
-                                              onClick={() => openAttachmentLightbox(msg.attachments, idx)}
-                                              style={{
-                                                position: 'relative',
-                                                borderRadius: '0.65rem',
-                                                overflow: 'hidden',
-                                                border: '1px solid var(--border-light)',
-                                                aspectRatio: '1',
-                                                display: 'block',
-                                                backgroundColor: 'var(--bg-deep)',
-                                                cursor: 'pointer',
-                                                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-                                              }}
-                                              title="Klik untuk memperbesar gambar"
-                                            >
-                                              <img
-                                                src={supportAttachmentSrc(att)}
-                                                alt={att.file_name || 'Lampiran Berkas'}
-                                                style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.25s ease' }}
-                                                onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
-                                                onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1.0)')}
-                                              />
-                                              <div style={{
-                                                position: 'absolute',
-                                                bottom: 0,
-                                                left: 0,
-                                                right: 0,
-                                                padding: '0.22rem 0.45rem',
-                                                backgroundColor: 'rgba(0,0,0,0.75)',
-                                                backdropFilter: 'blur(4px)',
-                                                fontSize: '0.65rem',
-                                                color: '#ffffff',
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between'
-                                              }}>
-                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.file_name || `Gambar ${idx + 1}`}</span>
-                                                <ZoomIn size={12} style={{ opacity: 0.85, flexShrink: 0, marginLeft: '4px' }} />
+
+                                                {/* Action Buttons Row */}
+                                                <div style={{
+                                                  display: 'grid',
+                                                  gridTemplateColumns: '1fr 1fr',
+                                                  gap: '0.5rem',
+                                                  paddingTop: '0.55rem',
+                                                  borderTop: '1px solid var(--border-light)',
+                                                  width: '100%',
+                                                  boxSizing: 'border-box'
+                                                }}>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
+                                                    style={{
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                      justifyContent: 'center',
+                                                      gap: '0.35rem',
+                                                      padding: '0.42rem 0.65rem',
+                                                      borderRadius: '0.5rem',
+                                                      backgroundColor: 'var(--primary)',
+                                                      color: '#ffffff',
+                                                      border: 'none',
+                                                      fontSize: '0.74rem',
+                                                      fontWeight: 700,
+                                                      cursor: 'pointer',
+                                                      boxShadow: '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))',
+                                                      transition: 'all 0.15s ease'
+                                                    }}
+                                                    title="Lihat Pratinjau Berkas"
+                                                  >
+                                                    <Eye size={13} strokeWidth={2.2} /> Preview
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => handleDownloadDocument(att, e)}
+                                                    style={{
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                      justifyContent: 'center',
+                                                      gap: '0.35rem',
+                                                      padding: '0.42rem 0.65rem',
+                                                      borderRadius: '0.5rem',
+                                                      backgroundColor: 'var(--bg-deep)',
+                                                      color: 'var(--text-primary)',
+                                                      border: '1px solid var(--border-light)',
+                                                      fontSize: '0.74rem',
+                                                      fontWeight: 600,
+                                                      cursor: 'pointer',
+                                                      transition: 'all 0.15s ease'
+                                                    }}
+                                                    title="Unduh Berkas Langsung"
+                                                  >
+                                                    <Download size={13} strokeWidth={2.2} /> Unduh
+                                                  </button>
+                                                </div>
                                               </div>
-                                            </div>
-                                          );})}
+                                            );
+                                          })}
                                         </div>
                                       </div>
                                     )}
@@ -29222,10 +29597,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               onClick={() => {
                                 if (isSuspendedAccount) {
                                   setNewTicketForm({
-                                    subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
+                                    subject: `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`,
                                     category: 'compliance',
                                     priority: 'high',
-                                    message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                                    message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                                   });
                                 }
                                 setTicketNewAttachments([]);
@@ -29327,10 +29702,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           e.preventDefault();
                           const isSuspendedAccount = settings.dormancy_status === 'suspended' || settings.is_suspended;
                           const finalSubject = (isSuspendedAccount && !newTicketForm.subject.trim())
-                            ? `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`
+                            ? `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`
                             : newTicketForm.subject.trim();
                           const finalMessage = (isSuspendedAccount && !newTicketForm.message.trim())
-                            ? `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                            ? `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                             : newTicketForm.message.trim();
 
                           if (!finalSubject || !finalMessage) {
@@ -29344,6 +29719,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               method: 'POST',
                               headers: getAuthHeaders(),
                               body: JSON.stringify({
+                                store_slug: (storeSlug || getStoreSlug() || resolveActiveStoreSlug()) || undefined,
                                 subject: finalSubject,
                                 category: isSuspendedAccount ? 'compliance' : newTicketForm.category,
                                 priority: isSuspendedAccount ? 'high' : newTicketForm.priority,
@@ -29389,7 +29765,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               placeholder="Contoh: Pembayaran Upgrade Paket Pro Belum Terverifikasi"
                               value={
                                 (settings.dormancy_status === 'suspended' || settings.is_suspended)
-                                  ? (newTicketForm.subject || `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`)
+                                  ? (newTicketForm.subject || `Banding Kepatuhan: Peninjauan Pembekuan Profil Katalog (${settings.store_title || storeSlug || 'Katalog'})`)
                                   : newTicketForm.subject
                               }
                               onChange={(e) => {
@@ -29614,6 +29990,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   );
                 })()}
+
+                  {/* Official Contact Modal (Desktop) */}
+                  <OfficialContactModal
+                    isOpen={showOfficialContactModal}
+                    onClose={() => setShowOfficialContactModal(false)}
+                    showToast={showToast}
+                  />
                 </div>
               );
             })()}
@@ -29680,6 +30063,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     }}
                   />
                 </div>
+              )}
+
+              {/* TAB 11: BAGIKAN KATALOG & QR CODE */}
+              {adminTab === 'share' && (
+                <DesktopShareCatalogView
+                  storeSlug={storeSlug || ''}
+                  storeTitle={settings.store_title}
+                  storeLogoUrl={settings.store_logo_url}
+                  storeSlogan={settings.about_slogan || settings.store_slogan}
+                  whatsappNumber={settings.whatsapp_number}
+                  onToast={showToast}
+                />
               )}
               </>
             )}

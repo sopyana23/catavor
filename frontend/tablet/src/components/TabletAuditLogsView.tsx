@@ -284,275 +284,13 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
   }, [isSuper]);
 
   return (
-    <div
-      style={{
-        height: '100vh',
-        overflowY: 'auto',
-        padding: '1.75rem',
-        maxWidth: '1040px',
-        margin: '0 auto',
-        width: '100%',
-        boxSizing: 'border-box'
-      }}
-    >
-      {/* Top Header & Stats Banner */}
-      <div
-        className="glass-panel"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '1.5rem',
-          padding: '1.25rem 1.5rem',
-          borderRadius: '1rem',
-          border: '1px solid var(--border-light)',
-          background: 'var(--card-bg-gradient, var(--bg-card))',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div
-            style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '0.75rem',
-              backgroundColor: 'var(--primary-glow)',
-              border: '1px solid var(--primary)',
-              color: 'var(--primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}
-          >
-            <History size={24} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                {isSuper ? 'System-Wide Audit Trail (Superadmin)' : 'Riwayat Aktivitas & Log Audit Toko'}
-              </h2>
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  color: 'var(--primary)',
-                  backgroundColor: 'var(--primary-glow)',
-                  padding: '0.2rem 0.65rem',
-                  borderRadius: '999px',
-                  border: '1px solid var(--border-light)'
-                }}
-              >
-                {totalRecords.toLocaleString('id-ID')} Rekaman
-              </span>
-            </div>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
-              {isSuper
-                ? 'Jejak audit menyeluruh atas seluruh perubahan konfigurasi, mutasi data, dan keamanan multi-toko.'
-                : 'Rekam jejak seluruh aksi operasional, autentikasi sesi, dan pembaruan katalog toko Anda.'}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => fetchLogs(1, categoryFilter, searchQuery, roleFilter, pageSize)}
-          disabled={loading}
-          className="btn-secondary"
-          style={{
-            minHeight: '44px',
-            padding: '0.6rem 1.15rem',
-            borderRadius: '0.65rem',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            fontSize: '0.82rem',
-            fontWeight: 700,
-            cursor: loading ? 'not-allowed' : 'pointer'
-          }}
-          title="Segarkan Data Log"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          <span>Segarkan Data</span>
-        </button>
-      </div>
-
-      {/* Filter Tabs & Search Controls Box */}
-      <div
-        className="glass-panel"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          marginBottom: '1.5rem',
-          backgroundColor: 'var(--bg-card)',
-          padding: '1.25rem',
-          borderRadius: '1rem',
-          border: '1px solid var(--border-light)'
-        }}
-      >
-        {/* Top Controls Row: Search Input & Actor Role Filter */}
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Search Form */}
-          <form
-            onSubmit={handleSearchSubmit}
-            style={{
-              flex: 1,
-              minWidth: '260px',
-              display: 'flex',
-              alignItems: 'center',
-              position: 'relative'
-            }}
-          >
-            <Search
-              size={18}
-              style={{
-                position: 'absolute',
-                left: '0.9rem',
-                color: 'var(--text-muted)',
-                pointerEvents: 'none'
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Cari aksi, produk, entitas, atau alamat IP..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              style={{
-                width: '100%',
-                minHeight: '44px',
-                paddingLeft: '2.5rem',
-                paddingRight: searchInput ? '2.5rem' : '1rem',
-                backgroundColor: 'var(--bg-deep)',
-                borderRadius: '0.65rem',
-                border: '1px solid var(--border-light)',
-                color: 'var(--text-primary)',
-                fontSize: '0.85rem',
-                outline: 'none'
-              }}
-            />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={handleClearSearch}
-                style={{
-                  position: 'absolute',
-                  right: '0.75rem',
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '0.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title="Hapus Pencarian"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </form>
-
-          {/* Search Submit Button */}
-          <button
-            type="button"
-            onClick={handleSearchSubmit}
-            style={{
-              minHeight: '44px',
-              padding: '0.6rem 1.25rem',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--primary)',
-              color: '#ffffff',
-              border: 'none',
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              cursor: 'pointer'
-            }}
-          >
-            Cari
-          </button>
-
-          {/* Superadmin Actor Role Dropdown */}
-          {isSuper && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <select
-                value={roleFilter}
-                onChange={(e) => {
-                  const newRole = e.target.value;
-                  setRoleFilter(newRole);
-                  setPage(1);
-                  fetchLogs(1, categoryFilter, searchQuery, newRole, pageSize);
-                }}
-                style={{
-                  minHeight: '44px',
-                  padding: '0.55rem 0.95rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--bg-deep)',
-                  border: '1px solid var(--border-light)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="all">Semua Aktor</option>
-                <option value="superadmin">Superadmin</option>
-                <option value="merchant">Merchant</option>
-                <option value="system">System Worker</option>
-              </select>
-            </div>
-          )}
-
-          {/* Page Size Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Tampilkan:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                const newSize = Number(e.target.value);
-                setPageSize(newSize);
-                setPage(1);
-              }}
-              style={{
-                minHeight: '44px',
-                padding: '0.55rem 0.75rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'var(--bg-deep)',
-                border: '1px solid var(--border-light)',
-                color: 'var(--text-primary)',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value={10}>10 Baris</option>
-              <option value={15}>15 Baris</option>
-              <option value={25}>25 Baris</option>
-              <option value={50}>50 Baris</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Category Pills Row */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '0.45rem',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            paddingTop: '0.35rem',
-            borderTop: '1px solid var(--border-light)'
-          }}
-        >
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, marginRight: '0.25rem' }}>
-            Kategori:
-          </span>
-          {categoryOptions.map((cat) => {
-            const isSelected = categoryFilter === cat.key;
+    <div className="glass-panel animate-fade-in" style={{ padding: '1.75rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', width: '100%', boxSizing: 'border-box' }}>
+      {/* Toolbar & Filter Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem', paddingBottom: '1.25rem', borderBottom: '1px solid var(--border-light)' }}>
+        {/* Category Filter Pills */}
+        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {categoryOptions.map(cat => {
+            const isActive = categoryFilter === cat.key;
             return (
               <button
                 key={cat.key}
@@ -565,21 +303,81 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
                 style={{
                   minHeight: '40px',
                   padding: '0.45rem 0.95rem',
-                  borderRadius: '999px',
-                  border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                  backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-deep)',
-                  color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                  borderRadius: '0.65rem',
                   fontSize: '0.78rem',
-                  fontWeight: isSelected ? 700 : 500,
+                  fontWeight: 700,
                   cursor: 'pointer',
-                  boxShadow: isSelected ? '0 2px 8px var(--primary-glow)' : 'none',
-                  transition: 'all 0.15s ease'
+                  border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                  backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
+                  color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                  boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {cat.label}
               </button>
             );
           })}
+        </div>
+
+        {/* Search Toolbar & Refresh */}
+        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {isSuper && (
+            <select
+              className="form-input"
+              value={roleFilter}
+              onChange={(e) => {
+                const newRole = e.target.value;
+                setRoleFilter(newRole);
+                setPage(1);
+                fetchLogs(1, categoryFilter, searchQuery, newRole, pageSize);
+              }}
+              style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', borderRadius: '0.5rem', width: 'auto', minHeight: '40px' }}
+            >
+              <option value="all">Semua Aktor</option>
+              <option value="superadmin">Superadmin</option>
+              <option value="merchant">Merchant</option>
+              <option value="system">System Worker</option>
+            </select>
+          )}
+
+          <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '220px', margin: 0 }}>
+            <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Cari aksi, produk, IP..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              style={{ paddingLeft: '2.2rem', paddingRight: searchInput ? '2rem' : '0.75rem', paddingTop: '0.45rem', paddingBottom: '0.45rem', fontSize: '0.78rem', borderRadius: '0.5rem', minHeight: '40px' }}
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex', alignItems: 'center' }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </form>
+
+          <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.4rem 0.85rem', borderRadius: '999px', border: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>
+            {totalRecords.toLocaleString('id-ID')} Rekaman
+          </span>
+
+          <button
+            type="button"
+            onClick={() => fetchLogs(1, categoryFilter, searchQuery, roleFilter, pageSize)}
+            disabled={loading}
+            className="btn-secondary"
+            style={{ minHeight: '40px', padding: '0.45rem 0.85rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: loading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+            title="Segarkan Log"
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            <span>Segarkan</span>
+          </button>
         </div>
       </div>
 

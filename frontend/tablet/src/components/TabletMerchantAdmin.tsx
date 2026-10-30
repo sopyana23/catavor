@@ -27,6 +27,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  Shield,
   Zap,
   Lock,
   Laptop,
@@ -77,19 +78,32 @@ import {
   CheckCircle2,
   Mail,
   ArrowLeft,
-  FolderMinus
+  FolderMinus,
+  HardDriveDownload,
+  FileSpreadsheet,
+  Loader,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
+import { setupModalBackInterceptor } from '../utils/navigation';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { TabletAnalyticsView } from './TabletAnalyticsView';
-import { TabletSubscriptionModal, type StoreQuotaData } from './TabletSubscriptionModal';
+import { TabletSubscriptionModal, TabletQuotaWidget, type StoreQuotaData } from './TabletSubscriptionModal';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
 import { TabletDangerZoneView } from './TabletDangerZoneView';
+import { TabletHelpdeskView } from './TabletHelpdeskView';
+import { TabletPoliciesView } from './TabletPoliciesView';
 import { TabletProductFilterSheet, type TabletProductFilterValues } from './TabletProductFilterSheet';
 import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
 import { TabletCustomSelect } from './TabletCustomSelect';
+import { TabletImageLightbox } from './TabletImageLightbox';
 import { RichTextarea, FormattedText } from './RichTextarea';
+import { TabletStoreSettingsView } from './TabletStoreSettingsView';
+import { TabletShareCatalogView } from './TabletShareCatalogView';
+import { StoreChooserModal, type CatalogStoreItem } from './StoreChooserModal';
+import { broadcastAuthEvent, appendViewParam } from '../utils/authSync';
 import { useModalBackHandler } from '../utils/navigation';
 import { createAuthFetch, isTokenExpired } from '../utils/auth';
 import { isPlatformAdmin } from '../utils/rbac';
@@ -258,6 +272,7 @@ export interface TabletMerchantAdminProps {
   token: string;
   currentUser: any;
   storeSlug: string;
+  initialOpenStoreChooser?: boolean;
   onLogout: () => void;
   onUnauthorized?: (msg?: string) => void;
   onViewPublicCatalog: () => void;
@@ -268,6 +283,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   token,
   currentUser,
   storeSlug: initialStoreSlug,
+  initialOpenStoreChooser = false,
   onLogout,
   onUnauthorized,
   onViewPublicCatalog,
@@ -382,6 +398,180 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  // Store Chooser & Switcher Modal State (Tablet Native)
+  const [userStores, setUserStores] = useState<CatalogStoreItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('catavor_stores');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Store Chooser & Switcher Modal State (Tablet Native)
+  const [showStoreChooserModal, setShowStoreChooserModal] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('catavor_stores');
+      let parsed = saved ? JSON.parse(saved) : [];
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        if (Array.isArray((currentUser as any)?.stores)) {
+          parsed = (currentUser as any).stores;
+        } else {
+          const rawUser = localStorage.getItem('catavor_user');
+          if (rawUser) {
+            const u = JSON.parse(rawUser);
+            if (Array.isArray(u?.stores)) parsed = u.stores;
+          }
+        }
+      }
+      if (Array.isArray(parsed) && parsed.length === 1 && parsed[0]?.slug) return false;
+    } catch {}
+    if (initialOpenStoreChooser) {
+      try {
+        const saved = localStorage.getItem('catavor_stores');
+        let parsed = saved ? JSON.parse(saved) : [];
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          if (Array.isArray((currentUser as any)?.stores)) {
+            parsed = (currentUser as any).stores;
+          }
+        }
+        if (Array.isArray(parsed) && parsed.length === 1) return false;
+      } catch {}
+      return true;
+    }
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      if (p === '/catalogs' || p === '/select-catalog' || p === '/stores') {
+        try {
+          const saved = localStorage.getItem('catavor_stores');
+          let parsed = saved ? JSON.parse(saved) : [];
+          if (!Array.isArray(parsed) || parsed.length === 0) {
+            if (Array.isArray((currentUser as any)?.stores)) {
+              parsed = (currentUser as any).stores;
+            }
+          }
+          if (Array.isArray(parsed) && parsed.length === 1) return false;
+        } catch {}
+        return true;
+      }
+    }
+    return false;
+  });
+  const [switchingSlug, setSwitchingSlug] = useState<string | null>(null);
+
+  const fetchUserStores = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/user/stores', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.stores)) {
+          const mapped: CatalogStoreItem[] = data.stores.map((st: any) => ({
+            id: st.id,
+            slug: st.slug,
+            store_title: st.store_title || st.store_name || st.name || st.slug,
+            store_slogan: st.store_slogan || st.slogan,
+            store_theme: st.store_theme || st.theme || 'navy',
+            store_logo_url: st.store_logo_url || st.logo_url,
+            plan: st.plan,
+            payment_status: st.payment_status,
+            whatsapp_number: st.whatsapp_number,
+            item_count: typeof st.item_count === 'number' ? st.item_count : Number(st.products_count ?? st.product_count ?? st.total_items ?? 0),
+            dormancy_status: st.dormancy_status,
+            is_suspended: Boolean(st.is_suspended || st.dormancy_status === 'suspended'),
+            suspension_reason: st.suspension_reason,
+            is_blacklisted: Boolean(st.is_blacklisted),
+            last_activity_at: st.last_activity_at,
+            created_at: st.created_at
+          }));
+          setUserStores(mapped);
+          try {
+            localStorage.setItem('catavor_stores', JSON.stringify(mapped));
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch user stores for tablet:', err);
+    }
+  }, [token, fetch]);
+
+  useEffect(() => {
+    fetchUserStores();
+  }, [fetchUserStores]);
+
+  const openStoreChooserModal = useCallback(() => {
+    if (!userStores || userStores.length === 0) {
+      try {
+        const raw = localStorage.getItem('catavor_stores');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setUserStores(parsed);
+          }
+        }
+      } catch {}
+    }
+    fetchUserStores();
+    setShowStoreChooserModal(true);
+  }, [fetchUserStores, userStores]);
+
+  const handleCloseStoreChooserModal = useCallback(() => {
+    setShowStoreChooserModal(false);
+  }, []);
+
+  useModalBackHandler({
+    isOpen: showStoreChooserModal,
+    onClose: handleCloseStoreChooserModal,
+    modalId: 'tablet-store-chooser'
+  });
+
+  const handleSwitchStore = useCallback(async (targetStore: CatalogStoreItem) => {
+    if (!targetStore.slug || targetStore.slug.toLowerCase() === storeSlug.toLowerCase()) {
+      handleCloseStoreChooserModal();
+      return;
+    }
+    setSwitchingSlug(targetStore.slug);
+    try {
+      const res = await fetch('/api/user/stores/switch', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ store_slug: targetStore.slug })
+      });
+      if (res.ok) {
+        try { sessionStorage.setItem('catavor_active_slug_selected', targetStore.slug); } catch {}
+        localStorage.setItem('catavor_active_slug', targetStore.slug);
+        if (targetStore.store_theme && onThemeChange) {
+          onThemeChange(targetStore.store_theme);
+        }
+        broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUser?.id || '0', slug: targetStore.slug });
+        setShowStoreChooserModal(false);
+        window.location.href = appendViewParam(`/${targetStore.slug}/admin`);
+      } else {
+        try { sessionStorage.setItem('catavor_active_slug_selected', targetStore.slug); } catch {}
+        localStorage.setItem('catavor_active_slug', targetStore.slug);
+        broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUser?.id || '0', slug: targetStore.slug });
+        setShowStoreChooserModal(false);
+        window.location.href = appendViewParam(`/${targetStore.slug}/admin`);
+      }
+    } catch {
+      try { sessionStorage.setItem('catavor_active_slug_selected', targetStore.slug); } catch {}
+      localStorage.setItem('catavor_active_slug', targetStore.slug);
+      broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUser?.id || '0', slug: targetStore.slug });
+      setShowStoreChooserModal(false);
+      window.location.href = appendViewParam(`/${targetStore.slug}/admin`);
+    } finally {
+      setSwitchingSlug(null);
+    }
+  }, [storeSlug, token, fetch, currentUser, onThemeChange, handleCloseStoreChooserModal]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -506,14 +696,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const data = json.data || json.store || json;
         const newTheme = data.store_theme || 'navy';
         setStoreSettings({
-          name: data.name || data.store_title || '',
-          slogan: data.slogan || data.store_slogan || '',
+          name: data.store_title || data.name || '',
+          slogan: data.store_slogan || data.slogan || '',
           whatsapp_number: data.whatsapp_number || data.phone || '',
-          address: data.address || '',
-          operating_hours: data.operating_hours || 'Senin - Sabtu: 08:00 - 17:00 WIB',
-          service_commitment: data.service_commitment || 'Jaminan kualitas terbaik dan garansi kepuasan pelanggan.',
-          logo_url: data.logo_url || data.store_logo_url || '',
-          banner_url: data.banner_url || '',
+          address: data.about_location || data.address || '',
+          operating_hours: data.about_hours || data.operating_hours || 'Senin - Sabtu: 08:00 - 17:00 WIB',
+          service_commitment: data.about_disclaimer || data.service_commitment || 'Jaminan kualitas terbaik dan garansi kepuasan pelanggan.',
+          logo_url: data.store_logo_url || data.logo_url || '',
+          banner_url: data.promo_banner || data.banner_url || '',
           store_theme: newTheme,
           slug: data.slug || storeSlug,
           official_website: data.official_website || '',
@@ -609,25 +799,62 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
-  // Download Catalog JSON
-  const handleExportCatalogJSON = async () => {
+  // Export Catalog Data (CSV Excel or JSON Lossless Backup)
+  const [isExportingCatalog, setIsExportingCatalog] = useState<boolean>(false);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (showExportModal) {
+      return setupModalBackInterceptor(() => setShowExportModal(false));
+    }
+  }, [showExportModal]);
+
+  const handleExportCatalog = async (format: 'csv' | 'json' = 'csv') => {
+    if (isExportingCatalog) return;
+    setIsExportingCatalog(true);
+    showToast(`Menyiapkan berkas ekspor data item ${format.toUpperCase()}...`);
     try {
-      const res = await fetch(`/api/u/${storeSlug}`);
-      if (res.ok) {
-        const json = await res.json();
-        const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `katalog-${storeSlug}-backup.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast('Backup data katalog berhasil diunduh!');
+      const activeSlug = storeSlug || (currentStoreObj as any)?.slug || '';
+      const queryParams = new URLSearchParams({ format });
+      if (activeSlug) queryParams.set('slug', activeSlug);
+
+      const res = await fetch(`/api/products/export?${queryParams.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          ...(activeSlug ? { 'X-Store-Slug': activeSlug } : {})
+        }
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || 'Gagal mengekspor data item katalog');
       }
-    } catch {
-      showToast('Gagal mengunduh backup katalog', 'error');
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = `katalog-items-${activeSlug || 'data'}-${format === 'csv' ? 'data.csv' : 'items.json'}`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setShowExportModal(false);
+      showToast(`Data item katalog berhasil diekspor (${format.toUpperCase()})!`, 'success');
+    } catch (err: any) {
+      showToast(err.message || `Gagal mengunduh berkas ${format.toUpperCase()}`, 'error');
+    } finally {
+      setIsExportingCatalog(false);
     }
   };
+
+  const handleExportCatalogJSON = () => handleExportCatalog('json');
 
   // =========================================================================
   // 2. PRODUCT MANAGEMENT STATE (Server-Side Filtered & Paginated)
@@ -673,9 +900,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const [selectedProductId, setSelectedProductId] = useState<number | string | null>(() => {
     if (typeof window !== 'undefined') {
-      const isNarrow = window.innerWidth < 880;
       const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
-      if (isActionNew || !isNarrow) {
+      if (isActionNew) {
         return 'new';
       }
     }
@@ -683,10 +909,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   });
   const [isSelectingProductType, setIsSelectingProductType] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const isNarrow = window.innerWidth < 880;
       const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
       const hasType = Boolean(new URLSearchParams(window.location.search).get('type') || new URLSearchParams(window.location.search).get('catalog_type'));
-      if ((isActionNew || !isNarrow) && !hasType) {
+      if (isActionNew && !hasType) {
         return true;
       }
     }
@@ -706,6 +931,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   // Narrow screen and single-pane back interceptions are managed natively by TabletMasterDetailView
 
+  // Adaptive compact workspace detection: activates when screen is narrow OR sidebar is expanded (taking 250px)
+  const isNarrowFilterBar = useMemo(() => {
+    if (isNarrowScreen) return true;
+    if (isNavExpanded) return true;
+    if (typeof window !== 'undefined' && window.innerWidth < 1140) return true;
+    return false;
+  }, [isNarrowScreen, isNavExpanded]);
+
   const [productSearch, setProductSearch] = useState<string>('');
   const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
@@ -714,8 +947,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [productStockFilter, setProductStockFilter] = useState<'all' | 'in_stock' | 'low' | 'out' | 'out_of_stock'>('all');
   const [isProductFilterOpen, setIsProductFilterOpen] = useState<boolean>(false);
   const [productPage, setProductPage] = useState<number>(1);
+  const [productPerPage, setProductPerPage] = useState<number>(10);
   const [productTotalPages, setProductTotalPages] = useState<number>(1);
   const [productTotalRecords, setProductTotalRecords] = useState<number>(0);
+  const [archiveConfirmModal, setArchiveConfirmModal] = useState<{
+    item: any;
+    targetActive: boolean;
+  } | null>(null);
+  const [previewProduct, setPreviewProduct] = useState<any | null>(null);
+  const [previewImageIndex, setPreviewImageIndex] = useState<number>(0);
+  const [showPreviewLightbox, setShowPreviewLightbox] = useState<boolean>(false);
   const [catalogMetrics, setCatalogMetrics] = useState<{
     total_items?: number;
     active_items?: number;
@@ -1166,13 +1407,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     catId: string = 'all',
     pType: string = 'all',
     sort: string = 'newest',
-    stock: string = 'all'
+    stock: string = 'all',
+    perPage: number = 10
   ) => {
     setLoading(true);
     try {
       const query = new URLSearchParams({
         page: String(page),
-        limit: '15',
+        limit: String(perPage),
         search: search,
         status: status
       });
@@ -1206,7 +1448,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const list = json.data || json.products || [];
         const pagination = json.pagination;
         const totalItems = pagination?.total_items ?? json.total ?? list.length;
-        const totalPages = pagination?.total_pages ?? json.totalPages ?? Math.max(1, Math.ceil(totalItems / 15));
+        const totalPages = pagination?.total_pages ?? json.totalPages ?? Math.max(1, Math.ceil(totalItems / perPage));
         setProducts(list);
         setProductPage(page);
         setProductTotalPages(totalPages);
@@ -1218,7 +1460,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [token, storeSlug, fetch]);
+  }, [token, storeSlug]);
 
   const fetchCatalogMetrics = useCallback(async () => {
     if (!storeSlug) return;
@@ -1424,12 +1666,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   useModalBackHandler({
     isOpen: activeTab === 'items' && selectedProductId === 'new' && isSelectingProductType,
     onClose: () => {
-      if (products.length > 0 && !isNarrowScreen) {
-        handleSelectProduct(products[0]);
-      } else {
-        setSelectedProductId(null);
-        setIsSelectingProductType(false);
-      }
+      setSelectedProductId(null);
+      setIsSelectingProductType(false);
       try {
         const url = new URL(window.location.href);
         url.searchParams.delete('action');
@@ -1439,6 +1677,33 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       } catch {}
     },
     modalId: 'tablet_new_item_type_step'
+  });
+
+  // Sub-workflow Back Interceptor for Edit Product Form:
+  useModalBackHandler({
+    isOpen: activeTab === 'items' && typeof selectedProductId === 'number',
+    onClose: () => {
+      setSelectedProductId(null);
+    },
+    modalId: 'tablet_edit_item_modal'
+  });
+
+  // Sub-workflow Back Interceptor for Archive Confirm Modal:
+  useModalBackHandler({
+    isOpen: activeTab === 'items' && Boolean(archiveConfirmModal),
+    onClose: () => {
+      setArchiveConfirmModal(null);
+    },
+    modalId: 'tablet_archive_confirm_modal'
+  });
+
+  // Sub-workflow Back Interceptor for Product Detail Preview Modal:
+  useModalBackHandler({
+    isOpen: activeTab === 'items' && Boolean(previewProduct),
+    onClose: () => {
+      setPreviewProduct(null);
+    },
+    modalId: 'tablet_preview_item_modal'
   });
 
   // Sub-workflow Back Interceptor for Rename Master Category Modal
@@ -1459,6 +1724,29 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   useEffect(() => {
     const handlePopState = () => {
       if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      if (path === '/catalogs' || path === '/select-catalog' || path === '/stores') {
+        let storesList: CatalogStoreItem[] = userStores;
+        if (!storesList || storesList.length === 0) {
+          try {
+            const raw = localStorage.getItem('catavor_stores');
+            if (raw) storesList = JSON.parse(raw);
+          } catch {}
+        }
+        if (Array.isArray(storesList) && storesList.length === 1 && storesList[0]?.slug) {
+          const singleSlug = storesList[0].slug;
+          try {
+            localStorage.setItem('catavor_active_slug', singleSlug);
+            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
+          } catch {}
+          window.location.replace(appendViewParam(`/${singleSlug}/admin`));
+          setShowStoreChooserModal(false);
+          return;
+        }
+        setShowStoreChooserModal(true);
+        fetchUserStores();
+        return;
+      }
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab') as TabletMerchantTab;
       const validTabs: TabletMerchantTab[] = [
@@ -1491,7 +1779,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [fetchUserStores]);
 
   const updateProductAttribute = (field: string, value: any) => {
     setProductForm(prev => ({
@@ -1638,20 +1926,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           productStockFilter
         );
         fetchCatalogMetrics();
-        if (isNarrowScreen) {
-          setSelectedProductId(null);
-          setIsSelectingProductType(false);
-          try {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('action');
-            url.searchParams.delete('type');
-            url.searchParams.delete('catalog_type');
-            window.history.pushState({}, '', url.toString());
-          } catch {}
-        } else if (json.data?.id) {
-          setSelectedProductId(json.data.id);
-          setIsSelectingProductType(false);
-        }
+        setSelectedProductId(null);
+        setIsSelectingProductType(false);
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('action');
+          url.searchParams.delete('type');
+          url.searchParams.delete('catalog_type');
+          window.history.pushState({}, '', url.toString());
+        } catch {}
       } else {
         const err = await res.json();
         showToast(err.message || 'Gagal menyimpan produk', 'error');
@@ -1683,7 +1966,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           productCategoryFilter,
           productTypeFilter,
           productSortFilter,
-          productStockFilter
+          productStockFilter,
+          productPerPage
         );
         fetchCatalogMetrics();
       } else {
@@ -1691,6 +1975,63 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
     } catch {
       showToast('Terjadi kesalahan jaringan', 'error');
+    }
+  };
+
+  const openArchiveConfirmModal = (item: any, targetActive: boolean) => {
+    setArchiveConfirmModal({ item, targetActive });
+  };
+
+  const handleConfirmArchiveToggle = async () => {
+    if (!archiveConfirmModal || !archiveConfirmModal.item) return;
+    const { item, targetActive } = archiveConfirmModal;
+    try {
+      const res = await fetch(`/api/products/${item.id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ is_active: targetActive })
+      });
+      if (res.ok) {
+        showToast(targetActive ? 'Item berhasil diaktifkan kembali ke katalog!' : 'Item berhasil diarsipkan dari katalog.');
+        setArchiveConfirmModal(null);
+        setPreviewProduct((prev: any) => (prev && prev.id === item.id) ? { ...prev, is_active: targetActive } : prev);
+        await fetchProducts(
+          productPage,
+          productSearch,
+          productStatusFilter,
+          productCategoryFilter,
+          productTypeFilter,
+          productSortFilter,
+          productStockFilter,
+          productPerPage
+        );
+        fetchCatalogMetrics();
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        showToast(errJson.message || 'Gagal memperbarui status arsip item', 'error');
+      }
+    } catch {
+      showToast('Terjadi kesalahan jaringan', 'error');
+    }
+  };
+
+  const handleOpenProductDetail = async (item: any) => {
+    setPreviewProduct(item);
+    setPreviewImageIndex(0);
+    setShowPreviewLightbox(false);
+    try {
+      const res = await fetch(`/api/products/${item.id}`, {
+        headers: getHeaders()
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const fullItem = json.data || json.product || json;
+        if (fullItem && fullItem.id) {
+          setPreviewProduct(fullItem);
+        }
+      }
+    } catch {
+      // optimistic item remains
     }
   };
 
@@ -2373,6 +2714,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [showOldPassword, setShowOldPassword] = useState<boolean>(false);
   const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+  const [showBackupPasswordSection, setShowBackupPasswordSection] = useState<boolean>(false);
+  const [backupPasswordSuccess, setBackupPasswordSuccess] = useState<string | null>(null);
+  const [backupPasswordError, setBackupPasswordError] = useState<string | null>(null);
+  const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   // OTP Password Recovery States
   const [profilePasswordMode, setProfilePasswordMode] = useState<'standard' | 'otp'>('standard');
@@ -2393,29 +2739,23 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   }, [profileOtpCooldown]);
 
   const handleSendProfileBackupOTP = async () => {
-    const emailToUse = ((adminUser?.email || currentUser?.email) || '').trim().toLowerCase();
-    if (!emailToUse) {
-      setProfileOtpError('Alamat email akun tidak ditemukan.');
-      return;
-    }
     setProfileOtpLoading(true);
     setProfileOtpError(null);
     setProfileOtpSuccess(null);
     try {
       const res = await fetch('/api/profile/request-password-otp', {
         method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ email: emailToUse })
+        headers: getHeaders()
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setProfileOtpSent(true);
         setProfileOtpCooldown(60);
-        const msg = data.message || `Kode OTP berhasil dikirimkan ke ${emailToUse}. Periksa inbox atau spam email Anda.`;
+        const msg = data.message || 'Kode verifikasi telah dikirim ke WhatsApp / Email akun Anda.';
         setProfileOtpSuccess(msg);
         showToast(msg, 'success');
       } else {
-        const errMsg = data.message || 'Gagal mengirim kode OTP pemulihan.';
+        const errMsg = data.message || 'Gagal mengirim kode verifikasi.';
         setProfileOtpError(errMsg);
         showToast(errMsg, 'error');
       }
@@ -2428,54 +2768,74 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleChangePassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const newPass = passwordForm.new_password.trim();
     const confirmPass = passwordForm.confirm_password.trim();
     const oldPass = passwordForm.old_password.trim();
 
     if (hasCustomPassword) {
       if (profilePasswordMode === 'standard' && !oldPass) {
-        showToast('Kata sandi saat ini wajib diisi', 'error');
+        const msg = 'Kata sandi saat ini wajib diisi';
+        setBackupPasswordError(msg);
+        showToast(msg, 'error');
         return;
       }
       if (profilePasswordMode === 'otp' && (!profileOtpCode || profileOtpCode.trim().length !== 6)) {
-        setProfileOtpError('Kode verifikasi OTP harus berjumlah 6 digit angka');
-        showToast('Kode verifikasi OTP harus berjumlah 6 digit angka', 'error');
+        const msg = 'Kode verifikasi OTP harus berjumlah 6 digit angka';
+        setProfileOtpError(msg);
+        setBackupPasswordError(msg);
+        showToast(msg, 'error');
         return;
       }
     }
 
     if (newPass.length < 8) {
-      showToast('Kata sandi baru minimal 8 karakter', 'error');
+      const msg = 'Kata sandi baru minimal 8 karakter';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (!/[A-Z]/.test(newPass)) {
-      showToast('Kata sandi baru wajib mengandung minimal 1 huruf besar (A-Z)', 'error');
+      const msg = 'Kata sandi baru wajib mengandung minimal 1 huruf besar (A-Z)';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (!/[a-z]/.test(newPass)) {
-      showToast('Kata sandi baru wajib mengandung minimal 1 huruf kecil (a-z)', 'error');
+      const msg = 'Kata sandi baru wajib mengandung minimal 1 huruf kecil (a-z)';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (!/[0-9]/.test(newPass)) {
-      showToast('Kata sandi baru wajib mengandung minimal 1 angka (0-9)', 'error');
+      const msg = 'Kata sandi baru wajib mengandung minimal 1 angka (0-9)';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (!/[^a-zA-Z0-9\s]/.test(newPass)) {
-      showToast('Kata sandi baru wajib mengandung minimal 1 simbol unik (@, #, $, %, !, dll)', 'error');
+      const msg = 'Kata sandi baru wajib mengandung minimal 1 simbol unik (@, #, $, %, !, dll)';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (newPass !== confirmPass) {
-      showToast('Konfirmasi kata sandi tidak cocok', 'error');
+      const msg = 'Konfirmasi kata sandi tidak cocok';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
       return;
     }
     if (hasCustomPassword && profilePasswordMode === 'standard' && oldPass && newPass === oldPass) {
-      showToast('Kata sandi baru tidak boleh sama dengan kata sandi saat ini', 'error');
+      const msg = 'Kata sandi baru tidak boleh sama dengan kata sandi saat ini';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
       return;
     }
 
     setSaving(true);
+    setBackupPasswordError(null);
+    setBackupPasswordSuccess(null);
     setProfileOtpError(null);
     setProfileOtpSuccess(null);
     try {
@@ -2519,11 +2879,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setProfileOtpSent(false);
         setProfilePasswordMode('standard');
         const successMsg = profilePasswordMode === 'otp'
-          ? 'Kata sandi berhasil diperbarui via verifikasi OTP email!'
-          : (hasCustomPassword ? 'Kata sandi berhasil diperbarui!' : 'Kata sandi cadangan akun berhasil disimpan!');
+          ? 'Kata sandi akun berhasil diperbarui via verifikasi OTP email!'
+          : (hasCustomPassword ? 'Kata sandi akun berhasil diperbarui!' : 'Kata sandi akun cadangan berhasil disimpan!');
+        setBackupPasswordSuccess(successMsg);
         showToast(successMsg, 'success');
       } else {
         const errMsg = data.message || 'Gagal menyimpan kata sandi';
+        setBackupPasswordError(errMsg);
         if (profilePasswordMode === 'otp') {
           setProfileOtpError(errMsg);
         }
@@ -2531,6 +2893,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
     } catch {
       const netErr = 'Terjadi kesalahan sistem saat menghubungi server';
+      setBackupPasswordError(netErr);
       if (profilePasswordMode === 'otp') {
         setProfileOtpError(netErr);
       }
@@ -2557,15 +2920,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     e.preventDefault();
     const trimmed = profileName.trim();
     if (!trimmed) {
+      setProfileError('Nama lengkap pengelola wajib diisi');
       showToast('Nama lengkap pengelola wajib diisi', 'error');
       return;
     }
     if (trimmed.length < 2) {
+      setProfileError('Nama lengkap minimal 2 karakter');
       showToast('Nama lengkap minimal 2 karakter', 'error');
       return;
     }
 
     setUpdatingProfileName(true);
+    setProfileError(null);
+    setProfileSuccess(null);
     try {
       const res = await fetch('/api/profile', {
         method: 'POST',
@@ -2581,27 +2948,24 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         try {
           localStorage.setItem('catavor_user', JSON.stringify(updated));
         } catch {}
+        setProfileSuccess('Nama profil pengelola berhasil diperbarui!');
         showToast('Nama profil pengelola berhasil diperbarui!', 'success');
+        setTimeout(() => setProfileSuccess(null), 3000);
       } else {
-        showToast(data.message || 'Gagal memperbarui nama profil', 'error');
+        const errMsg = data.message || 'Gagal memperbarui nama profil';
+        setProfileError(errMsg);
+        showToast(errMsg, 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan jaringan saat memperbarui profil', 'error');
+      const netErr = 'Terjadi kesalahan jaringan saat memperbarui profil';
+      setProfileError(netErr);
+      showToast(netErr, 'error');
     } finally {
       setUpdatingProfileName(false);
     }
   };
 
-  // User stores list for Danger Zone multi-store coordination
-  const [userStores, setUserStores] = useState<any[]>(() => {
-    try {
-      const raw = localStorage.getItem('catavor_stores');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
-
+  // User stores list for Danger Zone multi-store coordination (uses state declared at top)
   const handleStoreDeleted = (deletedSlug: string, remainingStores: any[]) => {
     setUserStores(remainingStores);
     try {
@@ -2676,7 +3040,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       productCategoryFilter,
       productTypeFilter,
       productSortFilter,
-      productStockFilter
+      productStockFilter,
+      productPerPage
     );
   }, [
     debouncedProductSearch,
@@ -2684,8 +3049,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     productCategoryFilter,
     productTypeFilter,
     productSortFilter,
-    productStockFilter
+    productStockFilter,
+    productPerPage
   ]);
+
+  // Initial Quota Fetch for Live Quota Widget
+  useEffect(() => {
+    if (token && storeSlug) {
+      fetchQuota();
+    }
+  }, [token, storeSlug, fetchQuota]);
 
   // 3. Lazy Tab Loading (Only fetch on-demand when switching to the relevant tab)
   const loadedTabsRef = useRef<Set<string>>(new Set(['items']));
@@ -2823,9 +3196,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       title: 'BANTUAN & LAYANAN',
       items: [
         { key: 'notifications', label: 'Pusat Notifikasi', icon: Bell, badge: totalNotifUnread > 0 ? String(totalNotifUnread) : undefined, badgeColor: '#ef4444' },
-        { key: 'help', label: 'Pusat Bantuan & Tiket', icon: HelpCircle, badge: totalHelpUnread > 0 ? String(totalHelpUnread) : undefined, badgeColor: '#ef4444' },
-        { key: 'policies', label: 'Legal & Kebijakan', icon: FileText },
-        { key: 'share', label: 'Bagikan Katalog', icon: Share2 }
+        { key: 'help', label: 'Pusat Bantuan & Tiket', icon: HelpCircle, badge: totalHelpUnread > 0 ? String(totalHelpUnread) : undefined, badgeColor: '#ef4444' }
       ]
     }
   ];
@@ -2888,7 +3259,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           }}>
             {isNavExpanded ? (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden' }}>
+                <div 
+                  onClick={openStoreChooserModal}
+                  title="Buka Pusat Pengelolaan Katalog (Ganti Profil)"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden', cursor: 'pointer' }}
+                >
                   <div style={{
                     width: '38px',
                     height: '38px',
@@ -2904,11 +3279,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     <StoreIcon size={20} />
                   </div>
                   <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      {storeSettings.name || 'Admin Toko'}
+                    <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{storeSettings.name || 'Admin Toko'}</span>
+                      <Layers size={13} color="var(--primary)" style={{ flexShrink: 0 }} />
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600 }}>
-                      Konsol Merchant
+                      <span>Pusat Katalog</span>
                     </div>
                   </div>
                 </div>
@@ -3078,6 +3454,56 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           }}>
             <button
               type="button"
+              onClick={openStoreChooserModal}
+              title="Pusat Pengelolaan Katalog (Ganti Profil)"
+              style={{
+                width: '100%',
+                minHeight: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: isNavExpanded ? '0 0.75rem' : 0,
+                justifyContent: isNavExpanded ? 'flex-start' : 'center',
+                borderRadius: '0.6rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'rgba(30, 58, 138, 0.08)',
+                color: 'var(--primary)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.85rem'
+              }}
+            >
+              <Layers size={18} style={{ flexShrink: 0 }} />
+              {isNavExpanded && <span>Pusat Katalog</span>}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('share')}
+              title="Bagikan Tautan & QR Code Katalog"
+              style={{
+                width: '100%',
+                minHeight: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: isNavExpanded ? '0 0.75rem' : 0,
+                justifyContent: isNavExpanded ? 'flex-start' : 'center',
+                borderRadius: '0.6rem',
+                border: activeTab === 'share' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                backgroundColor: activeTab === 'share' ? 'var(--primary-glow, rgba(30, 58, 138, 0.12))' : 'transparent',
+                color: activeTab === 'share' ? 'var(--primary)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: activeTab === 'share' ? 700 : 600,
+                fontSize: '0.85rem'
+              }}
+            >
+              <Share2 size={18} style={{ flexShrink: 0 }} />
+              {isNavExpanded && <span>Bagikan Katalog</span>}
+            </button>
+
+            <button
+              type="button"
               onClick={onViewPublicCatalog}
               title="Lihat Katalog Publik Toko"
               style={{
@@ -3139,155 +3565,79 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 1: DAFTAR ITEM KATALOG (Master-Detail Split View)
             =================================================================== */}
         {activeTab === 'items' && (
-          isCatalogCompletelyEmpty && selectedProductId !== 'new' ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            padding: '1.25rem 1.5rem 3rem 1.5rem',
+            maxWidth: '100%',
+            width: '100%',
+            margin: '0 auto',
+            boxSizing: 'border-box',
+            overflowY: 'auto',
+            height: '100%'
+          }}>
+            {/* Page Header Bar: Title & Desktop-style Action Buttons */}
             <div style={{
               display: 'flex',
-              flexDirection: 'column',
-              height: '100%',
-              width: '100%',
-              backgroundColor: 'var(--bg-deep)',
-              overflowY: 'auto'
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              paddingBottom: '0.65rem',
+              borderBottom: '1px solid var(--border-light)',
+              flexShrink: 0
             }}>
-              {/* Clean Top Header Bar */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.85rem 1.5rem',
-                backgroundColor: 'var(--bg-card)',
-                borderBottom: '1px solid var(--border-light)',
-                flexShrink: 0
-              }}>
-                <div>
-                  <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                    Katalog Produk &amp; Inventaris
-                  </h2>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    Kelola seluruh produk, harga, dan inventaris toko Anda
-                  </span>
-                </div>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Katalog Produk &amp; Inventaris
+                </h2>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Kelola seluruh produk, harga, dan inventaris toko Anda
+                </span>
               </div>
 
-              {/* Full-Page Centered Executive Empty State */}
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '3rem 1.5rem',
-                textAlign: 'center'
-              }}>
-                <div style={{
-                  maxWidth: '460px',
-                  width: '100%',
-                  padding: '2.5rem 2rem',
-                  borderRadius: '1.25rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '1rem'
-                }}>
-                  <div style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '20px',
-                    backgroundColor: 'rgba(30, 58, 138, 0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--primary)',
-                    boxShadow: '0 0 20px rgba(30, 58, 138, 0.12)'
-                  }}>
-                    <Package size={32} />
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.45rem 0' }}>
-                      Belum Ada Item Terdaftar
-                    </h3>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
-                      Katalog toko Anda masih kosong. Mulai tambahkan barang fisik, makanan, jasa, tiket, atau file digital pertama Anda.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    id="btn-tambah-item-pertama"
-                    data-testid="btn-tambah-item-pertama"
-                    onClick={() => handleCancelToProductTypeSelection()}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0.65rem 1.5rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--primary)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      cursor: 'pointer',
-                      marginTop: '0.5rem',
-                      boxShadow: '0 2px 10px var(--primary-glow)',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <Plus size={18} />
-                    <span>Tambah Item Pertama</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <TabletMasterDetailView
-            title="Katalog Produk & Inventaris"
-            subtitle={isCatalogCompletelyEmpty ? undefined : `${productTotalRecords} total item`}
-            headerAction={
-              selectedProductId === 'new' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                 <button
-                  id="btn-reset-form-produk"
-                  data-testid="btn-reset-form-produk"
+                  id="btn-ekspor-katalog"
+                  data-testid="btn-ekspor-katalog"
                   type="button"
-                  onClick={() => handleCancelToProductTypeSelection()}
-                  title="Mulai Ulang Formulir & Pilih Ulang Tipe Katalog"
+                  onClick={() => setShowExportModal(true)}
                   style={{
-                    minHeight: '44px',
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    color: 'var(--text-secondary)',
+                    minHeight: '40px',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
                     border: '1px solid var(--border-light)',
                     fontWeight: 700,
-                    fontSize: '0.85rem',
+                    fontSize: '0.82rem',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.45rem',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
                   }}
+                  title="Ekspor Data Katalog (CSV / JSON)"
                 >
-                  <RotateCcw size={16} />
-                  <span>Reset Form</span>
+                  <HardDriveDownload size={16} style={{ color: 'var(--primary)' }} />
+                  <span>Ekspor</span>
                 </button>
-              ) : (
+
                 <button
                   id="btn-tambah-produk"
                   data-testid="btn-tambah-produk"
                   type="button"
                   onClick={() => handleCancelToProductTypeSelection()}
                   style={{
-                    minHeight: '44px',
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.65rem',
+                    minHeight: '40px',
+                    padding: '0.5rem 1.15rem',
+                    borderRadius: '0.6rem',
                     backgroundColor: 'var(--primary)',
                     color: '#ffffff',
                     border: 'none',
                     fontWeight: 700,
-                    fontSize: '0.85rem',
+                    fontSize: '0.82rem',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.45rem',
@@ -3298,751 +3648,958 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   <Plus size={17} />
                   <span>Tambah Produk</span>
                 </button>
-              )
-            }
-            selectedId={selectedProductId}
-            onClearSelection={() => {
-              if (isNarrowScreen) {
-                setSelectedProductId(null);
-                setIsSelectingProductType(false);
-                try {
-                  const url = new URL(window.location.href);
-                  url.searchParams.delete('action');
-                  url.searchParams.delete('type');
-                  url.searchParams.delete('catalog_type');
-                  window.history.pushState({}, '', url.toString());
-                } catch {}
-              } else {
-                handleCancelToProductTypeSelection();
-              }
-            }}
-            masterPane={
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                {/* Catalog Metrics Pills Summary - Hidden if catalog has no items */}
-                {!isCatalogCompletelyEmpty && (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: '0.35rem',
-                    padding: '0.65rem 0.75rem 0.45rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    borderBottom: '1px solid var(--border-light)'
-                  }}>
-                    <div
-                      onClick={() => {
-                        setProductStatusFilter('all');
-                        setProductStockFilter('all');
-                        setProductPage(1);
-                      }}
-                      style={{
-                        padding: '0.35rem 0.45rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: productStatusFilter === 'all' && productStockFilter === 'all' ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                        border: productStatusFilter === 'all' && productStockFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                        {catalogMetrics?.total_items ?? productTotalRecords}
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => {
-                        setProductStatusFilter('active');
-                        setProductStockFilter('all');
-                        setProductPage(1);
-                      }}
-                      style={{
-                        padding: '0.35rem 0.45rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: productStatusFilter === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-card)',
-                        border: productStatusFilter === 'active' ? '1px solid #10b981' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 600 }}>Aktif</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>
-                        {catalogMetrics?.active_items ?? (products.filter(p => p.is_active !== false).length || '-')}
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => {
-                        setProductStockFilter('low');
-                        setProductPage(1);
-                      }}
-                      style={{
-                        padding: '0.35rem 0.45rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: productStockFilter === 'low' ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg-card)',
-                        border: productStockFilter === 'low' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600 }}>Menipis</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f59e0b' }}>
-                        {catalogMetrics?.low_stock_items ?? (products.filter(p => (p.stock ?? 1) > 0 && (p.stock ?? 1) <= 5).length || '-')}
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => {
-                        setProductStockFilter('out');
-                        setProductPage(1);
-                      }}
-                      style={{
-                        padding: '0.35rem 0.45rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: productStockFilter === 'out' ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-card)',
-                        border: productStockFilter === 'out' ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 600 }}>Habis</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ef4444' }}>
-                        {catalogMetrics?.out_of_stock_items ?? (products.filter(p => (p.stock ?? 1) === 0).length || '-')}
-                      </div>
-                    </div>
-                  </div>
-                )}
+              </div>
+            </div>
 
-                {/* Search & Tablet Ergonomic Filter Header - Hidden if catalog has no items */}
-                {!isCatalogCompletelyEmpty && (
-                  <div style={{
-                    padding: '0.65rem 0.75rem 0.5rem',
-                    borderBottom: '1px solid var(--border-light)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.55rem',
-                    backgroundColor: 'var(--bg-deep)'
-                  }}>
-                    {/* Row 1: Search Input */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.45rem 0.75rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--bg-card)',
+            {/* Live Quota Dashboard Widget */}
+            <TabletQuotaWidget
+              quota={quota}
+              onOpenUpgrade={() => setIsSubModalOpen(true)}
+              isNavExpanded={isNavExpanded}
+            />
+
+            {/* Top Control Bar: Search & Active/Archived Filter (Desktop Concept Adaptive for Tablet) */}
+            <div style={{
+              backgroundColor: 'var(--bg-card)',
+              padding: '1rem 1.15rem',
+              borderRadius: '0.85rem',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+            }}>
+              {/* Search Bar + Secondary Dropdowns: adapts between wide (grid) and compact tablet */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isNarrowFilterBar ? '1fr' : 'minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) auto',
+                gap: '0.65rem',
+                alignItems: 'center',
+                width: '100%',
+                boxSizing: 'border-box'
+              }}>
+                {/* Search Input */}
+                <div style={{ position: 'relative', width: '100%', minWidth: 0 }}>
+                  <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    placeholder="Cari nama item, ilmiah, kategori, atau deskripsi..."
+                    value={productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value);
+                      setProductPage(1);
+                    }}
+                    style={{
+                      width: '100%',
+                      minHeight: '42px',
+                      padding: '0.55rem 2.2rem 0.55rem 2.35rem',
+                      borderRadius: '0.55rem',
                       border: '1px solid var(--border-light)',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-                    }}>
-                      <Search size={16} color="var(--text-muted)" />
-                      <input
-                        type="text"
-                        placeholder="Cari nama, SKU, deskripsi..."
-                        value={productSearch}
-                        onChange={(e) => {
-                          setProductSearch(e.target.value);
-                          setProductPage(1);
-                        }}
-                        style={{
-                          flex: 1,
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.84rem',
-                          outline: 'none'
-                        }}
-                      />
-                      {productSearch && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setProductSearch('');
-                            setProductPage(1);
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: 'var(--text-muted)',
-                            padding: 0,
-                            display: 'flex',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <X size={15} />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Row 2: Status Tabs + Prominent Filter & Urutkan Button */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '0.45rem'
-                    }}>
-                      {/* Status Tabs: Semua / Aktif / Arsip */}
-                      <div style={{
-                        display: 'inline-flex',
-                        padding: '2px',
-                        borderRadius: '0.6rem',
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px solid var(--border-light)'
-                      }}>
-                        {[
-                          { key: 'all', label: 'Semua' },
-                          { key: 'active', label: 'Aktif' },
-                          { key: 'archived', label: 'Arsip' }
-                        ].map(st => {
-                          const isSelected = productStatusFilter === st.key;
-                          return (
-                            <button
-                              key={st.key}
-                              type="button"
-                              onClick={() => {
-                                setProductStatusFilter(st.key as any);
-                                setProductPage(1);
-                              }}
-                              style={{
-                                minHeight: '30px',
-                                padding: '0.2rem 0.65rem',
-                                borderRadius: '0.45rem',
-                                border: 'none',
-                                backgroundColor: isSelected ? 'var(--primary)' : 'transparent',
-                                color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                                fontSize: '0.74rem',
-                                fontWeight: isSelected ? 700 : 500,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease'
-                              }}
-                            >
-                              {st.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Filter & Urutkan Button (Always prominent & accessible) */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <button
-                          type="button"
-                          id="btn-open-product-filter"
-                          data-testid="btn-open-product-filter"
-                          onClick={() => setIsProductFilterOpen(true)}
-                          title="Buka panel filter & urutkan lengkap"
-                          style={{
-                            minHeight: '34px',
-                            padding: '0.3rem 0.75rem',
-                            borderRadius: '0.55rem',
-                            border: activeFilterCount > 0 ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
-                            backgroundColor: activeFilterCount > 0 ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                            color: activeFilterCount > 0 ? 'var(--primary)' : 'var(--text-primary)',
-                            fontSize: '0.76rem',
-                            fontWeight: activeFilterCount > 0 ? 800 : 600,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            transition: 'all 0.15s ease',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-                          }}
-                        >
-                          <SlidersHorizontal size={14} />
-                          <span>Filter &amp; Urutkan</span>
-                          {activeFilterCount > 0 && (
-                            <span style={{
-                              backgroundColor: 'var(--primary)',
-                              color: '#fff',
-                              borderRadius: '999px',
-                              padding: '0 5px',
-                              fontSize: '0.65rem',
-                              fontWeight: 800,
-                              lineHeight: '16px'
-                            }}>
-                              {activeFilterCount}
-                            </span>
-                          )}
-                        </button>
-
-                        {activeFilterCount > 0 && (
-                          <button
-                            type="button"
-                            onClick={handleResetAllFilters}
-                            title="Reset semua filter"
-                            aria-label="Reset semua filter"
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '0.5rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-card)',
-                              color: 'var(--text-muted)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <RotateCcw size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Row 3: Horizontal Scrollable Tag/Badge Track (Only shown if catalog has multiple different types) */}
-                    {isHybridStore && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                        {/* Tag Mode Switcher: Only displayed when both multiple catalog types exist AND categories exist */}
-                        {categories.length > 0 && (
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '0 0.15rem',
-                            fontSize: '0.7rem',
-                            color: 'var(--text-muted)'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                              <span style={{ fontWeight: 600 }}>Tampilkan Tag:</span>
-                              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setFilterTagMode('types')}
-                                  style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    padding: '0.15rem 0.4rem',
-                                    borderRadius: '0.35rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: effectiveFilterTagMode === 'types' ? 700 : 500,
-                                    color: effectiveFilterTagMode === 'types' ? 'var(--primary)' : 'var(--text-muted)',
-                                    backgroundColor: effectiveFilterTagMode === 'types' ? 'rgba(30, 58, 138, 0.08)' : 'transparent',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.2rem'
-                                  }}
-                                >
-                                  <span>Tipe Format</span>
-                                  {productTypeFilter !== 'all' && (
-                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
-                                  )}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setFilterTagMode('categories')}
-                                  style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    padding: '0.15rem 0.4rem',
-                                    borderRadius: '0.35rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: effectiveFilterTagMode === 'categories' ? 700 : 500,
-                                    color: effectiveFilterTagMode === 'categories' ? 'var(--primary)' : 'var(--text-muted)',
-                                    backgroundColor: effectiveFilterTagMode === 'categories' ? 'rgba(30, 58, 138, 0.08)' : 'transparent',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.2rem'
-                                  }}
-                                >
-                                  <span>Kategori ({categories.length})</span>
-                                  {productCategoryFilter !== 'all' && (
-                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-
-                            {effectiveFilterTagMode === 'types' && productTypeFilter !== 'all' && (
-                              <button
-                                type="button"
-                                onClick={() => { setProductTypeFilter('all'); setProductPage(1); }}
-                                style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  color: 'var(--primary)',
-                                  fontSize: '0.68rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                  padding: 0
-                                }}
-                              >
-                                Reset Tipe
-                              </button>
-                            )}
-                            {effectiveFilterTagMode === 'categories' && productCategoryFilter !== 'all' && (
-                              <button
-                                type="button"
-                                onClick={() => { setProductCategoryFilter('all'); setProductPage(1); }}
-                                style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  color: 'var(--primary)',
-                                  fontSize: '0.68rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                  padding: 0
-                                }}
-                              >
-                                Reset Kategori
-                              </button>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Scrollable Badges Track: displays catalogTypeTagItems if mode is types (or if categories.length === 0), else categoryTagItems */}
-                        <TabletScrollableFilterTags
-                          items={(effectiveFilterTagMode === 'types' || categories.length === 0) ? catalogTypeTagItems : categoryTagItems}
-                          selectedId={(effectiveFilterTagMode === 'types' || categories.length === 0) ? productTypeFilter : productCategoryFilter}
-                          onSelect={(id) => {
-                            if (effectiveFilterTagMode === 'types' || categories.length === 0) {
-                              setProductTypeFilter(id);
-                            } else {
-                              setProductCategoryFilter(id);
-                            }
-                            setProductPage(1);
-                          }}
-                          ariaLabel={(effectiveFilterTagMode === 'types' || categories.length === 0) ? 'Filter Tipe Format Katalog' : 'Filter Kategori Produk'}
-                          containerBg="var(--bg-deep)"
-                        />
-                      </div>
-                    )}
-
-                    {/* Row 4: Active Filter Summary Chips (Visible only when filters active) */}
-                    {activeFilterCount > 0 && (
-                      <div style={{
+                      backgroundColor: 'var(--bg-deep)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.84rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {productSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProductSearch('');
+                        setProductPage(1);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        right: '0.65rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'var(--border-light)',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        borderRadius: '50%',
+                        width: '22px',
+                        height: '22px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.35rem',
-                        flexWrap: 'wrap',
-                        paddingTop: '0.15rem'
-                      }}>
-                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>Aktif:</span>
-                        
-                        {productTypeFilter !== 'all' && (
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: '999px',
-                            backgroundColor: 'rgba(30, 58, 138, 0.1)',
-                            color: 'var(--primary)',
-                            fontSize: '0.68rem',
-                            fontWeight: 700
-                          }}>
-                            <span>{CATALOG_TYPE_OPTIONS.find(t => t.id === productTypeFilter)?.name || productTypeFilter}</span>
-                            <button
-                              type="button"
-                              onClick={() => { setProductTypeFilter('all'); setProductPage(1); }}
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
-                            >
-                              <X size={11} />
-                            </button>
-                          </span>
-                        )}
-
-                        {productCategoryFilter !== 'all' && (
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: '999px',
-                            backgroundColor: 'rgba(30, 58, 138, 0.1)',
-                            color: 'var(--primary)',
-                            fontSize: '0.68rem',
-                            fontWeight: 700
-                          }}>
-                            <span>{categories.find(c => String(c.id) === productCategoryFilter)?.name || productCategoryFilter}</span>
-                            <button
-                              type="button"
-                              onClick={() => { setProductCategoryFilter('all'); setProductPage(1); }}
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
-                            >
-                              <X size={11} />
-                            </button>
-                          </span>
-                        )}
-
-                        {productStockFilter !== 'all' && (
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: '999px',
-                            backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                            color: '#d97706',
-                            fontSize: '0.68rem',
-                            fontWeight: 700
-                          }}>
-                            <span>{productStockFilter === 'in_stock' ? 'Tersedia' : productStockFilter === 'low' ? 'Menipis' : 'Habis'}</span>
-                            <button
-                              type="button"
-                              onClick={() => { setProductStockFilter('all'); setProductPage(1); }}
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
-                            >
-                              <X size={11} />
-                            </button>
-                          </span>
-                        )}
-
-                        {productSortFilter !== 'newest' && (
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: '999px',
-                            backgroundColor: 'rgba(100, 116, 139, 0.12)',
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.68rem',
-                            fontWeight: 700
-                          }}>
-                            <span>Urutan: {productSortFilter === 'oldest' ? 'Terlama' : productSortFilter.includes('asc') ? 'A-Z / Rendah' : 'Z-A / Tinggi'}</span>
-                            <button
-                              type="button"
-                              onClick={() => { setProductSortFilter('newest'); setProductPage(1); }}
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
-                            >
-                              <X size={11} />
-                            </button>
-                          </span>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={handleResetAllFilters}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--text-muted)',
-                            fontSize: '0.68rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            textDecoration: 'underline',
-                            padding: '0 0.2rem'
-                          }}
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Items List */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-                  {loading && products.length === 0 ? (
-                    <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                      Memuat daftar produk...
-                    </div>
-                  ) : isCatalogCompletelyEmpty ? (
-                    /* Clean Empty State aligned with Mobile & Desktop */
-                    <div style={{
-                      padding: '3rem 1.5rem',
-                      textAlign: 'center',
-                      color: 'var(--text-secondary)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      height: '100%',
-                      minHeight: '260px'
-                    }}>
-                      <div style={{
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '16px',
-                        backgroundColor: 'rgba(30, 58, 138, 0.12)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '1rem',
-                        color: 'var(--primary)'
-                      }}>
-                        <Package size={28} />
-                      </div>
-                      <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                        Belum Ada Item Terdaftar
-                      </h3>
-                      <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '280px', lineHeight: 1.4 }}>
-                        Mulai tambahkan barang, menu, jasa, atau file digital pertama Anda.
-                      </p>
-                      <button
-                        type="button"
-                        id="btn-tambah-item-pertama"
-                        data-testid="btn-tambah-item-pertama"
-                        onClick={() => handleCancelToProductTypeSelection()}
-                        style={{
-                          minHeight: '44px',
-                          padding: '0.65rem 1.35rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'var(--primary)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontWeight: 700,
-                          fontSize: '0.85rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          cursor: 'pointer',
-                          boxShadow: '0 2px 8px var(--primary-glow)'
-                        }}
-                      >
-                        <Plus size={16} />
-                        <span>Tambah Item Pertama</span>
-                      </button>
-                    </div>
-                  ) : products.length === 0 ? (
-                    <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                      <Search size={32} style={{ marginBottom: '0.5rem', color: 'var(--text-muted)', opacity: 0.5 }} />
-                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Item Tidak Ditemukan</div>
-                      <div style={{ fontSize: '0.8rem' }}>Tidak ada item yang sesuai dengan kata kunci atau filter yang Anda pilih.</div>
-                      <button
-                        type="button"
-                        onClick={handleResetAllFilters}
-                        style={{
-                          marginTop: '0.75rem',
-                          padding: '0.4rem 0.85rem',
-                          borderRadius: '0.5rem',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-card)',
-                          color: 'var(--primary)',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Reset Filter
-                      </button>
-                    </div>
-                  ) : (
-                    products.map(prod => {
-                      const isSelected = selectedProductId === prod.id;
-                      const isActive = prod.is_active !== false;
-
-                      return (
-                        <div
-                          key={prod.id}
-                          id={`product-item-${prod.id}`}
-                          data-testid={`product-item-${prod.id}`}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => handleSelectProduct(prod)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              handleSelectProduct(prod);
-                            }
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.75rem',
-                            padding: '0.75rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                            border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
-                            marginBottom: '0.45rem',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            overflow: 'hidden',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}>
-                            {prod.image_url ? (
-                              <img src={prod.image_url} alt={prod.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              <Package size={22} color="var(--text-muted)" />
-                            )}
-                          </div>
-
-                          <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                              <div style={{
-                                fontSize: '0.88rem',
-                                fontWeight: 700,
-                                color: 'var(--text-primary)',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }}>
-                                {prod.name}
-                              </div>
-                              <span style={{
-                                fontSize: '0.68rem',
-                                fontWeight: 800,
-                                padding: '0.1rem 0.45rem',
-                                borderRadius: '999px',
-                                backgroundColor: isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)',
-                                color: isActive ? '#10b981' : '#64748b'
-                              }}>
-                                {isActive ? 'Aktif' : 'Arsip'}
-                              </span>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
-                              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--primary)' }}>
-                                Rp {Number(prod.price || 0).toLocaleString('id-ID')}
-                              </div>
-                              <div style={{
-                                fontSize: '0.74rem',
-                                fontWeight: 600,
-                                color: prod.conservation_status === 'Habis Terjual'
-                                  ? '#ef4444'
-                                  : prod.conservation_status === 'Pre-Order'
-                                  ? '#f59e0b'
-                                  : 'var(--text-muted)'
-                              }}>
-                                {prod.conservation_status || ((prod.stock ?? 1) === 0 ? 'Habis' : `Stok: ${prod.stock ?? 1}`)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
+                        justifyContent: 'center'
+                      }}
+                    >
+                      ✕
+                    </button>
                   )}
                 </div>
 
-                {/* Tablet Segmented Pager - Hidden if no items or only 1 page */}
-                {!isCatalogCompletelyEmpty && productTotalPages > 1 && products.length > 0 && (
-                  <TabletSegmentedPagination
-                    currentPage={productPage}
-                    totalPages={productTotalPages}
-                    totalRecords={productTotalRecords}
-                    onPageChange={(p) =>
-                      fetchProducts(
-                        p,
-                        debouncedProductSearch,
-                        productStatusFilter,
-                        productCategoryFilter,
-                        productTypeFilter,
-                        productSortFilter,
-                        productStockFilter
-                      )
-                    }
-                    isLoading={loading}
-                  />
+                {/* Dropdowns Row on Compact or Grid on Wide Tablet */}
+                {isNarrowFilterBar ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.65rem',
+                    flexWrap: 'wrap',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}>
+                    <div style={{ flex: '1 1 180px', minWidth: '130px' }}>
+                      <TabletCustomSelect
+                        value={productCategoryFilter}
+                        onChange={(val) => {
+                          setProductCategoryFilter(val);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          {
+                            value: 'all',
+                            label: 'Semua Kategori',
+                            count: productTypeFilter === 'all'
+                              ? (catalogMetrics?.total_items ?? productTotalRecords)
+                              : (catalogMetrics?.by_type?.[productTypeFilter] ?? products.filter(p => (p.product_type || 'physical') === productTypeFilter).length)
+                          },
+                          ...categories.map(c => ({
+                            value: String(c.id),
+                            label: c.name,
+                            count: catalogMetrics?.by_category?.[c.name] ?? catalogMetrics?.by_category?.[String(c.id)]
+                          }))
+                        ]}
+                        placeholder="Semua Kategori"
+                        ariaLabel="Filter Kategori Produk"
+                      />
+                    </div>
+
+                    <div style={{ flex: '1 1 150px', minWidth: '120px' }}>
+                      <TabletCustomSelect
+                        value={productSortFilter}
+                        onChange={(val) => {
+                          setProductSortFilter(val);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          { value: 'newest', label: 'Terbaru' },
+                          { value: 'oldest', label: 'Terlama' },
+                          { value: 'name_asc', label: 'Nama (A-Z)' },
+                          { value: 'price_asc', label: 'Harga Terendah' },
+                          { value: 'price_desc', label: 'Harga Tertinggi' }
+                        ]}
+                        placeholder="Urutan Item"
+                        ariaLabel="Urutan Item"
+                      />
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      marginLeft: 'auto',
+                      flexShrink: 0
+                    }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                        Baris:
+                      </span>
+                      <TabletCustomSelect
+                        value={String(productPerPage)}
+                        onChange={(val) => {
+                          const n = Number(val);
+                          setProductPerPage(n);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          { value: '10', label: '10' },
+                          { value: '25', label: '25' },
+                          { value: '50', label: '50' }
+                        ]}
+                        placeholder="10"
+                        variant="compact"
+                        style={{ width: '72px', minWidth: '65px' }}
+                        triggerStyle={{ padding: '0.45rem 0.65rem' }}
+                        ariaLabel="Jumlah Baris per Halaman"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ minWidth: 0 }}>
+                      <TabletCustomSelect
+                        value={productCategoryFilter}
+                        onChange={(val) => {
+                          setProductCategoryFilter(val);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          {
+                            value: 'all',
+                            label: 'Semua Kategori',
+                            count: productTypeFilter === 'all'
+                              ? (catalogMetrics?.total_items ?? productTotalRecords)
+                              : (catalogMetrics?.by_type?.[productTypeFilter] ?? products.filter(p => (p.product_type || 'physical') === productTypeFilter).length)
+                          },
+                          ...categories.map(c => ({
+                            value: String(c.id),
+                            label: c.name,
+                            count: catalogMetrics?.by_category?.[c.name] ?? catalogMetrics?.by_category?.[String(c.id)]
+                          }))
+                        ]}
+                        placeholder="Semua Kategori"
+                        ariaLabel="Filter Kategori Produk"
+                      />
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <TabletCustomSelect
+                        value={productSortFilter}
+                        onChange={(val) => {
+                          setProductSortFilter(val);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          { value: 'newest', label: 'Terbaru' },
+                          { value: 'oldest', label: 'Terlama' },
+                          { value: 'name_asc', label: 'Nama (A-Z)' },
+                          { value: 'price_asc', label: 'Harga Terendah' },
+                          { value: 'price_desc', label: 'Harga Tertinggi' }
+                        ]}
+                        placeholder="Urutan Item"
+                        ariaLabel="Urutan Item"
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'flex-end', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                        Baris:
+                      </span>
+                      <TabletCustomSelect
+                        value={String(productPerPage)}
+                        onChange={(val) => {
+                          const n = Number(val);
+                          setProductPerPage(n);
+                          setProductPage(1);
+                        }}
+                        options={[
+                          { value: '10', label: '10' },
+                          { value: '25', label: '25' },
+                          { value: '50', label: '50' }
+                        ]}
+                        placeholder="10"
+                        variant="compact"
+                        style={{ width: '72px', minWidth: '65px' }}
+                        triggerStyle={{ padding: '0.45rem 0.65rem' }}
+                        ariaLabel="Jumlah Baris per Halaman"
+                      />
+                    </div>
+                  </>
                 )}
               </div>
-            }
-            detailPane={
-              (selectedProductId !== null || !isNarrowScreen) ? (() => {
-                const activeTypeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === productForm.product_type) || CATALOG_TYPE_OPTIONS[0];
-                const ActiveTypeIcon = activeTypeDef.icon;
-                const typeConfig = getItemTypeFormConfig((productForm.product_type || 'physical') as ItemCategoryType);
-                const validPhotoCount = productPhotos.filter(p => p && p.trim() !== '').length;
 
-                const shouldShowStep1 = isSelectingProductType || (selectedProductId === 'new' && !productForm.product_type) || (selectedProductId === null && !isNarrowScreen);
+              {/* Status & Type Filter Section */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
+                {/* Row 1: Status Filter & Reset Action */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Status:
+                    </span>
+                    <div style={{ display: 'inline-flex', gap: '0.25rem', padding: '0.18rem', backgroundColor: 'var(--bg-deep)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setProductStatusFilter('all'); setProductPage(1); }}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          minHeight: '34px',
+                          borderRadius: '6px',
+                          fontSize: '0.76rem',
+                          fontWeight: 700,
+                          border: 'none',
+                          backgroundColor: productStatusFilter === 'all' ? 'var(--primary)' : 'transparent',
+                          color: productStatusFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        Semua ({catalogMetrics?.total_items ?? productTotalRecords})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setProductStatusFilter('active'); setProductPage(1); }}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          minHeight: '34px',
+                          borderRadius: '6px',
+                          fontSize: '0.76rem',
+                          fontWeight: 700,
+                          border: 'none',
+                          backgroundColor: productStatusFilter === 'active' ? '#10b981' : 'transparent',
+                          color: productStatusFilter === 'active' ? '#ffffff' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        ✓ Aktif ({catalogMetrics?.active_items ?? (products.filter(p => p.is_active !== false).length)})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setProductStatusFilter('archived'); setProductPage(1); }}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          minHeight: '34px',
+                          borderRadius: '6px',
+                          fontSize: '0.76rem',
+                          fontWeight: 700,
+                          border: 'none',
+                          backgroundColor: productStatusFilter === 'archived' ? '#ef4444' : 'transparent',
+                          color: productStatusFilter === 'archived' ? '#ffffff' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        🔒 Diarsipkan ({catalogMetrics?.archived_items ?? (products.filter(p => p.is_active === false).length)})
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Reset filter button */}
+                  {(productSearch || productTypeFilter !== 'all' || productCategoryFilter !== 'all' || productStatusFilter !== 'all' || productSortFilter !== 'newest' || productStockFilter !== 'all') && (
+                    <button
+                      type="button"
+                      onClick={handleResetAllFilters}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary)',
+                        fontWeight: 700,
+                        fontSize: '0.76rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '6px'
+                      }}
+                    >
+                      <RotateCcw size={13} />
+                      <span>Reset Filter</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Row 2: Product Type Chips Carousel / Pills (when isHybridStore) */}
+                {isHybridStore && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    overflowX: 'auto',
+                    paddingTop: '0.55rem',
+                    borderTop: '1px dashed var(--border-light)',
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'none'
+                  }}>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      marginRight: '0.15rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      flexShrink: 0
+                    }}>
+                      <Layers size={13} />
+                      Tipe:
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => { setProductTypeFilter('all'); setProductCategoryFilter('all'); setProductPage(1); }}
+                      style={{
+                        padding: '0.32rem 0.8rem',
+                        borderRadius: '20px',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        border: productTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        backgroundColor: productTypeFilter === 'all' ? 'rgba(30, 58, 138, 0.12)' : 'transparent',
+                        color: productTypeFilter === 'all' ? 'var(--primary)' : 'var(--text-secondary)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        flexShrink: 0,
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span>Semua</span>
+                      <span style={{
+                        padding: '0.08rem 0.45rem',
+                        borderRadius: '999px',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'rgba(148, 163, 184, 0.15)',
+                        color: productTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)'
+                      }}>
+                        {catalogMetrics?.total_items ?? productTotalRecords}
+                      </span>
+                    </button>
+
+                    {CATALOG_TYPE_OPTIONS.map((opt) => {
+                      if (!availableCatalogTypes.includes(opt.id)) return null;
+                      const count = catalogMetrics?.by_type?.[opt.id] ?? products.filter(p => (p.product_type || 'physical') === opt.id).length;
+                      if (count <= 0 && productTypeFilter !== opt.id) return null;
+
+                      const isSelected = productTypeFilter === opt.id;
+                      const Icon = opt.icon;
+
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => { setProductTypeFilter(opt.id); setProductCategoryFilter('all'); setProductPage(1); }}
+                          style={{
+                            padding: '0.32rem 0.8rem',
+                            borderRadius: '20px',
+                            fontSize: '0.76rem',
+                            fontWeight: 700,
+                            border: isSelected ? `1px solid ${opt.color}` : '1px solid var(--border-light)',
+                            cursor: 'pointer',
+                            backgroundColor: isSelected ? opt.bgColor : 'transparent',
+                            color: isSelected ? opt.color : 'var(--text-secondary)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            flexShrink: 0,
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <Icon size={14} style={{ color: isSelected ? opt.color : undefined }} />
+                          <span>{opt.name}</span>
+                          <span style={{
+                            padding: '0.08rem 0.45rem',
+                            borderRadius: '999px',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            backgroundColor: isSelected ? opt.color : 'rgba(148, 163, 184, 0.15)',
+                            color: isSelected ? '#ffffff' : 'var(--text-secondary)'
+                          }}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Table Container with smooth horizontal scrolling for tablet */}
+            <div style={{
+              width: '100%',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              borderRadius: '0.85rem',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'var(--bg-card)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+            }}>
+              <table style={{ width: '100%', minWidth: '760px', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
+                    <th style={{ width: '68px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Foto</th>
+                    <th style={{ padding: '0.85rem 0.85rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Nama Item &amp; Spesifikasi</th>
+                    <th style={{ width: '160px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Kategori &amp; Tipe</th>
+                    <th style={{ width: '130px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Harga</th>
+                    <th style={{ width: '120px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status</th>
+                    <th style={{ width: '180px', padding: '0.85rem 0.85rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && products.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '3.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                          <Loader size={18} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                          <span>Memuat data katalog...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : products.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '3.5rem 1.5rem' }}>
+                        <div style={{ maxWidth: '380px', margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{ width: '56px', height: '56px', borderRadius: '18px', backgroundColor: 'rgba(30, 58, 138, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                            <Package size={28} />
+                          </div>
+                          <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                            {isCatalogCompletelyEmpty ? 'Belum Ada Item Terdaftar' : 'Item Tidak Ditemukan'}
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                            {isCatalogCompletelyEmpty
+                              ? 'Katalog toko Anda masih kosong. Mulai tambahkan barang fisik, makanan, jasa, atau file digital pertama Anda.'
+                              : 'Tidak ada item yang sesuai dengan kata kunci atau filter yang Anda pilih.'}
+                          </div>
+                          {isCatalogCompletelyEmpty ? (
+                            <button
+                              type="button"
+                              id="btn-tambah-item-pertama"
+                              onClick={() => handleCancelToProductTypeSelection()}
+                              style={{
+                                minHeight: '40px',
+                                padding: '0.55rem 1.35rem',
+                                borderRadius: '0.55rem',
+                                backgroundColor: 'var(--primary)',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '0.82rem',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.45rem',
+                                marginTop: '0.25rem',
+                                boxShadow: '0 2px 8px var(--primary-glow)'
+                              }}
+                            >
+                              <Plus size={16} />
+                              <span>Tambah Item Pertama</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleResetAllFilters}
+                              style={{
+                                minHeight: '36px',
+                                padding: '0.45rem 1rem',
+                                borderRadius: '0.5rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-card)',
+                                color: 'var(--primary)',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                marginTop: '0.25rem'
+                              }}
+                            >
+                              Reset Filter
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    products.map((item) => {
+                      const itemType = (item.product_type || 'physical') as ItemCategoryType;
+                      const typeOpt = CATALOG_TYPE_OPTIONS.find(t => t.id === itemType) || CATALOG_TYPE_OPTIONS[0];
+                      const rawAttrs = typeof item.attributes === 'string' ? JSON.parse(item.attributes || '{}') : (item.attributes || {});
+
+                      return (
+                        <tr
+                          key={item.id}
+                          style={{
+                            borderBottom: '1px solid var(--border-light)',
+                            transition: 'background-color 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        >
+                          {/* Foto */}
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                            <div style={{ width: '52px', height: '42px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => {
+                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
+                                  }}
+                                />
+                              ) : (
+                                <Package size={20} color="var(--text-muted)" />
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Nama Item & Spesifikasi */}
+                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle' }}>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.88rem' }}>
+                              {item.name}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                              {itemType === 'food' && (
+                                <span>{rawAttrs.portion_size ? `Porsi: ${rawAttrs.portion_size}` : 'Fresh Daily'}{rawAttrs.prep_time ? ` • PO: ${rawAttrs.prep_time}` : ''}</span>
+                              )}
+                              {itemType === 'physical' && (
+                                <span>{rawAttrs.condition || 'Baru'}{rawAttrs.weight ? ` • ${rawAttrs.weight}g` : ''}{rawAttrs.brand ? ` • ${rawAttrs.brand}` : ''}</span>
+                              )}
+                              {itemType === 'service' && (
+                                <span>{rawAttrs.duration || '1 Sesi'}{rawAttrs.service_location ? ` • ${rawAttrs.service_location}` : ''}{rawAttrs.service_area ? ` • Area: ${rawAttrs.service_area}` : ''}</span>
+                              )}
+                              {itemType === 'digital' && (
+                                <span>{rawAttrs.file_format || 'File'}{rawAttrs.file_size ? ` • ${rawAttrs.file_size}` : ''}</span>
+                              )}
+                              {itemType === 'property' && (
+                                <span>{rawAttrs.transaction_type || 'Properti'}{rawAttrs.building_area ? ` • LB: ${rawAttrs.building_area}m²` : ''}{rawAttrs.land_area ? ` • LT: ${rawAttrs.land_area}m²` : ''}</span>
+                              )}
+                              {itemType === 'fauna' && (
+                                <span>{item.scientific_name ? <i>{item.scientific_name}</i> : (item.habitat || 'General')}</span>
+                              )}
+                              {itemType === 'plant' && (
+                                <span>{item.scientific_name ? <i>{item.scientific_name}</i> : (rawAttrs.sunlight || 'Tanaman Segar')}{rawAttrs.plant_size ? ` • ${rawAttrs.plant_size}` : ''}</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Kategori & Tipe */}
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                            <span
+                              style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                padding: '0.22rem 0.55rem',
+                                borderRadius: '6px',
+                                backgroundColor: typeOpt.bgColor,
+                                color: typeOpt.color,
+                                border: `1px solid ${typeOpt.borderColor}`,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                maxWidth: '160px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}
+                              title={item.class || item.category_name || typeOpt.name}
+                            >
+                              <typeOpt.icon size={12} />
+                              <span>{item.class || item.category_name || typeOpt.name}</span>
+                            </span>
+                          </td>
+
+                          {/* Harga */}
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                            <div style={{ fontWeight: 800, color: '#ef4444', fontSize: '0.88rem', whiteSpace: 'nowrap' }}>
+                              Rp {Number(item.price || 0).toLocaleString('id-ID')}
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                            {(item as any).moderation_status === 'hidden' ? (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                  color: '#ef4444',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="Dinonaktifkan oleh tim moderasi"
+                              >
+                                <ShieldAlert size={12} strokeWidth={2.5} />
+                                <span>Dinonaktifkan</span>
+                              </span>
+                            ) : (item as any).is_active !== false ? (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                  color: '#10b981',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="Aktif di etalase publik"
+                              >
+                                <CheckCircle2 size={12} strokeWidth={2.5} />
+                                <span>Aktif</span>
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                                  color: '#f59e0b',
+                                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="Diarsipkan (disembunyikan)"
+                              >
+                                <Archive size={12} strokeWidth={2.5} />
+                                <span>Diarsipkan</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Aksi */}
+                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenProductDetail(item)}
+                                title="Lihat Detail Produk"
+                                style={{
+                                  minHeight: '34px',
+                                  padding: '0.35rem 0.7rem',
+                                  borderRadius: '0.5rem',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <Eye size={13} />
+                                <span>Detail</span>
+                              </button>
+
+                              {(item as any).is_active !== false ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openArchiveConfirmModal(item, false)}
+                                  title="Arsipkan Item (Sembunyikan dari pembeli)"
+                                  style={{
+                                    minHeight: '34px',
+                                    padding: '0.35rem 0.7rem',
+                                    borderRadius: '0.5rem',
+                                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                                    color: '#f59e0b',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <Archive size={13} />
+                                  <span>Arsipkan</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => openArchiveConfirmModal(item, true)}
+                                  title="Aktifkan Kembali ke Katalog"
+                                  style={{
+                                    minHeight: '34px',
+                                    padding: '0.35rem 0.7rem',
+                                    borderRadius: '0.5rem',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                                    color: '#10b981',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <CheckCircle2 size={13} />
+                                  <span>Aktifkan</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Bar */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.85rem 0.25rem',
+              fontSize: '0.82rem',
+              color: 'var(--text-secondary)',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div>
+                  Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{products.length}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{productTotalRecords}</strong> total item
+                </div>
+                {loading && (
+                  <Loader size={14} className="animate-spin" style={{ color: 'var(--primary)', opacity: 0.8 }} />
+                )}
+              </div>
+
+              {productTotalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <button
+                    type="button"
+                    disabled={productPage === 1 || loading}
+                    onClick={() => {
+                      const prev = Math.max(productPage - 1, 1);
+                      setProductPage(prev);
+                      fetchProducts(prev, debouncedProductSearch, productStatusFilter, productCategoryFilter, productTypeFilter, productSortFilter, productStockFilter, productPerPage);
+                    }}
+                    style={{
+                      minHeight: '36px',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      color: productPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                      cursor: productPage === 1 || loading ? 'not-allowed' : 'pointer',
+                      fontWeight: 700,
+                      fontSize: '0.78rem'
+                    }}
+                    title="Halaman Sebelumnya"
+                  >
+                    &larr; Prev
+                  </button>
+
+                  {Array.from({ length: productTotalPages }).map((_, idx) => {
+                    const pageNum = idx + 1;
+                    if (
+                      productTotalPages > 7 &&
+                      pageNum !== 1 &&
+                      pageNum !== productTotalPages &&
+                      Math.abs(pageNum - productPage) > 2
+                    ) {
+                      if (pageNum === 2 && productPage > 4) {
+                        return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
+                      }
+                      if (pageNum === productTotalPages - 1 && productPage < productTotalPages - 3) {
+                        return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
+                      }
+                      return null;
+                    }
+
+                    const isActive = pageNum === productPage;
+                    return (
+                      <button
+                        type="button"
+                        key={pageNum}
+                        disabled={loading}
+                        onClick={() => {
+                          setProductPage(pageNum);
+                          fetchProducts(pageNum, debouncedProductSearch, productStatusFilter, productCategoryFilter, productTypeFilter, productSortFilter, productStockFilter, productPerPage);
+                        }}
+                        style={{
+                          minHeight: '36px',
+                          minWidth: '36px',
+                          padding: '0 0.5rem',
+                          borderRadius: '0.5rem',
+                          border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-card)',
+                          color: isActive ? '#ffffff' : 'var(--text-primary)',
+                          cursor: loading ? 'not-allowed' : 'pointer',
+                          fontWeight: isActive ? 800 : 600,
+                          fontSize: '0.78rem'
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    disabled={productPage === productTotalPages || loading}
+                    onClick={() => {
+                      const next = Math.min(productPage + 1, productTotalPages);
+                      setProductPage(next);
+                      fetchProducts(next, debouncedProductSearch, productStatusFilter, productCategoryFilter, productTypeFilter, productSortFilter, productStockFilter, productPerPage);
+                    }}
+                    style={{
+                      minHeight: '36px',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      color: productPage === productTotalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                      cursor: productPage === productTotalPages || loading ? 'not-allowed' : 'pointer',
+                      fontWeight: 700,
+                      fontSize: '0.78rem'
+                    }}
+                    title="Halaman Berikutnya"
+                  >
+                    Next &rarr;
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* PRODUCT FORM MODAL (Step 1: Choose Type or Step 2: Edit/Create Form) */}
+            {selectedProductId !== null && (
+              <div
+                className="modal-overlay"
+                onClick={() => {
+                  setSelectedProductId(null);
+                  setIsSelectingProductType(false);
+                  try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('action');
+                    url.searchParams.delete('type');
+                    url.searchParams.delete('catalog_type');
+                    window.history.replaceState({ tab: 'items' }, '', url.toString());
+                  } catch {}
+                }}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 9998,
+                  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                  backdropFilter: 'blur(4px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '1.25rem'
+                }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    maxWidth: '860px',
+                    width: '100%',
+                    maxHeight: '92vh',
+                    backgroundColor: 'var(--bg-card)',
+                    borderRadius: '1.25rem',
+                    border: '1px solid var(--border-light)',
+                    boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {(() => {
+                    const activeTypeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === productForm.product_type) || CATALOG_TYPE_OPTIONS[0];
+                    const ActiveTypeIcon = activeTypeDef.icon;
+                    const typeConfig = getItemTypeFormConfig((productForm.product_type || 'physical') as ItemCategoryType);
+                    const validPhotoCount = productPhotos.filter(p => p && p.trim() !== '').length;
+
+                    const shouldShowStep1 = isSelectingProductType || (selectedProductId === 'new' && !productForm.product_type);
 
                 if (shouldShowStep1) {
                   return (
@@ -4079,20 +4636,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           type="button"
                           id="btn-batal-pilih-tipe"
                           onClick={() => {
-                            if (isNarrowScreen) {
-                              setSelectedProductId(null);
-                              setIsSelectingProductType(false);
-                            } else if (products.length > 0) {
-                              handleSelectProduct(products[0]);
-                            } else {
-                              handleCancelToProductTypeSelection();
-                            }
+                            setSelectedProductId(null);
+                            setIsSelectingProductType(false);
                             try {
                               const url = new URL(window.location.href);
                               url.searchParams.delete('action');
                               url.searchParams.delete('type');
                               url.searchParams.delete('catalog_type');
-                              window.history.pushState({}, '', url.toString());
+                              window.history.replaceState({ tab: 'items' }, '', url.toString());
                             } catch {}
                           }}
                           style={{
@@ -4247,103 +4798,50 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   /* =========================================================================
                      STEP 2: FORMULIR INPUT DATA PRODUK LENGKAP
                      ========================================================================= */
-                  <form onSubmit={handleSaveProduct} style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100%',
-                    padding: '1.5rem',
-                    gap: '1.25rem',
-                    overflowY: 'auto'
-                  }}>
-                    {/* Active Type Banner with Ganti Tipe Button */}
-                    <div style={{
-                      padding: '0.85rem 1rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: activeTypeDef.bgColor,
-                      border: `1.5px solid ${activeTypeDef.borderColor}`,
+                  <form
+                    onSubmit={handleSaveProduct}
+                    style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '0.75rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{
-                          width: '42px',
-                          height: '42px',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'var(--bg-card)',
-                          border: `1px solid ${activeTypeDef.borderColor}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: activeTypeDef.color,
-                          flexShrink: 0
-                        }}>
-                          <ActiveTypeIcon size={22} />
-                        </div>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: activeTypeDef.color }}>
-                              Tipe Katalog Aktif
-                            </span>
-                            <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '999px', backgroundColor: 'var(--bg-card)', border: `1px solid ${activeTypeDef.borderColor}`, color: 'var(--text-secondary)' }}>
-                              {activeTypeDef.categoryBadge}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.1rem' }}>
-                            {activeTypeDef.name}
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        id="btn-ganti-tipe"
-                        data-testid="btn-ganti-tipe"
-                        onClick={handleBackToTypeSelection}
-                        style={{
-                          minHeight: '36px',
-                          padding: '0.4rem 0.85rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'var(--bg-card)',
-                          border: `1px solid ${activeTypeDef.borderColor}`,
-                          color: activeTypeDef.color,
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          cursor: 'pointer',
-                          boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
-                        }}
-                        title="Ganti format tipe katalog"
-                      >
-                        <RefreshCw size={13} />
-                        <span>Ganti Tipe</span>
-                      </button>
-                    </div>
-
-                    {/* Header Actions */}
+                      flexDirection: 'column',
+                      height: '100%',
+                      maxHeight: '92vh',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* 1. FLOATING / STICKY HEADER (TIDAK IKUT TERSCROLL) */}
                     <div style={{
+                      padding: '1.1rem 1.5rem',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       borderBottom: '1px solid var(--border-light)',
-                      paddingBottom: '1rem',
-                      flexWrap: 'wrap',
+                      backgroundColor: 'var(--bg-deep)',
+                      flexShrink: 0,
                       gap: '0.75rem'
                     }}>
-                      <div>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                          {typeConfig.modalTitle(selectedProductId === 'new' ? 'create' : 'edit')}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <h3 style={{
+                          fontSize: '1.18rem',
+                          fontWeight: 800,
+                          margin: 0,
+                          color: 'var(--text-primary)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {selectedProductId === 'new'
+                            ? typeConfig.modalTitle('create')
+                            : (productForm.name ? `Form Edit Data: ${productForm.name}` : 'Form Edit Data')}
                         </h3>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                          {typeConfig.modalSubtitle}
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0', lineHeight: 1.3 }}>
+                          {selectedProductId === 'new'
+                            ? typeConfig.modalSubtitle
+                            : `Perbarui spesifikasi, harga, stok, dan informasi katalog ${activeTypeDef.name}`}
                         </p>
                       </div>
 
-                      {selectedProductId !== 'new' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+                        {selectedProductId !== 'new' && (
                           <button
                             id="btn-hapus-produk"
                             data-testid="btn-hapus-produk"
@@ -4365,11 +4863,121 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             }}
                           >
                             <Trash2 size={15} />
-                            Hapus
+                            <span>Hapus</span>
                           </button>
-                        </div>
-                      )}
+                        )}
+
+                        <button
+                          type="button"
+                          id="btn-close-form-produk"
+                          data-testid="btn-close-form-produk"
+                          onClick={() => {
+                            setSelectedProductId(null);
+                            setIsSelectingProductType(false);
+                            try {
+                              const url = new URL(window.location.href);
+                              url.searchParams.delete('action');
+                              url.searchParams.delete('type');
+                              url.searchParams.delete('catalog_type');
+                              window.history.replaceState({ tab: 'items' }, '', url.toString());
+                            } catch {}
+                          }}
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '0.5rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card)',
+                            color: 'var(--text-secondary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title="Tutup Formulir"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
                     </div>
+
+                    {/* 2. SCROLLABLE FORM BODY */}
+                    <div style={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      padding: '1.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1.25rem'
+                    }}>
+                      {/* Active Type Banner with Ganti Tipe Button (Now in Form Body) */}
+                      <div style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: activeTypeDef.bgColor,
+                        border: `1.5px solid ${activeTypeDef.borderColor}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'var(--bg-card)',
+                            border: `1px solid ${activeTypeDef.borderColor}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: activeTypeDef.color,
+                            flexShrink: 0
+                          }}>
+                            <ActiveTypeIcon size={20} />
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: activeTypeDef.color }}>
+                                Tipe Katalog Aktif
+                              </span>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '999px', backgroundColor: 'var(--bg-card)', border: `1px solid ${activeTypeDef.borderColor}`, color: 'var(--text-secondary)' }}>
+                                {activeTypeDef.categoryBadge}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.1rem' }}>
+                              {activeTypeDef.name}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          id="btn-ganti-tipe"
+                          data-testid="btn-ganti-tipe"
+                          onClick={handleBackToTypeSelection}
+                          style={{
+                            minHeight: '36px',
+                            padding: '0.4rem 0.85rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'var(--bg-card)',
+                            border: `1px solid ${activeTypeDef.borderColor}`,
+                            color: activeTypeDef.color,
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            cursor: 'pointer',
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                          }}
+                          title="Ganti format tipe katalog"
+                        >
+                          <RefreshCw size={13} />
+                          <span>Ganti Tipe</span>
+                        </button>
+                      </div>
 
                     {/* Basic Information Grid */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
@@ -6078,491 +6686,1436 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </div>
                   </div>
 
-                  {/* Submit Footer */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)' }}>
-                    <button
-                      type="button"
-                      id="btn-batal-form-produk"
-                      data-testid="btn-batal-form-produk"
-                      onClick={() => {
-                        handleCancelToProductTypeSelection();
-                      }}
+                    </div>
+
+                    {/* 3. STICKY FOOTER ACTION BAR (TIDAK IKUT TERSCROLL) */}
+                    <div style={{
+                      padding: '1rem 1.5rem',
+                      borderTop: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-end',
+                      gap: '0.75rem',
+                      flexShrink: 0
+                    }}>
+                      <button
+                        type="button"
+                        id="btn-batal-form-produk"
+                        data-testid="btn-batal-form-produk"
+                        onClick={() => {
+                          setSelectedProductId(null);
+                          setIsSelectingProductType(false);
+                          try {
+                            const url = new URL(window.location.href);
+                            url.searchParams.delete('action');
+                            url.searchParams.delete('type');
+                            url.searchParams.delete('catalog_type');
+                            window.history.replaceState({ tab: 'items' }, '', url.toString());
+                          } catch {}
+                        }}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.25rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: 'var(--text-secondary)',
+                          border: '1px solid var(--border-light)',
+                          fontWeight: 600,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        id="btn-simpan-produk"
+                        data-testid="btn-simpan-produk"
+                        disabled={saving}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.65rem 1.75rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          cursor: saving ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        <Save size={16} />
+                        {saving ? 'Menyimpan...' : (selectedProductId === 'new' ? 'Terbitkan Produk' : 'Simpan Perubahan')}
+                      </button>
+                    </div>
+                  </form>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          PRODUCT DETAIL PREVIEW MODAL (PUBLIC-LIKE PREVIEW CARD FOR TABLET)
+          ========================================================================= */}
+      {previewProduct && (() => {
+        const prod = previewProduct;
+        const pType = (prod.product_type || 'physical') as ItemCategoryType;
+        const activeTypeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === pType) || CATALOG_TYPE_OPTIONS[0];
+        const ActiveTypeIcon = activeTypeDef.icon;
+
+        // Collect all images (main image + gallery + detailed_info)
+        const images: string[] = [];
+        if (prod.image_url) images.push(prod.image_url);
+        if (Array.isArray(prod.gallery_images)) {
+          prod.gallery_images.forEach((img: string) => {
+            if (img && !images.includes(img)) images.push(img);
+          });
+        }
+        if (Array.isArray(prod.detailed_info?.images)) {
+          prod.detailed_info.images.forEach((img: string) => {
+            if (img && !images.includes(img)) images.push(img);
+          });
+        }
+        const displayImages = images.length > 0 ? images : ['https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'];
+        const currentActiveImg = displayImages[previewImageIndex] || displayImages[0];
+
+        // Unit calculation
+        let unit = 'Pcs';
+        switch (pType) {
+          case 'food': unit = 'Porsi'; break;
+          case 'service': unit = 'Sesi'; break;
+          case 'digital': unit = 'Lisensi'; break;
+          case 'property': unit = 'Unit'; break;
+          case 'fauna': unit = 'Ekor'; break;
+          case 'plant': unit = 'Pot'; break;
+          default: unit = 'Pcs';
+        }
+
+        // WhatsApp Channel resolution
+        const targetWAContact = storeWAContacts.find(c => c.id === prod.whatsapp_contact_id) || storefrontWA;
+
+        // Specifications row helper
+        const renderSpecRow = (label: string, value: any, isHighlight: boolean = false) => {
+          if (value === null || value === undefined) return null;
+          if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed || trimmed === '-' || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'none') return null;
+          }
+          return (
+            <div
+              key={label}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '140px 1fr',
+                gap: '0.75rem',
+                alignItems: 'baseline',
+                padding: '0.55rem 0',
+                borderBottom: '1px solid var(--border-light)',
+                fontSize: '0.82rem',
+                lineHeight: 1.4
+              }}
+            >
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{label}</span>
+              <span style={{
+                fontWeight: 700,
+                color: isHighlight ? 'var(--primary)' : 'var(--text-primary)',
+                textAlign: 'right',
+                wordBreak: 'break-word'
+              }}>
+                {value}
+              </span>
+            </div>
+          );
+        };
+
+        const renderSpecsContent = () => {
+          const attrs = prod.attributes || {};
+          const minOrder = prod.min_order || attrs.min_order || 1;
+          const maxOrder = prod.max_order || attrs.max_order;
+
+          switch (pType) {
+            case 'plant':
+              return (
+                <>
+                  {renderSpecRow('Kategori Tanaman', prod.class)}
+                  {renderSpecRow('Nama Botani', prod.scientific_name)}
+                  {renderSpecRow('Kebutuhan Cahaya', attrs.sunlight || attrs.light_requirement, true)}
+                  {renderSpecRow('Penyiraman', attrs.watering || attrs.watering_frequency)}
+                  {renderSpecRow('Media Tanam', attrs.planting_medium || attrs.growing_media)}
+                  {renderSpecRow('Ukuran / Tinggi', attrs.plant_size)}
+                  {renderSpecRow('Legalitas', attrs.protection_status || attrs.plant_legality)}
+                  {renderSpecRow('Kondisi Pengiriman', attrs.delivery_condition || attrs.ship_condition)}
+                  {renderSpecRow('Minimal Pemesanan', `${minOrder} ${unit}`)}
+                  {maxOrder && renderSpecRow('Maksimal Pemesanan', `${maxOrder} ${unit}`)}
+                </>
+              );
+            case 'property':
+              return (
+                <>
+                  {renderSpecRow('Tipe Transaksi', attrs.transaction_type || 'Dijual', true)}
+                  {renderSpecRow('Tipe Properti', prod.class || attrs.property_type)}
+                  {renderSpecRow('Sertifikat / Legalitas', attrs.certificate)}
+                  {attrs.land_area && renderSpecRow('Luas Tanah (LT)', `${attrs.land_area} m²`)}
+                  {attrs.building_area && renderSpecRow('Luas Bangunan (LB)', `${attrs.building_area} m²`)}
+                  {attrs.bedrooms && renderSpecRow('Kamar Tidur (KT)', `${attrs.bedrooms}`)}
+                  {attrs.bathrooms && renderSpecRow('Kamar Mandi (KM)', `${attrs.bathrooms}`)}
+                  {attrs.floors && renderSpecRow('Jumlah Lantai', attrs.floors)}
+                  {attrs.electricity && renderSpecRow('Daya Listrik', attrs.electricity)}
+                  {attrs.water_source && renderSpecRow('Sumber Air', attrs.water_source)}
+                  {attrs.furnishing && renderSpecRow('Kondisi Furnitur', attrs.furnishing)}
+                  {attrs.facing && renderSpecRow('Arah Hadap', attrs.facing)}
+                  {renderSpecRow('Lokasi / Wilayah', attrs.property_location || prod.habitat)}
+                  {minOrder > 1 && renderSpecRow('Minimal Unit', `${minOrder} Unit`)}
+                  {maxOrder && renderSpecRow('Maksimal Unit', `${maxOrder} Unit`)}
+                </>
+              );
+            case 'food':
+              return (
+                <>
+                  {renderSpecRow('Kategori Menu', prod.class)}
+                  {renderSpecRow('Status Halal', attrs.halal_status, true)}
+                  {renderSpecRow('Pilihan Varian / Rasa', attrs.variant)}
+                  {renderSpecRow('Tingkat Kepedasan', attrs.spiciness_level)}
+                  {renderSpecRow('Suhu Penyajian', attrs.serving_temperature)}
+                  {renderSpecRow('Ketahanan Simpan', attrs.shelf_life)}
+                  {renderSpecRow('Minimal Pesanan', `${minOrder} ${unit}`)}
+                  {maxOrder && renderSpecRow('Maksimal Pesanan', `${maxOrder} ${unit}`)}
+                </>
+              );
+            case 'service':
+              return (
+                <>
+                  {renderSpecRow('Kategori Layanan', prod.class)}
+                  {renderSpecRow('Durasi Layanan', attrs.duration, true)}
+                  {renderSpecRow('Lokasi Pelaksanaan', attrs.service_location)}
+                  {renderSpecRow('Cakupan Wilayah', attrs.service_coverage)}
+                  {renderSpecRow('Minimal Order', `${minOrder} ${unit}`)}
+                  {maxOrder && renderSpecRow('Maksimal Order', `${maxOrder} ${unit}`)}
+                </>
+              );
+            case 'digital':
+              return (
+                <>
+                  {renderSpecRow('Kategori Berkas', prod.class)}
+                  {renderSpecRow('Format Berkas', attrs.file_format, true)}
+                  {renderSpecRow('Ukuran Berkas', attrs.file_size)}
+                  {renderSpecRow('Tipe Lisensi', attrs.license_type)}
+                  {renderSpecRow('Masa Berlaku', attrs.validity_period)}
+                  {renderSpecRow('Versi / Rilis', attrs.version)}
+                  {minOrder > 1 && renderSpecRow('Minimal Pembelian', `${minOrder} ${unit}`)}
+                  {maxOrder && renderSpecRow('Maksimal Pembelian', `${maxOrder} ${unit}`)}
+                </>
+              );
+            case 'fauna':
+              return (
+                <>
+                  {renderSpecRow('Kategori Satwa', prod.class)}
+                  {renderSpecRow('Nama Ilmiah', prod.scientific_name)}
+                  {renderSpecRow('Habitat Asal', attrs.habitat || prod.habitat, true)}
+                  {renderSpecRow('Pola Pakan', attrs.diet || prod.diet)}
+                  {renderSpecRow('Masa Hidup', prod.detailed_info?.lifespan || attrs.lifespan)}
+                  {renderSpecRow('Bobot Rata-rata', prod.detailed_info?.weight || attrs.weight)}
+                  {renderSpecRow('Minimal Pemesanan', `${minOrder} ${unit}`)}
+                  {maxOrder && renderSpecRow('Maksimal Pemesanan', `${maxOrder} ${unit}`)}
+                </>
+              );
+            case 'physical':
+            default:
+              return (
+                <>
+                  {renderSpecRow('Kategori Produk', prod.class)}
+                  {renderSpecRow('Kondisi Barang', attrs.condition || 'Baru')}
+                  {attrs.weight && renderSpecRow('Berat Produk', `${attrs.weight} Gram`)}
+                  {renderSpecRow('Merek / Brand', attrs.brand)}
+                  {renderSpecRow('Varian / Opsi', attrs.variant)}
+                  {renderSpecRow('Minimal Beli', `${minOrder} ${unit}`)}
+                  {maxOrder && renderSpecRow('Maksimal Beli', `${maxOrder} ${unit}`)}
+                </>
+              );
+          }
+        };
+
+        const shippingCoverage = prod.detailed_info?.shipping_coverage || prod.shipping_coverage;
+        const shippingTerms = prod.detailed_info?.shipping_terms || prod.shipping_terms;
+        const warrantyInfo = prod.detailed_info?.warranty_info || prod.warranty_info;
+
+        return (
+          <div
+            className="modal-overlay"
+            onClick={() => setPreviewProduct(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9998,
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1.25rem'
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: '780px',
+                width: '100%',
+                maxHeight: '92vh',
+                backgroundColor: 'var(--bg-card)',
+                borderRadius: '1.25rem',
+                border: '1px solid var(--border-light)',
+                boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Header */}
+              <div style={{
+                padding: '1rem 1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-deep)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.25rem 0.65rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)'
+                  }}>
+                    <ActiveTypeIcon size={13} style={{ color: 'var(--primary)' }} />
+                    <span>{activeTypeDef.name}</span>
+                  </span>
+
+                  {prod.is_active === false ? (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.25rem 0.65rem',
+                      borderRadius: '999px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                      color: '#f59e0b',
+                      border: '1px solid rgba(245, 158, 11, 0.3)'
+                    }}>
+                      <Archive size={12} />
+                      <span>Diarsipkan</span>
+                    </span>
+                  ) : (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.25rem 0.65rem',
+                      borderRadius: '999px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      color: '#10b981',
+                      border: '1px solid rgba(16, 185, 129, 0.3)'
+                    }}>
+                      <CheckCircle2 size={12} />
+                      <span>Aktif di Toko</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  id="btn-close-detail-preview"
+                  data-testid="btn-close-detail-preview"
+                  onClick={() => setPreviewProduct(null)}
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '0.5rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Tutup Pratinjau Detail"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem'
+              }}>
+                {/* Visual + Core Info */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(240px, 280px) 1fr',
+                  gap: '1.25rem',
+                  alignItems: 'start'
+                }}>
+                  {/* Photo Gallery Column */}
+                  <div>
+                    <div
+                      onClick={() => setShowPreviewLightbox(true)}
                       style={{
-                        minHeight: '44px',
-                        padding: '0.65rem 1.25rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        color: 'var(--text-secondary)',
+                        width: '100%',
+                        aspectRatio: '1/1',
+                        borderRadius: '0.85rem',
+                        overflow: 'hidden',
                         border: '1px solid var(--border-light)',
-                        fontWeight: 600,
-                        fontSize: '0.88rem',
-                        cursor: 'pointer'
+                        backgroundColor: 'var(--bg-deep)',
+                        position: 'relative',
+                        cursor: 'zoom-in'
                       }}
+                      title="Klik untuk perbesar & lihat detail foto produk"
                     >
-                      Batal
-                    </button>
-                    <button
-                      type="submit"
-                      id="btn-simpan-produk"
-                      data-testid="btn-simpan-produk"
-                      disabled={saving}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0.65rem 1.75rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--primary)',
+                      <img
+                        src={currentActiveImg}
+                        alt={prod.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+
+                      {/* Bottom-Right Zoom Hint Badge */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '0.65rem',
+                        right: '0.65rem',
+                        padding: '0.28rem 0.6rem',
+                        borderRadius: '0.45rem',
+                        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                        backdropFilter: 'blur(4px)',
                         color: '#ffffff',
-                        border: 'none',
-                        fontWeight: 700,
-                        fontSize: '0.9rem',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.5rem',
-                        cursor: saving ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      <Save size={16} />
-                      {saving ? 'Menyimpan...' : (selectedProductId === 'new' ? 'Terbitkan Produk' : 'Simpan Perubahan')}
-                    </button>
+                        gap: '0.35rem',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                        zIndex: 2
+                      }}>
+                        <ZoomIn size={12} />
+                        <span>Perbesar</span>
+                      </div>
+
+                      {prod.is_active === false && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '0.6rem',
+                          right: '0.6rem',
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '0.4rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.95)',
+                          color: '#ffffff',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          zIndex: 2
+                        }}>
+                          Diarsipkan
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Thumbnail Strip if >1 images */}
+                    {displayImages.length > 1 && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '0.4rem',
+                        marginTop: '0.65rem',
+                        overflowX: 'auto',
+                        paddingBottom: '0.25rem'
+                      }}>
+                        {displayImages.map((imgUrl, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setPreviewImageIndex(idx)}
+                            style={{
+                              width: '48px',
+                              height: '48px',
+                              padding: 0,
+                              borderRadius: '0.45rem',
+                              overflow: 'hidden',
+                              border: previewImageIndex === idx ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                              opacity: previewImageIndex === idx ? 1 : 0.65,
+                              flexShrink: 0,
+                              cursor: 'pointer',
+                              backgroundColor: 'transparent'
+                            }}
+                          >
+                            <img src={imgUrl} alt={`Thumbnail ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </form>
-              );
-            })() : null}
-          />
-          )
-        )}
+
+                  {/* Core Info Column */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {prod.class || 'Kategori Umum'}
+                      </span>
+                      <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.25rem 0 0 0', lineHeight: 1.3 }}>
+                        {prod.name}
+                      </h2>
+                      {(pType === 'fauna' || pType === 'plant') && prod.scientific_name && (
+                        <span style={{ fontStyle: 'italic', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          {prod.scientific_name}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Price */}
+                    <div style={{
+                      fontSize: '1.65rem',
+                      fontWeight: 900,
+                      color: 'var(--primary)',
+                      letterSpacing: '-0.02em'
+                    }}>
+                      Rp {Number(prod.price || 0).toLocaleString('id-ID')}
+                    </div>
+
+                    {/* Stock & Availability pill */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.3rem 0.7rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        color: 'var(--text-primary)'
+                      }}>
+                        <Package size={13} style={{ color: 'var(--text-secondary)' }} />
+                        <span>
+                          {prod.stock !== undefined && prod.stock !== null
+                            ? `Stok: ${prod.stock} ${unit}`
+                            : (prod.conservation_status || 'Tersedia')}
+                        </span>
+                      </span>
+
+                      {prod.min_order && Number(prod.min_order) > 1 && (
+                        <span style={{
+                          padding: '0.3rem 0.7rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          color: 'var(--text-secondary)'
+                        }}>
+                          Min. Order: {prod.min_order} {unit}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* CS WhatsApp Channel Indicator */}
+                    <div style={{
+                      marginTop: '0.25rem',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '0.6rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.78rem'
+                    }}>
+                      <MessageCircle size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Kontak WhatsApp: <strong style={{ color: 'var(--text-primary)' }}>{targetWAContact?.label || 'CS Utama'} ({formatPhoneNumber(targetWAContact?.number || storeSettings.whatsapp_number || '-')})</strong>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Specifications Box */}
+                <div>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
+                    Spesifikasi Detail Item
+                  </h4>
+                  <div style={{
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '0.75rem',
+                    padding: '0.2rem 1rem'
+                  }}>
+                    {renderSpecsContent()}
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
+                    Deskripsi Produk
+                  </h4>
+                  <div style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.6,
+                    padding: '0.85rem 1rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)'
+                  }}>
+                    {prod.description ? (
+                      <FormattedText text={prod.description} />
+                    ) : (
+                      <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Belum ada deskripsi rincian untuk produk ini.</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Shipping & Warranty if available */}
+                {(shippingCoverage || shippingTerms || warrantyInfo) && (
+                  <div>
+                    <h4 style={{ fontSize: '0.92rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
+                      Ketentuan Pengiriman &amp; Garansi
+                    </h4>
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem',
+                      fontSize: '0.8rem'
+                    }}>
+                      {shippingCoverage && (
+                        <div><strong style={{ color: 'var(--text-primary)' }}>Cakupan Pengiriman:</strong> {shippingCoverage}</div>
+                      )}
+                      {shippingTerms && (
+                        <div><strong style={{ color: 'var(--text-primary)' }}>Ketentuan Pengiriman:</strong> {shippingTerms}</div>
+                      )}
+                      {warrantyInfo && (
+                        <div><strong style={{ color: 'var(--text-primary)' }}>Garansi:</strong> {warrantyInfo}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div style={{
+                padding: '1rem 1.5rem',
+                borderTop: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                {/* Tombol Hapus */}
+                <button
+                  type="button"
+                  id="btn-hapus-dari-preview"
+                  data-testid="btn-hapus-dari-preview"
+                  onClick={() => {
+                    const targetId = prod.id;
+                    setPreviewProduct(null);
+                    handleDeleteProduct(targetId);
+                  }}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    color: '#ef4444',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Hapus produk ini dari katalog"
+                >
+                  <Trash2 size={16} />
+                  <span>Hapus</span>
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  {/* Tombol Tutup */}
+                  <button
+                    type="button"
+                    id="btn-tutup-detail-preview"
+                    data-testid="btn-tutup-detail-preview"
+                    onClick={() => setPreviewProduct(null)}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.55rem 1.25rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-light)',
+                      fontWeight: 600,
+                      fontSize: '0.86rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Tutup
+                  </button>
+
+                  {/* Tombol Arsipkan / Aktifkan */}
+                  <button
+                    type="button"
+                    id="btn-arsip-dari-preview"
+                    data-testid="btn-arsip-dari-preview"
+                    disabled={storeSettings?.is_paused}
+                    onClick={() => {
+                      const curActive = prod.is_active !== false;
+                      openArchiveConfirmModal(prod, !curActive);
+                    }}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.55rem 1.25rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: prod.is_active !== false ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                      color: prod.is_active !== false ? '#d97706' : '#10b981',
+                      border: `1px solid ${prod.is_active !== false ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
+                      fontWeight: 700,
+                      fontSize: '0.86rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: storeSettings?.is_paused ? 'not-allowed' : 'pointer',
+                      opacity: storeSettings?.is_paused ? 0.5 : 1,
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={storeSettings?.is_paused ? 'Toko sedang dibekukan sementara' : (prod.is_active !== false ? 'Arsipkan produk ini dari katalog' : 'Aktifkan kembali produk ini ke katalog')}
+                  >
+                    {prod.is_active !== false ? (
+                      <>
+                        <Archive size={16} />
+                        <span>Arsipkan</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye size={16} />
+                        <span>Aktifkan</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Tombol Edit Data */}
+                  <button
+                    type="button"
+                    id="btn-edit-dari-preview"
+                    data-testid="btn-edit-dari-preview"
+                    onClick={() => {
+                      setPreviewProduct(null);
+                      handleSelectProduct(prod);
+                    }}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.55rem 1.5rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.88rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Edit3 size={16} />
+                    <span>Edit Data</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* DEDICATED PRODUCT IMAGE FULLSCREEN LIGHTBOX (Interactive Zoom & Pan) */}
+      {previewProduct && (
+        <TabletImageLightbox
+          isOpen={showPreviewLightbox}
+          images={(() => {
+            const prod = previewProduct;
+            const list: string[] = [];
+            if (prod.image_url) list.push(prod.image_url);
+            if (Array.isArray(prod.gallery_images)) {
+              prod.gallery_images.forEach((img: string) => {
+                if (img && !list.includes(img)) list.push(img);
+              });
+            }
+            if (Array.isArray(prod.detailed_info?.images)) {
+              prod.detailed_info.images.forEach((img: string) => {
+                if (img && !list.includes(img)) list.push(img);
+              });
+            }
+            return list.length > 0 ? list : ['https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'];
+          })()}
+          initialIndex={previewImageIndex}
+          productName={previewProduct.name}
+          onClose={() => setShowPreviewLightbox(false)}
+        />
+      )}
+
+      {/* ARCHIVE / ACTIVATE CONFIRMATION MODAL */}
+      {archiveConfirmModal && (() => {
+        const item = archiveConfirmModal.item;
+        const targetActive = archiveConfirmModal.targetActive;
+        const maxActive = quota?.max_items ?? 15;
+        const currentActive = quota?.active_items_count ?? products.filter(p => p.is_active !== false).length;
+        const isQuotaExceeded = targetActive && maxActive !== -1 && currentActive >= maxActive;
+
+        return (
+          <div
+            className="modal-overlay"
+            onClick={() => setArchiveConfirmModal(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999,
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem'
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: '460px',
+                width: '92%',
+                padding: '1.75rem',
+                borderRadius: '1.25rem',
+                border: targetActive ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)',
+                backgroundColor: 'var(--bg-card)',
+                position: 'relative',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setArchiveConfirmModal(null)}
+                style={{
+                  position: 'absolute',
+                  top: '1rem',
+                  right: '1rem',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%'
+                }}
+              >
+                <X size={18} />
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.1rem' }}>
+                <div style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  backgroundColor: isQuotaExceeded ? 'rgba(239, 68, 68, 0.12)' : (targetActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)'),
+                  color: isQuotaExceeded ? '#ef4444' : (targetActive ? '#10b981' : '#f59e0b')
+                }}>
+                  {isQuotaExceeded ? <AlertTriangle size={24} /> : (targetActive ? <CheckCircle2 size={24} /> : <Archive size={24} />)}
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {isQuotaExceeded 
+                      ? 'Kuota Item Aktif Penuh'
+                      : (targetActive ? 'Aktifkan Item ke Katalog?' : 'Arsipkan Item Ini?')}
+                  </h3>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    {item.name}
+                  </span>
+                </div>
+              </div>
+
+              {isQuotaExceeded ? (
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5,
+                  marginBottom: '1.35rem'
+                }}>
+                  Batas item katalog aktif untuk paket <strong>{quota?.plan?.name || 'Anda'}</strong> ({maxActive} item) telah tercapai ({currentActive}/{maxActive} item aktif). Silakan upgrade ke paket Pro atau arsipkan item lain untuk mengaktifkan item ini.
+                </div>
+              ) : (
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: targetActive ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)',
+                  border: targetActive ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5,
+                  marginBottom: '1.35rem'
+                }}>
+                  {targetActive
+                    ? 'Item ini akan kembali ditampilkan di etalase publik dan dapat dilihat maupun dipesan oleh calon pembeli.'
+                    : 'Item ini akan disembunyikan dari etalase toko tanpa menghapus data produk atau foto yang tersimpan.'}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.65rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setArchiveConfirmModal(null)}
+                  style={{
+                    minHeight: '40px',
+                    padding: '0.5rem 1.15rem',
+                    borderRadius: '0.55rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: 'var(--text-secondary)',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Batal
+                </button>
+
+                {isQuotaExceeded ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setArchiveConfirmModal(null);
+                      setIsSubModalOpen(true);
+                    }}
+                    style={{
+                      minHeight: '40px',
+                      padding: '0.5rem 1.25rem',
+                      borderRadius: '0.55rem',
+                      border: 'none',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Upgrade Paket
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleConfirmArchiveToggle}
+                    style={{
+                      minHeight: '40px',
+                      padding: '0.5rem 1.25rem',
+                      borderRadius: '0.55rem',
+                      border: 'none',
+                      backgroundColor: targetActive ? '#10b981' : '#f59e0b',
+                      color: '#ffffff',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {targetActive ? 'Ya, Aktifkan' : 'Ya, Arsipkan'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  )}
 
         {/* ===================================================================
-            TAB 2: KATEGORI ETALASE (Two-Tier Master Data Hub - Master-Detail Split View)
+            TAB 2: KATEGORI ETALASE (Category Taxonomy Manager - Desktop Parity)
             =================================================================== */}
         {activeTab === 'categories' && (() => {
-          const activeTypeDef = MASTER_CATEGORY_DEFINITIONS.find(t => t.id === masterCategoryContextTab) || MASTER_CATEGORY_DEFINITIONS[0];
-          const ActiveTypeIcon = activeTypeDef.icon;
           const activeCategories = getCategoryOptionsForType(masterCategoryContextTab);
           const defaultList = DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || [];
           const systemCategories = activeCategories.filter(c => defaultList.includes(c));
           const customCategories = activeCategories.filter(c => !defaultList.includes(c));
+          const defaultCount = systemCategories.length;
+          const customCount = customCategories.length;
+          const activeTypeDef = MASTER_CATEGORY_DEFINITIONS.find(t => t.id === masterCategoryContextTab) || MASTER_CATEGORY_DEFINITIONS[0];
+          const ActiveTypeIcon = activeTypeDef.icon;
 
           return (
-            <TabletMasterDetailView
-              title="Master Kategori Etalase"
-              subtitle="Kelola taksonomi kategori etalase per format spesialisasi katalog"
-              selectedId={masterCategoryContextTab}
-              onClearSelection={() => {}}
-              masterPane={
-                <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', overflowY: 'auto' }}>
-                  <div style={{ padding: '0.25rem 0.5rem 0.5rem', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-                    Pilih Tipe Katalog
-                  </div>
-                  {MASTER_CATEGORY_DEFINITIONS.map(tab => {
-                    const isSelected = masterCategoryContextTab === tab.id;
-                    const TabIcon = tab.icon;
-                    const opts = getCategoryOptionsForType(tab.id);
-                    const defaults = DEFAULT_MASTER_CATEGORIES[tab.id] || [];
-                    const customCount = opts.filter(c => !defaults.includes(c)).length;
+            <div style={{
+              height: '100vh',
+              overflowY: 'auto',
+              padding: '1.5rem',
+              maxWidth: '1040px',
+              margin: '0 auto',
+              width: '100%',
+              boxSizing: 'border-box',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem'
+            }}>
+              {/* 1. Header & Stats Card */}
+              <div style={{
+                padding: '1.25rem 1.5rem',
+                borderRadius: '0.85rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                flexWrap: 'wrap',
+                gap: '0.85rem'
+              }}>
+                <div style={{ minWidth: '240px', flex: 1 }}>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Package size={22} style={{ color: 'var(--primary)' }} />
+                    Master Kategori Etalase
+                  </h2>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.35rem 0 0 0', lineHeight: 1.45 }}>
+                    Pilih spesialisasi katalog di bawah untuk mengelola taksonomi etalase toko Anda secara instan tanpa berpindah halaman.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    padding: '0.3rem 0.65rem',
+                    borderRadius: '6px',
+                    backgroundColor: 'var(--bg-deep)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-light)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}>
+                    <Lock size={12} strokeWidth={2.2} /> {defaultCount} Standar Terkunci
+                  </span>
+                  {customCount > 0 && (
+                    <span style={{
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      padding: '0.3rem 0.65rem',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      color: '#10b981',
+                      border: '1px solid rgba(16, 185, 129, 0.25)'
+                    }}>
+                      +{customCount} Kustom
+                    </span>
+                  )}
+                  <span style={{
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    padding: '0.3rem 0.75rem',
+                    borderRadius: '6px',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff'
+                  }}>
+                    Total {activeCategories.length} Kategori
+                  </span>
+                </div>
+              </div>
 
+              {/* 2. Direct Context Switcher Pills (Tablet Ergonomics: Touch Target >= 44px, Instant Type Toggle) */}
+              <div style={{
+                display: 'flex',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                alignItems: 'center'
+              }}>
+                {MASTER_CATEGORY_DEFINITIONS.map(tab => {
+                  const isSelected = masterCategoryContextTab === tab.id;
+                  const TabIcon = tab.icon;
+                  const opts = getCategoryOptionsForType(tab.id);
+
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setMasterCategoryContextTab(tab.id)}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0.45rem 0.95rem',
+                        borderRadius: '0.65rem',
+                        fontSize: '0.82rem',
+                        fontWeight: isSelected ? 800 : 600,
+                        whiteSpace: 'nowrap',
+                        border: isSelected ? `1.5px solid ${tab.color}` : '1px solid var(--border-light)',
+                        backgroundColor: isSelected ? tab.color : 'var(--bg-card)',
+                        color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSelected ? `0 2px 8px ${tab.color}35` : '0 1px 2px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      <TabIcon size={16} color={isSelected ? '#ffffff' : tab.color} />
+                      <span>{tab.label}</span>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        padding: '0.1rem 0.45rem',
+                        borderRadius: '999px',
+                        backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-deep)',
+                        color: isSelected ? '#ffffff' : 'var(--text-secondary)'
+                      }}>
+                        {opts.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 3. Active Type Description Banner */}
+              <div style={{
+                padding: '0.85rem 1.15rem',
+                borderRadius: '0.75rem',
+                backgroundColor: `${activeTypeDef.color}10`,
+                border: `1px solid ${activeTypeDef.color}28`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                fontSize: '0.82rem',
+                color: 'var(--text-secondary)',
+                lineHeight: 1.45
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.5rem',
+                  backgroundColor: `${activeTypeDef.color}20`,
+                  color: activeTypeDef.color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <ActiveTypeIcon size={19} />
+                </div>
+                <div>
+                  <strong style={{ color: 'var(--text-primary)', marginRight: '0.35rem' }}>{activeTypeDef.label}:</strong>
+                  <span>{activeTypeDef.desc}</span>
+                </div>
+              </div>
+
+              {/* 4. Section 1: Kategori Standar Sistem (Tags) */}
+              <div style={{
+                padding: '1.25rem',
+                borderRadius: '0.85rem',
+                backgroundColor: 'var(--bg-deep)',
+                border: '1px solid var(--border-light)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Lock size={14} strokeWidth={2.2} style={{ color: 'var(--text-muted)' }} />
+                    <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
+                      Kategori Standar Sistem
+                    </span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }}>
+                      {defaultCount}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    Standar bawaan ekosistem (terkunci demi konsistensi etalase)
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                  {systemCategories.map(c => {
+                    const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
                     return (
                       <div
-                        key={tab.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setMasterCategoryContextTab(tab.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setMasterCategoryContextTab(tab.id);
-                          }
-                        }}
+                        key={c}
                         style={{
-                          padding: '0.85rem 1rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: isSelected ? `${tab.color}15` : 'var(--bg-card)',
-                          border: isSelected ? `1.5px solid ${tab.color}` : '1px solid var(--border-light)',
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          justifyContent: 'space-between',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
+                          gap: '0.45rem',
+                          padding: '0.45rem 0.85rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '0.84rem',
+                          color: 'var(--text-primary)'
                         }}
+                        title="Kategori bawaan standar sistem yang terkunci"
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <div style={{
-                            width: '38px',
-                            height: '38px',
-                            borderRadius: '0.5rem',
-                            backgroundColor: `${tab.color}20`,
-                            color: tab.color,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}>
-                            <TabIcon size={19} />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: isSelected ? 800 : 600, color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                              {tab.label}
-                            </div>
-                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                              {opts.length} Kategori
-                            </div>
-                          </div>
-                        </div>
-
-                        {customCount > 0 && (
+                        <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <span style={{ fontWeight: 500 }}>{c}</span>
+                        {count > 0 && (
                           <span style={{
-                            fontSize: '0.68rem',
+                            fontSize: '0.7rem',
                             fontWeight: 700,
-                            padding: '0.12rem 0.45rem',
+                            padding: '0.1rem 0.45rem',
                             borderRadius: '999px',
-                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                            color: '#10b981'
+                            backgroundColor: 'var(--bg-deep)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-light)'
                           }}>
-                            +{customCount} Kustom
+                            {count} item
                           </span>
                         )}
                       </div>
                     );
                   })}
                 </div>
-              }
-              detailPane={
-                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
-                  {/* Context Header Card */}
+              </div>
+
+              {/* 5. Section 2: Kategori Kustom Anda (Tags) */}
+              <div style={{
+                padding: '1.25rem',
+                borderRadius: '0.85rem',
+                backgroundColor: customCategories.length > 0 ? 'rgba(16, 185, 129, 0.03)' : 'var(--bg-deep)',
+                border: customCategories.length > 0 ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-light)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Tag size={15} style={{ color: 'var(--primary)' }} />
+                    <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--primary)' }}>
+                      Kategori Kustom Anda
+                    </span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.1rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                      {customCount}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    Dapat diubah nama atau dihapus kapan saja
+                  </span>
+                </div>
+
+                {customCategories.length === 0 ? (
                   <div style={{
-                    padding: '1.25rem 1.5rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: `${activeTypeDef.color}10`,
-                    border: `1px solid ${activeTypeDef.color}30`,
+                    padding: '1rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px dashed var(--border-light)',
+                    fontSize: '0.82rem',
+                    color: 'var(--text-muted)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '1rem'
+                    gap: '0.5rem'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                      <div style={{
-                        width: '46px',
-                        height: '46px',
-                        borderRadius: '0.75rem',
-                        backgroundColor: `${activeTypeDef.color}25`,
-                        color: activeTypeDef.color,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        <ActiveTypeIcon size={24} />
-                      </div>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                          {activeTypeDef.label}
-                        </h3>
-                        <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          {activeTypeDef.desc}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                      <span style={{
-                        fontSize: '0.74rem',
-                        fontWeight: 700,
-                        padding: '0.25rem 0.65rem',
-                        borderRadius: '6px',
-                        backgroundColor: 'var(--bg-card)',
-                        color: 'var(--text-secondary)',
-                        border: '1px solid var(--border-light)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem'
-                      }}>
-                        <Lock size={12} strokeWidth={2.2} /> {systemCategories.length} Standar
-                      </span>
-                      {customCategories.length > 0 && (
-                        <span style={{
-                          fontSize: '0.74rem',
-                          fontWeight: 700,
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '6px',
-                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                          color: '#10b981',
-                          border: '1px solid rgba(16, 185, 129, 0.3)'
-                        }}>
-                          +{customCategories.length} Kustom
-                        </span>
-                      )}
-                      <span style={{
-                        fontSize: '0.74rem',
-                        fontWeight: 800,
-                        padding: '0.25rem 0.65rem',
-                        borderRadius: '6px',
-                        backgroundColor: 'var(--primary)',
-                        color: '#ffffff'
-                      }}>
-                        Total {activeCategories.length} Kategori
-                      </span>
-                    </div>
+                    <Tag size={15} style={{ opacity: 0.5 }} />
+                    <span>Belum ada kategori kustom untuk <strong>{activeTypeDef.label}</strong>. Tambahkan melalui kolom di bawah.</span>
                   </div>
-
-                  {/* Section 1: Kategori Standar Sistem */}
-                  <div style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <Lock size={14} strokeWidth={2.2} style={{ color: 'var(--text-muted)' }} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
-                          Kategori Standar Sistem
-                        </span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }}>
-                          {systemCategories.length}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        Standar bawaan ekosistem (terkunci demi konsistensi etalase)
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
-                      {systemCategories.map(c => {
-                        const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
-                        return (
-                          <div
-                            key={c}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              padding: '0.45rem 0.85rem',
-                              borderRadius: '0.55rem',
-                              backgroundColor: 'var(--bg-card)',
-                              border: '1px solid var(--border-light)',
-                              fontSize: '0.84rem',
-                              color: 'var(--text-primary)'
-                            }}
-                            title="Kategori bawaan standar sistem yang terkunci"
-                          >
-                            <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                            <span style={{ fontWeight: 500 }}>{c}</span>
-                            {count > 0 && (
-                              <span style={{
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                padding: '0.1rem 0.45rem',
-                                borderRadius: '999px',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-secondary)',
-                                border: '1px solid var(--border-light)'
-                              }}>
-                                {count} item
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Section 2: Kategori Kustom Anda */}
-                  <div style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: customCategories.length > 0 ? 'rgba(16, 185, 129, 0.03)' : 'var(--bg-deep)',
-                    border: customCategories.length > 0 ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-light)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <Tag size={15} style={{ color: 'var(--primary)' }} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--primary)' }}>
-                          Kategori Kustom Anda
-                        </span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.1rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
-                          {customCategories.length}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                        Dapat diubah nama atau dihapus kapan saja
-                      </span>
-                    </div>
-
-                    {customCategories.length === 0 ? (
-                      <div style={{
-                        padding: '1rem',
-                        borderRadius: '0.55rem',
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px dashed var(--border-light)',
-                        fontSize: '0.82rem',
-                        color: 'var(--text-muted)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                      }}>
-                        <Tag size={15} style={{ opacity: 0.5 }} />
-                        <span>Belum ada kategori kustom untuk <strong>{activeTypeDef.label}</strong>. Tambahkan melalui kolom di bawah.</span>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
-                        {customCategories.map(c => {
-                          const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
-                          return (
-                            <div
-                              key={c}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.45rem',
-                                padding: '0.4rem 0.55rem 0.4rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid rgba(16, 185, 129, 0.3)',
-                                fontSize: '0.84rem',
-                                color: 'var(--text-primary)'
-                              }}
-                            >
-                              <Tag size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                              <span style={{ fontWeight: 600 }}>{c}</span>
-                              {count > 0 && (
-                                <span style={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 700,
-                                  padding: '0.1rem 0.45rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                                  color: '#10b981'
-                                }}>
-                                  {count} item
-                                </span>
-                              )}
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setRenameMasterModalData({
-                                    field: 'class',
-                                    fieldLabel: `Kategori (${activeTypeDef.label})`,
-                                    oldValue: c,
-                                    newValue: c,
-                                    productType: masterCategoryContextTab
-                                  })}
-                                  style={{
-                                    width: '26px',
-                                    height: '26px',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--border-light)',
-                                    backgroundColor: 'transparent',
-                                    color: 'var(--text-secondary)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer'
-                                  }}
-                                  title={`Ubah nama kategori "${c}"`}
-                                >
-                                  <Edit3 size={13} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenDeleteMasterOption(c, masterCategoryContextTab)}
-                                  style={{
-                                    width: '26px',
-                                    height: '26px',
-                                    borderRadius: '4px',
-                                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                                    color: '#ef4444',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer'
-                                  }}
-                                  title={`Hapus kategori "${c}"`}
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Section 3: Add Custom Category Form */}
-                  <div style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-light)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem'
-                  }}>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      Tambah Kategori Kustom Baru ({activeTypeDef.label})
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                      <div style={{ position: 'relative', flex: 1 }}>
-                        <input
-                          type="text"
-                          placeholder={`Ketik nama kategori baru untuk ${activeTypeDef.label}... (tekan Enter untuk menyimpan)`}
-                          value={newCustomCategoryInput}
-                          onChange={(e) => setNewCustomCategoryInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput);
-                            }
-                          }}
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                    {customCategories.map(c => {
+                      const count = products.filter(p => (p.product_type || 'physical') === masterCategoryContextTab && p.class === c).length;
+                      return (
+                        <div
+                          key={c}
                           style={{
-                            width: '100%',
-                            minHeight: '42px',
-                            padding: '0.55rem 0.85rem 0.55rem 2.25rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            padding: '0.4rem 0.55rem 0.4rem 0.85rem',
                             borderRadius: '0.55rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
+                            backgroundColor: 'var(--bg-card)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            fontSize: '0.84rem',
+                            color: 'var(--text-primary)'
                           }}
-                        />
-                        <Plus size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                      </div>
-                      <button
-                        type="button"
-                        disabled={saving || !newCustomCategoryInput.trim()}
-                        onClick={() => handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput)}
-                        style={{
-                          minHeight: '42px',
-                          padding: '0 1.25rem',
-                          borderRadius: '0.55rem',
-                          backgroundColor: 'var(--primary)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontWeight: 700,
-                          fontSize: '0.84rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          cursor: saving || !newCustomCategoryInput.trim() ? 'not-allowed' : 'pointer',
-                          opacity: saving || !newCustomCategoryInput.trim() ? 0.6 : 1,
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        <Plus size={16} />
-                        <span>Tambah Kategori</span>
-                      </button>
-                    </div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Sparkles size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                      <span>Kategori yang Anda tambahkan di sini akan langsung tersedia di formulir input produk <strong>{activeTypeDef.label}</strong>.</span>
-                    </div>
+                        >
+                          <Tag size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 600 }}>{c}</span>
+                          {count > 0 && (
+                            <span style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '999px',
+                              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                              color: '#10b981'
+                            }}>
+                              {count} item
+                            </span>
+                          )}
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)' }}>
+                            <button
+                              type="button"
+                              onClick={() => setRenameMasterModalData({
+                                field: 'class',
+                                fieldLabel: `Kategori (${activeTypeDef.label})`,
+                                oldValue: c,
+                                newValue: c,
+                                productType: masterCategoryContextTab
+                              })}
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '4px',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'transparent',
+                                color: 'var(--text-secondary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer'
+                              }}
+                              title={`Ubah nama kategori "${c}"`}
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeleteMasterOption(c, masterCategoryContextTab)}
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '4px',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                color: '#ef4444',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer'
+                              }}
+                              title={`Hapus kategori "${c}"`}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+                )}
+              </div>
+
+              {/* 6. Section 3: Add Custom Category Form */}
+              <div style={{
+                padding: '1.25rem',
+                borderRadius: '0.85rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Tambah Kategori Kustom Baru ({activeTypeDef.label})
                 </div>
-              }
-            />
+                <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+                    <input
+                      type="text"
+                      placeholder={`Ketik nama kategori baru untuk ${activeTypeDef.label}... (tekan Enter untuk menyimpan)`}
+                      value={newCustomCategoryInput}
+                      onChange={(e) => setNewCustomCategoryInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput);
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        minHeight: '44px',
+                        padding: '0.55rem 0.85rem 0.55rem 2.25rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.88rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <Plus size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={saving || !newCustomCategoryInput.trim()}
+                    onClick={() => handleAddMasterOption(newCustomCategoryInput, masterCategoryContextTab, setNewCustomCategoryInput)}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0 1.25rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '0.84rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: saving || !newCustomCategoryInput.trim() ? 'not-allowed' : 'pointer',
+                      opacity: saving || !newCustomCategoryInput.trim() ? 0.6 : 1,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Plus size={16} />
+                    <span>Tambah Kategori</span>
+                  </button>
+                </div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Sparkles size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                  <span>Kategori yang Anda tambahkan di sini akan langsung tersedia di formulir input produk <strong>{activeTypeDef.label}</strong>.</span>
+                </div>
+              </div>
+
+              {/* 7. Subtle Best Practice Callout */}
+              <div style={{
+                padding: '0.9rem 1.15rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem'
+              }}>
+                <Info size={17} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>Standar Taksonomi Modern:</strong> Master Data katalog difokuskan penuh pada <strong style={{ color: 'var(--text-primary)' }}>Kategori Etalase</strong> di atas. Bidang operasional seperti <strong style={{ color: 'var(--text-primary)' }}>Status Ketersediaan</strong> (<em>Tersedia, Pre-Order, Koleksi, Habis</em>) dan <strong style={{ color: 'var(--text-primary)' }}>Ketentuan Pengiriman</strong> telah distandarisasi langsung pada formulir produk dan filter pencarian katalog.
+                </div>
+              </div>
+            </div>
           );
         })()}
 
@@ -6879,878 +8432,244 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               )}
             </div>
 
-            {/* Tablet Subscription Modal Mount */}
-            <TabletSubscriptionModal
-              isOpen={isSubModalOpen}
-              onClose={() => setIsSubModalOpen(false)}
-              token={token}
-              storeSlug={storeSlug}
-              currentQuota={quota}
-              onSuccessUpgrade={() => {
-                fetchQuota();
-                fetchSubscriptionOrders();
-              }}
-              showToast={showToast}
-              onLogout={onLogout}
-              onUnauthorized={onUnauthorized}
-            />
           </div>
         )}
 
         {/* ===================================================================
-            TAB 5: PENGATURAN KATALOG (Settings dengan Tema Dinamis)
+            TAB 5: PENGATURAN KATALOG (Settings dengan Tema Dinamis & Parity Desktop)
             =================================================================== */}
         {activeTab === 'settings' && (
-          <div style={{
-            height: '100vh',
-            overflowY: 'auto',
-            padding: '2rem',
-            maxWidth: '960px',
-            margin: '0 auto',
-            width: '100%',
-            boxSizing: 'border-box'
-          }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-              Pengaturan Profil & Etalase Toko
-            </h2>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-              Kelola identitas usaha, kontak pemesanan, jam kerja, serta tema tampilan dinamis katalog Anda.
-            </p>
-
-            {/* Settings Sub-Tab Pills */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem', overflowX: 'auto' }}>
-              {[
-                { key: 'general', label: 'Umum & Tema' },
-                { key: 'contact', label: 'Kontak & Medsos' },
-                { key: 'about', label: 'Tentang & Jam Buka' },
-                { key: 'domain', label: 'Custom Domain' },
-                { key: 'danger', label: 'Cadangan & Data' }
-              ].map(st => (
-                <button
-                  key={st.key}
-                  type="button"
-                  onClick={() => setSettingsTab(st.key as any)}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.5rem',
-                    border: '1px solid',
-                    borderColor: settingsTab === st.key ? 'var(--primary)' : 'var(--border-light)',
-                    backgroundColor: settingsTab === st.key ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                    color: settingsTab === st.key ? 'var(--primary)' : 'var(--text-secondary)',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {st.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Hidden file inputs for Branding Uploads */}
-            <input
-              type="file"
-              ref={logoInputRef}
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const url = await handleUploadImage(file, 'branding');
-                  if (url) {
-                    setStoreSettings(prev => ({ ...prev, logo_url: url }));
-                  }
-                }
-              }}
-            />
-            <input
-              type="file"
-              ref={bannerInputRef}
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const url = await handleUploadImage(file, 'branding');
-                  if (url) {
-                    setStoreSettings(prev => ({ ...prev, banner_url: url }));
-                  }
-                }
-              }}
-            />
-
-            {settingsTab === 'domain' ? (
-              <div style={{
-                backgroundColor: 'var(--bg-card)',
-                padding: '1.75rem',
-                borderRadius: '1rem',
-                border: '1px solid var(--border-light)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.5rem'
-              }}>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.35rem 0' }}>
-                    Hubungkan Domain Sendiri (Custom Domain)
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-                    Arahkan nama domain pribadi Anda (misal: <code>katalog.tokosaya.com</code>) langsung ke etalase digital Catavor.
-                  </p>
-                </div>
-
-                {quota && !quota.plan?.has_custom_domain && (
-                  <div style={{
-                    padding: '1rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '1rem'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <AlertCircle size={22} color="#f59e0b" />
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                        Fitur <strong>Custom Domain</strong> membutuhkan paket <strong>Pro</strong> atau <strong>Enterprise</strong>.
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsSubModalOpen(true)}
-                      style={{
-                        padding: '0.45rem 0.95rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: '#f59e0b',
-                        color: '#ffffff',
-                        border: 'none',
-                        fontWeight: 700,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Upgrade Paket
-                    </button>
-                  </div>
-                )}
-
-                <form onSubmit={handleSaveCustomDomain} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                      Nama Domain Kustom
-                    </label>
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      <input
-                        type="text"
-                        value={storeSettings.custom_domain}
-                        onChange={(e) => setStoreSettings({ ...storeSettings, custom_domain: e.target.value })}
-                        placeholder="contoh: katalog.namabrand.com"
-                        style={{
-                          flex: 1,
-                          padding: '0.75rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      />
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        style={{
-                          minHeight: '44px',
-                          padding: '0.65rem 1.25rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--primary)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontWeight: 700,
-                          fontSize: '0.88rem',
-                          cursor: saving ? 'not-allowed' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem'
-                        }}
-                      >
-                        <Globe size={16} />
-                        Simpan Domain
-                      </button>
-                    </div>
-                  </div>
-
-                  <div style={{ padding: '1.25rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                    <h4 style={{ fontSize: '0.92rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>
-                      Panduan Konfigurasi DNS di Registrar Domain Anda
-                    </h4>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 0.75rem 0' }}>
-                      Buka panel DNS (Cloudflare, Niagahoster, Domainesia, dsb.) dan tambahkan DNS Record berikut:
-                    </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', fontSize: '0.82rem' }}>
-                      <div style={{ padding: '0.65rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>TIPE RECORD</div>
-                        <div style={{ fontWeight: 800 }}>CNAME</div>
-                      </div>
-                      <div style={{ padding: '0.65rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>NAMA / HOST</div>
-                        <div style={{ fontWeight: 800 }}>katalog (atau subdomain Anda)</div>
-                      </div>
-                      <div style={{ padding: '0.65rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>TARGET / NILAI</div>
-                        <div style={{ fontWeight: 800 }}>cname.catavor.com</div>
-                      </div>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            ) : settingsTab === 'danger' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                {/* Backup & Export Card */}
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  padding: '1.75rem',
-                  borderRadius: '1rem',
-                  border: '1px solid var(--border-light)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.35rem 0' }}>
-                        Cadangkan Seluruh Data Katalog (JSON)
-                      </h3>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, maxWidth: '580px', lineHeight: 1.45 }}>
-                        Unduh salinan arsip lengkap profil toko, daftar seluruh produk, varian harga, kategori, dan kontak resmi dalam satu berkas terstruktur.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleExportCatalogJSON}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0.65rem 1.25rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-primary)',
-                        fontWeight: 700,
-                        fontSize: '0.88rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <HardDrive size={16} color="var(--primary)" />
-                      Unduh Backup JSON
-                    </button>
-                  </div>
-                </div>
-
-                {/* Status Operasional */}
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  padding: '1.75rem',
-                  borderRadius: '1rem',
-                  border: '1px solid var(--border-light)'
-                }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                    Status Visibilitas Toko
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 1rem 0', lineHeight: 1.45 }}>
-                    Katalog Anda saat ini berstatus <strong>{storeSettings.is_paused ? 'Ditangguhkan' : 'Publik & Aktif'}</strong> dan dapat diakses publik di alamat <code>/{storeSlug}</code>.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => onViewPublicCatalog()}
-                    style={{
-                      padding: '0.55rem 1.15rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: 'rgba(30, 58, 138, 0.1)',
-                      border: '1px solid var(--border-light)',
-                      color: 'var(--primary)',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <ExternalLink size={15} />
-                    Buka Etalase Publik
-                  </button>
-                </div>
-
-                {/* Penutupan Akun & Katalog Link */}
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  padding: '1.75rem',
-                  borderRadius: '1rem',
-                  border: '1px solid var(--border-light)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '1.25rem',
-                  flexWrap: 'wrap'
-                }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                      <div style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--text-secondary)'
-                      }}>
-                        <FolderMinus size={17} />
-                      </div>
-                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                        Penutupan Akun &amp; Katalog
-                      </h3>
-                    </div>
-                    <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, maxWidth: '600px', lineHeight: 1.45 }}>
-                      Hapus profil katalog yang sudah tidak aktif atau ajukan penutupan akun pengelola secara permanen dengan verifikasi kata sandi.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('profile');
-                      setProfileSubTab('danger');
-                    }}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0.65rem 1.25rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)',
-                      color: 'var(--text-primary)',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <FolderMinus size={15} />
-                    <span>Kelola Penutupan</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSaveSettings} style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.25rem',
-                backgroundColor: 'var(--bg-card)',
-                padding: '1.75rem',
-                borderRadius: '1rem',
-                border: '1px solid var(--border-light)'
-              }}>
-                {settingsTab === 'general' && (
-                  <>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Nama Toko / Usaha
-                        </label>
-                        <input
-                          type="text"
-                          value={storeSettings.name}
-                          onChange={(e) => setStoreSettings({ ...storeSettings, name: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Slogan Toko
-                        </label>
-                        <input
-                          type="text"
-                          value={storeSettings.slogan}
-                          onChange={(e) => setStoreSettings({ ...storeSettings, slogan: e.target.value })}
-                          placeholder="Contoh: Kualitas Terbaik Terpercaya"
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-
-                      {/* LOGO FIELD WITH UPLOAD BUTTON */}
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                          <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                            Logo Toko
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => logoInputRef.current?.click()}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              padding: '0.2rem 0.6rem',
-                              borderRadius: '0.4rem',
-                              backgroundColor: 'rgba(30, 58, 138, 0.1)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--primary)',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <Upload size={13} />
-                            Unggah Foto Logo
-                          </button>
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                          {storeSettings.logo_url && (
-                            <img
-                              src={storeSettings.logo_url}
-                              alt="Logo Preview"
-                              style={{ width: '40px', height: '40px', borderRadius: '0.5rem', objectFit: 'cover', border: '1px solid var(--border-light)' }}
-                            />
-                          )}
-                          <input
-                            type="text"
-                            value={storeSettings.logo_url}
-                            onChange={(e) => setStoreSettings({ ...storeSettings, logo_url: e.target.value })}
-                            placeholder="https://... atau unggah foto"
-                            style={{
-                              flex: 1,
-                              padding: '0.75rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.88rem',
-                              outline: 'none'
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* BANNER FIELD WITH UPLOAD BUTTON */}
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                          <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                            Banner Sampul Toko
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => bannerInputRef.current?.click()}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              padding: '0.2rem 0.6rem',
-                              borderRadius: '0.4rem',
-                              backgroundColor: 'rgba(30, 58, 138, 0.1)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--primary)',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <Upload size={13} />
-                            Unggah Foto Sampul
-                          </button>
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                          {storeSettings.banner_url && (
-                            <img
-                              src={storeSettings.banner_url}
-                              alt="Banner Preview"
-                              style={{ width: '64px', height: '40px', borderRadius: '0.5rem', objectFit: 'cover', border: '1px solid var(--border-light)' }}
-                            />
-                          )}
-                          <input
-                            type="text"
-                            value={storeSettings.banner_url}
-                            onChange={(e) => setStoreSettings({ ...storeSettings, banner_url: e.target.value })}
-                            placeholder="https://... atau unggah foto"
-                            style={{
-                              flex: 1,
-                              padding: '0.75rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.88rem',
-                              outline: 'none'
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* DYNAMIC STORE THEME SELECTOR */}
-                    <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <Palette size={18} color="var(--primary)" />
-                        <label style={{ fontSize: '0.9rem', fontWeight: 700 }}>
-                          Pilihan Tema Tampilan Dinamis Toko
-                        </label>
-                      </div>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                        Tema ini mengatur warna aksen, kartu, dan suasana visual pada halaman katalog publik Anda.
-                      </p>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
-                        {availableThemes.map(th => {
-                          const isSelected = storeSettings.store_theme === th.id;
-                          return (
-                            <div
-                              key={th.id}
-                              onClick={() => {
-                                setStoreSettings({ ...storeSettings, store_theme: th.id });
-                                if (onThemeChange) onThemeChange(th.id);
-                              }}
-                              style={{
-                                padding: '0.85rem',
-                                borderRadius: '0.65rem',
-                                backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-deep)',
-                                border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.5rem',
-                                transition: 'all 0.15s ease'
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: th.color, border: '2px solid #ffffff' }} />
-                                {isSelected && <Check size={16} color="var(--primary)" />}
-                              </div>
-                              <div>
-                                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{th.name}</div>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.3, marginTop: '0.2rem' }}>{th.desc}</div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {settingsTab === 'contact' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Nomor WhatsApp Resmi Pemesanan *
-                      </label>
-                      <input
-                        type="text"
-                        value={storeSettings.whatsapp_number}
-                        onChange={(e) => setStoreSettings({ ...storeSettings, whatsapp_number: e.target.value })}
-                        placeholder="0812xxxxxxxx"
-                        style={{
-                          width: '100%',
-                          maxWidth: '450px',
-                          padding: '0.75rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none'
-                        }}
-                      />
-                      <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                        Pastikan nomor ini aktif dan terhubung ke aplikasi WhatsApp Bisnis Anda.
-                      </p>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Username Instagram Toko
-                        </label>
-                        <input
-                          type="text"
-                          value={storeSettings.instagram}
-                          onChange={(e) => setStoreSettings({ ...storeSettings, instagram: e.target.value })}
-                          placeholder="@nama_toko"
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Tautan Website Resmi (Opsional)
-                        </label>
-                        <input
-                          type="text"
-                          value={storeSettings.official_website}
-                          onChange={(e) => setStoreSettings({ ...storeSettings, official_website: e.target.value })}
-                          placeholder="https://brandanda.com"
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {settingsTab === 'about' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', alignItems: 'center' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                          Jam Buka & Operasional
-                        </label>
-                        <input
-                          type="text"
-                          value={storeSettings.operating_hours}
-                          onChange={(e) => setStoreSettings({ ...storeSettings, operating_hours: e.target.value })}
-                          placeholder="Contoh: Setiap Hari: 08:00 - 21:00 WIB"
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-
-                      <div style={{ paddingTop: '1.4rem' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={storeSettings.show_hours}
-                            onChange={(e) => setStoreSettings({ ...storeSettings, show_hours: e.target.checked })}
-                            style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
-                          />
-                          Tampilkan Jam di Katalog
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Alamat Lengkap / Lokasi Operasional
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={storeSettings.address}
-                        onChange={(e) => setStoreSettings({ ...storeSettings, address: e.target.value })}
-                        placeholder="Nama jalan, kelurahan, kecamatan, kota..."
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none',
-                          resize: 'none'
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                        Profil Komitmen Layanan & Garansi
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={storeSettings.service_commitment}
-                        onChange={(e) => setStoreSettings({ ...storeSettings, service_commitment: e.target.value })}
-                        placeholder="Komitmen toko terhadap kepuasan, garansi, keaslian barang..."
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.88rem',
-                          outline: 'none',
-                          resize: 'none'
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0.75rem 1.75rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--primary)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.92rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      cursor: saving ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    <Save size={18} />
-                    {saving ? 'Menyimpan...' : 'Perbarui Pengaturan Toko'}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
+          <TabletStoreSettingsView
+            storeSlug={storeSlug}
+            token={token}
+            quota={quota}
+            onThemeChange={(newTheme) => {
+              if (onThemeChange) onThemeChange(newTheme);
+              setStoreSettings(prev => ({ ...prev, store_theme: newTheme }));
+            }}
+            showToast={showToast}
+            onOpenSubscriptionModal={() => setIsSubModalOpen(true)}
+            onViewPublicCatalog={onViewPublicCatalog}
+            onUnauthorized={onUnauthorized}
+            onSlugChanged={(_newSlug) => {
+              fetchStoreProfile();
+            }}
+            handleUploadImage={handleUploadImage}
+          />
         )}
 
         {/* ===================================================================
             TAB 6: AKUN & KEAMANAN (Profile, Password, Sessions, Danger Zone)
             =================================================================== */}
         {activeTab === 'profile' && (
-          <div style={{ padding: '1.75rem 2rem', maxWidth: '1040px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Akun &amp; Keamanan Pengelola
-                </h2>
-                <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
-                  Pusat kendali identitas akun, kredensial login, sesi perangkat terhubung, dan tata kelola akun.
-                </p>
-              </div>
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.35rem 0.75rem',
-                borderRadius: '999px',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.25)',
-                color: '#10b981',
-                fontSize: '0.75rem',
-                fontWeight: 700
-              }}>
-                <ShieldCheck size={14} />
-                <span>Proteksi Keamanan Aktif</span>
-              </div>
-            </div>
-
-            {/* Segmented Sub-Tab Switcher Pills */}
+          <div style={{
+            flex: 1,
+            minHeight: 0,
+            height: '100%',
+            maxHeight: '100%',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
             <div style={{
-              display: 'flex',
-              gap: '0.5rem',
-              padding: '0.35rem',
-              backgroundColor: 'var(--bg-deep)',
-              borderRadius: '0.75rem',
-              border: '1px solid var(--border-light)',
-              marginBottom: '1.5rem',
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch'
+              maxWidth: '1040px',
+              margin: '0 auto',
+              padding: '1.75rem 2rem 8rem 2rem',
+              width: '100%',
+              boxSizing: 'border-box'
             }}>
-              {[
-                { id: 'info', label: 'Profil & Kredensial', icon: UserCheck },
-                { id: 'devices', label: 'Sesi & Perangkat Terhubung', icon: Smartphone },
-                { id: 'audit_logs', label: 'Jejak Audit & Log', icon: History },
-                { id: 'danger', label: 'Penutupan Akun & Katalog', icon: FolderMinus }
-              ].map(tab => {
-                const Icon = tab.icon;
-                const isActive = profileSubTab === tab.id;
-                return (
+            {/* Segmented Control Header with Guaranteed Consistent Tab Bar Position (Desktop Parity with Tablet Ergonomics) */}
+            <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
+              {/* Top Row: Page Title on the Left, Tabs on the Right - Responsive single-line or clean tablet wrap */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                    <ShieldCheck size={20} />
+                  </div>
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                    Akun &amp; Keamanan
+                  </h2>
+                </div>
+
+                {/* Segmented SubTab Pills - Posisi selalu konsisten & tidak terpengaruh panjang/pendek deskripsi */}
+                <div style={{
+                  display: 'flex',
+                  gap: '0.45rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  padding: '0.3rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid var(--border-light)',
+                  flexWrap: 'nowrap',
+                  overflowX: 'auto',
+                  maxWidth: '100%',
+                  WebkitOverflowScrolling: 'touch',
+                  flexShrink: 0
+                }}>
                   <button
-                    key={tab.id}
                     type="button"
-                    onClick={() => setProfileSubTab(tab.id as any)}
+                    onClick={() => setProfileSubTab('info')}
                     style={{
                       minHeight: '44px',
                       padding: '0.5rem 1.15rem',
                       borderRadius: '0.55rem',
-                      border: '1px solid',
-                      borderColor: isActive ? 'var(--primary)' : 'transparent',
-                      backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-                      color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                      fontWeight: isActive ? 800 : 600,
-                      fontSize: '0.84rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
                       cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      border: profileSubTab === 'info' ? '1px solid var(--primary)' : '1px solid transparent',
+                      backgroundColor: profileSubTab === 'info' ? 'var(--primary)' : 'transparent',
+                      color: profileSubTab === 'info' ? '#ffffff' : 'var(--text-secondary)',
+                      boxShadow: profileSubTab === 'info' ? '0 2px 8px var(--primary-glow)' : 'none',
                       whiteSpace: 'nowrap',
-                      transition: 'all 0.15s ease',
-                      boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none'
+                      transition: 'all 0.2s ease'
                     }}
                   >
-                    <Icon size={16} />
-                    <span>{tab.label}</span>
+                    <UserCheck size={15} />
+                    <span>Profil Pengguna</span>
                   </button>
-                );
-              })}
+
+                  <button
+                    type="button"
+                    onClick={() => setProfileSubTab('devices')}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.5rem 1.15rem',
+                      borderRadius: '0.55rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      border: (profileSubTab === 'devices' || (profileSubTab as string) === 'security') ? '1px solid var(--primary)' : '1px solid transparent',
+                      backgroundColor: (profileSubTab === 'devices' || (profileSubTab as string) === 'security') ? 'var(--primary)' : 'transparent',
+                      color: (profileSubTab === 'devices' || (profileSubTab as string) === 'security') ? '#ffffff' : 'var(--text-secondary)',
+                      boxShadow: (profileSubTab === 'devices' || (profileSubTab as string) === 'security') ? '0 2px 8px var(--primary-glow)' : 'none',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <Smartphone size={15} />
+                    <span>Sesi &amp; Perangkat</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setProfileSubTab('audit_logs')}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.5rem 1.15rem',
+                      borderRadius: '0.55rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      border: (profileSubTab === 'audit_logs' || (profileSubTab as string) === 'logs') ? '1px solid var(--primary)' : '1px solid transparent',
+                      backgroundColor: (profileSubTab === 'audit_logs' || (profileSubTab as string) === 'logs') ? 'var(--primary)' : 'transparent',
+                      color: (profileSubTab === 'audit_logs' || (profileSubTab as string) === 'logs') ? '#ffffff' : 'var(--text-secondary)',
+                      boxShadow: (profileSubTab === 'audit_logs' || (profileSubTab as string) === 'logs') ? '0 2px 8px var(--primary-glow)' : 'none',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <History size={15} />
+                    <span>Riwayat Log &amp; Audit</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setProfileSubTab('danger')}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.5rem 1.15rem',
+                      borderRadius: '0.55rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      border: profileSubTab === 'danger' ? '1px solid var(--border-light)' : '1px solid transparent',
+                      backgroundColor: profileSubTab === 'danger' ? 'var(--bg-card, rgba(255,255,255,0.06))' : 'transparent',
+                      color: profileSubTab === 'danger' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      boxShadow: profileSubTab === 'danger' ? 'var(--shadow-sm)' : 'none',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <FolderMinus size={15} />
+                    <span>Penutupan Akun &amp; Katalog</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Dedicated Description Row: Ditempatkan di bawah baris judul & tab dengan min-height stabil */}
+              <div style={{ minHeight: '38px', display: 'flex', alignItems: 'center' }}>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--text-primary)', marginRight: '0.35rem' }}>
+                    {profileSubTab === 'info'
+                      ? 'Profil Pengelola Katalog:'
+                      : (profileSubTab === 'devices' || (profileSubTab as string) === 'security')
+                        ? 'Keamanan & Sesi Perangkat:'
+                        : profileSubTab === 'danger'
+                          ? 'Penutupan Akun & Katalog:'
+                          : 'Riwayat Aktivitas & Log Audit:'}
+                  </strong>
+                  {profileSubTab === 'info' 
+                    ? 'Kelola identitas akun pengelola katalog Anda dan perbarui nama profil tampilan.' 
+                    : (profileSubTab === 'devices' || (profileSubTab as string) === 'security')
+                      ? 'Pantau semua perangkat komputer dan smartphone yang sedang aktif terhubung ke akun Anda.'
+                      : profileSubTab === 'danger'
+                        ? 'Opsi lanjutan untuk menghapus profil katalog aktif atau mengajukan penutupan akun pengguna permanen.'
+                        : 'Riwayat aktivitas katalog, perubahan harga, password, serta login Anda'}
+                </p>
+              </div>
             </div>
 
-            {/* SUB-TAB 1: PROFIL & KREDENSIAL */}
+            {/* SUB-TAB 1: PROFIL PENGGUNA (Desktop Parity with Tablet Ergonomics) */}
             {profileSubTab === 'info' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                {/* 4-Item Summary Metric Strip */}
+              <div className="glass-panel" style={{
+                maxWidth: '640px',
+                padding: '1.75rem',
+                borderRadius: '1rem',
+                border: '1px solid var(--border-light)',
+                background: 'var(--card-bg-gradient)'
+              }}>
+                {profileSuccess && (
+                  <div className="alert-message alert-success" style={{ marginBottom: '1.25rem' }}>
+                    <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+                    <span>{profileSuccess}</span>
+                  </div>
+                )}
+                {profileError && (
+                  <div className="alert-message alert-error" style={{ marginBottom: '1.25rem' }}>
+                    <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                    <span>{profileError}</span>
+                  </div>
+                )}
+
+                {/* Account Summary Overview Card */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                   gap: '0.85rem',
-                  padding: '1.15rem',
+                  marginBottom: '1.5rem',
+                  padding: '1.1rem',
                   borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card)',
+                  backgroundColor: 'var(--bg-deep)',
                   border: '1px solid var(--border-light)'
                 }}>
                   <div>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Role Akun</span>
                     <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--primary)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <ShieldCheck size={14} />
-                      {(adminUser?.role === 'superadmin' || adminUser?.is_superadmin) ? 'Superadmin Platform' : 'Pengelola Toko (Merchant)'}
+                      <Shield size={14} />
+                      {(adminUser?.role === 'superadmin' || adminUser?.is_superadmin) ? 'Superadmin Platform' : 'Pengelola Katalog (Merchant)'}
                     </div>
                   </div>
 
@@ -7764,203 +8683,360 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   <div>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Status Otentikasi</span>
                     <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <CheckCircle2 size={14} />
+                      <Check size={14} />
                       Aktif &amp; Terverifikasi
-                    </div>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Metode Kredensial</span>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: hasCustomPassword ? '#10b981' : '#2563eb', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Key size={14} />
-                      {hasCustomPassword ? 'Kata Sandi Kustom Aktif' : 'Google SSO Terhubung'}
                     </div>
                   </div>
                 </div>
 
-                {/* 2-Column Grid: Profile Name Form & Password Security Form */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem' }}>
-                  {/* Card 1: Informasi Pengelola & Ubah Nama */}
-                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
-                      <UserCheck size={18} style={{ color: 'var(--primary)' }} />
-                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                        Identitas Profil Pengelola
-                      </h3>
-                    </div>
-
-                    <form onSubmit={handleUpdateProfileName} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
-                          Nama Lengkap Pengelola *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={profileName}
-                          onChange={(e) => setProfileName(e.target.value)}
-                          placeholder="Masukkan nama lengkap Anda..."
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            outline: 'none'
-                          }}
-                        />
-                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0', lineHeight: 1.4 }}>
-                          Nama ini digunakan sebagai identitas resmi pengelola akun di seluruh sistem dan dicatat pada riwayat audit log.
-                        </p>
-                      </div>
-
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                          <label style={{ fontSize: '0.82rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                            Alamat Email Login
-                          </label>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <Lock size={12} /> Terkunci (SSO)
-                          </span>
-                        </div>
-                        <div style={{ position: 'relative' }}>
-                          <input
-                            type="email"
-                            disabled
-                            value={adminUser?.email || currentUser?.email || ''}
-                            style={{
-                              width: '100%',
-                              padding: '0.65rem 2.2rem 0.65rem 0.85rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-secondary)',
-                              fontSize: '0.88rem',
-                              cursor: 'not-allowed',
-                              opacity: 0.85
-                            }}
-                          />
-                          <Lock size={14} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                        </div>
-                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0', lineHeight: 1.4 }}>
-                          Alamat email dikunci demi integritas Single Sign-On (SSO) dan otorisasi kepemilikan katalog.
-                        </p>
-                      </div>
-
-                      <div style={{
-                        padding: '0.75rem 0.85rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'rgba(30, 58, 138, 0.08)',
-                        border: '1px solid rgba(30, 58, 138, 0.2)',
-                        fontSize: '0.76rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: 1.45,
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '0.5rem'
-                      }}>
-                        <ShieldCheck size={16} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
-                        <div>
-                          Identitas akun Anda terproteksi secara terenkripsi. Pembaruan nama profil langsung tersinkronisasi ke seluruh etalase katalog yang Anda kelola.
-                        </div>
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')}
-                        style={{
-                          minHeight: '44px',
-                          padding: '0.6rem 1.25rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--primary)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontWeight: 700,
-                          fontSize: '0.85rem',
-                          cursor: (updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')) ? 'not-allowed' : 'pointer',
-                          opacity: (updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')) ? 0.6 : 1,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.5rem'
-                        }}
-                      >
-                        {updatingProfileName ? (
-                          <>
-                            <RefreshCw size={15} className="animate-spin" />
-                            <span>Menyimpan...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Save size={15} />
-                            <span>Simpan Nama Profil</span>
-                          </>
-                        )}
-                      </button>
-                    </form>
+                {/* Edit Profile Name Form */}
+                <form onSubmit={handleUpdateProfileName} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">
+                      Nama Lengkap Pengelola / Admin *
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-input"
+                      required
+                      placeholder="Nama lengkap Anda..."
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                    />
+                    <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '0.35rem 0 0 0' }}>
+                      Nama ini digunakan sebagai identitas akun pengelola dan ditampilkan pada catatan riwayat log aktivitas.
+                    </p>
                   </div>
 
-                  {/* Card 2: Keamanan Kata Sandi */}
-                  <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {hasCustomPassword ? (
-                          <Lock size={18} style={{ color: 'var(--primary)' }} />
-                        ) : (
-                          <Key size={18} style={{ color: '#2563eb' }} />
-                        )}
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                          {hasCustomPassword ? 'Ubah Kata Sandi Akun' : 'Setel Kata Sandi Cadangan'}
-                        </h3>
-                      </div>
-                      {!hasCustomPassword ? (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          padding: '0.2rem 0.55rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                          color: '#2563eb',
-                          fontSize: '0.72rem',
-                          fontWeight: 700
-                        }}>
-                          <ShieldCheck size={12} />
-                          Google SSO
-                        </span>
-                      ) : (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          padding: '0.2rem 0.55rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                          color: '#10b981',
-                          fontSize: '0.72rem',
-                          fontWeight: 700
-                        }}>
-                          <ShieldCheck size={12} />
-                          Terenkripsi Bcrypt
-                        </span>
-                      )}
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <label className="form-label" style={{ margin: 0 }}>
+                        Alamat Email Login Terdaftar
+                      </label>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Lock size={12} /> Terkunci
+                      </span>
                     </div>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        type="email" 
+                        className="form-input"
+                        disabled
+                        value={adminUser?.email || currentUser?.email || ''}
+                        style={{
+                          opacity: 0.85,
+                          cursor: 'not-allowed',
+                          paddingRight: '2.5rem'
+                        }}
+                      />
+                      <div style={{ position: 'absolute', right: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
+                        <Lock size={15} />
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '0.35rem 0 0 0', lineHeight: 1.4 }}>
+                      Alamat email terdaftar dikunci untuk integritas keamanan Single Sign-On (SSO) dan sinkronisasi hak kelola lintas katalog.
+                    </p>
+                  </div>
 
-                    {profilePasswordMode === 'otp' ? (
-                      /* OTP Recovery View */
-                      <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                  <div style={{
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '0.75rem',
+                    padding: '0.85rem 1rem',
+                    fontSize: '0.78rem',
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.5,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.55rem'
+                  }}>
+                    <Info size={16} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                      <strong style={{ color: 'var(--text-primary)' }}>Catatan Keamanan Akun:</strong> Kata sandi dan email akun Anda tersinkronisasi dengan sistem autentikasi pusat. Jika memerlukan pemulihan akses, gunakan fitur lupa sandi di halaman login utama.
+                    </div>
+                  </div>
+
+                  <div>
+                    <button 
+                      type="submit" 
+                      className="btn-primary"
+                      disabled={updatingProfileName || !profileName.trim() || profileName.trim() === (adminUser?.name || currentUser?.name || '')}
+                      style={{ padding: '0.65rem 1.6rem', fontSize: '0.85rem', fontWeight: 800 }}
+                    >
+                      {updatingProfileName ? (
+                        <>
+                          <RefreshCw size={15} className="animate-spin" />
+                          <span>Menyimpan...</span>
+                        </>
+                      ) : (
+                        <span>Simpan Nama Profil</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Backup Password Accordion Section */}
+                <div style={{
+                  marginTop: '1.5rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '0.85rem',
+                  padding: '1.15rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Key size={16} style={{ color: 'var(--primary)' }} />
+                        <span>{hasCustomPassword ? 'Ubah Kata Sandi Akun' : 'Kata Sandi Akun Cadangan (Opsional)'}</span>
+                      </div>
+                      <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
+                        {hasCustomPassword
+                          ? 'Perbarui kata sandi akun Anda secara berkala untuk menjaga keamanan akun dan proteksi data toko Anda.'
+                          : 'Setel kata sandi agar Anda tetap dapat login manual via email & kata sandi jika sewaktu-waktu Google SSO mengalami gangguan.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowBackupPasswordSection(!showBackupPasswordSection)}
+                      className="btn-secondary"
+                      style={{ padding: '0.45rem 0.95rem', fontSize: '0.76rem', borderRadius: '0.5rem', fontWeight: 700 }}
+                    >
+                      {showBackupPasswordSection ? 'Tutup Formulir' : (hasCustomPassword ? 'Ubah Kata Sandi' : 'Setel Kata Sandi')}
+                    </button>
+                  </div>
+
+                  {showBackupPasswordSection && (
+                    <div style={{ marginTop: '1.1rem', paddingTop: '1.1rem', borderTop: '1px solid var(--border-light)' }}>
+                      {backupPasswordSuccess && (
+                        <div 
+                          className="animate-fade-in"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem',
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.75rem',
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.28)',
+                            backdropFilter: 'blur(8px)',
+                            marginBottom: '0.95rem',
+                            boxShadow: '0 4px 16px rgba(16, 185, 129, 0.08)'
+                          }}
+                        >
+                          <div style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            background: 'rgba(16, 185, 129, 0.16)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            color: '#10b981',
+                            marginTop: '1px'
+                          }}>
+                            <CheckCircle2 size={16} strokeWidth={2.5} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#10b981', letterSpacing: '0.01em' }}>
+                                Berhasil Disimpan
+                              </span>
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '999px',
+                                background: 'rgba(16, 185, 129, 0.2)',
+                                color: '#10b981',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em'
+                              }}>
+                                Sandi Aktif
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                              {backupPasswordSuccess}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setBackupPasswordSuccess(null)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              padding: '0.2rem',
+                              borderRadius: '0.35rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: 0.7,
+                              flexShrink: 0
+                            }}
+                            title="Tutup pemberitahuan"
+                            aria-label="Tutup pemberitahuan"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      )}
+
+                      {backupPasswordError && (
+                        <div 
+                          className="animate-fade-in"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem',
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.75rem',
+                            background: 'rgba(239, 68, 68, 0.08)',
+                            border: '1px solid rgba(239, 68, 68, 0.28)',
+                            backdropFilter: 'blur(8px)',
+                            marginBottom: '0.95rem',
+                            boxShadow: '0 4px 16px rgba(239, 68, 68, 0.08)'
+                          }}
+                        >
+                          <div style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            background: 'rgba(239, 68, 68, 0.16)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            color: '#ef4444',
+                            marginTop: '1px'
+                          }}>
+                            <AlertCircle size={16} strokeWidth={2.5} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ef4444', letterSpacing: '0.01em' }}>
+                                Gagal Menyimpan
+                              </span>
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '999px',
+                                background: 'rgba(239, 68, 68, 0.2)',
+                                color: '#ef4444',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em'
+                              }}>
+                                Perhatian
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                              {backupPasswordError}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setBackupPasswordError(null)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              padding: '0.2rem',
+                              borderRadius: '0.35rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: 0.7,
+                              flexShrink: 0
+                            }}
+                            title="Tutup pemberitahuan"
+                            aria-label="Tutup pemberitahuan"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Petunjuk Kriteria Keamanan Kata Sandi */}
+                      <div style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.75rem',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid var(--border-light)',
+                        marginBottom: '0.95rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            <ShieldCheck size={16} style={{ color: 'var(--primary)' }} />
+                            <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              Kriteria Keamanan Kata Sandi (Standar Industri)
+                            </span>
+                          </div>
+                          <span style={{
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '999px',
+                            background: 'rgba(59, 130, 246, 0.12)',
+                            color: '#60a5fa',
+                            border: '1px solid rgba(59, 130, 246, 0.25)'
+                          }}>
+                            Best Practice
+                          </span>
+                        </div>
+                        <p style={{ margin: '0 0 0.55rem 0', fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                          Demi menjaga keamanan akun toko dari serangan brute-force, kata sandi wajib memenuhi kombinasi berikut:
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.45rem' }}>
+                          {[
+                            { label: 'Minimal 8 karakter', valid: (passwordForm.new_password?.length || 0) >= 8 },
+                            { label: 'Huruf besar (A-Z) & kecil (a-z)', valid: /[A-Z]/.test(passwordForm.new_password || '') && /[a-z]/.test(passwordForm.new_password || '') },
+                            { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(passwordForm.new_password || '') },
+                            { label: 'Karakter khusus / simbol (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(passwordForm.new_password || '') },
+                          ].map((req, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                fontSize: '0.71rem',
+                                fontWeight: req.valid ? 700 : 500,
+                                color: req.valid ? '#10b981' : 'var(--text-secondary)',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <div style={{
+                                width: '15px',
+                                height: '15px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: req.valid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                                color: req.valid ? '#10b981' : 'var(--text-secondary)',
+                                flexShrink: 0
+                              }}>
+                                {req.valid ? <Check size={10} strokeWidth={3} /> : <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />}
+                              </div>
+                              <span>{req.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {profilePasswordMode === 'otp' ? (
                         <div style={{
-                          padding: '1rem 1.15rem',
+                          marginTop: '0.85rem',
+                          padding: '1.25rem',
                           borderRadius: '0.75rem',
-                          backgroundColor: 'var(--bg-deep)',
+                          background: 'var(--bg-deep)',
                           border: '1.5px solid var(--border-light)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.85rem'
+                          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
                         }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                               <div style={{
                                 width: '32px',
@@ -7980,7 +9056,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   Pemulihan Kata Sandi via OTP Email
                                 </h4>
                                 <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                                  Kode OTP dikirimkan ke email terdaftar: <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>{adminUser?.email || currentUser?.email}</strong>
+                                  Kode OTP akan dikirimkan ke email terdaftar: <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>{adminUser?.email || currentUser?.email}</strong>
                                 </p>
                               </div>
                             </div>
@@ -7991,29 +9067,18 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 setProfileOtpError(null);
                                 setProfileOtpSuccess(null);
                               }}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.4rem',
-                                padding: '0.4rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                fontSize: '0.76rem',
-                                fontWeight: 700,
-                                background: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-secondary)',
-                                cursor: 'pointer'
-                              }}
-                              title="Kembali ke formulir kata sandi saat ini"
+                              className="btn-dynamic-outline"
+                              title="Kembali menggunakan kata sandi lama / saat ini"
                             >
-                              <ArrowLeft size={13} />
+                              <ArrowLeft size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
                               <span>Batal &amp; Gunakan Sandi Lama</span>
                             </button>
                           </div>
 
                           {profileOtpSuccess && (
                             <div style={{
-                              fontSize: '0.78rem',
+                              marginBottom: '0.85rem',
+                              fontSize: '0.75rem',
                               padding: '0.65rem 0.85rem',
                               borderRadius: '0.5rem',
                               background: 'rgba(16, 185, 129, 0.12)',
@@ -8028,10 +9093,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               <span>{profileOtpSuccess}</span>
                             </div>
                           )}
-
                           {profileOtpError && (
                             <div style={{
-                              fontSize: '0.78rem',
+                              marginBottom: '0.85rem',
+                              fontSize: '0.75rem',
                               padding: '0.65rem 0.85rem',
                               borderRadius: '0.5rem',
                               background: 'rgba(239, 68, 68, 0.12)',
@@ -8048,60 +9113,43 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           )}
 
                           {!profileOtpSent ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
-                              <p style={{ margin: 0, fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                                Klik tombol di bawah untuk menerima 6-digit kode OTP ke alamat email terdaftar Anda guna mereset kata sandi akun secara aman tanpa memerlukan kata sandi lama.
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.75rem' }}>
+                              <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                                Klik tombol di bawah untuk menerima 6-digit kode OTP ke alamat email terdaftar Anda guna mereset kata sandi akun secara aman.
                               </p>
-                              <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                                 <button
                                   type="button"
                                   onClick={handleSendProfileBackupOTP}
                                   disabled={profileOtpLoading}
+                                  className="btn-primary"
                                   style={{
-                                    minHeight: '44px',
                                     padding: '0.6rem 1.35rem',
-                                    fontSize: '0.84rem',
+                                    fontSize: '0.8rem',
                                     fontWeight: 800,
                                     borderRadius: '0.55rem',
-                                    backgroundColor: 'var(--primary)',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    cursor: profileOtpLoading ? 'not-allowed' : 'pointer',
-                                    opacity: profileOtpLoading ? 0.7 : 1
+                                    cursor: profileOtpLoading ? 'not-allowed' : 'pointer'
                                   }}
                                 >
-                                  {profileOtpLoading ? (
-                                    <>
-                                      <RefreshCw size={15} className="animate-spin" />
-                                      <span>Mengirim Kode OTP...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Mail size={15} />
-                                      <span>Kirim Kode OTP ke Email Saya</span>
-                                    </>
-                                  )}
+                                  <Mail size={15} />
+                                  <span>{profileOtpLoading ? 'Mengirim Kode OTP...' : 'Kirim Kode OTP ke Email Saya'}</span>
                                 </button>
                               </div>
                             </div>
                           ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                              <div style={{ maxWidth: '280px' }}>
-                                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                  Kode OTP 6-Digit *
+                            <div>
+                              <div style={{ marginBottom: '0.85rem', maxWidth: '240px' }}>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                  Kode OTP 6-Digit
                                 </label>
                                 <input
                                   type="text"
                                   maxLength={6}
-                                  required
                                   placeholder="------"
                                   value={profileOtpCode}
                                   onChange={(e) => setProfileOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                  className="form-input"
                                   style={{
-                                    width: '100%',
                                     padding: '0.6rem',
                                     borderRadius: '0.5rem',
                                     fontSize: '1.35rem',
@@ -8109,83 +9157,80 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                     letterSpacing: '8px',
                                     textAlign: 'center',
                                     fontFamily: 'monospace',
-                                    backgroundColor: 'var(--bg-card)',
                                     border: '2px solid var(--primary)',
-                                    color: 'var(--primary)',
-                                    outline: 'none'
+                                    color: 'var(--primary)'
                                   }}
                                 />
                               </div>
 
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
-                                <div>
-                                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                                    Kata Sandi Baru *
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                                <div className="form-group">
+                                  <label className="form-label" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Kata Sandi Baru
                                   </label>
                                   <div style={{ position: 'relative' }}>
                                     <input
                                       type={showNewPassword ? 'text' : 'password'}
-                                      required
+                                      className="form-input"
+                                      placeholder="Minimal 8 karakter"
                                       value={passwordForm.new_password}
                                       onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
-                                      placeholder="Minimal 8 karakter..."
-                                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                                      style={{ paddingRight: '2.5rem' }}
                                     />
                                     <button
                                       type="button"
                                       onClick={() => setShowNewPassword(!showNewPassword)}
-                                      aria-label="Tampilkan atau sembunyikan kata sandi baru"
                                       style={{
                                         position: 'absolute',
-                                        right: '0.5rem',
+                                        right: '0.65rem',
                                         top: '50%',
                                         transform: 'translateY(-50%)',
                                         background: 'none',
                                         border: 'none',
-                                        cursor: 'pointer',
-                                        color: 'var(--text-muted)',
                                         padding: '0.25rem',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-secondary)',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center'
                                       }}
+                                      title={showNewPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                                     >
                                       {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                     </button>
                                   </div>
                                 </div>
-
-                                <div>
-                                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                                    Konfirmasi Kata Sandi Baru *
+                                <div className="form-group">
+                                  <label className="form-label" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Konfirmasi Kata Sandi Baru
                                   </label>
                                   <div style={{ position: 'relative' }}>
                                     <input
                                       type={showConfirmPassword ? 'text' : 'password'}
-                                      required
+                                      className="form-input"
+                                      placeholder="Ulangi kata sandi baru"
                                       value={passwordForm.confirm_password}
                                       onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
-                                      placeholder="Ketik ulang kata sandi baru"
-                                      style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
+                                      style={{ paddingRight: '2.5rem' }}
                                     />
                                     <button
                                       type="button"
                                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                      aria-label="Tampilkan atau sembunyikan konfirmasi kata sandi baru"
                                       style={{
                                         position: 'absolute',
-                                        right: '0.5rem',
+                                        right: '0.65rem',
                                         top: '50%',
                                         transform: 'translateY(-50%)',
                                         background: 'none',
                                         border: 'none',
-                                        cursor: 'pointer',
-                                        color: 'var(--text-muted)',
                                         padding: '0.25rem',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-secondary)',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center'
                                       }}
+                                      title={showConfirmPassword ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
                                     >
                                       {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                     </button>
@@ -8193,381 +9238,207 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 </div>
                               </div>
 
-                              {/* Interactive Criteria Checklist */}
-                              {(() => {
-                                const pass = passwordForm.new_password || '';
-                                const requirements = [
-                                  { label: 'Min. 8 karakter', valid: pass.length >= 8 },
-                                  { label: 'Huruf besar & huruf kecil (A-Z, a-z)', valid: /[A-Z]/.test(pass) && /[a-z]/.test(pass) },
-                                  { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(pass) },
-                                  { label: 'Simbol unik (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(pass) }
-                                ];
-                                return (
-                                  <div style={{
-                                    padding: '0.75rem 0.85rem',
-                                    borderRadius: '0.65rem',
-                                    backgroundColor: 'var(--bg-card)',
-                                    border: '1px solid var(--border-light)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '0.45rem'
-                                  }}>
-                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                      Kriteria Kekuatan Kata Sandi
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.4rem' }}>
-                                      {requirements.map((req, idx) => (
-                                        <div
-                                          key={idx}
-                                          style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.4rem',
-                                            fontSize: '0.74rem',
-                                            color: req.valid ? '#10b981' : 'var(--text-muted)',
-                                            fontWeight: req.valid ? 700 : 500,
-                                            transition: 'all 0.15s ease'
-                                          }}
-                                        >
-                                          <div style={{
-                                            width: '16px',
-                                            height: '16px',
-                                            borderRadius: '50%',
-                                            backgroundColor: req.valid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                                            border: req.valid ? '1px solid #10b981' : '1px solid var(--border-light)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: req.valid ? '#10b981' : 'var(--text-muted)',
-                                            flexShrink: 0
-                                          }}>
-                                            {req.valid ? <Check size={10} strokeWidth={3} /> : <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />}
-                                          </div>
-                                          <span>{req.label}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
                                 <button
-                                  type="submit"
+                                  type="button"
+                                  onClick={handleChangePassword}
                                   disabled={saving || profileOtpCode.length !== 6}
+                                  className="btn-primary"
                                   style={{
-                                    minHeight: '44px',
                                     padding: '0.6rem 1.4rem',
-                                    fontSize: '0.84rem',
-                                    borderRadius: '0.55rem',
+                                    fontSize: '0.8rem',
                                     fontWeight: 800,
-                                    backgroundColor: 'var(--primary)',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.45rem',
                                     cursor: (saving || profileOtpCode.length !== 6) ? 'not-allowed' : 'pointer',
                                     opacity: (saving || profileOtpCode.length !== 6) ? 0.6 : 1
                                   }}
                                 >
-                                  {saving ? (
-                                    <>
-                                      <RefreshCw size={15} className="animate-spin" />
-                                      <span>Memverifikasi...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <CheckCircle2 size={15} />
-                                      <span>Verifikasi OTP &amp; Simpan Kata Sandi</span>
-                                    </>
-                                  )}
+                                  <CheckCircle2 size={15} />
+                                  <span>{saving ? 'Memverifikasi...' : 'Verifikasi OTP & Simpan Kata Sandi'}</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={handleSendProfileBackupOTP}
                                   disabled={profileOtpCooldown > 0 || profileOtpLoading}
+                                  className="btn-secondary"
                                   style={{
-                                    minHeight: '44px',
                                     padding: '0.55rem 0.95rem',
                                     fontSize: '0.78rem',
-                                    fontWeight: 700,
-                                    borderRadius: '0.55rem',
-                                    backgroundColor: 'var(--bg-card)',
-                                    border: '1px solid var(--border-light)',
-                                    color: profileOtpCooldown > 0 ? 'var(--text-muted)' : 'var(--text-primary)',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.4rem',
-                                    cursor: (profileOtpCooldown > 0 || profileOtpLoading) ? 'default' : 'pointer'
+                                    cursor: profileOtpCooldown > 0 ? 'default' : 'pointer',
+                                    color: profileOtpCooldown > 0 ? 'var(--text-muted)' : 'var(--text-primary)'
                                   }}
                                 >
                                   <RefreshCw size={13} className={profileOtpLoading ? 'animate-spin' : ''} />
-                                  <span>{profileOtpCooldown > 0 ? `Kirim Ulang OTP (${profileOtpCooldown}s)` : 'Kirim Ulang OTP'}</span>
+                                  <span>{profileOtpCooldown > 0 ? `Kirim ulang OTP (${profileOtpCooldown}s)` : 'Kirim Ulang OTP'}</span>
                                 </button>
                               </div>
                             </div>
                           )}
                         </div>
-                      </form>
-                    ) : (
-                      /* Standard Password Mode */
-                      <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                        {!hasCustomPassword ? (
-                          <div style={{
-                            padding: '0.75rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'rgba(37, 99, 235, 0.06)',
-                            border: '1px solid rgba(37, 99, 235, 0.2)',
-                            fontSize: '0.78rem',
-                            color: 'var(--text-secondary)',
-                            lineHeight: 1.45,
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: '0.5rem'
-                          }}>
-                            <ShieldAlert size={16} style={{ color: '#2563eb', flexShrink: 0, marginTop: '2px' }} />
-                            <div>
-                              Akun Anda saat ini login via Google SSO. Menyetel kata sandi cadangan memungkinkan Anda tetap bisa masuk manual jika layanan SSO Google sedang mengalami gangguan.
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem', flexWrap: 'wrap', gap: '0.35rem' }}>
-                              <label style={{ fontSize: '0.78rem', fontWeight: 700, margin: 0 }}>
-                                Kata Sandi Saat Ini *
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setProfilePasswordMode('otp');
-                                  setProfileOtpError(null);
-                                  setProfileOtpSuccess(null);
-                                }}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  padding: '0.25rem 0.65rem',
-                                  borderRadius: '0.45rem',
-                                  background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
-                                  border: '1px solid var(--primary)',
-                                  color: 'var(--primary)',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}
-                                title="Reset dengan kode OTP via email jika lupa kata sandi lama"
-                              >
-                                Lupa Kata Sandi?
-                              </button>
-                            </div>
-                            <div style={{ position: 'relative' }}>
-                              <input
-                                type={showOldPassword ? 'text' : 'password'}
-                                required
-                                value={passwordForm.old_password}
-                                onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
-                                placeholder="Masukkan kata sandi lama Anda"
-                                style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowOldPassword(!showOldPassword)}
-                                aria-label="Tampilkan atau sembunyikan kata sandi saat ini"
-                                style={{
-                                  position: 'absolute',
-                                  right: '0.5rem',
-                                  top: '50%',
-                                  transform: 'translateY(-50%)',
-                                  background: 'none',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  color: 'var(--text-muted)',
-                                  padding: '0.25rem',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
-                              >
-                                {showOldPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                            {hasCustomPassword ? 'Kata Sandi Baru *' : 'Kata Sandi Baru Cadangan *'}
-                          </label>
-                          <div style={{ position: 'relative' }}>
-                            <input
-                              type={showNewPassword ? 'text' : 'password'}
-                              required
-                              value={passwordForm.new_password}
-                              onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
-                              placeholder="Minimal 8 karakter..."
-                              style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowNewPassword(!showNewPassword)}
-                              aria-label="Tampilkan atau sembunyikan kata sandi baru"
-                              style={{
-                                position: 'absolute',
-                                right: '0.5rem',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: 'var(--text-muted)',
-                                padding: '0.25rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                            >
-                              {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                            Konfirmasi Kata Sandi Baru *
-                          </label>
-                          <div style={{ position: 'relative' }}>
-                            <input
-                              type={showConfirmPassword ? 'text' : 'password'}
-                              required
-                              value={passwordForm.confirm_password}
-                              onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
-                              placeholder="Ketik ulang kata sandi baru"
-                              style={{ width: '100%', padding: '0.6rem 2.5rem 0.6rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                              aria-label="Tampilkan atau sembunyikan konfirmasi kata sandi baru"
-                              style={{
-                                position: 'absolute',
-                                right: '0.5rem',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: 'var(--text-muted)',
-                                padding: '0.25rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                            >
-                              {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Interactive Criteria Checklist */}
-                        {(() => {
-                          const pass = passwordForm.new_password || '';
-                          const requirements = [
-                            { label: 'Min. 8 karakter', valid: pass.length >= 8 },
-                            { label: 'Huruf besar & huruf kecil (A-Z, a-z)', valid: /[A-Z]/.test(pass) && /[a-z]/.test(pass) },
-                            { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(pass) },
-                            { label: 'Simbol unik (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(pass) }
-                          ];
-                          return (
-                            <div style={{
-                              padding: '0.75rem 0.85rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.45rem'
-                            }}>
-                              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                Kriteria Kekuatan Kata Sandi
+                      ) : (
+                        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.75rem' }}>
+                          {hasCustomPassword && (
+                            <div style={{ maxWidth: '460px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, margin: 0 }}>Kata Sandi Saat Ini</label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setProfilePasswordMode('otp');
+                                    setProfileOtpError(null);
+                                    setProfileOtpSuccess(null);
+                                  }}
+                                  className="btn-dynamic-outline"
+                                  title="Gunakan verifikasi OTP jika lupa kata sandi lama"
+                                >
+                                  Lupa Kata Sandi?
+                                </button>
                               </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.4rem' }}>
-                                {requirements.map((req, idx) => (
-                                  <div
-                                    key={idx}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '0.4rem',
-                                      fontSize: '0.74rem',
-                                      color: req.valid ? '#10b981' : 'var(--text-muted)',
-                                      fontWeight: req.valid ? 700 : 500,
-                                      transition: 'all 0.15s ease'
-                                    }}
-                                  >
-                                    <div style={{
-                                      width: '16px',
-                                      height: '16px',
-                                      borderRadius: '50%',
-                                      backgroundColor: req.valid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                                      border: req.valid ? '1px solid #10b981' : '1px solid var(--border-light)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      color: req.valid ? '#10b981' : 'var(--text-muted)',
-                                      flexShrink: 0
-                                    }}>
-                                      {req.valid ? <Check size={10} strokeWidth={3} /> : <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />}
-                                    </div>
-                                    <span>{req.label}</span>
-                                  </div>
-                                ))}
+                              <div style={{ position: 'relative' }}>
+                                <input
+                                  type={showOldPassword ? 'text' : 'password'}
+                                  required
+                                  className="form-input"
+                                  placeholder="Masukkan kata sandi akun saat ini"
+                                  value={passwordForm.old_password}
+                                  onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
+                                  style={{ paddingRight: '2.5rem' }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowOldPassword(!showOldPassword)}
+                                  style={{
+                                    position: 'absolute',
+                                    right: '0.65rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: '0.25rem',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                  title={showOldPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                                >
+                                  {showOldPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
                               </div>
                             </div>
-                          );
-                        })()}
-
-                        <button
-                          type="submit"
-                          disabled={saving}
-                          style={{
-                            minHeight: '44px',
-                            padding: '0.6rem 1rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: 'var(--primary)',
-                            color: '#ffffff',
-                            border: 'none',
-                            fontWeight: 700,
-                            fontSize: '0.85rem',
-                            cursor: saving ? 'not-allowed' : 'pointer',
-                            marginTop: '0.35rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.5rem',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                          }}
-                        >
-                          {saving ? (
-                            <>
-                              <RefreshCw size={16} className="animate-spin" />
-                              <span>Menyimpan...</span>
-                            </>
-                          ) : hasCustomPassword ? (
-                            <>
-                              <Lock size={16} />
-                              <span>Perbarui Kata Sandi</span>
-                            </>
-                          ) : (
-                            <>
-                              <Key size={16} />
-                              <span>Simpan Kata Sandi Cadangan</span>
-                            </>
                           )}
-                        </button>
-                      </form>
-                    )}
-                  </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
+                            <div className="form-group">
+                              <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                                Kata Sandi Baru
+                              </label>
+                              <div style={{ position: 'relative' }}>
+                                <input
+                                  type={showNewPassword ? 'text' : 'password'}
+                                  required
+                                  className="form-input"
+                                  placeholder="Minimal 8 karakter"
+                                  value={passwordForm.new_password}
+                                  onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                                  style={{ paddingRight: '2.5rem' }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowNewPassword(!showNewPassword)}
+                                  style={{
+                                    position: 'absolute',
+                                    right: '0.65rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: '0.25rem',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                  title={showNewPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                                >
+                                  {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="form-group">
+                              <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                                Konfirmasi Kata Sandi Baru
+                              </label>
+                              <div style={{ position: 'relative' }}>
+                                <input
+                                  type={showConfirmPassword ? 'text' : 'password'}
+                                  required
+                                  className="form-input"
+                                  placeholder="Ulangi kata sandi baru"
+                                  value={passwordForm.confirm_password}
+                                  onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
+                                  style={{ paddingRight: '2.5rem' }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                  style={{
+                                    position: 'absolute',
+                                    right: '0.65rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: '0.25rem',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                  title={showConfirmPassword ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
+                                >
+                                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ marginTop: '0.45rem' }}>
+                            <button
+                              type="submit"
+                              disabled={saving}
+                              className="btn-primary"
+                              style={{
+                                padding: '0.6rem 1.4rem',
+                                fontSize: '0.82rem',
+                                cursor: saving ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              {saving ? (
+                                <>
+                                  <RefreshCw size={15} className="animate-spin" />
+                                  <span>Menyimpan...</span>
+                                </>
+                              ) : hasCustomPassword ? (
+                                <>
+                                  <Lock size={15} />
+                                  <span>Perbarui Kata Sandi</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Key size={15} />
+                                  <span>Simpan Kata Sandi Cadangan</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -8610,10 +9481,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   onStoreDeleted={handleStoreDeleted}
                   onAccountDeleted={handleAccountDeleted}
                   showToast={showToast}
-                  onExportCatalogJSON={handleExportCatalogJSON}
                 />
               </div>
             )}
+            </div>
           </div>
         )}
 
@@ -8621,14 +9492,34 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB: AUDIT LOGS (JEJAK AKTIVITAS PENGELOLA)
             =================================================================== */}
         {activeTab === 'audit_logs' && (
-          <TabletAuditLogsView
-            token={token}
-            currentUser={currentUser}
-            storeSlug={storeSlug}
-            showToast={showToast}
-            onLogout={onLogout}
-            onUnauthorized={onUnauthorized}
-          />
+          <div style={{
+            flex: 1,
+            minHeight: 0,
+            height: '100%',
+            maxHeight: '100%',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{
+              maxWidth: '1040px',
+              margin: '0 auto',
+              padding: '1.75rem 2rem 8rem 2rem',
+              width: '100%',
+              boxSizing: 'border-box'
+            }}>
+              <TabletAuditLogsView
+                token={token}
+                currentUser={currentUser}
+                storeSlug={storeSlug}
+                showToast={showToast}
+                onLogout={onLogout}
+                onUnauthorized={onUnauthorized}
+              />
+            </div>
+          </div>
         )}
 
         {/* ===================================================================
@@ -8719,12 +9610,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
                 {/* 1. Summary Metric Cards (Total Masuk, Belum Dibaca, Terbaca) */}
                 <div style={{
+                  margin: '0.85rem 0.85rem 0.5rem 0.85rem',
                   padding: '1rem',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.75rem',
-                  borderBottom: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-card)'
+                  borderRadius: '0.85rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
                 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                     <div
@@ -9453,402 +10347,45 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 8: PUSAT BANTUAN & TIKET CS (Master-Detail Split View)
             =================================================================== */}
         {activeTab === 'help' && (
-          <TabletMasterDetailView
-            title="Pusat Bantuan & Tiket CS"
-            subtitle={`${tickets.length} riwayat tiket`}
-            headerAction={
-              <button
-                type="button"
-                onClick={() => setSelectedTicketId('new')}
-                style={{
-                  minHeight: '40px',
-                  padding: '0.45rem 1rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={16} />
-                Tiket Baru
-              </button>
-            }
-            selectedId={selectedTicketId}
-            onClearSelection={() => setSelectedTicketId(null)}
-            masterPane={
-              <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto' }}>
-                <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', marginBottom: '0.5rem' }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem' }}>Layanan CS WhatsApp Resmi</div>
-                  <button
-                    type="button"
-                    onClick={() => window.open('https://wa.me/6281234567890?text=Halo%20Admin%20Catavor', '_blank')}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: '#16a34a',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.82rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Phone size={15} />
-                    Chat Tim CS Resmi
-                  </button>
-                </div>
-
-                {tickets.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    Belum ada tiket bantuan yang diajukan
-                  </div>
-                ) : (
-                  tickets.map(tk => {
-                    const isSelected = selectedTicketId === tk.id;
-                    const hasUnread = Boolean(tk.has_unread || (tk.unread_count && tk.unread_count > 0));
-                    const isResolved = tk.status === 'resolved' || tk.status === 'closed';
-                    const isWaitingUser = tk.status === 'waiting_user';
-
-                    return (
-                      <div
-                        key={tk.id}
-                        onClick={() => setSelectedTicketId(tk.id)}
-                        style={{
-                          padding: '0.85rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.12)' : 'var(--bg-card)',
-                          border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                          borderLeft: hasUnread ? '3.5px solid #ef4444' : (isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)'),
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>#{tk.ticket_number || tk.id}</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            {hasUnread && (
-                              <span
-                                style={{
-                                  fontSize: '0.68rem',
-                                  fontWeight: 800,
-                                  padding: '0.1rem 0.45rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: '#ef4444',
-                                  color: '#ffffff',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem'
-                                }}
-                              >
-                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
-                                {tk.unread_count && tk.unread_count > 1 ? `${tk.unread_count} Balasan Baru` : 'Balasan Baru'}
-                              </span>
-                            )}
-                            <span style={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              padding: '0.1rem 0.45rem',
-                              borderRadius: '999px',
-                              backgroundColor: isResolved
-                                ? 'rgba(16, 185, 129, 0.15)'
-                                : isWaitingUser
-                                ? 'rgba(239, 68, 68, 0.12)'
-                                : 'rgba(245, 158, 11, 0.15)',
-                              color: isResolved
-                                ? '#10b981'
-                                : isWaitingUser
-                                ? '#ef4444'
-                                : '#f59e0b'
-                            }}>
-                              {isResolved ? 'Selesai' : isWaitingUser ? 'Perlu Respon Anda' : 'Dalam Proses'}
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {tk.subject}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            }
-            detailPane={
-              selectedTicketId === 'new' ? (
-                <form onSubmit={handleCreateTicket} style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '540px' }}>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Ajukan Tiket Bantuan CS</h3>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>Subjek Kendala *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ringkasan kendala yang dialami"
-                      value={ticketForm.subject}
-                      onChange={(e) => setTicketForm({ ...ticketForm, subject: e.target.value })}
-                      style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>Kategori Bantuan</label>
-                    <select
-                      value={ticketForm.category}
-                      onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
-                      style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none' }}
-                    >
-                      <option value="technical">Kendala Teknis & Aplikasi</option>
-                      <option value="billing">Tagihan & Langganan</option>
-                      <option value="account">Akun & Verifikasi</option>
-                      <option value="report">Laporan Pelanggaran</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.4rem' }}>Pesan Rinci *</label>
-                    <textarea
-                      rows={5}
-                      required
-                      placeholder="Jelaskan secara detail masalah atau pertanyaan Anda..."
-                      value={ticketForm.message}
-                      onChange={(e) => setTicketForm({ ...ticketForm, message: e.target.value })}
-                      style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', outline: 'none', resize: 'none' }}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0.65rem 1.5rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--primary)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      cursor: saving ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {saving ? 'Mengirim...' : 'Kirimkan Tiket Bantuan'}
-                  </button>
-                </form>
-              ) : selectedTicket ? (
-                (() => {
-                  const currentTicket = ticketDetails?.ticket || selectedTicket;
-                  const messages: any[] = ticketDetails?.messages || [];
-                  const isResolved = currentTicket.status === 'resolved' || currentTicket.status === 'closed';
-
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                      {/* Ticket Header */}
-                      <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                            #{currentTicket.ticket_number || currentTicket.id}
-                          </span>
-                          <span style={{
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            padding: '0.2rem 0.65rem',
-                            borderRadius: '999px',
-                            backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
-                            color: isResolved ? '#10b981' : '#f59e0b'
-                          }}>
-                            {isResolved ? 'Selesai' : 'Dalam Proses'}
-                          </span>
-                        </div>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
-                          {currentTicket.subject}
-                        </h3>
-                        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                          <span>Kategori: <strong>{currentTicket.category || 'Teknis'}</strong></span>
-                          <span>Prioritas: <strong>{currentTicket.priority || 'Normal'}</strong></span>
-                          <span>Dibuat: {currentTicket.created_at ? new Date(currentTicket.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</span>
-                        </div>
-                      </div>
-
-                      {/* Messages Scroll Area */}
-                      <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        {/* Initial Message */}
-                        <div style={{
-                          padding: '1.25rem',
-                          borderRadius: '0.75rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)' }}>
-                              Pengajuan Awal (Deskripsi Kendala)
-                            </span>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              {currentTicket.created_at ? new Date(currentTicket.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
-                          </div>
-                          <p style={{ fontSize: '0.88rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                            {currentTicket.message || 'Tidak ada rincian pesan.'}
-                          </p>
-                        </div>
-
-                        {/* Thread Messages */}
-                        {loadingTicketDetail ? (
-                          <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                            Memuat percakapan tiket...
-                          </div>
-                        ) : messages.length === 0 ? (
-                          <div style={{
-                            padding: '1.25rem',
-                            textAlign: 'center',
-                            backgroundColor: 'rgba(30, 58, 138, 0.04)',
-                            borderRadius: '0.75rem',
-                            border: '1px dashed var(--border-light)',
-                            color: 'var(--text-muted)',
-                            fontSize: '0.82rem'
-                          }}>
-                            Belum ada balasan tanggapan dari staf CS. Tim bantuan kami akan segera meninjau tiket Anda.
-                          </div>
-                        ) : (
-                          messages.map((msg: any) => {
-                            const isStaffMsg = msg.sender_type === 'agent' || msg.sender_type === 'staff';
-                            return (
-                              <div
-                                key={msg.id}
-                                style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: isStaffMsg ? 'flex-start' : 'flex-end',
-                                  gap: '0.35rem'
-                                }}
-                              >
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                  {isStaffMsg ? (
-                                    <>
-                                      <ShieldCheck size={13} color="var(--primary)" />
-                                      <strong>Tim Dukungan CS Catavor</strong>
-                                    </>
-                                  ) : (
-                                    <strong>Anda (Pengelola)</strong>
-                                  )}
-                                  <span>&bull;</span>
-                                  <span>{msg.created_at ? new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                                </div>
-                                <div style={{
-                                  maxWidth: '85%',
-                                  padding: '0.85rem 1.15rem',
-                                  borderRadius: '0.85rem',
-                                  backgroundColor: isStaffMsg ? 'var(--bg-card)' : 'rgba(30, 58, 138, 0.1)',
-                                  border: isStaffMsg ? '1px solid var(--border-light)' : '1px solid rgba(30, 58, 138, 0.25)',
-                                  color: 'var(--text-primary)',
-                                  fontSize: '0.88rem',
-                                  lineHeight: 1.5,
-                                  whiteSpace: 'pre-wrap'
-                                }}>
-                                  {msg.message}
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-
-                      {/* Reply Form Footer */}
-                      <div style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
-                        {isResolved ? (
-                          <div style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                            Tiket ini telah berstatus selesai. Jika Anda membutuhkan bantuan lebih lanjut, silakan ajukan tiket baru.
-                          </div>
-                        ) : (
-                          <form onSubmit={handleSendTicketReply} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
-                            <textarea
-                              rows={2}
-                              value={replyMessage}
-                              onChange={(e) => setReplyMessage(e.target.value)}
-                              placeholder="Tuliskan tanggapan balasan atau penjelasan tambahan..."
-                              style={{
-                                flex: 1,
-                                padding: '0.75rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-deep)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.88rem',
-                                outline: 'none',
-                                resize: 'none'
-                              }}
-                            />
-                            <button
-                              type="submit"
-                              disabled={saving || !replyMessage.trim()}
-                              style={{
-                                minHeight: '44px',
-                                padding: '0 1.25rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--primary)',
-                                color: '#ffffff',
-                                border: 'none',
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.45rem',
-                                cursor: saving || !replyMessage.trim() ? 'not-allowed' : 'pointer'
-                              }}
-                            >
-                              <Send size={15} />
-                              {saving ? 'Mengirim...' : 'Kirim'}
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()
-              ) : null
-            }
+          <TabletHelpdeskView
+            token={token}
+            storeSlug={storeSlug}
+            settings={storeSettings}
+            currentUser={currentUser}
+            userStores={userStores}
+            showToast={(msg, type) => showToast(msg, type === 'error' ? 'error' : 'success')}
+            onUpdateUnreadCount={(cnt) => setSupportUnreadCount(cnt)}
           />
         )}
 
         {/* ===================================================================
-            TAB 9: LEGAL & KEBIJAKAN PLATFORM
+            TAB 9: REDIRECT/NOTICE FOR RETIRED POLICIES TAB
             =================================================================== */}
         {activeTab === 'policies' && (
-          <div style={{ padding: '2rem', maxWidth: '960px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-              Legal, Syarat & Kebijakan Platform
-            </h2>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Ketentuan hukum, perlindungan privasi data, dan pedoman kepatuhan ekosistem Catavor.
+          <div style={{ padding: '2.5rem', textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              Pedoman legal dan kebijakan platform kini tersedia di halaman publik dan pendaftaran akun.
             </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>1. Syarat & Ketentuan Layanan (Terms of Service)</h3>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Pengelola katalog bertanggung jawab penuh atas keabsahan, keaslian produk, dan kepatuhan hukum atas seluruh item yang dipublikasikan. Catavor berhak menangguhkan akun yang melanggar aturan satwa dilindungi atau barang terlarang.
-                </p>
-              </div>
-
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>2. Kebijakan Privasi (Privacy Policy)</h3>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Data pengguna dan data kontak WhatsApp dilindungi dengan enkripsi standar industri dan tidak akan dibagikan kepada pihak ketiga tanpa persetujuan sah dari pemilik akun.
-                </p>
-              </div>
-
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>3. Kebijakan Penggunaan Wajar (Acceptable Use Policy)</h3>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Penggunaan bandwidth, cloud storage, dan integrasi WhatsApp diwajibkan sesuai batasan paket aktif untuk menjaga stabilitas ekosistem bagi seluruh merchant.
-                </p>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('items');
+                if (storeSlug) window.history.replaceState({}, '', `/${storeSlug}/admin`);
+              }}
+              style={{
+                marginTop: '1rem',
+                padding: '0.6rem 1.25rem',
+                fontSize: '0.84rem',
+                fontWeight: 700,
+                backgroundColor: 'var(--primary)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '0.5rem',
+                cursor: 'pointer'
+              }}
+            >
+              Kembali ke Kelola Produk
+            </button>
           </div>
         )}
 
@@ -9856,116 +10393,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 10: BAGIKAN KATALOG & QR CODE
             =================================================================== */}
         {activeTab === 'share' && (
-          <div style={{ padding: '2rem', maxWidth: '850px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-              Bagikan Profil Katalog Digital Anda
-            </h2>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Promosikan etalase bisnis Anda dengan tautan langsung atau unduh QR Code resmi untuk dicetak.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-              {/* Link Share Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>Tautan Resmi Katalog</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                    Bagikan tautan ini ke media sosial (Instagram Bio, TikTok, Facebook) atau grup chat WhatsApp.
-                  </p>
-                  <div style={{ padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', fontSize: '0.85rem', fontWeight: 600, wordBreak: 'break-all' }}>
-                    {window.location.origin}/{storeSlug}
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/${storeSlug}`);
-                      showToast('Tautan katalog berhasil disalin!');
-                    }}
-                    style={{
-                      flex: 1,
-                      minHeight: '44px',
-                      padding: '0.65rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: 'var(--primary)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Copy size={16} />
-                    Salin Tautan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.open(`https://wa.me/?text=${encodeURIComponent(`Kunjungi katalog resmi ${storeSettings.name || 'toko kami'} di: ${window.location.origin}/${storeSlug}`)}`, '_blank');
-                    }}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0.65rem 1rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: '#16a34a',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <MessageCircle size={16} />
-                    Share WA
-                  </button>
-                </div>
-              </div>
-
-              {/* QR Code Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                <QrCode size={48} color="var(--primary)" style={{ marginBottom: '0.5rem' }} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.35rem 0' }}>Poster QR Code Toko</h3>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                  Pajang di kasir atau cetak pada kartu nama usaha Anda.
-                </p>
-                <div style={{ width: '140px', height: '140px', backgroundColor: '#ffffff', borderRadius: '0.75rem', padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-light)' }}>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(`${window.location.origin}/${storeSlug}`)}`}
-                    alt="QR Code Toko"
-                    style={{ width: '100%', height: '100%' }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(`${window.location.origin}/${storeSlug}`)}`, '_blank')}
-                  style={{
-                    marginTop: '1.25rem',
-                    minHeight: '40px',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-light)',
-                    fontWeight: 600,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Unduh QR Code HD
-                </button>
-              </div>
-            </div>
-          </div>
+          <TabletShareCatalogView
+            storeSlug={storeSlug || ''}
+            storeTitle={storeSettings.name}
+            storeLogoUrl={storeSettings.logo_url}
+            storeSlogan={storeSettings.slogan}
+            whatsappNumber={storeSettings.whatsapp_number}
+            onToast={showToast}
+          />
         )}
       </main>
 
@@ -10383,6 +10818,284 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               >
                 <Trash2 size={15} />
                 <span>{saving ? 'Menghapus...' : 'Hapus & Alihkan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================================
+          TABLET SUBSCRIPTION & UPGRADE MODAL (GLOBAL MOUNT)
+          ========================================================== */}
+      <TabletSubscriptionModal
+        isOpen={isSubModalOpen}
+        onClose={() => setIsSubModalOpen(false)}
+        token={token}
+        storeSlug={storeSlug}
+        currentQuota={quota}
+        onSuccessUpgrade={() => {
+          fetchQuota();
+          fetchSubscriptionOrders();
+        }}
+        showToast={showToast}
+        onLogout={onLogout}
+        onUnauthorized={onUnauthorized}
+      />
+
+      {/* ==========================================================
+          STORE CHOOSER & SWITCHER MODAL (TABLET NATIVE)
+          ========================================================== */}
+      <StoreChooserModal
+        isOpen={showStoreChooserModal}
+        onClose={handleCloseStoreChooserModal}
+        user={currentUser}
+        stores={userStores}
+        activeSlug={storeSlug}
+        onSelectStore={handleSwitchStore}
+        onCreateNewStore={() => {
+          window.location.href = '/register/step-1';
+        }}
+        onLogout={onLogout}
+        switchingSlug={switchingSlug}
+        activeTheme={storeSettings.store_theme || 'navy'}
+      />
+
+      {/* ==========================================================
+          CATALOG DATA EXPORT MODAL (TABLET NATIVE)
+          ========================================================== */}
+      {showExportModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem'
+          }}
+          onClick={() => setShowExportModal(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: 'var(--shadow-premium, 0 20px 40px rgba(0, 0, 0, 0.35))',
+              overflow: 'hidden'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: 'var(--bg-card)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '9px',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <HardDriveDownload size={19} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Ekspor Data Item Katalog
+                  </h3>
+                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    Pilih format berkas untuk mengunduh daftar produk dan inventaris katalog Anda.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  background: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '0.4rem',
+                  display: 'flex',
+                  borderRadius: '8px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', backgroundColor: 'var(--bg-card)' }}>
+              {/* Option 1: CSV */}
+              <div
+                style={{
+                  padding: '1.1rem 1.25rem',
+                  borderRadius: '0.85rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <div style={{
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(16, 185, 129, 0.14)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <FileSpreadsheet size={15} style={{ color: '#10b981' }} />
+                    </div>
+                    <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Format CSV (Microsoft Excel)
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    Tabel data produk terstruktur (ID, nama, tipe, kategori, harga, stok, dan spesifikasi). Dilengkapi UTF-8 BOM untuk Excel &amp; Google Sheets.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  id="btn-tablet-export-csv"
+                  disabled={isExportingCatalog}
+                  onClick={() => handleExportCatalog('csv')}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
+                    opacity: isExportingCatalog ? 0.7 : 1,
+                    flexShrink: 0,
+                    boxShadow: '0 4px 12px var(--primary-glow)'
+                  }}
+                >
+                  <FileSpreadsheet size={15} />
+                  <span>Unduh CSV</span>
+                </button>
+              </div>
+
+              {/* Option 2: JSON */}
+              <div
+                style={{
+                  padding: '1.1rem 1.25rem',
+                  borderRadius: '0.85rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <div style={{
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: '6px',
+                      backgroundColor: 'var(--primary-glow)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <FileCode size={15} style={{ color: 'var(--primary)' }} />
+                    </div>
+                    <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Format JSON (Data Item Produk)
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    Salinan digital teknis berisi data item produk, varian harga, galeri foto, dan atribut spesifikasi domain untuk kebutuhan portabilitas &amp; arsip.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  id="btn-tablet-export-json"
+                  disabled={isExportingCatalog}
+                  onClick={() => handleExportCatalog('json')}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: isExportingCatalog ? 'not-allowed' : 'pointer',
+                    opacity: isExportingCatalog ? 0.7 : 1,
+                    flexShrink: 0,
+                    boxShadow: '0 4px 12px var(--primary-glow)'
+                  }}
+                >
+                  <FileCode size={15} />
+                  <span>Unduh JSON</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '0.85rem 1.5rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  minHeight: '40px',
+                  padding: '0 1.25rem',
+                  borderRadius: '0.55rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Tutup
               </button>
             </div>
           </div>

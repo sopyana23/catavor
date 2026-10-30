@@ -16,7 +16,8 @@ import {
   Zap,
   Check,
   AlertTriangle,
-  Receipt
+  Receipt,
+  Archive
 } from 'lucide-react';
 import { createAuthFetch } from '../utils/auth';
 import { useModalBackHandler } from '../utils/navigation';
@@ -56,6 +57,8 @@ export interface StoreQuotaData {
   storage_limit_bytes: number;
   storage_usage_percent: number;
   items_usage_percent: number;
+  is_storage_over_limit?: boolean;
+  is_items_over_limit?: boolean;
   custom_domain?: string | null;
   custom_domain_status: string;
 }
@@ -776,6 +779,195 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+export const TabletQuotaWidget: React.FC<{
+  quota: StoreQuotaData | null;
+  onOpenUpgrade: () => void;
+  isNavExpanded?: boolean;
+}> = ({ quota, onOpenUpgrade, isNavExpanded = false }) => {
+  const isFree = !quota || quota.plan?.code === 'free';
+  const rawPlanName = quota?.plan?.name || (isFree ? 'Gratis Terbatas' : 'Paket Toko');
+  // Adaptive plan title: when sidebar is expanded, masterPane is narrower, so use concise "Gratis" to prevent any clipping
+  const planName = (isNavExpanded && isFree) ? 'Gratis' : rawPlanName;
+
+  const isUnlimited = quota?.max_items === -1;
+  const activeItems = quota?.active_items_count ?? 0;
+  const maxItems = quota?.max_items ?? 15;
+  const itemsUsagePercent = isUnlimited ? 0 : Math.min(quota?.items_usage_percent ?? (maxItems > 0 ? (activeItems / maxItems) * 100 : 0), 100);
+  const storageUsed = quota?.storage_used_bytes ?? 0;
+  const storageLimit = quota?.storage_limit_bytes ?? (50 * 1024 * 1024);
+  const storageUsagePercent = Math.min(quota?.storage_usage_percent ?? (storageLimit > 0 ? (storageUsed / storageLimit) * 100 : 0), 100);
+
+  const isItemsOverLimit = Boolean(quota?.is_items_over_limit || (!isUnlimited && activeItems > maxItems));
+  const isStorageOverLimit = Boolean(quota?.is_storage_over_limit || (storageLimit > 0 && storageUsed > storageLimit));
+
+  const formatStorageShort = (bytes: number): string => {
+    if (!bytes || bytes <= 0) return '0 KB';
+    if (bytes < 1024 * 1024) {
+      const kb = Math.round(bytes / 1024);
+      return `${kb} KB`;
+    }
+    const mb = bytes / (1024 * 1024);
+    if (mb < 1024) {
+      return mb >= 10 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
+    }
+    const gb = mb / 1024;
+    return gb % 1 === 0 ? `${gb.toFixed(0)} GB` : `${gb.toFixed(1)} GB`;
+  };
+
+  return (
+    <div style={{
+      margin: '0.85rem 0.85rem 0.5rem 0.85rem',
+      padding: '0.85rem 1rem',
+      backgroundColor: 'var(--bg-card)',
+      borderRadius: '0.85rem',
+      border: '1px solid var(--border-light)',
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.75rem'
+    }}>
+      {/* Top Row: Plan & Upgrade Button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flex: 1 }}>
+          <div style={{
+            width: '28px',
+            height: '28px',
+            borderRadius: '0.45rem',
+            background: isFree ? 'rgba(245, 158, 11, 0.12)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: isFree ? '#f59e0b' : '#ffffff',
+            flexShrink: 0
+          }}>
+            <Crown size={15} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, flexWrap: 'nowrap' }}>
+            <span style={{
+              fontSize: '0.85rem',
+              fontWeight: 800,
+              color: 'var(--text-primary)',
+              whiteSpace: 'nowrap'
+            }}>
+              {planName}
+            </span>
+            {quota?.plan?.has_verified_badge && (
+              <span
+                title="Merchant Terverifikasi Resmi"
+                style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 800,
+                  padding: '1px 5px',
+                  borderRadius: '4px',
+                  background: '#3b82f6',
+                  color: '#fff',
+                  flexShrink: 0
+                }}
+              >
+                {isNavExpanded ? '✓' : '✓ Resmi'}
+              </span>
+            )}
+            {!isFree && quota?.days_remaining !== undefined && quota.days_remaining > 0 && (
+              <span
+                title={`Sisa masa aktif: ${quota.days_remaining} hari`}
+                style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                  color: '#d97706',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {quota.days_remaining}h
+              </span>
+            )}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onOpenUpgrade}
+          title={isFree ? 'Upgrade ke Paket Pro' : 'Kelola Paket Langganan'}
+          style={{
+            minHeight: '32px',
+            padding: '0.3rem 0.65rem',
+            borderRadius: '0.5rem',
+            border: isFree ? 'none' : '1px solid var(--border-light)',
+            backgroundColor: isFree ? 'var(--primary)' : 'var(--bg-deep)',
+            color: isFree ? '#ffffff' : 'var(--text-primary)',
+            fontSize: '0.74rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            flexShrink: 0,
+            boxShadow: isFree ? '0 2px 6px var(--primary-glow)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          {isFree ? <Sparkles size={12} /> : null}
+          <span>{isFree ? 'Upgrade' : 'Kelola'}</span>
+        </button>
+      </div>
+
+      {/* Progress Indicators: Items Quota & Cloud Storage */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+        {/* Items Quota */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: '0.72rem' }}>
+            <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}>
+              <Package size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} /> Item
+            </span>
+            <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.74rem' }}>
+              {activeItems.toLocaleString('id-ID')} / {isUnlimited ? '∞' : maxItems.toLocaleString('id-ID')}
+            </span>
+          </div>
+          <div style={{ height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: isUnlimited ? '100%' : `${itemsUsagePercent}%`,
+              backgroundColor: isItemsOverLimit ? '#ef4444' : itemsUsagePercent > 80 ? '#f59e0b' : 'var(--primary)',
+              borderRadius: '3px',
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+          {Boolean(quota?.archived_items_count && quota.archived_items_count > 0) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.65rem', color: '#f59e0b', marginTop: '0.05rem' }}>
+              <Archive size={10} />
+              <span>{quota?.archived_items_count} Diarsipkan</span>
+            </div>
+          )}
+        </div>
+
+        {/* Cloud Storage */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: '0.72rem' }}>
+            <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}>
+              <HardDrive size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} /> Storage
+            </span>
+            <span style={{ fontWeight: 800, color: isStorageOverLimit ? '#ef4444' : 'var(--text-primary)', fontSize: '0.74rem' }}>
+              {formatStorageShort(storageUsed)} / {formatStorageShort(storageLimit)}
+            </span>
+          </div>
+          <div style={{ height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${storageUsagePercent}%`,
+              backgroundColor: isStorageOverLimit ? '#ef4444' : storageUsagePercent > 80 ? '#f59e0b' : 'var(--primary)',
+              borderRadius: '3px',
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+        </div>
       </div>
     </div>
   );

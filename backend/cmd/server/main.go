@@ -53,7 +53,7 @@ func main() {
 		BodyLimit:               12 * 1024 * 1024, // 12 MB max payload
 		ReadTimeout:             0,                // Unlimited for streaming & SSE
 		WriteTimeout:            0,                // Unlimited write deadline for persistent SSE streams (prevents net::ERR_INCOMPLETE_CHUNKED_ENCODING)
-		IdleTimeout:             120 * time.Second,
+		IdleTimeout:             300 * time.Second, // 5 menit (mencegah socket hangup saat tab idle)
 		DisableStartupMessage:   false,
 		ProxyHeader:             fiber.HeaderXForwardedFor,
 		EnableTrustedProxyCheck: true,
@@ -96,6 +96,7 @@ func main() {
 	rbacHandler := handlers.NewRBACHandler(database.DB)
 	dormancyHandler := handlers.NewDormancyHandler(database.DB)
 	safeDomainHandler := handlers.NewSafeDomainHandler(database.DB)
+	catalogExportHandler := handlers.NewCatalogExportHandler(cfg, database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg, database.DB)
 	// Initialize Automation Tracker
 	services.InitAutomationTracker(database.DB, storageService)
@@ -214,6 +215,10 @@ func main() {
 	app.Get("/healthz", handlers.LivenessHandler)
 	app.Get("/readyz", healthHandler.Readiness)
 	api := app.Group("/api", middleware.GlobalAPIRateLimiter())
+
+	// Catalog Data Portability & Export (Must precede :id wildcard to prevent route shadowing)
+	api.Get("/products/export", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), catalogExportHandler.ExportProducts)
+	api.Get("/catalog/items/export", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), catalogExportHandler.ExportProducts)
 
 	// Public Modern Product & Category Endpoints
 	api.Get("/products", productHandler.Index)
@@ -347,6 +352,14 @@ func main() {
 		guardedMutations.Put("/categories/:id", categoryHandler.Update)
 		guardedMutations.Delete("/categories/:id", categoryHandler.Destroy)
 
+		// Catalog Data Portability & Export
+		// 1. Dedicated Catalog Items Export (Products only: CSV Excel & JSON Items)
+		guarded.Get("/products/export", catalogExportHandler.ExportProducts)
+		guarded.Get("/admin/products/export", catalogExportHandler.ExportProducts)
+		// 2. Full Store Backup (Danger Zone & Store Profile Backup: CSV & JSON Store Dump)
+		guarded.Get("/catalog/export", catalogExportHandler.ExportCatalog)
+		guarded.Get("/admin/catalog/export", catalogExportHandler.ExportCatalog)
+
 		// Support Tickets & Live Chat Conversations (with normalized attachments)
 		guarded.Get("/support/tickets", supportHandler.ListMyTickets)
 		guarded.Get("/support/tickets/:id", supportHandler.GetTicketDetails)
@@ -394,7 +407,6 @@ func main() {
 		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
 		guarded.Get("/admin/analytics/export", analyticsHandler.ExportStoreAnalytics)
 		guarded.Get("/analytics/export", analyticsHandler.ExportStoreAnalytics)
-
 		// Settings & Policies
 		// SECURITY (N-18): menulis pengaturan platform adalah wewenang "system",
 		// bukan merchant. Sebelumnya hanya dijaga StoreOwnerRequired sehingga
@@ -493,6 +505,8 @@ func main() {
 		// Store Management / Directory Catalog Profiles (Server-Side Paginated & Filtered)
 		adminApi.Get("/stores", storeHandler.AdminListStores)
 		adminApi.Get("/stores/:id", storeHandler.AdminGetStoreDetail)
+		adminApi.Get("/products/export", catalogExportHandler.ExportProducts)
+		adminApi.Get("/catalog/export", catalogExportHandler.ExportCatalog)
 
 
 		// Monetization, Rekber Syariah & Platform Settings

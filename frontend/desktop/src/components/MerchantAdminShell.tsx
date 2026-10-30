@@ -30,11 +30,15 @@ import {
   Package,
   X,
   MessageSquare,
-  ArrowRight
+  ArrowRight,
+  FileSpreadsheet,
+  FileCode,
+  HardDriveDownload,
+  Share2
 } from 'lucide-react';
 
 export interface MerchantAdminShellProps {
-  adminTab: 'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal';
+  adminTab: 'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share';
   setAdminTab: (tab: any) => void;
   settings: any;
   storeSlug: string | null;
@@ -54,6 +58,7 @@ export interface MerchantAdminShellProps {
   onOpenNotifications: () => void;
   onClearSelectedNotification?: () => void;
   onOpenCreateItem?: () => void;
+  onExportCatalog?: (format: 'csv' | 'json') => void;
   isSuspended?: boolean;
   isPlatformAdminUser?: boolean;
   isSuperAdminUser?: boolean;
@@ -85,6 +90,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   onOpenNotifications,
   onClearSelectedNotification,
   onOpenCreateItem,
+  onExportCatalog,
   isSuspended: propIsSuspended,
   isPlatformAdminUser = false,
   isSuperAdminUser = false,
@@ -103,6 +109,9 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
     ? propIsSuspended
     : Boolean(settings?.dormancy_status === 'suspended' || settings?.is_suspended);
 
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const exportDropdownRef = React.useRef<HTMLDivElement>(null);
+
   // Close dropdown on click outside
   React.useEffect(() => {
     if (!showStoreDropdown) {
@@ -117,6 +126,18 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showStoreDropdown, setShowStoreDropdown]);
+
+  // Close export dropdown on click outside
+  React.useEffect(() => {
+    if (!showExportDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
+        setShowExportDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportDropdown]);
 
   // Filter stores when search is typed and keep active store at the very top
   const filteredStores = React.useMemo(() => {
@@ -165,11 +186,6 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           badge: unreadCount > 0 ? unreadCount : null,
           badgeColor: '#ef4444',
           badgeTextColor: '#ffffff'
-        },
-        {
-          id: 'policies',
-          label: 'Legal & Kebijakan',
-          icon: <ShieldAlert size={18} />
         }
       ]
     }
@@ -180,10 +196,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
         {
           id: 'items',
           label: 'Daftar Item Katalog',
-          icon: <PackageCheck size={18} />,
-          badge: totalItemsCount > 0 ? totalItemsCount : null,
-          badgeColor: 'var(--primary-glow)',
-          badgeTextColor: 'var(--primary)'
+          icon: <PackageCheck size={18} />
         },
         {
           id: 'categories',
@@ -243,11 +256,6 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           badge: unreadCount > 0 ? unreadCount : null,
           badgeColor: '#ef4444',
           badgeTextColor: '#ffffff'
-        },
-        {
-          id: 'policies',
-          label: 'Legal & Kebijakan',
-          icon: <Scale size={18} />
         }
       ]
     }
@@ -298,13 +306,10 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
       case 'help': return 'Pusat Bantuan & Layanan Tiket';
       case 'rbac': return 'Manajemen Staf & Akses RBAC';
       case 'portal': return 'Portal Khusus Tim Pengelola';
+      case 'share': return 'Bagikan Tautan & QR Code Katalog';
       default: return 'Dashboard Pengelola';
     }
   };
-
-  const planName = storeQuota?.plan?.name || (settings?.plan === 'pro_business' ? 'Pro Bisnis' : settings?.plan === 'pro_starter' ? 'Pro Starter' : 'Gratis Terbatas');
-  const activeItemsCount = storeQuota?.active_items_count ?? totalItemsCount;
-  const maxItems = storeQuota?.max_items ?? (settings?.plan === 'free' ? 15 : -1);
 
   return (
     <div 
@@ -875,6 +880,111 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           ))}
         </div>
 
+        {/* Sidebar Bottom Action: Bagikan Katalog & Public Storefront Link (Tablet Parity) */}
+        {!isSuspended && (
+          <div 
+            style={{
+              padding: isSidebarCollapsed ? '0.65rem 0.4rem' : '0.65rem 0.75rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem',
+              flexShrink: 0,
+              backgroundColor: 'var(--bg-card)'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setAdminTab('share');
+                if (storeSlug) {
+                  window.history.pushState({}, '', `/${storeSlug}/admin/share`);
+                }
+              }}
+              title="Bagikan Tautan & QR Code Katalog Toko"
+              style={{
+                width: '100%',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: isSidebarCollapsed ? '0' : '0 0.75rem',
+                justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                borderRadius: '0.55rem',
+                border: adminTab === 'share' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                backgroundColor: adminTab === 'share' ? 'var(--primary-glow, rgba(16, 185, 129, 0.18))' : 'transparent',
+                color: adminTab === 'share' ? 'var(--primary)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: adminTab === 'share' ? 800 : 600,
+                fontSize: '0.82rem',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                if (adminTab !== 'share') {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                  e.currentTarget.style.borderColor = 'var(--primary)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (adminTab !== 'share') {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                  e.currentTarget.style.borderColor = 'var(--border-light)';
+                }
+              }}
+            >
+              <Share2 size={16} style={{ flexShrink: 0, color: 'var(--primary)' }} />
+              {!isSidebarCollapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span>Bagikan Katalog</span>
+                </div>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={goToCatalog}
+              title="Buka tampilan katalog publik yang dilihat pengunjung"
+              style={{
+                width: '100%',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: isSidebarCollapsed ? '0' : '0 0.75rem',
+                justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                borderRadius: '0.55rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'transparent',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.82rem',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+                e.currentTarget.style.borderColor = 'var(--primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.borderColor = 'var(--border-light)';
+              }}
+            >
+              <ExternalLink size={16} style={{ flexShrink: 0, color: 'var(--primary)' }} />
+              {!isSidebarCollapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span>Katalog Publik</span>
+                  <Eye size={13} style={{ opacity: 0.55 }} />
+                </div>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Sidebar Footer: User Details & Logout */}
         <div 
           style={{
@@ -1081,166 +1191,113 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
 
               {/* Right: Quick Actions */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {/* Quick Quota Pill */}
-            <div 
-              onClick={() => {
-                setAdminTab('subscription');
-                if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/subscription`);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.3rem 0.75rem',
-                borderRadius: '999px',
-                backgroundColor: 'var(--bg-card-hover)',
-                border: '1px solid var(--border-light)',
-                cursor: 'pointer',
-                fontSize: '0.74rem',
-                fontWeight: 700,
-                color: 'var(--text-secondary)',
-                transition: 'all 0.15s ease'
-              }}
-              title="Lihat status kuota & upgrade paket"
-            >
-              <PackageCheck size={13} color="var(--primary)" />
-              <span>{activeItemsCount} / {maxItems === -1 ? '∞' : maxItems} Item</span>
-              <span style={{
-                fontSize: '0.62rem',
-                fontWeight: 800,
-                padding: '0.05rem 0.35rem',
-                borderRadius: '4px',
-                backgroundColor: settings?.plan === 'free' ? 'rgba(245, 158, 11, 0.2)' : 'var(--primary-glow)',
-                color: settings?.plan === 'free' ? '#f59e0b' : 'var(--primary)'
-              }}>
-                {planName}
-              </span>
-            </div>
-
-            {/* Cloud Storage Warning Pill if >= 80% */}
-            {storeQuota && storeQuota.storage_usage_percent >= 80 && (
-              <div
-                onClick={() => {
-                  setAdminTab('subscription');
-                  if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/subscription`);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.3rem 0.65rem',
-                  borderRadius: '999px',
-                  backgroundColor: storeQuota.is_storage_over_limit ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                  border: `1px solid ${storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b'}`,
-                  cursor: 'pointer',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  color: storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b',
-                  transition: 'all 0.15s ease'
-                }}
-                title={`Penyimpanan Cloud hampir penuh (${Math.round(storeQuota.storage_usage_percent)}%). Klik untuk upgrade kuota.`}
-              >
-                <HardDrive size={13} />
-                <span>{Math.round(storeQuota.storage_usage_percent)}% Storage</span>
-              </div>
-            )}
-
-            {/* Public Storefront Link Button */}
-            {!isSuspended && (
-              <button
-                type="button"
-                onClick={goToCatalog}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.45rem 0.95rem',
-                  borderRadius: '0.55rem',
-                  backgroundColor: 'var(--bg-card-hover)',
-                  border: '1px solid var(--border-light)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-                title="Buka tampilan katalog yang dilihat pengunjung"
-              >
-                <Eye size={14} />
-                <span>Lihat Katalog Publik</span>
-                <ExternalLink size={12} style={{ opacity: 0.6 }} />
-              </button>
-            )}
-
-            {/* Notification Bell & Popover (Desktop) */}
-            <div style={{ position: 'relative' }}>
-              <button
-                ref={notifTriggerRef}
-                type="button"
-                onClick={() => {
-                  if (onOpenNotifications) {
-                    onOpenNotifications();
-                  }
-                  setShowNotifPopover(prev => !prev);
-                }}
-                style={{
-                  position: 'relative',
-                  padding: '0.45rem 0.75rem',
-                  borderRadius: '0.55rem',
-                  backgroundColor: showNotifPopover ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
-                  border: showNotifPopover ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                  color: 'var(--text-primary)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-                title="Pusat Notifikasi Sistem"
-              >
-                <Bell size={15} color={unreadCount > 0 ? '#f59e0b' : 'var(--text-secondary)'} />
-                {unreadCount > 0 && (
-                  <span style={{
-                    backgroundColor: '#ef4444',
-                    color: '#ffffff',
-                    fontSize: '0.62rem',
-                    fontWeight: 900,
-                    padding: '0.08rem 0.4rem',
-                    borderRadius: '999px',
-                    lineHeight: 1
-                  }}>
-                    {unreadCount}
-                  </span>
+                {/* Cloud Storage Warning Pill if >= 80% */}
+                {storeQuota && storeQuota.storage_usage_percent >= 80 && (
+                  <div
+                    onClick={() => {
+                      setAdminTab('subscription');
+                      if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/subscription`);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.3rem 0.65rem',
+                      borderRadius: '999px',
+                      backgroundColor: storeQuota.is_storage_over_limit ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                      border: `1px solid ${storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b'}`,
+                      cursor: 'pointer',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      color: storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={`Penyimpanan Cloud hampir penuh (${Math.round(storeQuota.storage_usage_percent)}%). Klik untuk upgrade kuota.`}
+                  >
+                    <HardDrive size={13} />
+                    <span>{Math.round(storeQuota.storage_usage_percent)}% Storage</span>
+                  </div>
                 )}
-              </button>
 
-              <NotificationHeaderPopover
-                isOpen={showNotifPopover}
-                onClose={() => setShowNotifPopover(false)}
-                notifications={notifications}
-                unreadCount={unreadCount}
-                onMarkAsRead={(id) => onMarkAsRead?.(id)}
-                onMarkAllAsRead={() => onMarkAllAsRead?.()}
-                onSelectNotification={(notif) => {
-                  setShowNotifPopover(false);
-                  onSelectNotification?.(notif);
-                }}
-                onViewAllNotifications={() => {
-                  setShowNotifPopover(false);
-                  onClearSelectedNotification?.();
-                  setAdminTab('notifications');
-                  const slug = storeSlug;
-                  if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                }}
-                triggerRef={notifTriggerRef}
-              />
-            </div>
+                {/* Notification Bell & Popover (Desktop) */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    ref={notifTriggerRef}
+                    type="button"
+                    onClick={() => {
+                      if (onOpenNotifications) {
+                        onOpenNotifications();
+                      }
+                      setShowNotifPopover(prev => !prev);
+                    }}
+                    style={{
+                      position: 'relative',
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '0.55rem',
+                      backgroundColor: showNotifPopover ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
+                      border: showNotifPopover ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                      color: 'var(--text-primary)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Pusat Notifikasi Sistem"
+                  >
+                    <Bell size={15} color={unreadCount > 0 ? '#f59e0b' : 'var(--text-secondary)'} />
+                    {unreadCount > 0 && (
+                      <span style={{
+                        backgroundColor: '#ef4444',
+                        color: '#ffffff',
+                        fontSize: '0.62rem',
+                        fontWeight: 900,
+                        padding: '0.08rem 0.4rem',
+                        borderRadius: '999px',
+                        lineHeight: 1
+                      }}>
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
 
-            {/* Header Action Buttons for items & categories */}
-            {!isSuspended && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <NotificationHeaderPopover
+                    isOpen={showNotifPopover}
+                    onClose={() => setShowNotifPopover(false)}
+                    notifications={notifications}
+                    unreadCount={unreadCount}
+                    onMarkAsRead={(id) => onMarkAsRead?.(id)}
+                    onMarkAllAsRead={() => onMarkAllAsRead?.()}
+                    onSelectNotification={(notif) => {
+                      setShowNotifPopover(false);
+                      onSelectNotification?.(notif);
+                    }}
+                    onViewAllNotifications={() => {
+                      setShowNotifPopover(false);
+                      onClearSelectedNotification?.();
+                      setAdminTab('notifications');
+                      const slug = storeSlug;
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                    }}
+                    triggerRef={notifTriggerRef}
+                  />
+                </div>
+
+                {/* Subtle Divider between Utilities and Page Actions */}
+                {!isSuspended && (adminTab === 'items' || adminTab === 'categories') && (
+                  <div style={{
+                    width: '1px',
+                    height: '24px',
+                    backgroundColor: 'var(--border-light)',
+                    margin: '0 0.25rem'
+                  }} />
+                )}
+
+                {/* Header Action Buttons for items & categories */}
+                {!isSuspended && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {adminTab === 'items' && (
                   <button
                     type="button"
@@ -1291,6 +1348,169 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                     <Package size={15} style={{ color: 'var(--primary)' }} />
                     <span>Kelola Daftar Item</span>
                   </button>
+                )}
+
+                {adminTab === 'items' && onExportCatalog && (
+                  <div ref={exportDropdownRef} style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      id="btn-ekspor-katalog-desktop"
+                      className="btn-secondary"
+                      onClick={() => setShowExportDropdown(!showExportDropdown)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        padding: '0.45rem 0.95rem',
+                        borderRadius: '0.55rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        border: showExportDropdown ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        backgroundColor: showExportDropdown ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                        color: showExportDropdown ? 'var(--primary)' : 'var(--text-primary)',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Ekspor Data Item Produk & Portabilitas Katalog (CSV / JSON)"
+                    >
+                      <HardDriveDownload size={15} style={{ color: 'var(--primary)' }} />
+                      <span>Ekspor Data</span>
+                      <ChevronDown size={13} style={{ opacity: 0.75, transform: showExportDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+                    </button>
+
+                    {showExportDropdown && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 'calc(100% + 8px)',
+                          width: '260px',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          borderRadius: '0.85rem',
+                          boxShadow: 'var(--shadow-premium, 0 16px 36px rgba(0,0,0,0.28))',
+                          padding: '0.55rem',
+                          zIndex: 9999,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.4rem'
+                        }}
+                      >
+                        <div style={{
+                          padding: '0.35rem 0.65rem 0.4rem',
+                          borderBottom: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Format Ekspor Item
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                            Katalog
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          id="btn-desktop-export-csv"
+                          onClick={() => {
+                            setShowExportDropdown(false);
+                            onExportCatalog('csv');
+                          }}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.65rem',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.6rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-deep)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                            e.currentTarget.style.borderColor = 'var(--primary)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-deep)';
+                            e.currentTarget.style.borderColor = 'var(--border-light)';
+                          }}
+                        >
+                          <div style={{
+                            width: '30px',
+                            height: '30px',
+                            borderRadius: '0.45rem',
+                            backgroundColor: 'rgba(16, 185, 129, 0.14)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <FileSpreadsheet size={16} style={{ color: '#10b981' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Unduh CSV (Excel)</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Tabel Spreadsheet UTF-8 BOM</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          id="btn-desktop-export-json"
+                          onClick={() => {
+                            setShowExportDropdown(false);
+                            onExportCatalog('json');
+                          }}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.65rem',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.6rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-deep)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                            e.currentTarget.style.borderColor = 'var(--primary)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-deep)';
+                            e.currentTarget.style.borderColor = 'var(--border-light)';
+                          }}
+                        >
+                          <div style={{
+                            width: '30px',
+                            height: '30px',
+                            borderRadius: '0.45rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <FileCode size={16} style={{ color: 'var(--primary)' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Unduh JSON (Data Item)</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Format Portabilitas Item Produk</div>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {onOpenCreateItem && adminTab === 'items' && (

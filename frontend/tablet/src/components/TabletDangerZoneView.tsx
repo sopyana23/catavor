@@ -6,6 +6,7 @@ import {
   UserX,
   X,
   HardDriveDownload,
+  FileSpreadsheet,
   FolderMinus,
   CheckCircle2,
   RefreshCw
@@ -33,6 +34,7 @@ export interface TabletDangerZoneViewProps {
   onStoreDeleted: (deletedSlug: string, remainingStores: any[]) => void;
   onAccountDeleted: () => void;
   showToast: (msg: string, type?: 'success' | 'error') => void;
+  onExportCatalog?: (format: 'csv' | 'json') => void;
   onExportCatalogJSON?: () => void;
 }
 
@@ -45,6 +47,7 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
   onStoreDeleted,
   onAccountDeleted,
   showToast,
+  onExportCatalog,
   onExportCatalogJSON
 }) => {
   // Modal dialog states
@@ -62,6 +65,62 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
   const [accountPassword, setAccountPassword] = useState<string>('');
   const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
   const [accountDeleteError, setAccountDeleteError] = useState<string | null>(null);
+
+  // Catalog Export State & Fallback Handler
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const handleExport = async (format: 'csv' | 'json') => {
+    if (onExportCatalog) {
+      onExportCatalog(format);
+      return;
+    }
+    if (format === 'json' && onExportCatalogJSON) {
+      onExportCatalogJSON();
+      return;
+    }
+    if (isExporting) return;
+    setIsExporting(true);
+    showToast(`Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
+    try {
+      const targetSlug = currentStore?.slug || '';
+      const queryParams = new URLSearchParams({ format });
+      if (targetSlug) queryParams.set('slug', targetSlug);
+
+      const res = await fetch(`${apiBase}/catalog/export?${queryParams.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          ...(targetSlug ? { 'X-Store-Slug': targetSlug } : {})
+        }
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        showToast(errJson.message || 'Gagal mengekspor data katalog', 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = `katalog-${targetSlug || 'data'}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Katalog berhasil diekspor (${format.toUpperCase()})!`, 'success');
+    } catch (err: any) {
+      showToast(err.message || `Gagal mengunduh berkas ${format.toUpperCase()}`, 'error');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Smart Back Interceptor for Store Delete Modal
   useModalBackHandler({
@@ -196,115 +255,95 @@ export const TabletDangerZoneView: React.FC<TabletDangerZoneViewProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Top Banner */}
+      {/* PANEL 1: BACKUP / CADANGKAN DATA KATALOG */}
       <div style={{
-        padding: '1.25rem 1.5rem',
+        backgroundColor: 'var(--card-bg-gradient, var(--bg-card))',
+        padding: '1.5rem 1.75rem',
         borderRadius: '1rem',
-        background: 'var(--card-bg-gradient, var(--bg-card))',
         border: '1px solid var(--border-light)',
         display: 'flex',
-        alignItems: 'flex-start',
-        gap: '1rem',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '1.25rem',
+        flexWrap: 'wrap',
         boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{
-          width: '42px',
-          height: '42px',
-          borderRadius: '10px',
-          background: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
-          border: '1px solid var(--border-light)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--text-secondary)',
-          flexShrink: 0
-        }}>
-          <FolderMinus size={22} />
-        </div>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <span style={{
-              padding: '0.2rem 0.6rem',
-              borderRadius: '6px',
-              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.06))',
-              color: 'var(--text-secondary)',
-              fontWeight: 700,
-              fontSize: '0.72rem',
-              letterSpacing: '0.04em',
-              border: '1px solid var(--border-light)'
+        <div style={{ flex: 1, minWidth: '280px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: 'rgba(30, 58, 138, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--primary)'
             }}>
-              PENGATURAN LANJUTAN
-            </span>
-            <h3 style={{ fontSize: '1.15rem', margin: 0, fontWeight: 800, color: 'var(--text-primary)' }}>
-              Penutupan Akun dan Katalog
-            </h3>
+              <HardDriveDownload size={18} />
+            </div>
+            <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              Cadangkan Seluruh Data Katalog
+            </h4>
           </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', margin: '0.45rem 0 0 0', lineHeight: 1.55 }}>
-            Bagian ini memungkinkan Anda menghapus profil katalog yang sudah tidak digunakan atau mengajukan penutupan akun pengguna secara permanen. Seluruh tindakan memerlukan verifikasi kata sandi demi keamanan kepemilikan akun Anda.
+          <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 0.35rem 0', lineHeight: 1.5 }}>
+            Unduh salinan arsip lengkap profil toko, seluruh item produk, varian, kategori, spesifikasi domain, dan kontak resmi sebelum melakukan tindakan penutupan atau penghapusan permanen.
+          </p>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, fontStyle: 'italic' }}>
+            Catatan: Berkas ekspor memuat seluruh metadata produk dan spesifikasi 7 domain katalog. Berkas foto fisik pada server toko ini akan dibersihkan permanen saat katalog dihapus.
           </p>
         </div>
-      </div>
-
-      {/* PANEL 1: BACKUP / CADANGKAN DATA KATALOG (JSON) */}
-      {onExportCatalogJSON && (
-        <div style={{
-          backgroundColor: 'var(--card-bg-gradient, var(--bg-card))',
-          padding: '1.5rem 1.75rem',
-          borderRadius: '1rem',
-          border: '1px solid var(--border-light)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1.25rem',
-          flexWrap: 'wrap',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <div style={{ flex: 1, minWidth: '280px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: 'rgba(30, 58, 138, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--primary)'
-              }}>
-                <HardDriveDownload size={18} />
-              </div>
-              <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                Cadangkan Seluruh Data Katalog (JSON)
-              </h4>
-            </div>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-              Unduh salinan arsip lengkap profil toko, seluruh item produk, varian, kategori, dan kontak resmi dalam satu berkas terstruktur sebelum melakukan tindakan penghapusan.
-            </p>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           <button
             type="button"
-            onClick={onExportCatalogJSON}
+            onClick={() => handleExport('csv')}
+            disabled={isExporting}
             style={{
               minHeight: '44px',
-              padding: '0.65rem 1.25rem',
+              padding: '0.65rem 1.15rem',
               borderRadius: '0.65rem',
               backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
               border: '1px solid var(--border-light)',
               color: 'var(--text-primary)',
               fontWeight: 700,
-              fontSize: '0.88rem',
+              fontSize: '0.85rem',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
+              gap: '0.45rem',
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              opacity: isExporting ? 0.6 : 1,
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <FileSpreadsheet size={16} style={{ color: 'var(--primary)' }} />
+            <span>Unduh CSV (Excel)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport('json')}
+            disabled={isExporting}
+            style={{
+              minHeight: '44px',
+              padding: '0.65rem 1.15rem',
+              borderRadius: '0.65rem',
+              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+              border: '1px solid var(--border-light)',
+              color: 'var(--text-primary)',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              opacity: isExporting ? 0.6 : 1,
               transition: 'all 0.2s ease'
             }}
           >
             <HardDriveDownload size={16} style={{ color: 'var(--primary)' }} />
-            <span>Unduh Arsip JSON</span>
+            <span>Unduh JSON (Backup)</span>
           </button>
         </div>
-      )}
+      </div>
 
       {/* PANEL 2: HAPUS PROFIL KATALOG INI */}
       <div style={{

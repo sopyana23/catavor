@@ -9,7 +9,9 @@ import {
   X, 
   FolderMinus,
   AlertOctagon,
-  CheckCircle2
+  CheckCircle2,
+  FileSpreadsheet,
+  HardDriveDownload
 } from 'lucide-react';
 import { setupModalBackInterceptor } from '../utils/navigation';
 
@@ -34,6 +36,7 @@ export interface DangerZoneSettingsViewProps {
   onStoreDeleted: (deletedSlug: string, remainingStores: any[]) => void;
   onAccountDeleted: () => void;
   showToast?: (type: 'success' | 'error' | 'info', msg: string) => void;
+  onExportCatalog?: (format: 'csv' | 'json') => void;
 }
 
 export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
@@ -44,7 +47,8 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
   apiBase = '/api',
   onStoreDeleted,
   onAccountDeleted,
-  showToast
+  showToast,
+  onExportCatalog
 }) => {
   const [showStoreDeleteModal, setShowStoreDeleteModal] = useState<boolean>(false);
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState<boolean>(false);
@@ -58,6 +62,55 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
   const [accountPassword, setAccountPassword] = useState<string>('');
   const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
   const [accountDeleteError, setAccountDeleteError] = useState<string | null>(null);
+
+  // Catalog Export State
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const handleExport = async (format: 'csv' | 'json') => {
+    if (onExportCatalog) {
+      onExportCatalog(format);
+      return;
+    }
+    if (isExporting) return;
+    setIsExporting(true);
+    if (showToast) showToast('info', `Menyiapkan berkas ekspor ${format.toUpperCase()}...`);
+    try {
+      const activeSlug = currentStore?.slug || '';
+      const queryParams = new URLSearchParams({ format });
+      if (activeSlug) queryParams.set('slug', activeSlug);
+      const res = await fetch(`${apiBase}/catalog/export?${queryParams.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          ...(activeSlug ? { 'X-Store-Slug': activeSlug } : {})
+        }
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        if (showToast) showToast('error', errJson.message || 'Gagal mengekspor data katalog');
+        return;
+      }
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = `katalog-${currentStore?.slug || 'export'}-${format === 'csv' ? 'data.csv' : 'backup.json'}`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (showToast) showToast('success', `Katalog (${format.toUpperCase()}) berhasil diunduh!`);
+    } catch {
+      if (showToast) showToast('error', `Gagal mengunduh berkas ${format.toUpperCase()}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Drag-to-dismiss gesture state for Store Delete Bottom Sheet
   const [storeDeleteDragY, setStoreDeleteDragY] = useState(0);
@@ -303,6 +356,91 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', margin: '0.2rem 0 0 0', lineHeight: 1.45 }}>
             Opsi lanjutan untuk menghapus profil katalog aktif atau permohonan penutupan akun pengelola secara permanen.
           </p>
+        </div>
+      </div>
+
+      {/* PANEL 0: CADANGKAN DATA KATALOG SEBELUM PENUTUPAN */}
+      <div className="glass-panel" style={{
+        borderRadius: '0.85rem',
+        border: '1px solid var(--border-light)',
+        padding: '1.15rem',
+        background: 'var(--card-bg-gradient, var(--bg-card))'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginBottom: '0.35rem' }}>
+          <div style={{
+            width: '28px',
+            height: '28px',
+            borderRadius: '6px',
+            background: 'rgba(30, 58, 138, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--primary)',
+            flexShrink: 0
+          }}>
+            <HardDriveDownload size={15} />
+          </div>
+          <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+            Cadangkan Seluruh Data Katalog
+          </h4>
+        </div>
+        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.35rem 0', lineHeight: 1.5 }}>
+          Unduh salinan arsip lengkap profil toko, seluruh item produk, varian, kategori, spesifikasi domain, dan kontak resmi sebelum melakukan tindakan penutupan atau penghapusan permanen.
+        </p>
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0 0 0.75rem 0', fontStyle: 'italic', lineHeight: 1.45 }}>
+          Peringatan Penting: Menghapus katalog ini akan membersihkan seluruh produk dan berkas foto fisik dari server secara permanen. Pastikan Anda telah mengunduh salinan cadangan data produk Anda sebelum melanjutkan.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={() => handleExport('csv')}
+            disabled={isExporting}
+            style={{
+              minHeight: '44px',
+              padding: '0.65rem 1rem',
+              borderRadius: '0.65rem',
+              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+              border: '1px solid var(--border-light)',
+              color: 'var(--text-primary)',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              opacity: isExporting ? 0.6 : 1,
+              width: '100%'
+            }}
+          >
+            <FileSpreadsheet size={16} style={{ color: 'var(--primary)' }} />
+            <span>Unduh Berkas Excel (CSV)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport('json')}
+            disabled={isExporting}
+            style={{
+              minHeight: '44px',
+              padding: '0.65rem 1rem',
+              borderRadius: '0.65rem',
+              backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.05))',
+              border: '1px solid var(--border-light)',
+              color: 'var(--text-primary)',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              opacity: isExporting ? 0.6 : 1,
+              width: '100%'
+            }}
+          >
+            <HardDriveDownload size={16} style={{ color: 'var(--primary)' }} />
+            <span>Unduh Salinan Lengkap (JSON)</span>
+          </button>
         </div>
       </div>
 
