@@ -25,6 +25,7 @@ import {
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { TabletOfficialContactModal } from './TabletOfficialContactModal';
+import { TabletPoliciesView } from './TabletPoliciesView';
 
 export interface TicketAttachment {
   id?: number | string;
@@ -81,6 +82,7 @@ export interface TabletHelpdeskViewProps {
   userStores?: any[];
   showToast: (msg: string, type?: 'success' | 'error' | 'info' | string) => void;
   onUpdateUnreadCount?: (count: number) => void;
+  initialSubView?: 'tickets' | 'policies';
 }
 
 export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
@@ -90,10 +92,25 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   currentUser,
   userStores = [],
   showToast,
-  onUpdateUnreadCount
+  onUpdateUnreadCount,
+  initialSubView
 }) => {
   // Check dormancy / suspended account mode
   const isSuspendedAccount = settings?.dormancy_status === 'suspended' || settings?.is_suspended;
+
+  // Sub-view toggle: 'tickets' (default) vs 'policies'
+  const [helpdeskView, setHelpdeskView] = useState<'tickets' | 'policies'>(() => {
+    if (initialSubView) return initialSubView;
+    if (typeof window !== 'undefined') {
+      try {
+        const q = new URLSearchParams(window.location.search);
+        if (q.get('sub') === 'policies' || window.location.pathname.includes('/admin/policies')) {
+          return 'policies';
+        }
+      } catch {}
+    }
+    return 'tickets';
+  });
 
   // Tickets List & Filtering States
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -823,9 +840,81 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
         </div>
       </div>
 
+      {/* Helpdesk Sub-Navigation: Tiket Dukungan vs Legal & Kebijakan Platform */}
+      <div style={{
+        padding: '0.65rem 1.5rem',
+        borderBottom: '1px solid var(--border-light)',
+        backgroundColor: 'var(--bg-card)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '1rem',
+        flexShrink: 0
+      }}>
+        <div style={{ display: 'inline-flex', padding: '0.25rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+          <button
+            type="button"
+            id="tab-helpdesk-tickets"
+            onClick={() => setHelpdeskView('tickets')}
+            style={{
+              padding: '0.45rem 1.15rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              backgroundColor: helpdeskView === 'tickets' ? 'var(--primary)' : 'transparent',
+              color: helpdeskView === 'tickets' ? '#ffffff' : 'var(--text-secondary)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <HelpCircle size={15} />
+            <span>Tiket &amp; Layanan Dukungan</span>
+          </button>
+          <button
+            type="button"
+            id="tab-helpdesk-policies"
+            onClick={() => setHelpdeskView('policies')}
+            style={{
+              padding: '0.45rem 1.15rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              backgroundColor: helpdeskView === 'policies' ? 'var(--primary)' : 'transparent',
+              color: helpdeskView === 'policies' ? '#ffffff' : 'var(--text-secondary)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Scale size={15} />
+            <span>Pedoman Legal &amp; Kebijakan Platform</span>
+          </button>
+        </div>
+
+        {helpdeskView === 'policies' && (
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            Ketentuan resmi operasional platform &amp; hak pengelola profil katalog
+          </span>
+        )}
+      </div>
+
       {/* ===================================================================
-          2. MASTER-DETAIL SPLIT VIEW (ADAPTIF ERGONOMI TABLET)
+          2. MASTER-DETAIL SPLIT VIEW / POLICIES VIEW (ADAPTIF ERGONOMI TABLET)
           =================================================================== */}
+      {helpdeskView === 'policies' ? (
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          <TabletPoliciesView
+            onOpenHelpdesk={() => setHelpdeskView('tickets')}
+          />
+        </div>
+      ) : (
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <TabletMasterDetailView
           title="Pusat Bantuan & Tiket"
@@ -1694,6 +1783,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
           }
         />
       </div>
+      )}
 
       {/* ===================================================================
           3. ATTACHMENT LIGHTBOX & DOCUMENT PREVIEW MODALS

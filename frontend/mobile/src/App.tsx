@@ -160,6 +160,7 @@ import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './util
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { OfficialContactSheet } from './components/OfficialContactSheet'
+import { MobilePoliciesView } from './components/MobilePoliciesView'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
 import { 
   getSavedUserSlug, 
@@ -6721,6 +6722,18 @@ Terima kasih.`;
     return 'menu';
   })
 
+  const [helpSubTab, setHelpSubTab] = useState<'tickets' | 'policies'>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      const urlParams = new URLSearchParams(window.location.search);
+      const rawSub = (urlParams.get('sub') || '').toLowerCase();
+      if (path.includes('/admin/policies') || rawSub === 'policies' || rawSub === 'kebijakan') {
+        return 'policies';
+      }
+    }
+    return 'tickets';
+  });
+
   // Persist selectedNotification state to sessionStorage for 0ms restoration across page reloads
   useEffect(() => {
     try {
@@ -11049,7 +11062,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
               }
               setView('tabs');
             } else if (pageSub === 'policies') {
-              setAdminSubTab('policies');
+              setAdminSubTab('help');
+              setHelpSubTab('policies');
               setView('tabs');
             } else if (pageSub === 'notifications') {
               setAdminSubTab('notifications');
@@ -11065,6 +11079,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
               setMobileSubPageView('plans');
             } else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support' || pageSub === 'appeal' || pageSub === 'banding') {
               setAdminSubTab('help');
+              const helpSub = urlParams.get('sub');
+              if (helpSub === 'policies' || helpSub === 'kebijakan') {
+                setHelpSubTab('policies');
+              } else {
+                setHelpSubTab('tickets');
+              }
               setView('tabs');
               const ticketParam = urlParams.get('ticket') || (subSub && subSub !== 'new' && subSub !== 'create' ? subSub : null);
               if (subSub === 'new' || subSub === 'create' || urlParams.get('action') === 'new') {
@@ -12435,6 +12455,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
       } else if (adminSubTab === 'help') {
         if (isCreatingTicket) {
           targetPath += `/admin/help/new`;
+        } else if (helpSubTab === 'policies') {
+          targetPath += `/admin/help`;
+          params.set('sub', 'policies');
         } else {
           targetPath += `/admin/help`;
           const activeTckId = selectedTicket?.id ?? sessionStorage.getItem('catavor_merchant_active_ticket_id') ?? new URLSearchParams(window.location.search).get('ticket');
@@ -12504,7 +12527,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       isInitialLoadRef.current = false;
     }
     isUserNavRef.current = false;
-  }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error, showStoreSwitcherModal]);
+  }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, helpSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error, showStoreSwitcherModal]);
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {
@@ -22746,11 +22769,14 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         if (selectedTicket) return { title: `Banding #${selectedTicket.id}`, subtitle: '' };
                         return { title: 'Banding Kepatuhan', subtitle: '' };
                       }
+                      if (helpSubTab === 'policies') {
+                        return { title: 'Pedoman & Kebijakan', subtitle: 'PT Catavor Media Digital' };
+                      }
                       if (isCreatingTicket) return { title: 'Buat Tiket Baru', subtitle: '' };
                       if (selectedTicket) return { title: `Tiket #${selectedTicket.id}`, subtitle: '' };
                       return { title: 'Pusat Bantuan', subtitle: '' };
                     case 'policies':
-                      return { title: 'Legal & Kebijakan', subtitle: '' };
+                      return { title: 'Pedoman & Kebijakan', subtitle: 'PT Catavor Media Digital' };
                     case 'notifications':
                       if (selectedNotification) {
                         return {
@@ -22793,6 +22819,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 } catch {}
                                 if (slug) {
                                   window.history.replaceState({}, '', `/${slug}/admin`);
+                                }
+                              } else if (helpSubTab === 'policies') {
+                                setHelpSubTab('tickets');
+                                if (slug) {
+                                  window.history.replaceState({}, '', `/${slug}/admin/help`);
                                 }
                               } else if (isCreatingTicket) {
                                 setIsCreatingTicket(false);
@@ -22944,7 +22975,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       </button>
                     )}
 
-                    {adminSubTab === 'help' && !isCreatingTicket && !selectedTicket && tickets.length > 0 && (
+                    {adminSubTab === 'help' && helpSubTab !== 'policies' && !isCreatingTicket && !selectedTicket && tickets.length > 0 && (
                       <button 
                         type="button"
                         className="btn-primary" 
@@ -25873,14 +25904,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         </span>
                       </button>
 
-                      {/* 7. Legal */}
+                      {/* 7. Bagikan */}
                       <button
                         type="button"
                         onClick={() => { 
-                          setAdminSubTab('policies'); 
-                          fetchPolicies(); 
+                          setAdminSubTab('share'); 
                           const slug = getStoreSlug();
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/share`);
                         }}
                         style={{
                           display: 'flex',
@@ -25904,10 +25934,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           justifyContent: 'center',
                           color: 'var(--primary)'
                         }}>
-                          <ShieldCheck size={20} />
+                          <Share2 size={20} />
                         </div>
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
-                          Legal
+                          Bagikan
                         </span>
                       </button>
 
@@ -28209,88 +28239,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               )}
 
             {adminSubTab === 'policies' && (
-                <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {/* Quick Switcher Tabs */}
-                  <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--btn-secondary-bg)', padding: '0.3rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <button
-                      type="button"
-                      onClick={() => setMobilePolicyTab('terms')}
-                      style={{
-                        flex: 1,
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '0.45rem',
-                        fontSize: '0.72rem',
-                        fontWeight: 800,
-                        border: mobilePolicyTab === 'terms' ? '1px solid var(--primary)' : '1px solid transparent',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        backgroundColor: mobilePolicyTab === 'terms' ? 'var(--primary-glow)' : 'transparent',
-                        color: mobilePolicyTab === 'terms' ? 'var(--primary)' : 'var(--text-secondary)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      Syarat &amp; Ketentuan
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMobilePolicyTab('privacy')}
-                      style={{
-                        flex: 1,
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '0.45rem',
-                        fontSize: '0.72rem',
-                        fontWeight: 800,
-                        border: mobilePolicyTab === 'privacy' ? '1px solid var(--primary)' : '1px solid transparent',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        backgroundColor: mobilePolicyTab === 'privacy' ? 'var(--primary-glow)' : 'transparent',
-                        color: mobilePolicyTab === 'privacy' ? 'var(--primary)' : 'var(--text-secondary)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      Kebijakan Privasi
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMobilePolicyTab('acceptable_use')}
-                      style={{
-                        flex: 1,
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '0.45rem',
-                        fontSize: '0.72rem',
-                        fontWeight: 800,
-                        border: mobilePolicyTab === 'acceptable_use' ? '1px solid var(--primary)' : '1px solid transparent',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        backgroundColor: mobilePolicyTab === 'acceptable_use' ? 'var(--primary-glow)' : 'transparent',
-                        color: mobilePolicyTab === 'acceptable_use' ? 'var(--primary)' : 'var(--text-secondary)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      Ketentuan Penggunaan
-                    </button>
-                  </div>
-
-                  {/* Document Card Panel */}
-                  <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
-                      <div>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
-                          {policies[mobilePolicyTab]?.title || 'Dokumen Resmi Platform'}
-                        </span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                          Terakhir diperbarui: {formatPolicyEffectiveDate(policies[mobilePolicyTab]?.effective_date || (policies[mobilePolicyTab] as any)?.updated_at)}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--primary)', background: 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid var(--primary)', flexShrink: 0 }}>
-                        Resmi
-                      </span>
-                    </div>
-
-                    {renderFormattedPolicyContent(policies[mobilePolicyTab]?.content || '')}
-                  </div>
-                </div>
-              )}
+              <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <MobilePoliciesView onOpenHelpdesk={() => {
+                  setAdminSubTab('help');
+                  setHelpSubTab('tickets');
+                  const slug = getStoreSlug();
+                  if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                }} />
+              </div>
+            )}
 
               {adminSubTab === 'notifications' && (
                 <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
@@ -30222,8 +30179,93 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               {adminSubTab === 'help' && (
                 <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
                   
-                  {/* VIEW A: TICKET DETAIL & THREAD */}
-                  {selectedTicket ? (
+                  {/* Sub-Navigation Switcher (Tiket Bantuan vs Pedoman Legal & Kebijakan) */}
+                  {!selectedTicket && !isCreatingTicket && !isSuspendedAccountState && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.25rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep, #020617)',
+                        border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+                        gap: '0.25rem'
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          markUserNavigation();
+                          setHelpSubTab('tickets');
+                          const slug = getStoreSlug();
+                          if (slug) window.history.replaceState({}, '', `/${slug}/admin/help`);
+                        }}
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          padding: '0.55rem 0.5rem',
+                          borderRadius: '0.5rem',
+                          fontSize: '0.76rem',
+                          fontWeight: helpSubTab === 'tickets' ? 800 : 600,
+                          backgroundColor: helpSubTab === 'tickets' ? 'var(--bg-card, #0f172a)' : 'transparent',
+                          color: helpSubTab === 'tickets' ? 'var(--primary, #10b981)' : 'var(--text-secondary, #94a3b8)',
+                          border: helpSubTab === 'tickets' ? '1px solid var(--border-light, rgba(255, 255, 255, 0.1))' : '1px solid transparent',
+                          cursor: 'pointer',
+                          minHeight: '44px',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Headphones size={15} strokeWidth={1.75} />
+                        <span>Tiket Bantuan</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          markUserNavigation();
+                          setHelpSubTab('policies');
+                          const slug = getStoreSlug();
+                          if (slug) window.history.replaceState({}, '', `/${slug}/admin/help?sub=policies`);
+                        }}
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          padding: '0.55rem 0.5rem',
+                          borderRadius: '0.5rem',
+                          fontSize: '0.76rem',
+                          fontWeight: helpSubTab === 'policies' ? 800 : 600,
+                          backgroundColor: helpSubTab === 'policies' ? 'var(--bg-card, #0f172a)' : 'transparent',
+                          color: helpSubTab === 'policies' ? 'var(--primary, #10b981)' : 'var(--text-secondary, #94a3b8)',
+                          border: helpSubTab === 'policies' ? '1px solid var(--border-light, rgba(255, 255, 255, 0.1))' : '1px solid transparent',
+                          cursor: 'pointer',
+                          minHeight: '44px',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <FileText size={15} strokeWidth={1.75} />
+                        <span>Pedoman &amp; Kebijakan</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* SUB-VIEW 1: PEDOMAN & KEBIJAKAN (OPTION A) */}
+                  {helpSubTab === 'policies' && !selectedTicket && !isCreatingTicket && !isSuspendedAccountState ? (
+                    <MobilePoliciesView onOpenHelpdesk={() => {
+                      markUserNavigation();
+                      setHelpSubTab('tickets');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.replaceState({}, '', `/${slug}/admin/help`);
+                    }} />
+                  ) : (
+                    <>
+                      {/* VIEW A: TICKET DETAIL & THREAD */}
+                      {selectedTicket ? (
                     <div style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -32057,6 +32099,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       </>
                     )}
                     </div>
+                  )}
+                    </>
                   )}
 
                   {/* Official Contact Sheet (Mobile) */}

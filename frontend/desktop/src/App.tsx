@@ -8223,6 +8223,13 @@ Terima kasih.`;
   const [ticketTotalItems, setTicketTotalItems] = useState<number>(0);
   const [ticketLimit] = useState<number>(15);
   const [ticketMetrics, setTicketMetrics] = useState<{ total: number; active: number; resolved: number }>({ total: 0, active: 0, resolved: 0 });
+  const [helpSubTab, setHelpSubTab] = useState<'tickets' | 'policies'>(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get('sub') === 'policies' || window.location.pathname.includes('/admin/policies')) return 'policies';
+    } catch {}
+    return 'tickets';
+  });
 
   // Reset to page 1 on filter tab change
   useEffect(() => {
@@ -10874,9 +10881,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
             } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') {
               setAdminTab('subscription');
               setView('admin');
-            } else if (pageSub === 'help' || pageSub === 'bantuan') {
+            } else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'policies' || pageSub === 'kebijakan') {
               setAdminTab('help');
               setView('admin');
+              if (pageSub === 'policies' || pageSub === 'kebijakan' || urlParams.get('sub') === 'policies') {
+                setHelpSubTab('policies');
+              } else {
+                setHelpSubTab('tickets');
+              }
               const ticketParam = urlParams.get('ticket');
               if (ticketParam) {
                 const savedTickets = (() => {
@@ -12058,7 +12070,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       } else if (adminTab === 'profile') {
         targetPath += `/admin/profile`;
       } else if (adminTab === 'policies') {
-        targetPath += `/admin/policies`;
+        targetPath += `/admin/help`;
+        params.set('sub', 'policies');
       } else if (adminTab === 'notifications') {
         targetPath += `/admin/notifications`;
         const activeNotifId = selectedNotificationDetail?.id ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('id') : null) ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_active_desktop_notification_id') : null);
@@ -28301,7 +28314,77 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   </div>
 
-                  {/* MASTER-DETAIL TICKET LAYOUT */}
+                  {/* Helpdesk Sub-Navigation: Tiket Dukungan vs Legal & Kebijakan Platform */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+                    <div style={{ display: 'inline-flex', padding: '0.25rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHelpSubTab('tickets');
+                          const slug = storeSlug || getStoreSlug();
+                          if (slug) window.history.replaceState({}, '', `/${slug}/admin/help`);
+                        }}
+                        style={{
+                          padding: '0.5rem 1.15rem',
+                          borderRadius: '0.5rem',
+                          border: 'none',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          backgroundColor: helpSubTab === 'tickets' ? 'var(--primary)' : 'transparent',
+                          color: helpSubTab === 'tickets' ? '#ffffff' : 'var(--text-secondary)',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <LifeBuoy size={15} />
+                        <span>Tiket &amp; Layanan Dukungan</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHelpSubTab('policies');
+                          const slug = storeSlug || getStoreSlug();
+                          if (slug) window.history.replaceState({}, '', `/${slug}/admin/help?sub=policies`);
+                        }}
+                        style={{
+                          padding: '0.5rem 1.15rem',
+                          borderRadius: '0.5rem',
+                          border: 'none',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          backgroundColor: helpSubTab === 'policies' ? 'var(--primary)' : 'transparent',
+                          color: helpSubTab === 'policies' ? '#ffffff' : 'var(--text-secondary)',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Scale size={15} />
+                        <span>Pedoman Legal &amp; Kebijakan Platform</span>
+                      </button>
+                    </div>
+                    {helpSubTab === 'policies' && (
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        Ketentuan resmi operasional platform &amp; hak pengelola profil katalog
+                      </span>
+                    )}
+                  </div>
+
+                  {helpSubTab === 'policies' ? (
+                    <PlatformPoliciesView
+                      onOpenHelpdesk={() => {
+                        setHelpSubTab('tickets');
+                        const slug = storeSlug || getStoreSlug();
+                        if (slug) window.history.replaceState({}, '', `/${slug}/admin/help`);
+                      }}
+                    />
+                  ) : (
+                  /* MASTER-DETAIL TICKET LAYOUT */
                   <div style={{ display: 'grid', gridTemplateColumns: '370px 1fr', gap: '1.25rem', height: 'calc(100vh - 190px)', minHeight: '620px', maxHeight: 'calc(100vh - 190px)' }}>
                     
                     {/* LEFT PANEL: TICKET LIST & FILTERS */}
@@ -29524,6 +29607,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
 
                   </div>
+                  )}
 
                   {/* DESKTOP MODAL: CREATE TICKET WITH MULTI-IMAGE ATTACHMENT */}
                   {showCreateTicketModal && (() => {

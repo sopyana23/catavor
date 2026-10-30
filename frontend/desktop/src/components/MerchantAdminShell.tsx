@@ -186,11 +186,6 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           badge: unreadCount > 0 ? unreadCount : null,
           badgeColor: '#ef4444',
           badgeTextColor: '#ffffff'
-        },
-        {
-          id: 'policies',
-          label: 'Legal & Kebijakan',
-          icon: <ShieldAlert size={18} />
         }
       ]
     }
@@ -261,11 +256,6 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           badge: unreadCount > 0 ? unreadCount : null,
           badgeColor: '#ef4444',
           badgeTextColor: '#ffffff'
-        },
-        {
-          id: 'policies',
-          label: 'Legal & Kebijakan',
-          icon: <Scale size={18} />
         }
       ]
     }

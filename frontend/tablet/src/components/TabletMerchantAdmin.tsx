@@ -3195,8 +3195,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       title: 'BANTUAN & LAYANAN',
       items: [
         { key: 'notifications', label: 'Pusat Notifikasi', icon: Bell, badge: totalNotifUnread > 0 ? String(totalNotifUnread) : undefined, badgeColor: '#ef4444' },
-        { key: 'help', label: 'Pusat Bantuan & Tiket', icon: HelpCircle, badge: totalHelpUnread > 0 ? String(totalHelpUnread) : undefined, badgeColor: '#ef4444' },
-        { key: 'policies', label: 'Legal & Kebijakan', icon: FileText }
+        { key: 'help', label: 'Pusat Bantuan & Tiket', icon: HelpCircle, badge: totalHelpUnread > 0 ? String(totalHelpUnread) : undefined, badgeColor: '#ef4444' }
       ]
     }
   ];
@@ -10359,14 +10358,18 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         )}
 
         {/* ===================================================================
-            TAB 9: LEGAL & KEBIJAKAN PLATFORM
+            TAB 9: LEGAL & KEBIJAKAN PLATFORM (DIALIKAN KE DALAM PUSAT BANTUAN)
             =================================================================== */}
         {activeTab === 'policies' && (
-          <TabletPoliciesView
-            onOpenHelpdesk={() => {
-              setActiveTab('help');
-              if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/help`);
-            }}
+          <TabletHelpdeskView
+            token={token}
+            storeSlug={storeSlug}
+            settings={storeSettings}
+            currentUser={currentUser}
+            userStores={userStores}
+            showToast={(msg, type) => showToast(msg, type === 'error' ? 'error' : 'success')}
+            onUpdateUnreadCount={(cnt) => setSupportUnreadCount(cnt)}
+            initialSubView="policies"
           />
         )}
 
