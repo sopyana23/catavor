@@ -12365,11 +12365,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
 
       const currentRequestedSlug = getStoreSlug();
+      const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().split('?')[0].replace(/\/+$/, '') : '';
+      const isPlatformAdminPortal = !isCatalogChooserRoute(curPath) && (curPath === '/admin' || curPath.startsWith('/admin/') || curPath === '/platform' || curPath.startsWith('/platform/') || curPath === '/ops' || curPath.startsWith('/ops/'));
+      const authPortal = isPlatformAdminPortal ? 'admin' : 'merchant';
 
       const res = await fetch(`${API_BASE}/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Auth-Portal': authPortal,
           ...(currentRequestedSlug ? { 'X-Store-Slug': currentRequestedSlug } : {})
         },
         body: JSON.stringify({
@@ -12379,6 +12383,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           avatar: googleUser.avatar || '',
           token: googleUser.token || '',
           credential: googleUser.credential || '',
+          portal: authPortal,
           store_slug: currentRequestedSlug || '',
           plan: registerPlan
         })
@@ -13227,6 +13232,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setLoginError(null)
 
     const currentRequestedSlug = getStoreSlug();
+    const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().split('?')[0].replace(/\/+$/, '') : '';
+    const isPlatformAdminPortal = !isCatalogChooserRoute(curPath) && (curPath === '/admin' || curPath.startsWith('/admin/') || curPath === '/platform' || curPath.startsWith('/platform/') || curPath === '/ops' || curPath.startsWith('/ops/'));
+    const authPortal = isPlatformAdminPortal ? 'admin' : 'merchant';
 
     try {
       const res = await fetch(`${API_BASE}/login`, {
@@ -13234,10 +13242,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'X-Auth-Portal': authPortal,
           ...(currentRequestedSlug ? { 'X-Store-Slug': currentRequestedSlug } : {})
         },
         body: JSON.stringify({
           ...loginForm,
+          portal: authPortal,
           store_slug: currentRequestedSlug || ''
         })
       })
