@@ -100,7 +100,7 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 	}
 
 	// 1. Total Active Stores & Products
-	db.Model(&models.Store{}).Where("is_active = true AND status = 'active'").Count(&summary.TotalActiveStores)
+	db.Model(&models.Store{}).Where("(dormancy_status IS NULL OR dormancy_status = 'active') AND is_blacklisted = false").Count(&summary.TotalActiveStores)
 	db.Model(&models.Product{}).Where("is_active = true").Count(&summary.TotalActiveProducts)
 
 	// 2. 30 Days Aggregated Metrics
