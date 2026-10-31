@@ -194,6 +194,12 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 
 	orderClause := "products.id DESC"
 	switch strings.ToLower(strings.TrimSpace(c.Query("sort"))) {
+	case "popular", "popularity", "trending":
+		orderClause = "products.popularity_score DESC, products.view_count DESC, products.id DESC"
+	case "most_viewed", "views":
+		orderClause = "products.view_count DESC, products.id DESC"
+	case "best_seller", "most_ordered":
+		orderClause = "products.wa_clicks_count DESC, products.rekber_clicks_count DESC, products.id DESC"
 	case "oldest":
 		orderClause = "products.id ASC"
 	case "price_asc":
@@ -290,9 +296,12 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 		}
 	}
 
-	// Increment view count only for active items viewed by public
+	// Increment view count and popularity score only for active items viewed by public
 	if product.IsActive {
-		h.db.Model(&product).UpdateColumn("view_count", gormExpr("view_count + 1"))
+		h.db.Model(&product).UpdateColumns(map[string]interface{}{
+			"view_count":       gormExpr("view_count + 1"),
+			"popularity_score": gormExpr("popularity_score + 1"),
+		})
 	}
 
 	// SECURITY (N-08): jangan kirim models.Store mentah ke endpoint publik.
@@ -568,6 +577,12 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 			IPAddress: c.IP(),
 			UserAgent: c.Get("User-Agent"),
 		})
+
+		// 5. Update store's primary_product_type if it is currently 'general' or empty
+		if store.PrimaryProductType == "" || store.PrimaryProductType == "general" {
+			tx.Model(&models.Store{}).Where("id = ?", store.ID).Update("primary_product_type", product.ProductType)
+			store.PrimaryProductType = product.ProductType
+		}
 
 		return nil
 	})

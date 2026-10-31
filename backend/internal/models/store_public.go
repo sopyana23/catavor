@@ -34,6 +34,10 @@ type PublicStoreView struct {
 	SocialLinks    string    `json:"social_links,omitempty"`
 	EnableWADirect bool      `json:"enable_wa_direct"`
 	EnableWARekber bool      `json:"enable_wa_rekber"`
+	ViewCount      int64     `json:"view_count"`
+	TotalActionsCount int64  `json:"total_actions_count"`
+	PrimaryProductType string `json:"primary_product_type"`
+	IsFeatured     bool      `json:"is_featured"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -64,6 +68,10 @@ func (s *Store) ToPublicView() *PublicStoreView {
 		SocialLinks:      string(s.SocialLinks),
 		EnableWADirect:   s.EnableWADirect,
 		EnableWARekber:   s.EnableWARekber,
+		ViewCount:        s.ViewCount,
+		TotalActionsCount: s.TotalActionsCount,
+		PrimaryProductType: s.PrimaryProductType,
+		IsFeatured:       s.IsFeatured,
 		CreatedAt:        s.CreatedAt,
 	}
 }

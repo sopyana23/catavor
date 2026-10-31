@@ -306,6 +306,7 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 	case "store_view":
 		storeAssignments["store_views"] = gorm.Expr("store_daily_analytics.store_views + 1")
 		initialStore.StoreViews = 1
+		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
 	case "direct_wa_click":
 		storeAssignments["direct_wa_clicks"] = gorm.Expr("store_daily_analytics.direct_wa_clicks + 1")
 		storeAssignments["wa_clicks"] = gorm.Expr("store_daily_analytics.wa_clicks + 1")
@@ -313,24 +314,28 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 		initialStore.DirectWaClicks = 1
 		initialStore.WaClicks = 1
 		initialStore.TotalActions = 1
+		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("total_actions_count", gorm.Expr("total_actions_count + 1")).Error
 	case "marketplace_clicks", "marketplace_click":
 		event = "marketplace_click"
 		storeAssignments["marketplace_clicks"] = gorm.Expr("store_daily_analytics.marketplace_clicks + 1")
 		storeAssignments["total_actions"] = gorm.Expr("store_daily_analytics.total_actions + 1")
 		initialStore.MarketplaceClicks = 1
 		initialStore.TotalActions = 1
+		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("total_actions_count", gorm.Expr("total_actions_count + 1")).Error
 	case "rekber_clicks", "rekber_click":
 		event = "rekber_click"
 		storeAssignments["rekber_clicks"] = gorm.Expr("store_daily_analytics.rekber_clicks + 1")
 		storeAssignments["total_actions"] = gorm.Expr("store_daily_analytics.total_actions + 1")
 		initialStore.RekberClicks = 1
 		initialStore.TotalActions = 1
+		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("total_actions_count", gorm.Expr("total_actions_count + 1")).Error
 	case "video_view", "video_views":
 		event = "video_view"
 		storeAssignments["video_views"] = gorm.Expr("store_daily_analytics.video_views + 1")
 		storeAssignments["total_actions"] = gorm.Expr("store_daily_analytics.total_actions + 1")
 		initialStore.VideoViews = 1
 		initialStore.TotalActions = 1
+		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("total_actions_count", gorm.Expr("total_actions_count + 1")).Error
 	}
 
 	_ = db.Clauses(clause.OnConflict{
@@ -366,7 +371,10 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 				initialProd.Views = 1
 				_ = db.Model(&models.Product{}).
 					Where("id = ?", req.ProductID).
-					UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
+					UpdateColumns(map[string]interface{}{
+						"view_count":       gorm.Expr("view_count + 1"),
+						"popularity_score": gorm.Expr("popularity_score + 1"),
+					}).Error
 
 			case "direct_wa_click":
 				prodAssignments["direct_wa_clicks"] = gorm.Expr("product_daily_analytics.direct_wa_clicks + 1")
@@ -377,7 +385,10 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 				initialProd.TotalActions = 1
 				_ = db.Model(&models.Product{}).
 					Where("id = ?", req.ProductID).
-					UpdateColumn("wa_clicks_count", gorm.Expr("wa_clicks_count + 1")).Error
+					UpdateColumns(map[string]interface{}{
+						"wa_clicks_count":  gorm.Expr("wa_clicks_count + 1"),
+						"popularity_score": gorm.Expr("popularity_score + 3"),
+					}).Error
 
 			case "marketplace_click":
 				prodAssignments["marketplace_clicks"] = gorm.Expr("product_daily_analytics.marketplace_clicks + 1")
@@ -386,7 +397,10 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 				initialProd.TotalActions = 1
 				_ = db.Model(&models.Product{}).
 					Where("id = ?", req.ProductID).
-					UpdateColumn("marketplace_clicks_count", gorm.Expr("marketplace_clicks_count + 1")).Error
+					UpdateColumns(map[string]interface{}{
+						"marketplace_clicks_count": gorm.Expr("marketplace_clicks_count + 1"),
+						"popularity_score":         gorm.Expr("popularity_score + 2"),
+					}).Error
 
 			case "rekber_click":
 				prodAssignments["rekber_clicks"] = gorm.Expr("product_daily_analytics.rekber_clicks + 1")
@@ -395,7 +409,10 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 				initialProd.TotalActions = 1
 				_ = db.Model(&models.Product{}).
 					Where("id = ?", req.ProductID).
-					UpdateColumn("rekber_clicks_count", gorm.Expr("rekber_clicks_count + 1")).Error
+					UpdateColumns(map[string]interface{}{
+						"rekber_clicks_count": gorm.Expr("rekber_clicks_count + 1"),
+						"popularity_score":    gorm.Expr("popularity_score + 5"),
+					}).Error
 
 			case "video_view":
 				prodAssignments["video_views"] = gorm.Expr("product_daily_analytics.video_views + 1")
@@ -404,7 +421,10 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 				initialProd.TotalActions = 1
 				_ = db.Model(&models.Product{}).
 					Where("id = ?", req.ProductID).
-					UpdateColumn("video_views_count", gorm.Expr("video_views_count + 1")).Error
+					UpdateColumns(map[string]interface{}{
+						"video_views_count": gorm.Expr("video_views_count + 1"),
+						"popularity_score":  gorm.Expr("popularity_score + 1"),
+					}).Error
 			}
 
 			_ = db.Clauses(clause.OnConflict{

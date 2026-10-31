@@ -55,8 +55,9 @@ type Product struct {
 	ResubmitCount       int            `gorm:"default:0" json:"resubmit_count"`
 	ArchivedAt          *time.Time     `gorm:"index" json:"archived_at,omitempty"`
 	DeletedAt           gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	ViewCount              int64          `gorm:"default:0" json:"view_count"`
-	WaClicksCount          int64          `gorm:"default:0" json:"wa_clicks_count"`
+	ViewCount              int64          `gorm:"default:0;index" json:"view_count"`
+	PopularityScore        int64          `gorm:"default:0;index" json:"popularity_score"`
+	WaClicksCount          int64          `gorm:"default:0;index" json:"wa_clicks_count"`
 	MarketplaceClicksCount int64          `gorm:"default:0" json:"marketplace_clicks_count"`
 	RekberClicksCount      int64          `gorm:"default:0" json:"rekber_clicks_count"`
 	VideoViewsCount        int64          `gorm:"default:0" json:"video_views_count"`
