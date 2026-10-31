@@ -472,11 +472,158 @@ button, a, input, select, textarea {
 }
 
 /* ==========================================================================
-   Desktop-Parity Settings Segmented Sub-Tab Bar (Tablet Adaptive Grid & Touch)
+   Tablet Native Settings Segmented Tab Bar (Adaptive & Touch-First)
+   Solves the layout squishing and text collision when sidebar expands
    ========================================================================== */
+.tablet-settings-container {
+  container-type: inline-size;
+  container-name: settingsContainer;
+}
+
+.tablet-settings-tab-wrapper {
+  position: relative;
+  margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+.tablet-settings-tabs-track {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background-color: var(--bg-deep);
+  padding: 0.35rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--border-light);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  box-sizing: border-box;
+}
+
+.tablet-settings-tabs-track::-webkit-scrollbar {
+  display: none;
+}
+
+.tablet-settings-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 44px;
+  gap: 0.55rem;
+  padding: 0.65rem 1.15rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--text-secondary);
+  box-sizing: border-box;
+  text-align: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tablet-settings-tab-btn:hover:not(.active) {
+  background-color: var(--bg-card-hover, rgba(255, 255, 255, 0.06));
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.tablet-settings-tab-btn:active:not(.active) {
+  transform: scale(0.98);
+}
+
+.tablet-settings-tab-btn.active {
+  border: 1px solid var(--primary);
+  background-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 2px 12px var(--primary-glow, rgba(16, 185, 129, 0.28));
+}
+
+.tablet-settings-tab-btn .tab-icon {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.tablet-settings-tab-btn.active .tab-icon {
+  transform: scale(1.05);
+}
+
+.tablet-settings-tab-btn .tab-label-text {
+  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tab-pro-badge {
+  font-size: 0.62rem;
+  font-weight: 900;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: var(--primary);
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.tab-pro-badge.active {
+  background-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+/* Edge overflow fade masks */
+.tablet-tab-scroll-hint-left,
+.tablet-tab-scroll-hint-right {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 32px;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.2s ease;
+  border-radius: 0.85rem;
+}
+
+.tablet-tab-scroll-hint-left {
+  left: 1px;
+  background: linear-gradient(to right, var(--bg-deep) 30%, transparent);
+}
+
+.tablet-tab-scroll-hint-right {
+  right: 1px;
+  background: linear-gradient(to left, var(--bg-deep) 30%, transparent);
+}
+
+/* Large Container Mode (Only when sidebar is collapsed AND container width >= 960px) */
+@container settingsContainer (min-width: 960px) {
+  .tablet-settings-tab-wrapper:not(.is-sidebar-expanded) .tablet-settings-tabs-track {
+    display: grid;
+    grid-template-columns: repeat(var(--tab-count, 5), minmax(0, 1fr));
+    gap: 0.45rem;
+    overflow-x: visible;
+  }
+  .tablet-settings-tab-wrapper:not(.is-sidebar-expanded) .tablet-settings-tab-btn {
+    flex: 1 1 0;
+    width: 100%;
+    padding: 0.65rem 0.65rem;
+  }
+}
+
+/* Fallback & Backward Compatibility for .desktop-settings-tabs-grid */
 .desktop-settings-tabs-grid {
-  display: grid;
-  grid-template-columns: repeat(var(--tab-count, 5), minmax(0, 1fr));
+  display: flex;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   gap: 0.45rem;
   background-color: var(--bg-deep);
   padding: 0.35rem;
@@ -486,30 +633,15 @@ button, a, input, select, textarea {
   width: 100%;
   box-sizing: border-box;
 }
-
-@media (max-width: 900px) {
-  .desktop-settings-tabs-grid {
-    display: flex;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .desktop-settings-tabs-grid::-webkit-scrollbar {
-    display: none;
-  }
-  .desktop-settings-tab-btn {
-    flex: 1 0 auto;
-    min-width: max-content;
-  }
+.desktop-settings-tabs-grid::-webkit-scrollbar {
+  display: none;
 }
-
 .desktop-settings-tab-btn {
+  flex: 0 0 auto;
+  min-width: max-content;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  min-width: 0;
   min-height: 44px;
   gap: 0.5rem;
   padding: 0.65rem 0.95rem;
@@ -526,13 +658,11 @@ button, a, input, select, textarea {
   text-align: center;
   user-select: none;
 }
-
 .desktop-settings-tab-btn:hover:not(.active) {
   background-color: var(--bg-card-hover, rgba(255, 255, 255, 0.05));
   color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.06);
 }
-
 .desktop-settings-tab-btn.active {
   border: 1px solid var(--primary);
   background-color: var(--primary);

@@ -8456,6 +8456,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             storeSlug={storeSlug}
             token={token}
             quota={quota}
+            isNavExpanded={isNavExpanded}
             onThemeChange={(newTheme) => {
               if (onThemeChange) onThemeChange(newTheme);
               setStoreSettings(prev => ({ ...prev, store_theme: newTheme }));

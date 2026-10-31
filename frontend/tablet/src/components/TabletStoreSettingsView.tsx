@@ -805,6 +805,7 @@ export interface TabletStoreSettingsViewProps {
   onUnauthorized?: () => void;
   onSlugChanged?: (newSlug: string) => void;
   handleUploadImage: (file: File, category?: 'products' | 'branding') => Promise<string | null>;
+  isNavExpanded?: boolean;
 }
 
 export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = ({
@@ -817,12 +818,56 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
   onViewPublicCatalog: _onViewPublicCatalog,
   onUnauthorized,
   onSlugChanged,
-  handleUploadImage
+  handleUploadImage,
+  isNavExpanded = false
 }) => {
   const [settingsSubTab, setSettingsSubTab] = useState<TabletSettingsSubTab>('general');
   const [saving, setSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const [bannerUploading, setBannerUploading] = useState(false);
+
+  // Tab track scrolling & touch ergonomics
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const tabButtonsRef = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkTabScroll = useCallback(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollWidth > el.clientWidth + 2;
+    if (hasOverflow) {
+      setCanScrollLeft(el.scrollLeft > 6);
+      setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 6);
+    } else {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkTabScroll();
+    const el = tabBarRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', checkTabScroll, { passive: true });
+    window.addEventListener('resize', checkTabScroll);
+    return () => {
+      el.removeEventListener('scroll', checkTabScroll);
+      window.removeEventListener('resize', checkTabScroll);
+    };
+  }, [checkTabScroll, isNavExpanded]);
+
+  const handleSelectSubTab = (id: TabletSettingsSubTab) => {
+    setSettingsSubTab(id);
+    const btn = tabButtonsRef.current[id];
+    if (btn) {
+      btn.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest'
+      });
+    }
+  };
 
   // Settings Form State
   const [settingsForm, setSettingsForm] = useState({
@@ -1154,12 +1199,18 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
     }
   };
 
-  const settingsTabs: Array<{ id: TabletSettingsSubTab; label: string; icon: React.ComponentType<{ size?: number | string; strokeWidth?: number; style?: React.CSSProperties }>; isPro?: boolean }> = [
-    { id: 'general', label: 'Profil & Identitas Utama', icon: StoreIcon },
-    { id: 'contact', label: 'Kontak & Saluran Resmi', icon: MessageCircle },
-    { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
-    { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
-    ...(quota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', icon: Globe, isPro: true }] : [])
+  const settingsTabs: Array<{ 
+    id: TabletSettingsSubTab; 
+    label: string; 
+    description: string;
+    icon: React.ComponentType<{ size?: number | string; strokeWidth?: number; style?: React.CSSProperties; className?: string }>; 
+    isPro?: boolean 
+  }> = [
+    { id: 'general', label: 'Profil & Identitas', description: 'Nama katalog, tautan unik, logo, dan slogan bisnis', icon: StoreIcon },
+    { id: 'contact', label: 'Kontak & Saluran', description: 'WhatsApp CS, telepon, jam operasional, dan lokasi toko', icon: MessageCircle },
+    { id: 'about', label: 'Tentang Kami', description: 'Profil cerita bisnis, visi-misi, dan kartu nilai komitmen', icon: Sparkles },
+    { id: 'theme', label: 'Tema & Tampilan', description: 'Preset warna estetika, palet brand, dan gaya visual etalase', icon: Palette },
+    ...(quota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', description: 'Tautkan nama domain pribadi Anda ke etalase katalog', icon: Globe, isPro: true }] : [])
   ];
 
   const themePresets = [
@@ -1173,24 +1224,31 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
   ];
 
   return (
-    <div style={{
-      flex: 1,
-      minHeight: 0,
-      height: '100%',
-      maxHeight: '100%',
-      overflowY: 'auto',
-      WebkitOverflowScrolling: 'touch',
-      overscrollBehavior: 'contain',
-      width: '100%',
-      boxSizing: 'border-box'
-    }}>
-      <div style={{
-        maxWidth: '1040px',
-        margin: '0 auto',
-        padding: '1.75rem 2rem 8rem 2rem',
+    <div 
+      className={`tablet-settings-root ${isNavExpanded ? 'is-nav-expanded' : ''}`}
+      style={{
+        flex: 1,
+        minHeight: 0,
+        height: '100%',
+        maxHeight: '100%',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain',
         width: '100%',
         boxSizing: 'border-box'
-      }}>
+      }}
+    >
+      <div 
+        className="tablet-settings-container"
+        style={{
+          maxWidth: '1040px',
+          margin: '0 auto',
+          padding: isNavExpanded ? '1.25rem 1.5rem 8rem 1.5rem' : '1.75rem 2rem 8rem 2rem',
+          width: '100%',
+          boxSizing: 'border-box',
+          transition: 'padding 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}
+      >
       {/* Header Banner */}
       <div style={{
         display: 'flex',
@@ -1228,38 +1286,44 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
         </div>
       </div>
 
-      {/* Desktop-Parity Settings Segmented Sub-Tab Bar (Tablet Adaptive Grid & Touch) */}
+      {/* Tablet Adaptive Segmented Sub-Tab Bar (Touch-First & Zero Collision) */}
       <div
-        className="desktop-settings-tabs-grid"
+        className={`tablet-settings-tab-wrapper ${isNavExpanded ? 'is-sidebar-expanded' : ''}`}
         style={{ '--tab-count': settingsTabs.length } as React.CSSProperties}
       >
-        {settingsTabs.map(tab => {
-          const Icon = tab.icon;
-          const isActive = settingsSubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setSettingsSubTab(tab.id)}
-              className={`desktop-settings-tab-btn ${isActive ? 'active' : ''}`}
-            >
-              <Icon size={16} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-              <span className="tab-label">{tab.label}</span>
-              {tab.isPro && (
-                <span style={{
-                  fontSize: '0.62rem',
-                  fontWeight: 900,
-                  padding: '1px 5px',
-                  borderRadius: '4px',
-                  backgroundColor: isActive ? 'rgba(255,255,255,0.28)' : 'var(--primary)',
-                  color: '#ffffff',
-                  letterSpacing: '0.03em',
-                  flexShrink: 0
-                }}>PRO</span>
-              )}
-            </button>
-          );
-        })}
+        {canScrollLeft && <div className="tablet-tab-scroll-hint-left" aria-hidden="true" />}
+        <div
+          ref={tabBarRef}
+          className="tablet-settings-tabs-track"
+          role="tablist"
+          aria-label="Sub-Menu Pengaturan Katalog"
+        >
+          {settingsTabs.map(tab => {
+            const Icon = tab.icon;
+            const isActive = settingsSubTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                ref={el => { tabButtonsRef.current[tab.id] = el; }}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                title={tab.description}
+                onClick={() => handleSelectSubTab(tab.id)}
+                className={`tablet-settings-tab-btn ${isActive ? 'active' : ''}`}
+              >
+                <Icon size={16} strokeWidth={2.2} className="tab-icon" />
+                <span className="tab-label-text">{tab.label}</span>
+                {tab.isPro && (
+                  <span className={`tab-pro-badge ${isActive ? 'active' : ''}`}>
+                    PRO
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {canScrollRight && <div className="tablet-tab-scroll-hint-right" aria-hidden="true" />}
       </div>
 
       {/* Hidden file inputs for Branding */}
@@ -1294,7 +1358,7 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
             gap: '1rem'
           }}>
             {themePresets.map(t => {
@@ -2033,7 +2097,7 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
                       ) : (
                         <div style={{
                           display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
                           gap: '1rem'
                         }}>
                           {currentLinks.map((link: any, index: number) => (
@@ -2260,7 +2324,7 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
                       ) : (
                         <div style={{
                           display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
                           gap: '1rem'
                         }}>
                           {currentCards.map((card: any, index: number) => (
