@@ -105,6 +105,9 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	var targetDist string
 	var fallbackDist string
 
+	isTabletUA := tabletUARegex.MatchString(userAgent) || (androidRegex.MatchString(userAgent) && !mobileSubRegex.MatchString(userAgent))
+	isMobileUA := mobileUARegex.MatchString(userAgent)
+
 	// 1. Explicit query parameter (?view=...) takes top priority for dev & testing override
 	if viewQuery == "tablet" {
 		targetDist = h.cfg.TabletDistDir
@@ -115,26 +118,29 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	} else if viewQuery == "desktop" {
 		targetDist = h.cfg.DesktopDistDir
 		fallbackDist = h.cfg.MobileDistDir
-	// 2. Explicit Mobile Device signals (Mobile UA or Sec-CH-UA-Mobile: ?1) take precedence over stale desktop cookie!
-	// (Crucial for Chrome DevTools mobile emulation when developer previously visited desktop mode)
-	} else if mobileUARegex.MatchString(userAgent) || secCHMobile == "?1" {
-		targetDist = h.cfg.MobileDistDir
-		fallbackDist = h.cfg.DesktopDistDir
-	// 3. Tablet Device signals take precedence over stale desktop cookie!
-	} else if tabletUARegex.MatchString(userAgent) || (androidRegex.MatchString(userAgent) && !mobileSubRegex.MatchString(userAgent)) {
+	// 2. Explicit Tablet Device signals (iPad / Tablet UA) take precedence over generic mobile hints
+	} else if isTabletUA {
 		targetDist = h.cfg.TabletDistDir
 		fallbackDist = h.cfg.DesktopDistDir
-	// 4. Client-side classifier cookie (used when UA is desktop, e.g. DevTools Responsive mode or resized browser)
-	} else if deviceCookie == "mobile" {
+	// 3. Explicit Mobile Phone signals (Phone UA)
+	} else if isMobileUA {
 		targetDist = h.cfg.MobileDistDir
 		fallbackDist = h.cfg.DesktopDistDir
+	// 4. Client-side classifier cookie (set by browser measuring actual viewport width)
 	} else if deviceCookie == "tablet" {
 		targetDist = h.cfg.TabletDistDir
+		fallbackDist = h.cfg.DesktopDistDir
+	} else if deviceCookie == "mobile" {
+		targetDist = h.cfg.MobileDistDir
 		fallbackDist = h.cfg.DesktopDistDir
 	} else if deviceCookie == "desktop" {
 		targetDist = h.cfg.DesktopDistDir
 		fallbackDist = h.cfg.MobileDistDir
-	// 5. Default fallback
+	// 5. Generic Mobile Client Hint (?1) without explicit tablet or desktop signals
+	} else if secCHMobile == "?1" {
+		targetDist = h.cfg.MobileDistDir
+		fallbackDist = h.cfg.DesktopDistDir
+	// 6. Default fallback (Desktop)
 	} else {
 		targetDist = h.cfg.DesktopDistDir
 		fallbackDist = h.cfg.MobileDistDir

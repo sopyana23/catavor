@@ -348,9 +348,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab') as TabletMerchantTab;
+      if (tabParam === 'audit_logs') {
+        return 'profile';
+      }
       const validTabs: TabletMerchantTab[] = [
         'items', 'categories', 'analytics', 'subscription', 'settings',
-        'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
+        'profile', 'notifications', 'help', 'policies', 'share'
       ];
       if (tabParam && validTabs.includes(tabParam)) {
         return tabParam;
@@ -360,6 +363,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   });
 
   const setActiveTab = useCallback((tab: TabletMerchantTab) => {
+    if (tab === 'audit_logs') {
+      setActiveTabState('profile');
+      setProfileSubTabState('audit_logs');
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'profile');
+        url.searchParams.set('sub', 'audit_logs');
+        url.searchParams.delete('action');
+        url.searchParams.delete('type');
+        url.searchParams.delete('catalog_type');
+        window.history.pushState({ tab: 'profile', sub: 'audit_logs' }, '', url.toString());
+      }
+      return;
+    }
     setActiveTabState(tab);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -377,9 +394,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [profileSubTab, setProfileSubTabState] = useState<'info' | 'devices' | 'audit_logs' | 'danger'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
       const sub = params.get('sub');
+      if (tabParam === 'audit_logs' || sub === 'audit_logs' || sub === 'logs') return 'audit_logs';
       if (sub === 'devices' || sub === 'security') return 'devices';
-      if (sub === 'audit_logs' || sub === 'logs') return 'audit_logs';
       if (sub === 'danger') return 'danger';
     }
     return 'info';
@@ -1748,10 +1766,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         return;
       }
       const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab') as TabletMerchantTab;
+      let tabParam = params.get('tab') as TabletMerchantTab;
+      if (tabParam === 'audit_logs') {
+        tabParam = 'profile';
+        setProfileSubTabState('audit_logs');
+      }
       const validTabs: TabletMerchantTab[] = [
         'items', 'categories', 'analytics', 'subscription', 'settings',
-        'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
+        'profile', 'notifications', 'help', 'policies', 'share'
       ];
       const activeT = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'items';
       setActiveTabState(activeT);
@@ -1771,8 +1793,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         }
       } else if (activeT === 'profile') {
         const subParam = params.get('sub');
-        if (subParam === 'devices' || subParam === 'security') setProfileSubTabState('devices');
-        else if (subParam === 'audit_logs' || subParam === 'logs') setProfileSubTabState('audit_logs');
+        if (params.get('tab') === 'audit_logs' || subParam === 'audit_logs' || subParam === 'logs') setProfileSubTabState('audit_logs');
+        else if (subParam === 'devices' || subParam === 'security') setProfileSubTabState('devices');
         else if (subParam === 'danger') setProfileSubTabState('danger');
         else setProfileSubTabState('info');
       }
@@ -2492,9 +2514,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const handleNavigateSubTabFromNotif = (subTab: string, item: any) => {
     handleMarkNotifRead(item.id);
+    if (subTab === 'audit_logs' || subTab === 'logs') {
+      setActiveTab('profile');
+      setProfileSubTab('audit_logs');
+      return;
+    }
     const validTabs: TabletMerchantTab[] = [
       'items', 'categories', 'analytics', 'subscription', 'settings',
-      'profile', 'audit_logs', 'notifications', 'help', 'policies', 'share'
+      'profile', 'notifications', 'help', 'policies', 'share'
     ];
     let targetTab = subTab as TabletMerchantTab;
     if (subTab === 'products') targetTab = 'items';
@@ -3172,7 +3199,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   }, [tickets, supportUnreadCount]);
 
   // =========================================================================
-  // NAVIGATION MENU GROUPS
+  // NAVIGATION MENU GROUPS (Desktop Parity Structure & Positioning)
   // =========================================================================
   interface TabletNavItem {
     key: string;
@@ -3180,36 +3207,61 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     icon: any;
     badge?: string;
     badgeColor?: string;
+    badgeTextColor?: string;
+    showDotInRail?: boolean;
   }
 
   const navGroups: { title: string; items: TabletNavItem[] }[] = [
     {
-      title: 'KATALOG & INVENTARIS',
+      title: 'Katalog & Inventaris',
       items: [
         { key: 'items', label: 'Daftar Item Katalog', icon: Package },
         { key: 'categories', label: 'Kategori Etalase', icon: FolderTree }
       ]
     },
     {
-      title: 'PERFORMA & BISNIS',
+      title: 'Performa & Bisnis',
       items: [
-        { key: 'analytics', label: 'Statistik & Trafik', icon: BarChart3 },
-        { key: 'subscription', label: 'Paket & Kuota', icon: CreditCard },
-        { key: 'audit_logs', label: 'Jejak Audit & Log', icon: History }
+        { key: 'analytics', label: 'Statistik & Trafik', icon: BarChart3 }
       ]
     },
     {
-      title: 'PENGATURAN & AKUN',
+      title: 'Pengaturan & Akun',
       items: [
         { key: 'settings', label: 'Pengaturan Katalog', icon: SlidersHorizontal },
-        { key: 'profile', label: 'Akun & Keamanan', icon: UserCheck }
+        {
+          key: 'subscription',
+          label: 'Paket & Kuota',
+          icon: Crown,
+          badge: quota?.plan?.badge_label || (quota?.plan?.code === 'pro_business' ? 'PRO BISNIS' : quota?.plan?.code === 'pro_starter' ? 'STARTER' : quota?.plan ? 'GRATIS' : undefined),
+          badgeColor: (quota?.plan?.code === 'free' || !quota?.plan) ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+          badgeTextColor: (quota?.plan?.code === 'free' || !quota?.plan) ? '#f59e0b' : 'var(--primary)',
+          showDotInRail: false
+        },
+        { key: 'profile', label: 'Akun & Keamanan', icon: ShieldCheck }
       ]
     },
     {
-      title: 'BANTUAN & LAYANAN',
+      title: 'Bantuan & Layanan',
       items: [
-        { key: 'notifications', label: 'Pusat Notifikasi', icon: Bell, badge: totalNotifUnread > 0 ? String(totalNotifUnread) : undefined, badgeColor: '#ef4444' },
-        { key: 'help', label: 'Pusat Bantuan & Tiket', icon: HelpCircle, badge: totalHelpUnread > 0 ? String(totalHelpUnread) : undefined, badgeColor: '#ef4444' }
+        {
+          key: 'help',
+          label: 'Pusat Bantuan & Tiket',
+          icon: HelpCircle,
+          badge: totalHelpUnread > 0 ? `${totalHelpUnread} Baru` : undefined,
+          badgeColor: 'rgba(239, 68, 68, 0.2)',
+          badgeTextColor: '#ef4444',
+          showDotInRail: totalHelpUnread > 0
+        },
+        {
+          key: 'notifications',
+          label: 'Pusat Notifikasi',
+          icon: Bell,
+          badge: totalNotifUnread > 0 ? String(totalNotifUnread) : undefined,
+          badgeColor: '#ef4444',
+          badgeTextColor: '#ffffff',
+          showDotInRail: totalNotifUnread > 0
+        }
       ]
     }
   ];
@@ -3368,7 +3420,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             {navGroups.map((group, gIdx) => (
               <div key={gIdx} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 {isNavExpanded && (
-                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', padding: '0.35rem 0.5rem', letterSpacing: '0.04em' }}>
+                  <div style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 800,
+                    color: 'var(--text-muted, #94a3b8)',
+                    padding: '0.35rem 0.5rem',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    opacity: 0.85
+                  }}>
                     {group.title}
                   </div>
                 )}
@@ -3403,7 +3463,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     >
                       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Icon size={20} strokeWidth={isActive ? 2.2 : 1.75} style={{ flexShrink: 0 }} />
-                        {!isNavExpanded && item.badge && (
+                        {!isNavExpanded && (item.showDotInRail ?? Boolean(item.badge)) && (
                           <span
                             id={`indicator-dot-${item.key}`}
                             data-testid={`indicator-dot-${item.key}`}
@@ -3439,7 +3499,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 padding: '0.12rem 0.5rem',
                                 borderRadius: '999px',
                                 backgroundColor: item.badgeColor || 'var(--primary)',
-                                color: '#ffffff',
+                                color: item.badgeTextColor || '#ffffff',
                                 flexShrink: 0,
                                 marginLeft: 'auto'
                               }}
@@ -8508,19 +8568,24 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </div>
 
                 {/* Segmented SubTab Pills - Posisi selalu konsisten & tidak terpengaruh panjang/pendek deskripsi */}
-                <div style={{
-                  display: 'flex',
-                  gap: '0.45rem',
-                  backgroundColor: 'var(--bg-deep)',
-                  padding: '0.3rem',
-                  borderRadius: '0.75rem',
-                  border: '1px solid var(--border-light)',
-                  flexWrap: 'nowrap',
-                  overflowX: 'auto',
-                  maxWidth: '100%',
-                  WebkitOverflowScrolling: 'touch',
-                  flexShrink: 0
-                }}>
+                <div 
+                  className="no-scrollbar"
+                  style={{
+                    display: 'flex',
+                    gap: '0.45rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    padding: '0.3rem',
+                    borderRadius: '0.75rem',
+                    border: '1px solid var(--border-light)',
+                    flexWrap: 'nowrap',
+                    overflowX: 'auto',
+                    maxWidth: '100%',
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none',
+                    flexShrink: 0
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => setProfileSubTab('info')}
@@ -8539,6 +8604,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       color: profileSubTab === 'info' ? '#ffffff' : 'var(--text-secondary)',
                       boxShadow: profileSubTab === 'info' ? '0 2px 8px var(--primary-glow)' : 'none',
                       whiteSpace: 'nowrap',
+                      flexShrink: 0,
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -8564,6 +8630,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       color: (profileSubTab === 'devices' || (profileSubTab as string) === 'security') ? '#ffffff' : 'var(--text-secondary)',
                       boxShadow: (profileSubTab === 'devices' || (profileSubTab as string) === 'security') ? '0 2px 8px var(--primary-glow)' : 'none',
                       whiteSpace: 'nowrap',
+                      flexShrink: 0,
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -8589,6 +8656,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       color: (profileSubTab === 'audit_logs' || (profileSubTab as string) === 'logs') ? '#ffffff' : 'var(--text-secondary)',
                       boxShadow: (profileSubTab === 'audit_logs' || (profileSubTab as string) === 'logs') ? '0 2px 8px var(--primary-glow)' : 'none',
                       whiteSpace: 'nowrap',
+                      flexShrink: 0,
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -8614,6 +8682,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       color: profileSubTab === 'danger' ? 'var(--text-primary)' : 'var(--text-secondary)',
                       boxShadow: profileSubTab === 'danger' ? 'var(--shadow-sm)' : 'none',
                       whiteSpace: 'nowrap',
+                      flexShrink: 0,
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -9498,40 +9567,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 />
               </div>
             )}
-            </div>
-          </div>
-        )}
-
-        {/* ===================================================================
-            TAB: AUDIT LOGS (JEJAK AKTIVITAS PENGELOLA)
-            =================================================================== */}
-        {activeTab === 'audit_logs' && (
-          <div style={{
-            flex: 1,
-            minHeight: 0,
-            height: '100%',
-            maxHeight: '100%',
-            overflowY: 'auto',
-            WebkitOverflowScrolling: 'touch',
-            overscrollBehavior: 'contain',
-            width: '100%',
-            boxSizing: 'border-box'
-          }}>
-            <div style={{
-              maxWidth: '1040px',
-              margin: '0 auto',
-              padding: '1.75rem 2rem 8rem 2rem',
-              width: '100%',
-              boxSizing: 'border-box'
-            }}>
-              <TabletAuditLogsView
-                token={token}
-                currentUser={currentUser}
-                storeSlug={storeSlug}
-                showToast={showToast}
-                onLogout={onLogout}
-                onUnauthorized={onUnauthorized}
-              />
             </div>
           </div>
         )}
