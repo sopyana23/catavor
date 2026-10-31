@@ -65,6 +65,8 @@ func LoadConfig() *Config {
 	_ = godotenv.Load(".env")
 	_ = godotenv.Load("backend/.env")
 	_ = godotenv.Load("../backend/.env")
+	_ = godotenv.Load("../../.env")
+	_ = godotenv.Load("../../backend/.env")
 
 	port := getEnv("PORT", "8000")
 	jwtHours, err := strconv.Atoi(getEnv("JWT_EXPIRATION_HOURS", "12"))

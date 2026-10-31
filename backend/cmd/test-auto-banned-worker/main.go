@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +48,14 @@ func (m *MockStorageService) DeletePrefix(ctx context.Context, prefix string) er
 
 func (m *MockStorageService) GetDriverName() string {
 	return "mock_storage"
+}
+
+func (m *MockStorageService) Get(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	return io.NopCloser(strings.NewReader("")), "application/octet-stream", 0, nil
+}
+
+func (m *MockStorageService) GetPresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	return "http://mock/presigned/" + key, nil
 }
 
 type TestResult struct {

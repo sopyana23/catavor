@@ -3,6 +3,7 @@ import { X, MessageCircle, Share2, ShieldCheck, Check, Package, Tag, ExternalLin
 import { FormattedText } from './RichTextarea';
 import { useModalBackHandler } from '../utils/navigation';
 import { TabletImageLightbox } from './TabletImageLightbox';
+import { DEFAULT_PRODUCT_PLACEHOLDER } from '../constants';
 
 export interface TabletProductDetailSheetProps {
   product: any | null;
@@ -66,7 +67,7 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
         if (img && !list.includes(img)) list.push(img);
       });
     }
-    return list.length > 0 ? list : ['https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'];
+    return list.length > 0 ? list : [DEFAULT_PRODUCT_PLACEHOLDER];
   }, [product]);
 
   if (!product) return null;
@@ -424,7 +425,7 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
                 alt={product.name}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={(e) => {
-                  e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                  e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                 }}
               />
 

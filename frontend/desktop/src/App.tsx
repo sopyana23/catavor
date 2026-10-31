@@ -189,6 +189,8 @@ import {
   hasValidSessionToken
 } from './utils/authSync'
 
+export const DEFAULT_PRODUCT_PLACEHOLDER = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%"><rect width="400" height="400" fill="%23F8FAFC"/><g transform="translate(140, 130)" stroke="%2394A3B8" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="0" y="0" width="120" height="96" rx="12" fill="%23F1F5F9"/><circle cx="38" cy="34" r="13" fill="%23E2E8F0"/><path d="M10 84 L45 46 L75 76 L92 60 L110 78" stroke="%2394A3B8"/></g><text x="200" y="270" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="%2364748B" text-anchor="middle" letter-spacing="0.5">Gambar Belum Tersedia</text></svg>`;
+
 export interface UserStoreSummary {
   id: number;
   slug: string;
@@ -18740,7 +18742,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     : (selectedFauna.image_url ? [selectedFauna.image_url] : []);
                   const totalGalleryImages = galleryImages.length;
                   const currentImgIdx = Math.min(activeImageIndex, Math.max(0, totalGalleryImages - 1));
-                  const currentImageSrc = galleryImages[currentImgIdx] || selectedFauna.image_url || 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                  const currentImageSrc = galleryImages[currentImgIdx] || selectedFauna.image_url || DEFAULT_PRODUCT_PLACEHOLDER;
 
                   return (
                     <div>
@@ -18774,7 +18776,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             setShowLightbox(true);
                           }}
                           onError={(e) => {
-                            e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                            e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                           }}
                         />
 
@@ -18993,7 +18995,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       transform: isActive ? 'scale(1.04)' : 'scale(1)',
                                       transition: 'all 0.2s ease'
                                     }} 
-                                    onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
+                                    onError={(e) => { e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER; }}
                                   />
                                 </button>
                               );
@@ -19462,7 +19464,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             display: 'block',
                             transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)'
                           }}
-                          onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
+                          onError={(e) => { e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER; }}
                         />
                         {/* Operational Status Pill if not Tersedia */}
                         {rec.conservation_status && rec.conservation_status !== 'Tersedia' && (
@@ -21306,7 +21308,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     alt={fauna.name} 
                                     className="card-img" 
                                     onError={(e) => {
-                                      e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                                      e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                                     }}
                                   />
                                   <div style={{
@@ -23688,7 +23690,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                         alt={item.name} 
                                         style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                                         onError={(e) => {
-                                          e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
+                                          e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                                         }}
                                       />
                                     </div>
@@ -32515,7 +32517,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   pointerEvents: 'none'
                 }}
                 onError={(e) => {
-                  e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                  e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                 }}
               />
             </div>
@@ -32543,7 +32545,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     cursor: 'pointer'
                   }}
                   onError={(e) => {
-                    e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                    e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                   }}
                 />
               ))}

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"catavor-backend/internal/config"
 
@@ -23,6 +24,8 @@ type StorageService interface {
 	DeletePrefix(ctx context.Context, prefix string) error
 	GetURL(key string) string
 	GetDriverName() string
+	Get(ctx context.Context, key string) (io.ReadCloser, string, int64, error)
+	GetPresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error)
 }
 
 // PrivateKeyPrefix menandai object yang tidak boleh disajikan sebagai aset
@@ -194,6 +197,38 @@ func (s *LocalStorageService) GetDriverName() string {
 	return "local"
 }
 
+func (s *LocalStorageService) Get(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	targetPath, ok := s.resolveSafeKey(key)
+	if !ok {
+		return nil, "", 0, fmt.Errorf("refusing to access file outside storage root: %q", key)
+	}
+	info, err := os.Stat(targetPath)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	if info.IsDir() {
+		return nil, "", 0, fmt.Errorf("path is a directory")
+	}
+
+	f, err := os.Open(targetPath)
+	if err != nil {
+		return nil, "", 0, err
+	}
+
+	ext := strings.ToLower(filepath.Ext(targetPath))
+	contentType := mimeByExtension(ext)
+
+	return f, contentType, info.Size(), nil
+}
+
+func (s *LocalStorageService) GetPresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	url := s.GetURL(key)
+	if url == "" {
+		return "", fmt.Errorf("cannot generate presigned url for private local object")
+	}
+	return url, nil
+}
+
 // S3StorageService implements StorageService for AWS S3, MinIO, Cloudflare R2, and S3-compatible providers.
 type S3StorageService struct {
 	client        *minio.Client
@@ -246,8 +281,8 @@ func NewS3StorageService(cfg *config.Config) (*S3StorageService, error) {
 	}
 
 	publicBaseURL := strings.TrimRight(cfg.StoragePublicURL, "/")
-	if publicBaseURL == "" || strings.Contains(publicBaseURL, "localhost") {
-		// Fallback to direct S3 public URL format
+	if publicBaseURL == "" {
+		// Fallback to direct S3 public URL format if no explicit public URL configured
 		scheme := "http"
 		if cfg.S3SSL {
 			scheme = "https"
@@ -339,6 +374,73 @@ func (s *S3StorageService) GetURL(key string) string {
 
 func (s *S3StorageService) GetDriverName() string {
 	return "s3"
+}
+
+func (s *S3StorageService) Get(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	cleanKey := strings.TrimLeft(filepath.ToSlash(key), "/")
+	if cleanKey == "" {
+		return nil, "", 0, fmt.Errorf("empty storage key")
+	}
+
+	obj, err := s.client.GetObject(ctx, s.bucket, cleanKey, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("failed to get s3 object: %w", err)
+	}
+
+	info, err := obj.Stat()
+	if err != nil {
+		_ = obj.Close()
+		return nil, "", 0, fmt.Errorf("failed to stat s3 object: %w", err)
+	}
+
+	contentType := info.ContentType
+	if contentType == "" || contentType == "application/octet-stream" {
+		ext := strings.ToLower(filepath.Ext(cleanKey))
+		contentType = mimeByExtension(ext)
+	}
+
+	return obj, contentType, info.Size, nil
+}
+
+func (s *S3StorageService) GetPresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	cleanKey := strings.TrimLeft(filepath.ToSlash(key), "/")
+	if cleanKey == "" {
+		return "", fmt.Errorf("empty storage key")
+	}
+	presignedURL, err := s.client.PresignedGetObject(ctx, s.bucket, cleanKey, expiry, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+	return presignedURL.String(), nil
+}
+
+func mimeByExtension(ext string) string {
+	switch strings.ToLower(ext) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".gif":
+		return "image/gif"
+	case ".svg":
+		return "image/svg+xml"
+	case ".pdf":
+		return "application/pdf"
+	case ".mp4":
+		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	case ".json":
+		return "application/json"
+	case ".csv":
+		return "text/csv"
+	case ".txt":
+		return "text/plain"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 // NewStorageService is the factory function that creates the appropriate storage driver based on configuration.

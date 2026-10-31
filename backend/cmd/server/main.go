@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -229,6 +230,47 @@ func main() {
 		ByteRange: true,
 		MaxAge:    86400 * 30, // 30 days caching
 		Browse:    false,      // Disable directory browsing
+	})
+
+	// SMART STORAGE PROXY FALLBACK (ST-08):
+	// Bila berkas tidak ditemukan di disk lokal (mis. saat STORAGE_DRIVER=r2/s3 aktif),
+	// ambil objek langsung dari cloud storage service dan alirkan (stream) ke klien
+	// dengan HTTP caching headers (Cache-Control 30 hari).
+	// Ini menjamin gambar tetap dapat dibuka di localhost/ISP Indonesia tanpa terhambat
+	// pemblokiran wildcard *.r2.dev oleh Kominfo/ISP.
+	// Ketika pengguna menghubungkan Custom Domain nanti (STORAGE_PUBLIC_URL=https://media.catavor.id),
+	// URL langsung mengarah ke CDN tanpa memerlukan perubahan kode apa pun.
+	app.Get("/storage/*", func(c *fiber.Ctx) error {
+		rawPath := strings.TrimPrefix(c.Path(), "/storage")
+		cleanKey := strings.TrimLeft(rawPath, "/")
+		if cleanKey == "" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Path berkas tidak valid."})
+		}
+
+		// Keamanan ketat: jangan pernah menyajikan berkas privat di route publik
+		lowerKey := strings.ToLower(cleanKey)
+		for _, prefix := range []string{"private/", "support/", "billing/"} {
+			if strings.HasPrefix(lowerKey, prefix) {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
+			}
+		}
+
+		rc, contentType, _, err := storageService.Get(c.Context(), cleanKey)
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan di penyimpanan."})
+		}
+
+		data, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Gagal membaca berkas dari penyimpanan."})
+		}
+
+		c.Set("Content-Type", contentType)
+		c.Set("Cache-Control", "public, max-age=2592000, immutable")
+		c.Set("X-Content-Type-Options", "nosniff")
+
+		return c.Send(data)
 	})
 	app.Static("/desktop", cfg.DesktopDistDir, fiber.Static{
 		Compress:  true,

@@ -8,6 +8,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { useModalBackHandler } from '../utils/navigation';
+import { DEFAULT_PRODUCT_PLACEHOLDER } from '../constants';
 
 export interface TabletImageLightboxProps {
   isOpen: boolean;
@@ -518,7 +519,7 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
               filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.5))'
             }}
             onError={(e) => {
-              e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+              e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
             }}
           />
         </div>
@@ -570,7 +571,7 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
                   alt={`Thumbnail ${idx + 1}`}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   onError={(e) => {
-                    e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=100&q=80';
+                    e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                   }}
                 />
               </button>

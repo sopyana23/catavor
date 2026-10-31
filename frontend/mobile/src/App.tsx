@@ -191,6 +191,8 @@ export interface UserStoreSummary {
   created_at?: string;
 }
 
+export const DEFAULT_PRODUCT_PLACEHOLDER = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%"><rect width="400" height="400" fill="%23F8FAFC"/><g transform="translate(140, 130)" stroke="%2394A3B8" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="0" y="0" width="120" height="96" rx="12" fill="%23F1F5F9"/><circle cx="38" cy="34" r="13" fill="%23E2E8F0"/><path d="M10 84 L45 46 L75 76 L92 60 L110 78" stroke="%2394A3B8"/></g><text x="200" y="270" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="%2364748B" text-anchor="middle" letter-spacing="0.5">Gambar Belum Tersedia</text></svg>`;
+
 export const isCatalogChooserRoute = (rawPath?: string | null): boolean => {
   if (!rawPath || typeof rawPath !== 'string') return false;
   const p = rawPath.toLowerCase().trim().replace(/\/+$/, '');
@@ -18853,7 +18855,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 : (selectedFauna.image_url ? [selectedFauna.image_url] : []);
               const totalGalleryImages = galleryImages.length;
               const currentImgIdx = Math.min(activeImageIndex, Math.max(0, totalGalleryImages - 1));
-              const currentImageSrc = galleryImages[currentImgIdx] || selectedFauna.image_url || 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+              const currentImageSrc = galleryImages[currentImgIdx] || selectedFauna.image_url || DEFAULT_PRODUCT_PLACEHOLDER;
 
               return (
                 <div>
@@ -18884,7 +18886,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         setShowLightbox(true);
                       }}
                       onError={(e) => {
-                        e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                        e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                       }}
                     />
 
@@ -19058,7 +19060,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 transform: isActive ? 'scale(1.04)' : 'scale(1)',
                                 transition: 'all 0.2s ease'
                               }} 
-                              onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
+                              onError={(e) => { e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER; }}
                             />
                           </button>
                         );
@@ -19333,7 +19335,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         src={rec.image_url} 
                         alt={rec.name} 
                         style={{ width: '100%', height: '110px', objectFit: 'cover' }}
-                        onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
+                        onError={(e) => { e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER; }}
                       />
                       <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
                         <div>
@@ -26292,7 +26294,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   backgroundColor: 'rgba(0,0,0,0.05)'
                                 }} 
                                 onError={(e) => {
-                                  e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
+                                  e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                                 }}
                               />
                               <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.22rem' }}>
@@ -32259,7 +32261,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   pointerEvents: 'none'
                 }}
                 onError={(e) => {
-                  e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                  e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                 }}
               />
             </div>
@@ -32334,7 +32336,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     flexShrink: 0
                   }}
                   onError={(e) => {
-                    e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                    e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                   }}
                 />
               ))}

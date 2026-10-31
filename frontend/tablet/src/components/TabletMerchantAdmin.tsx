@@ -86,6 +86,7 @@ import {
   ZoomOut
 } from 'lucide-react';
 import { setupModalBackInterceptor } from '../utils/navigation';
+import { DEFAULT_PRODUCT_PLACEHOLDER } from '../constants';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { TabletAnalyticsView } from './TabletAnalyticsView';
@@ -4283,7 +4284,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   alt={item.name}
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   onError={(e) => {
-                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
+                                    e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                                   }}
                                 />
                               ) : (
@@ -6854,7 +6855,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             if (img && !images.includes(img)) images.push(img);
           });
         }
-        const displayImages = images.length > 0 ? images : ['https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'];
+        const displayImages = images.length > 0 ? images : [DEFAULT_PRODUCT_PLACEHOLDER];
         const currentActiveImg = displayImages[previewImageIndex] || displayImages[0];
 
         // Unit calculation
@@ -7553,7 +7554,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 if (img && !list.includes(img)) list.push(img);
               });
             }
-            return list.length > 0 ? list : ['https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'];
+            return list.length > 0 ? list : [DEFAULT_PRODUCT_PLACEHOLDER];
           })()}
           initialIndex={previewImageIndex}
           productName={previewProduct.name}
