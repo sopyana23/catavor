@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -20,12 +21,12 @@ var inlineScriptRegex = regexp.MustCompile(`(?is)<script(?:\s[^>]*)?>(.*?)</scri
 var srcAttrRegex = regexp.MustCompile(`(?i)\bsrc\s*=`)
 
 var (
-	cspHashOnce    sync.Once
-	cspScriptHash  string
-	cspHashBuilt   bool
-	cspDistDirs    []string
-	cspHashMu      sync.RWMutex
-	cspLastBuildID string
+	cspHashMu     sync.RWMutex
+	cspScriptHash string
+	cspHashBuilt  bool
+	cspDistDirs   []string
+	cspLastMtimes = make(map[string]time.Time)
+	cspLastCheck  time.Time
 )
 
 // SetCSPDistDirs mendaftarkan direktori index.html yang perlu dihitung hash
@@ -36,6 +37,8 @@ func SetCSPDistDirs(dirs ...string) {
 	defer cspHashMu.Unlock()
 	cspDistDirs = dirs
 	cspHashBuilt = false
+	cspScriptHash = ""
+	cspLastMtimes = make(map[string]time.Time)
 }
 
 // buildScriptHashes memindai index.html di setiap dist dir, menghitung
@@ -45,7 +48,13 @@ func SetCSPDistDirs(dirs ...string) {
 // Keuntungan dibanding hardcode: hash selalu sinkron dengan file yang benar-benar
 // disajikan, sehingga tidak jadi rapuh saat index.html diedit.
 func buildScriptHashes() string {
+	hashes, _ := buildScriptHashesWithMtimes()
+	return hashes
+}
+
+func buildScriptHashesWithMtimes() (string, map[string]time.Time) {
 	seen := map[string]bool{}
+	mtimes := make(map[string]time.Time)
 	var parts []string
 
 	for _, dir := range cspDistDirs {
@@ -53,6 +62,12 @@ func buildScriptHashes() string {
 			continue
 		}
 		indexPath := filepath.Join(dir, "index.html")
+		fi, err := os.Stat(indexPath)
+		if err != nil {
+			continue
+		}
+		mtimes[indexPath] = fi.ModTime()
+
 		data, err := os.ReadFile(indexPath)
 		if err != nil {
 			continue
@@ -79,35 +94,70 @@ func buildScriptHashes() string {
 	}
 
 	if len(parts) == 0 {
-		return ""
+		return "", mtimes
 	}
 	log.Info().Int("hashes", len(parts)).Msg("CSP: hash script inline dihitung dari index.html")
-	return strings.Join(parts, " ") + " "
+	return strings.Join(parts, " ") + " ", mtimes
 }
 
 // scriptSrcHashes mengembalikan direktif hash script inline (di-cache).
 // String kosong berarti tidak ada script inline (CSP tanpa 'unsafe-inline').
+// Secara otomatis mendeteksi perubahan berkas index.html di disk (auto-sync).
 func scriptSrcHashes() string {
-	cspHashOnce.Do(func() {
-		cspHashMu.RLock()
-		dirs := append([]string(nil), cspDistDirs...)
-		cspHashMu.RUnlock()
-		if len(dirs) == 0 {
-			// Default: lokasi standar relatif terhadap working dir server.
-			dirs = []string{"public/desktop", "public/tablet", "public/mobile"}
+	cspHashMu.RLock()
+	cached := cspScriptHash
+	isBuilt := cspHashBuilt
+	lastCheck := cspLastCheck
+	cspHashMu.RUnlock()
+
+	now := time.Now()
+	// Debounce check berkas disk (2 detik) agar zero-overhead pada beban tinggi
+	if isBuilt && now.Sub(lastCheck) < 2*time.Second {
+		return cached
+	}
+
+	cspHashMu.Lock()
+	defer cspHashMu.Unlock()
+
+	if len(cspDistDirs) == 0 {
+		cspDistDirs = []string{"public/desktop", "public/tablet", "public/mobile"}
+	}
+
+	needsRebuild := !cspHashBuilt || cspScriptHash == ""
+	if !needsRebuild {
+		for _, dir := range cspDistDirs {
+			if dir == "" {
+				continue
+			}
+			indexPath := filepath.Join(dir, "index.html")
+			fi, err := os.Stat(indexPath)
+			if err != nil {
+				continue
+			}
+			if last, ok := cspLastMtimes[indexPath]; !ok || !fi.ModTime().Equal(last) {
+				needsRebuild = true
+				break
+			}
 		}
-		cspDistDirs = dirs
-		cspScriptHash = buildScriptHashes()
+	}
+
+	cspLastCheck = now
+	if needsRebuild {
+		hashes, mtimes := buildScriptHashesWithMtimes()
+		cspScriptHash = hashes
+		cspLastMtimes = mtimes
 		cspHashBuilt = true
-	})
+	}
+
 	return cspScriptHash
 }
 
 // RefreshCSPHashes membangun ulang hash (mis. setelah deploy asset baru).
 func RefreshCSPHashes() {
 	cspHashMu.Lock()
-	cspHashOnce = sync.Once{}
 	cspHashBuilt = false
+	cspScriptHash = ""
+	cspLastMtimes = make(map[string]time.Time)
 	cspHashMu.Unlock()
 	scriptSrcHashes()
 }
