@@ -1239,35 +1239,6 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 	})
 }
 
-func (h *StoreHandler) UpgradePlan(c *fiber.Ctx) error {
-	if h.db == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"success": false,
-			"message": "Database belum diinisialisasi.",
-		})
-	}
-	store := c.Locals("store").(*models.Store)
-
-	var req struct {
-		Plan string `json:"plan"`
-	}
-	_ = c.BodyParser(&req)
-
-	targetPlan := "pro"
-	if req.Plan != "" {
-		targetPlan = strings.ToLower(req.Plan)
-	}
-
-	store.Plan = targetPlan
-	store.PaymentStatus = "paid"
-	h.db.Save(store)
-
-	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Selamat! Akun toko Anda telah berhasil di-upgrade ke Plan Pro.",
-		"data":    store,
-	})
-}
 
 func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
 	if h.db == nil {

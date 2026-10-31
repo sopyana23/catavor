@@ -792,6 +792,18 @@ interface ShopSettings {
   payment_bank_holder?: string
   payment_qris_image?: string
   master_coupons?: string
+  payment_system_mode?: string
+  payment_maintenance_title?: string
+  payment_maintenance_message?: string
+  payment_aulaa_channel_qris?: string
+  payment_aulaa_channel_va?: string
+  payment_aulaa_channel_ewallet?: string
+  payment_aulaa_channel_cc?: string
+  payment_qris_manual_merchant?: string
+  payment_qris_manual_image?: string
+  aulaa_api_key?: string
+  aulaa_base_url?: string
+  aulaa_webhook_secret?: string
 }
 
 interface TicketAttachment {
@@ -13336,6 +13348,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setToken(data.token);
         setAdminUser(data.user);
         setIsPasswordChanged(true);
+        if (data.payment_url) {
+          window.location.href = data.payment_url;
+          return;
+        }
         if (data.user?.store_slug) {
           saveUserActiveSlug(data.user.id, data.user.store_slug);
           localStorage.setItem('catavor_active_slug', data.user.store_slug);
@@ -17492,11 +17508,150 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <span>Batal / Kembali ke Beranda</span>
                         </button>
                       </div>
-                    ) : (
+                    ) : (() => {
+                    const paymentSystemMode = settings.payment_system_mode || 'gateway_aulaa';
+                    const isMaintenance = paymentSystemMode === 'maintenance';
+                    const isAulaa = paymentSystemMode === 'gateway_aulaa';
+
+                    // 1. Maintenance Mode
+                    if (isMaintenance) {
+                      return (
+                        <div style={{ padding: '1.5rem 1rem', borderRadius: '0.75rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <ShieldAlert size={26} />
+                          </div>
+                          <div>
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#991b1b', margin: '0 0 0.35rem 0' }}>
+                              {settings.payment_maintenance_title || 'Sistem Pembayaran Sedang Dalam Pemeliharaan'}
+                            </h4>
+                            <p style={{ fontSize: '0.75rem', color: '#b91c1c', margin: 0, lineHeight: 1.5 }}>
+                              {settings.payment_maintenance_message || 'Mohon maaf, saat ini sistem pembayaran pendaftaran dan langganan sedang dinonaktifkan sementara untuk peningkatan kualitas layanan. Silakan hubungi admin atau coba beberapa saat lagi.'}
+                            </p>
+                          </div>
+                          <button 
+                            type="button" 
+                            className="btn-portal-secondary" 
+                            style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem', marginTop: '0.5rem' }}
+                            onClick={handleCancelCheckout}
+                          >
+                            <Home size={15} />
+                            <span>Kembali ke Beranda</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // 2. Mode Aulaa Payment Gateway
+                    if (isAulaa) {
+                      const showQRIS = settings.payment_aulaa_channel_qris !== '0';
+                      const showVA = settings.payment_aulaa_channel_va !== '0';
+                      const showEWallet = settings.payment_aulaa_channel_ewallet !== '0';
+                      const showCC = settings.payment_aulaa_channel_cc === '1';
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                          {/* Banner Aulaa Mobile */}
+                          <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#166534' }}>Gerbang Pembayaran Instan</span>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '9999px', backgroundColor: '#dcfce7', color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <Zap size={11} /> Otomatis &amp; Terenkripsi
+                              </span>
+                            </div>
+                            <p style={{ fontSize: '0.72rem', color: '#14532d', margin: 0, lineHeight: 1.4 }}>
+                              Pembayaran diproses instan melalui Aulaa Gateway. Transaksi Anda otomatis terverifikasi tanpa upload bukti manual.
+                            </p>
+                          </div>
+
+                          {/* Sub-channel Badges Mobile */}
+                          <div>
+                            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: '0.45rem', display: 'block' }}>
+                              Metode Pembayaran yang Tersedia:
+                            </label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
+                              {showQRIS && (
+                                <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <QrCode size={15} color="#059669" />
+                                  <div>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a' }}>QRIS Instan</div>
+                                    <div style={{ fontSize: '0.62rem', color: '#64748b' }}>GoPay, OVO, ShopeePay</div>
+                                  </div>
+                                </div>
+                              )}
+                              {showVA && (
+                                <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <CreditCard size={15} color="#0284c7" />
+                                  <div>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a' }}>Virtual Account</div>
+                                    <div style={{ fontSize: '0.62rem', color: '#64748b' }}>BCA, Mandiri, BRI, BNI</div>
+                                  </div>
+                                </div>
+                              )}
+                              {showEWallet && (
+                                <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <Zap size={15} color="#d97706" />
+                                  <div>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a' }}>Dompet Digital</div>
+                                    <div style={{ fontSize: '0.62rem', color: '#64748b' }}>DANA, LinkAja, AstraPay</div>
+                                  </div>
+                                </div>
+                              )}
+                              {showCC && (
+                                <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <CreditCard size={15} color="#7c3aed" />
+                                  <div>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a' }}>Kartu Kredit / Debit</div>
+                                    <div style={{ fontSize: '0.62rem', color: '#64748b' }}>Visa &amp; Mastercard</div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div style={{ padding: '0.65rem', borderRadius: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.72rem', color: '#64748b', lineHeight: 1.4 }}>
+                            Klik tombol di bawah ini untuk membuat akun dan Anda akan diarahkan ke halaman pembayaran resmi yang aman dan terenkripsi.
+                          </div>
+
+                          <button 
+                            type="button" 
+                            className="btn-portal-primary" 
+                            style={{ 
+                              width: '100%', 
+                              padding: '0.8rem', 
+                              justifyContent: 'center', 
+                              fontSize: '0.85rem',
+                              fontWeight: 800,
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
+                              border: 'none',
+                              cursor: registerLoading ? 'not-allowed' : 'pointer'
+                            }}
+                            onClick={() => processCheckoutSubmission(false)}
+                            disabled={registerLoading}
+                          >
+                            {registerLoading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                            <span>{registerLoading ? 'Memproses Pendaftaran...' : 'Lanjutkan ke Pembayaran Aman'}</span>
+                          </button>
+
+                          <button 
+                            type="button" 
+                            className="btn-portal-secondary" 
+                            style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                            onClick={handleCancelCheckout}
+                          >
+                            <Home size={15} />
+                            <span>Kembali ke Beranda</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // 3. Manual QRIS & Bank Transfer Mode
+                    return (
                       <>
                         {/* Method Switcher Mobile */}
                         <div>
-                          <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '0.45rem', display: 'block' }}>Pilih Metode Pembayaran:</label>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '0.45rem', display: 'block' }}>Pilih Metode Pembayaran Manual:</label>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                             <button 
                               type="button"
@@ -17580,6 +17735,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         {/* QRIS Details Mobile */}
                         {paymentMethod === 'qris' && (
                           <div style={{ padding: '1rem', borderRadius: '0.65rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0f172a' }}>
+                              {settings.payment_qris_manual_merchant || 'Catavor Digital Ecosystem'}
+                            </div>
                             <div style={{ width: '160px', height: '160px', borderRadius: '10px', background: '#ffffff', padding: '6px', border: '2px solid #2563eb' }}>
                               <img 
                                 src={settings.payment_qris_image || '/img/qris_demo.svg'} 
@@ -17588,7 +17746,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               />
                             </div>
                             <p style={{ fontSize: '0.72rem', color: '#64748b', margin: 0 }}>
-                              Scan QRIS dengan GoPay, OVO, ShopeePay, BCA Mobile, atau DANA.
+                              Scan QRIS dengan GoPay, OVO, ShopeePay, BCA Mobile, atau aplikasi bank lainnya.
                             </p>
                             <a 
                               href={settings.payment_qris_image || '/img/qris_demo.svg'} 
@@ -17611,6 +17769,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             </a>
                           </div>
                         )}
+
+                        {/* Unique nominal info for manual verification */}
+                        <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.5rem', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.72rem', color: '#1e40af', lineHeight: 1.45 }}>
+                          <strong>Catatan Kode Unik:</strong> Nominal transfer/scan akan dialokasikan tambahan kode unik 3 digit acak otomatis oleh sistem untuk verifikasi mutasi cepat.
+                        </div>
 
                         {/* Form Upload Bukti Transfer Mobile */}
                         <form 
@@ -17694,7 +17857,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           </button>
                         </form>
                       </>
-                    )}
+                    );
+                  })()}
                   </>
                 );
               })()}

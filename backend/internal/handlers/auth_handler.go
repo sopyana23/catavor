@@ -815,6 +815,19 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		MasterShippingCoverages: datatypes.JSON(defaultShipping),
 	}
 
+	var paymentSystemMode = "gateway_aulaa"
+	var modeSetting models.Setting
+	if err := h.db.Where("key = ?", "payment_system_mode").First(&modeSetting).Error; err == nil && modeSetting.Value != "" {
+		paymentSystemMode = strings.TrimSpace(strings.ToLower(modeSetting.Value))
+	}
+	if requestedPlan != "free" && finalAmount > 0 && paymentSystemMode == "maintenance" {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "PAYMENT_GATEWAY_MAINTENANCE",
+			"message": "Sistem pembayaran saat ini sedang dalam pemeliharaan. Pendaftaran paket berbayar sementara ditangguhkan.",
+		})
+	}
+
 	if err := h.db.Create(&newStore).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -823,6 +836,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	// If paid plan, record initial SubscriptionOrder
+	var paymentURL string
+	var uniqueCode int
 	if requestedPlan != "free" {
 		payMethod := strings.ToLower(strings.TrimSpace(req.PaymentMethod))
 		if payMethod == "" {
@@ -834,9 +849,17 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 		orderPaymentStatus := "paid"
 		var orderPaidAt *time.Time = &now
+		var orderExpiresAt *time.Time
+
 		if finalAmount > 0 {
 			orderPaymentStatus = "pending"
 			orderPaidAt = nil
+			orderTTL := time.Now().UTC().Add(2 * time.Hour)
+			orderExpiresAt = &orderTTL
+
+			if paymentSystemMode == "manual_qris" {
+				uniqueCode, finalAmount = services.AllocateUniqueNominal(h.db, finalAmount)
+			}
 		}
 
 		orderNumber := fmt.Sprintf("INV-SUB-%s-%04d-%04d", time.Now().Format("20060102150405"), newStore.ID%10000, (time.Now().Nanosecond()/1000)%10000)
@@ -851,12 +874,34 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			OriginalAmount:  origAmount,
 			DiscountAmount:  discountAmount,
 			FinalAmount:     finalAmount,
+			UniqueCode:      uniqueCode,
 			CouponCode:      cleanCoupon,
 			PaymentMethod:   payMethod,
+			PaymentMode:     paymentSystemMode,
 			PaymentProofURL: req.PaymentProofURL,
 			PaymentStatus:   orderPaymentStatus,
 			PaidAt:          orderPaidAt,
+			ExpiresAt:       orderExpiresAt,
 		}
+
+		if paymentSystemMode == "gateway_aulaa" && finalAmount > 0 {
+			subOrder.GatewayProvider = "aulaa"
+			aulaaCfg := services.GetAulaaConfig(h.db)
+			redirectURL := fmt.Sprintf("/%s/admin?payment=success&order_number=%s", newStore.Slug, orderNumber)
+			aulaaResp, aErr := services.CreateAulaaPayment(aulaaCfg, services.AulaaCreatePaymentRequest{
+				OrderID:     orderNumber,
+				Amount:      finalAmount,
+				RedirectURL: redirectURL,
+			})
+			if aErr == nil && aulaaResp != nil {
+				subOrder.GatewayReference = aulaaResp.ID
+				subOrder.GatewayPaymentLink = aulaaResp.PaymentLink
+				rawB, _ := json.Marshal(aulaaResp)
+				subOrder.GatewayRawResponse = datatypes.JSON(rawB)
+				paymentURL = aulaaResp.PaymentLink
+			}
+		}
+
 		_ = h.db.Create(&subOrder).Error
 	}
 
@@ -885,6 +930,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		"success":      true,
 		"message":      regMsg,
 		"token":        token,
+		"payment_url":  paymentURL,
 		"stores":       []StoreSummary{singleSummary},
 		"active_store": singleSummary,
 		"user": fiber.Map{

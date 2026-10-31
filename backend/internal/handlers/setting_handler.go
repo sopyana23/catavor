@@ -61,6 +61,18 @@ func (h *SettingHandler) PublicIndex(c *fiber.Ctx) error {
 		"rekber_template_fauna":    true,
 		"maintenance_mode":         true,
 		"maintenance_message":      true,
+		"payment_system_mode":         true,
+		"payment_maintenance_title":    true,
+		"payment_maintenance_message":  true,
+		"payment_qris_manual_image":    true,
+		"payment_qris_manual_merchant": true,
+		"payment_bank_name":            true,
+		"payment_bank_account":         true,
+		"payment_bank_holder":          true,
+		"payment_aulaa_channel_qris":    true,
+		"payment_aulaa_channel_va":      true,
+		"payment_aulaa_channel_cc":      true,
+		"payment_aulaa_channel_ewallet": true,
 		"terms_conditions":         true,
 		"privacy_policy":           true,
 	}
@@ -152,6 +164,53 @@ func (h *SettingHandler) applyFallbacks(res map[string]string) {
 	}
 	if _, ok := res["market_intel_enabled"]; !ok {
 		res["market_intel_enabled"] = "1"
+	}
+
+	// Master Settings: Platform Payment System
+	if _, ok := res["payment_system_mode"]; !ok {
+		res["payment_system_mode"] = "gateway_aulaa"
+	}
+	if _, ok := res["payment_maintenance_title"]; !ok {
+		res["payment_maintenance_title"] = "Sistem Pembayaran Dalam Pemeliharaan"
+	}
+	if _, ok := res["payment_maintenance_message"]; !ok {
+		res["payment_maintenance_message"] = "Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi."
+	}
+	if _, ok := res["payment_qris_manual_image"]; !ok {
+		res["payment_qris_manual_image"] = "/img/qris_demo.svg"
+	}
+	if _, ok := res["payment_qris_manual_merchant"]; !ok {
+		res["payment_qris_manual_merchant"] = "Catavor Official Store"
+	}
+	if _, ok := res["payment_bank_name"]; !ok {
+		res["payment_bank_name"] = "Bank Central Asia (BCA)"
+	}
+	if _, ok := res["payment_bank_account"]; !ok {
+		res["payment_bank_account"] = "8830-1928-3920"
+	}
+	if _, ok := res["payment_bank_holder"]; !ok {
+		res["payment_bank_holder"] = "PT Catavor Media Digital"
+	}
+	if _, ok := res["payment_aulaa_channel_qris"]; !ok {
+		res["payment_aulaa_channel_qris"] = "1"
+	}
+	if _, ok := res["payment_aulaa_channel_va"]; !ok {
+		res["payment_aulaa_channel_va"] = "1"
+	}
+	if _, ok := res["payment_aulaa_channel_cc"]; !ok {
+		res["payment_aulaa_channel_cc"] = "0"
+	}
+	if _, ok := res["payment_aulaa_channel_ewallet"]; !ok {
+		res["payment_aulaa_channel_ewallet"] = "1"
+	}
+	if _, ok := res["aulaa_base_url"]; !ok {
+		res["aulaa_base_url"] = "https://api.aulaa.co/v1"
+	}
+	if _, ok := res["aulaa_api_key"]; !ok {
+		res["aulaa_api_key"] = ""
+	}
+	if _, ok := res["aulaa_webhook_secret"]; !ok {
+		res["aulaa_webhook_secret"] = ""
 	}
 
 	// Master Settings: Mitra Rekber Syariah (rekbersyariah.com)

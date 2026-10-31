@@ -694,6 +694,7 @@ func seedDefaultRBAC(db *gorm.DB) {
 		// Finance & Billing
 		{Key: "finance:orders:read", Group: "finance", Name: "Lihat Order Langganan", Description: "Melihat daftar pesanan langganan dan status invoice"},
 		{Key: "finance:orders:manage", Group: "finance", Name: "Validasi Pembayaran Langganan", Description: "Mengonfirmasi aktivasi langganan manual dan memproses refund"},
+		{Key: "finance:settings:manage", Group: "finance", Name: "Kelola Konfigurasi Pembayaran", Description: "Mengatur gateway Aulaa, QRIS manual, dan mode pemeliharaan pembayaran"},
 		{Key: "finance:revenue:read", Group: "finance", Name: "Lihat Laporan Finansial", Description: "Melihat analitik omzet platform, MRR, dan konversi paket Pro"},
 
 		// Content & Marketing
@@ -772,6 +773,7 @@ func seedDefaultRBAC(db *gorm.DB) {
 			PermKeys: []string{
 				"finance:orders:read",
 				"finance:orders:manage",
+				"finance:settings:manage",
 				"finance:revenue:read",
 			},
 		},

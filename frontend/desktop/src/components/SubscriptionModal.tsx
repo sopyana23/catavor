@@ -28,7 +28,10 @@ import {
   Calendar,
   RotateCcw,
   Infinity,
-  Archive
+  Archive,
+  ShieldAlert,
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 
 export interface SubscriptionPlanData {
@@ -127,7 +130,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const [checkoutType, setCheckoutType] = useState<'upgrade' | 'renewal'>('upgrade');
   
   // Checkout Form State
-  const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>('bank');
+  const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>('qris');
+  const [senderAccountName, setSenderAccountName] = useState('');
+  const [senderPhone, setSenderPhone] = useState('');
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<any | null>(null);
   const [couponMsg, setCouponMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -139,6 +144,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   // Invoices / Orders State
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
+  const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
 
   // Action Feedback
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -155,6 +161,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       setCouponMsg(null);
       setPaymentProofUrl('');
       setProofPreview(null);
+      setSenderAccountName('');
+      setSenderPhone('');
     }
   }, [isOpen]);
 
@@ -283,8 +291,24 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
   const handleSubmitOrder = async () => {
     if (!selectedTargetPlan) return;
-    if (!paymentProofUrl) {
-      setActionError('Harap upload bukti transfer pembayaran sebelum mengirim pesanan.');
+    
+    const systemPaymentMode = (settings?.payment_system_mode || 'gateway_aulaa').toLowerCase();
+    if (systemPaymentMode === 'maintenance') {
+      setActionError('Sistem transaksi pembayaran sedang dalam masa pemeliharaan berkala.');
+      return;
+    }
+
+    const { finalPrice } = calculateFinalCheckoutPrice();
+    const isGateway = finalPrice > 0 && systemPaymentMode === 'gateway_aulaa' && paymentMethod !== 'bank';
+
+    // For manual methods, proof is mandatory
+    if (finalPrice > 0 && !isGateway && !paymentProofUrl) {
+      setActionError('Harap unggah bukti transfer pembayaran sebelum mengirim pesanan.');
+      return;
+    }
+
+    if (finalPrice > 0 && systemPaymentMode === 'manual_qris' && !senderAccountName.trim()) {
+      setActionError('Harap cantumkan nama akun rekening/e-wallet pengirim untuk mempermudah verifikasi mutasi.');
       return;
     }
 
@@ -293,7 +317,13 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
     try {
       const durationMonths = billingCycle === 'monthly' ? 1 : 12;
-      const calc = calculateFinalPrice(selectedTargetPlan, billingCycle);
+      const orderPaymentMode = finalPrice === 0 
+        ? 'coupon_free' 
+        : isGateway 
+          ? 'gateway_aulaa' 
+          : systemPaymentMode === 'manual_qris' 
+            ? 'manual_qris' 
+            : 'manual_bank';
 
       const res = await fetch(`${apiBase}/subscription/order`, {
         method: 'POST',
@@ -305,10 +335,15 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         body: JSON.stringify({
           plan_code: selectedTargetPlan.code,
           order_type: checkoutType,
+          type: checkoutType,
           duration_months: durationMonths,
           billing_cycle: billingCycle,
-          payment_method: paymentMethod,
+          payment_method: finalPrice === 0 ? 'coupon_free' : paymentMethod,
+          payment_mode: orderPaymentMode,
+          sender_account_name: senderAccountName.trim(),
+          sender_phone: senderPhone.trim(),
           payment_proof_url: paymentProofUrl,
+          redirect_url: window.location.href,
           coupon_code: appliedCoupon?.code || undefined,
           notes: `Checkout ${checkoutType} ke ${selectedTargetPlan.name} (${billingCycle}) via Web Dashboard`
         })
@@ -316,13 +351,21 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Gagal mengirim konfirmasi pembayaran.');
+        throw new Error(data.message || 'Gagal mengirim pesanan langganan.');
       }
 
-      setActionSuccess(`Pesanan #${data.order?.invoice_number || ''} berhasil dibuat! Admin akan memverifikasi bukti transfer Anda segera.`);
+      // If gateway payment link returned, redirect directly
+      if (data.order?.gateway_payment_link) {
+        window.location.href = data.order.gateway_payment_link;
+        return;
+      }
+
+      const ordNumber = data.order?.order_number || data.order?.invoice_number || '';
+      const uniqueMsg = data.order?.unique_code ? ` (termasuk kode unik transfer Rp ${data.order.unique_code})` : '';
+      setActionSuccess(`Pesanan #${ordNumber} berhasil dibuat!${uniqueMsg} Verifikator akan memproses aktivasi paket Anda segera.`);
       setModalView('orders');
       fetchOrders();
-      if (onSuccessUpgrade) onSuccessUpgrade();
+      if (onSuccessUpgrade && finalPrice === 0) onSuccessUpgrade();
     } catch (err: any) {
       setActionError(err.message || 'Gagal memproses pesanan.');
     } finally {
@@ -331,6 +374,34 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   };
 
   const handleProcessCheckout = handleSubmitOrder;
+
+  const handleSyncOrder = async (orderId: number) => {
+    setSyncingOrderId(orderId);
+    setActionError(null);
+    try {
+      const res = await fetch(`${apiBase}/subscription/orders/${orderId}/sync`, {
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const currentSt = data.order?.payment_status?.toUpperCase() || 'UNKNOWN';
+        setActionSuccess(`Sinkronisasi berhasil: Status pesanan #${data.order?.order_number || orderId} adalah ${currentSt}.`);
+        fetchOrders();
+        if (data.order?.payment_status === 'paid' && onSuccessUpgrade) {
+          onSuccessUpgrade();
+        }
+      } else {
+        setActionError(data.message || 'Gagal menyinkronkan status pesanan.');
+      }
+    } catch (err: any) {
+      setActionError(err.message || 'Gagal menghubungi server sinkronisasi.');
+    } finally {
+      setSyncingOrderId(null);
+    }
+  };
 
   const fetchOrders = async () => {
     setLoadingOrders(true);
@@ -411,6 +482,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     }
   };
 
+  const systemPaymentMode = (settings?.payment_system_mode || 'gateway_aulaa').toLowerCase();
+  const isMaintenance = systemPaymentMode === 'maintenance';
+  const maintenanceTitle = settings?.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan';
+  const maintenanceMessage = settings?.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.';
+  const manualQrisMerchant = settings?.payment_qris_manual_merchant || 'Catavor Official Store';
+  const manualQrisImage = settings?.payment_qris_manual_image || settings?.payment_qris_image || '/img/qris_demo.svg';
   const bankName = settings?.payment_bank_name || 'Bank Central Asia (BCA)';
   const bankAccount = settings?.payment_bank_account || '8830-1928-3920';
   const bankHolder = settings?.payment_bank_holder || 'PT Catavor Media Digital';
@@ -1135,6 +1212,72 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                 {(() => {
                   const { finalPrice } = calculateFinalCheckoutPrice();
 
+                  // Scenario 1: Maintenance Mode
+                  if (isMaintenance) {
+                    return (
+                      <div style={{
+                        padding: '1.75rem',
+                        borderRadius: '1rem',
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        border: '1.5px solid rgba(239, 68, 68, 0.35)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        textAlign: 'center',
+                        gap: '1rem'
+                      }}>
+                        <div style={{
+                          width: '56px',
+                          height: '56px',
+                          borderRadius: '50%',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ef4444'
+                        }}>
+                          <ShieldAlert size={32} />
+                        </div>
+                        <div>
+                          <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem' }}>
+                            {maintenanceTitle}
+                          </h4>
+                          <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                            {maintenanceMessage}
+                          </p>
+                        </div>
+                        <div style={{
+                          padding: '0.75rem 1rem',
+                          borderRadius: '0.65rem',
+                          background: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '0.78rem',
+                          color: 'var(--text-muted)'
+                        }}>
+                          Transaksi pembayaran checkout langganan ditangguhkan sementara demi keamanan dan peningkatan infrastruktur server.
+                        </div>
+                        <button
+                          type="button"
+                          disabled={true}
+                          style={{
+                            width: '100%',
+                            padding: '0.85rem',
+                            borderRadius: '0.65rem',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text-muted)',
+                            border: '1px solid var(--border-light)',
+                            fontWeight: 800,
+                            fontSize: '0.86rem',
+                            cursor: 'not-allowed'
+                          }}
+                        >
+                          Pembayaran Sementara Ditangguhkan
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // Scenario 2: 100% Free via Coupon
                   if (finalPrice === 0) {
                     return (
                       <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
@@ -1164,20 +1307,45 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             cursor: 'pointer'
                           }}
                         >
-                          {internalLoading ? 'Mengaktifkan Paket...' : '⚡ Aktifkan Paket Sekarang'}
+                          {internalLoading ? 'Mengaktifkan Paket...' : 'Aktifkan Paket Sekarang'}
                         </button>
                       </div>
                     );
                   }
+
+                  const isGateway = systemPaymentMode === 'gateway_aulaa';
+                  const isManualQris = systemPaymentMode === 'manual_qris';
 
                   return (
                     <>
                       {/* Payment Method Selector */}
                       <div>
                         <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'block' }}>
-                          Pilih Metode Pembayaran:
+                          Pilih Jalur Pembayaran:
                         </label>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod('qris')}
+                            style={{
+                              padding: '0.65rem 0.5rem',
+                              borderRadius: '0.6rem',
+                              border: paymentMethod === 'qris' ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                              backgroundColor: paymentMethod === 'qris' ? 'var(--primary-glow)' : 'transparent',
+                              color: paymentMethod === 'qris' ? 'var(--text-primary)' : 'var(--text-muted)',
+                              fontWeight: 800,
+                              fontSize: '0.8rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.4rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <QrCode size={16} style={{ color: paymentMethod === 'qris' ? 'var(--primary)' : 'currentColor' }} />
+                            <span>{isGateway ? 'Aulaa Gateway (QRIS/VA)' : 'QRIS Merchant'}</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => setPaymentMethod('bank')}
@@ -1199,32 +1367,147 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             <CreditCard size={16} style={{ color: paymentMethod === 'bank' ? 'var(--primary)' : 'currentColor' }} />
                             <span>Transfer Bank</span>
                           </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setPaymentMethod('qris')}
-                            style={{
-                              padding: '0.65rem 0.5rem',
-                              borderRadius: '0.6rem',
-                              border: paymentMethod === 'qris' ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: paymentMethod === 'qris' ? 'var(--primary-glow)' : 'transparent',
-                              color: paymentMethod === 'qris' ? 'var(--text-primary)' : 'var(--text-muted)',
-                              fontWeight: 800,
-                              fontSize: '0.8rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.4rem',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <QrCode size={16} style={{ color: paymentMethod === 'qris' ? 'var(--primary)' : 'currentColor' }} />
-                            <span>Scan QRIS</span>
-                          </button>
                         </div>
                       </div>
 
-                      {/* Bank Details */}
+                      {/* MODE 1: AULAA GATEWAY (AUTOMATED) */}
+                      {isGateway && paymentMethod === 'qris' && (() => {
+                        const showQRIS = settings?.payment_aulaa_channel_qris !== '0';
+                        const showVA = settings?.payment_aulaa_channel_va !== '0';
+                        const showEWallet = settings?.payment_aulaa_channel_ewallet !== '0';
+                        const showCC = settings?.payment_aulaa_channel_cc === '1';
+
+                        return (
+                          <div style={{
+                            padding: '1.25rem',
+                            borderRadius: '0.85rem',
+                            background: 'var(--bg-deep, #0f172a)',
+                            border: '1px solid var(--border-light, #334155)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                                  <Zap size={20} />
+                                </div>
+                                <div>
+                                  <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary, #f8fafc)', display: 'block' }}>
+                                    Gerbang Pembayaran Instan (Aulaa)
+                                  </strong>
+                                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)' }}>
+                                    Didukung payment gateway resmi aulaa.co
+                                  </span>
+                                </div>
+                              </div>
+                              <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '9999px', backgroundColor: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                <Zap size={11} /> Otomatis &amp; Terenkripsi
+                              </span>
+                            </div>
+
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #cbd5e1)', margin: 0, lineHeight: 1.5 }}>
+                              Pembayaran diproses instan melalui halaman pembayaran aman Aulaa. Transaksi Anda otomatis diverifikasi dan masa aktif langganan bertambah seketika tanpa perlu upload bukti transfer.
+                            </p>
+
+                            {/* Sub-channel Badges */}
+                            <div>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary, #f8fafc)', marginBottom: '0.45rem', display: 'block' }}>
+                                Kanal Pembayaran Aktif:
+                              </label>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                {showQRIS && (
+                                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light, #334155)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <QrCode size={16} color="#10b981" />
+                                    <div>
+                                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>QRIS Instan</div>
+                                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)' }}>GoPay, OVO, ShopeePay, BCA</div>
+                                    </div>
+                                  </div>
+                                )}
+                                {showVA && (
+                                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light, #334155)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <CreditCard size={16} color="#38bdf8" />
+                                    <div>
+                                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>Virtual Account</div>
+                                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)' }}>BCA, Mandiri, BRI, BNI</div>
+                                    </div>
+                                  </div>
+                                )}
+                                {showEWallet && (
+                                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light, #334155)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Zap size={16} color="#f59e0b" />
+                                    <div>
+                                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>Dompet Digital</div>
+                                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)' }}>DANA, LinkAja, AstraPay</div>
+                                    </div>
+                                  </div>
+                                )}
+                                {showCC && (
+                                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light, #334155)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <CreditCard size={16} color="#c084fc" />
+                                    <div>
+                                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>Kartu Kredit / Debit</div>
+                                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)' }}>Visa &amp; Mastercard</div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* MODE 2: MANUAL QRIS (SHOPEEPAY / MERCHANT) */}
+                      {isManualQris && paymentMethod === 'qris' && (
+                        <div style={{
+                          padding: '1rem',
+                          borderRadius: '0.75rem',
+                          background: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                          textAlign: 'center'
+                        }}>
+                          <div style={{
+                            width: '160px',
+                            height: '160px',
+                            borderRadius: '12px',
+                            background: '#ffffff',
+                            padding: '8px',
+                            border: '2px solid var(--primary)'
+                          }}>
+                            <img
+                              src={manualQrisImage}
+                              alt="QRIS Merchant"
+                              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                            />
+                          </div>
+                          <div>
+                            <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)', display: 'block' }}>
+                              {manualQrisMerchant}
+                            </strong>
+                            <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0' }}>
+                              Buka Shopee, BCA, Mandiri, GoPay, OVO, atau DANA dan scan QRIS di atas.
+                            </p>
+                          </div>
+                          <div style={{
+                            padding: '0.55rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            background: 'rgba(245, 158, 11, 0.1)',
+                            border: '1px solid rgba(245, 158, 11, 0.3)',
+                            fontSize: '0.74rem',
+                            color: '#d97706',
+                            textAlign: 'left'
+                          }}>
+                            Kode unik 3 digit akan ditambahkan pada tagihan untuk mempermudah pengecekan mutasi transfer rekening oleh admin verifikator.
+                          </div>
+                        </div>
+                      )}
+
+                      {/* MODE 3: TRANSFER BANK MANUAL */}
                       {paymentMethod === 'bank' && (
                         <div style={{
                           padding: '1rem',
@@ -1286,98 +1569,94 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         </div>
                       )}
 
-                      {/* QRIS Details */}
-                      {paymentMethod === 'qris' && (
-                        <div style={{
-                          padding: '1rem',
-                          borderRadius: '0.75rem',
-                          background: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: '0.75rem',
-                          textAlign: 'center'
-                        }}>
-                          <div style={{
-                            width: '160px',
-                            height: '160px',
-                            borderRadius: '12px',
-                            background: '#ffffff',
-                            padding: '8px',
-                            border: '2px solid var(--primary)'
-                          }}>
-                            <img
-                              src={qrisImage}
-                              alt="QRIS Catavor"
-                              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      {/* Manual Verification Form: Sender Name & Phone (Only needed for Manual QRIS or Bank) */}
+                      {(!isGateway || paymentMethod === 'bank') && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem', display: 'block' }}>
+                              Nama Akun / Rekening Pengirim: <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Contoh: Budi Santoso / Akun ShopeePay"
+                              value={senderAccountName}
+                              onChange={(e) => setSenderAccountName(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '0.55rem 0.75rem',
+                                fontSize: '0.82rem',
+                                borderRadius: '0.5rem',
+                                background: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                boxSizing: 'border-box'
+                              }}
                             />
                           </div>
-                          <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0 }}>
-                            Buka BCA, Mandiri, BRI, BNI, GoPay, OVO, DANA, atau ShopeePay dan scan kode QRIS di atas.
-                          </p>
-                          <a
-                            href={qrisImage}
-                            download="QRIS_Catavor_Payment.svg"
-                            style={{
-                              display: 'inline-flex',
+
+                          <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem', display: 'block' }}>
+                              Nomor WhatsApp Pengirim:
+                            </label>
+                            <input
+                              type="tel"
+                              placeholder="Contoh: 081234567890"
+                              value={senderPhone}
+                              onChange={(e) => setSenderPhone(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '0.55rem 0.75rem',
+                                fontSize: '0.82rem',
+                                borderRadius: '0.5rem',
+                                background: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+
+                          {/* Upload Proof */}
+                          <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'block' }}>
+                              Unggah Bukti Transfer: <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
+                            <label style={{
+                              display: 'flex',
+                              flexDirection: 'column',
                               alignItems: 'center',
-                              gap: '0.35rem',
-                              padding: '0.4rem 0.85rem',
-                              borderRadius: '0.4rem',
-                              backgroundColor: 'var(--btn-secondary-bg)',
-                              border: '1px solid var(--btn-secondary-border)',
-                              color: 'var(--btn-secondary-text)',
-                              fontSize: '0.74rem',
-                              fontWeight: 700,
-                              textDecoration: 'none'
-                            }}
-                          >
-                            <Download size={13} />
-                            <span>Unduh Gambar QRIS</span>
-                          </a>
+                              justifyContent: 'center',
+                              padding: '1rem',
+                              borderRadius: '0.65rem',
+                              border: '2px dashed var(--border-light)',
+                              background: 'var(--bg-deep)',
+                              cursor: 'pointer',
+                              gap: '0.4rem'
+                            }}>
+                              <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: 'none' }} />
+                              {proofPreview ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                  <img src={proofPreview} alt="Bukti" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px' }} />
+                                  <div style={{ textAlign: 'left' }}>
+                                    <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700, display: 'block' }}>
+                                      Bukti Berhasil Dipilih
+                                    </span>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Klik untuk mengganti gambar</span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <Upload size={20} style={{ color: 'var(--primary)' }} />
+                                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                    {isUploadingProof ? 'Mengunggah...' : 'Klik untuk Pilih File Foto / Struk'}
+                                  </span>
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Format JPG, PNG, atau WebP (Maks. 5MB)</span>
+                                </>
+                              )}
+                            </label>
+                          </div>
                         </div>
                       )}
-
-                      {/* Upload Proof */}
-                      <div>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'block' }}>
-                          Unggah Bukti Transfer: <span style={{ color: '#ef4444' }}>*</span>
-                        </label>
-                        <label style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '1rem',
-                          borderRadius: '0.65rem',
-                          border: '2px dashed var(--border-light)',
-                          background: 'var(--bg-deep)',
-                          cursor: 'pointer',
-                          gap: '0.4rem'
-                        }}>
-                          <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: 'none' }} />
-                          {proofPreview ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <img src={proofPreview} alt="Bukti" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px' }} />
-                              <div style={{ textAlign: 'left' }}>
-                                <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700, display: 'block' }}>
-                                  ✓ Bukti Berhasil Dipilih
-                                </span>
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Klik untuk mengganti gambar</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <Upload size={20} style={{ color: 'var(--primary)' }} />
-                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                {isUploadingProof ? 'Mengunggah...' : 'Klik untuk Pilih File Foto / Struk'}
-                              </span>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Format JPG, PNG, atau WebP (Maks. 5MB)</span>
-                            </>
-                          )}
-                        </label>
-                      </div>
 
                       {/* Submit Button */}
                       <button
@@ -1398,8 +1677,17 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                           gap: '0.45rem'
                         }}
                       >
-                        <Sparkles size={16} />
-                        <span>{internalLoading ? 'Memproses Aktivasi...' : 'Bayar & Aktifkan Paket'}</span>
+                        {isGateway && paymentMethod === 'qris' ? (
+                          <>
+                            <Zap size={16} />
+                            <span>{internalLoading ? 'Menyiapkan Sesi...' : `Lanjut ke Pembayaran Otomatis (Rp ${finalPrice.toLocaleString('id-ID')})`}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={16} />
+                            <span>{internalLoading ? 'Memproses Aktivasi...' : `Kirim Konfirmasi Pembayaran (Rp ${finalPrice.toLocaleString('id-ID')})`}</span>
+                          </>
+                        )}
                       </button>
                     </>
                   );
@@ -1510,51 +1798,143 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                {orders.map((ord: any) => (
-                  <div
-                    key={ord.id || ord.order_number}
-                    style={{
-                      padding: '1.15rem 1.25rem',
-                      borderRadius: '0.85rem',
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      flexWrap: 'wrap',
-                      gap: '1rem'
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>{ord.order_number}</strong>
-                        <span style={{
-                          fontSize: '0.65rem',
-                          fontWeight: 800,
-                          padding: '1px 6px',
-                          borderRadius: '4px',
-                          background: ord.payment_status === 'paid' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                          color: ord.payment_status === 'paid' ? '#10b981' : '#f59e0b',
-                          border: '1px solid currentColor'
-                        }}>
-                          {ord.payment_status === 'paid' ? 'LUNAS / AKTIF' : ord.payment_status}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                        Paket: <strong style={{ color: 'var(--text-primary)' }}>{ord.plan_code}</strong> ({ord.billing_cycle}) • Tanggal: {new Date(ord.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </div>
-                    </div>
+                {orders.map((ord: any) => {
+                  const status = ord.payment_status || ord.status || 'pending';
+                  const isPaid = status === 'paid';
+                  const isPendingVerification = status === 'pending_verification';
+                  const isPending = status === 'pending';
+                  const isRejected = status === 'rejected';
+                  const isExpired = status === 'expired';
 
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--text-primary)' }}>
-                        Rp {ord.final_amount?.toLocaleString('id-ID')}
+                  let badgeColor = '#f59e0b';
+                  let badgeBg = 'rgba(245, 158, 11, 0.15)';
+                  let badgeLabel = 'MENUNGGU PEMBAYARAN';
+
+                  if (isPaid) {
+                    badgeColor = '#10b981';
+                    badgeBg = 'rgba(16, 185, 129, 0.15)';
+                    badgeLabel = 'LUNAS / AKTIF';
+                  } else if (isPendingVerification) {
+                    badgeColor = '#3b82f6';
+                    badgeBg = 'rgba(59, 130, 246, 0.15)';
+                    badgeLabel = 'VERIFIKASI ADMIN';
+                  } else if (isRejected) {
+                    badgeColor = '#ef4444';
+                    badgeBg = 'rgba(239, 68, 68, 0.15)';
+                    badgeLabel = 'DITOLAK';
+                  } else if (isExpired) {
+                    badgeColor = '#64748b';
+                    badgeBg = 'rgba(100, 116, 139, 0.15)';
+                    badgeLabel = 'KEDALUWARSA';
+                  }
+
+                  return (
+                    <div
+                      key={ord.id || ord.order_number}
+                      style={{
+                        padding: '1.15rem 1.25rem',
+                        borderRadius: '0.85rem',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '1rem'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                          <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>{ord.order_number}</strong>
+                          <span style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: badgeBg,
+                            color: badgeColor,
+                            border: `1px solid ${badgeColor}`
+                          }}>
+                            {badgeLabel}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          Paket: <strong style={{ color: 'var(--text-primary)' }}>{ord.plan_code}</strong> ({ord.billing_cycle}) • Tanggal: {new Date(ord.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
+                        {ord.unique_code > 0 && (
+                          <div style={{ fontSize: '0.72rem', color: 'var(--primary)', marginTop: '0.2rem', fontWeight: 700 }}>
+                            Termasuk kode unik verifikasi: +Rp {ord.unique_code}
+                          </div>
+                        )}
+                        {isRejected && ord.rejection_reason && (
+                          <div style={{ fontSize: '0.74rem', color: '#ef4444', marginTop: '0.25rem', fontWeight: 700 }}>
+                            Alasan Penolakan: {ord.rejection_reason}
+                          </div>
+                        )}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        Metode: {ord.payment_method?.toUpperCase()}
+
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+                        <div>
+                          <div style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--text-primary)' }}>
+                            Rp {ord.final_amount?.toLocaleString('id-ID')}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            Metode: {ord.payment_method?.toUpperCase()}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          {isPending && ord.gateway_payment_link && (
+                            <a
+                              href={ord.gateway_payment_link}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '0.4rem',
+                                background: 'var(--primary)',
+                                color: '#ffffff',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}
+                            >
+                              <ExternalLink size={12} />
+                              <span>Bayar Online</span>
+                            </a>
+                          )}
+
+                          {(isPending || isPendingVerification) && (
+                            <button
+                              type="button"
+                              disabled={syncingOrderId === ord.id}
+                              onClick={() => handleSyncOrder(ord.id)}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '0.4rem',
+                                background: 'var(--btn-secondary-bg)',
+                                border: '1px solid var(--btn-secondary-border)',
+                                color: 'var(--btn-secondary-text)',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}
+                            >
+                              <RefreshCw size={12} className={syncingOrderId === ord.id ? 'animate-spin' : ''} />
+                              <span>{syncingOrderId === ord.id ? 'Sinkron...' : 'Cek Status'}</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

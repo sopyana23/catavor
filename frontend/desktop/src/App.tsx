@@ -3402,6 +3402,18 @@ interface ShopSettings {
   payment_bank_holder?: string
   payment_qris_image?: string
   master_coupons?: string
+  payment_system_mode?: string
+  payment_maintenance_title?: string
+  payment_maintenance_message?: string
+  payment_aulaa_channel_qris?: string
+  payment_aulaa_channel_va?: string
+  payment_aulaa_channel_ewallet?: string
+  payment_aulaa_channel_cc?: string
+  payment_qris_manual_merchant?: string
+  payment_qris_manual_image?: string
+  aulaa_api_key?: string
+  aulaa_base_url?: string
+  aulaa_webhook_secret?: string
 }
 
 interface CommentItem {
@@ -13131,6 +13143,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
           window.history.pushState({}, '', `/${data.user.store_slug}/admin/items`);
           loadData(data.user.store_slug);
         }
+
+        if (data.payment_url) {
+          window.location.href = data.payment_url;
+          return;
+        }
+
         setPortalTab('home');
         setView('admin');
         setAdminTab('items');
@@ -17350,11 +17368,178 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       );
                     }
 
+                    const paymentSystemMode = settings.payment_system_mode || 'gateway_aulaa';
+
+                    // 1. Maintenance Mode
+                    if (paymentSystemMode === 'maintenance') {
+                      return (
+                        <div style={{ padding: '1.25rem 0.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
+                          <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '2px solid #ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <ShieldAlert size={28} style={{ color: '#ef4444' }} />
+                          </div>
+                          <div>
+                            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.35rem 0' }}>
+                              {settings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan'}
+                            </h3>
+                            <p style={{ fontSize: '0.8rem', color: '#cbd5e1', margin: 0, lineHeight: 1.5, maxWidth: '420px' }}>
+                              {settings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Pendaftaran paket berbayar sementara ditangguhkan.'}
+                            </p>
+                          </div>
+
+                          <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', fontSize: '0.76rem', color: '#fca5a5' }}>
+                            Silakan coba beberapa saat lagi atau hubungi layanan bantuan Catavor.
+                          </div>
+
+                          <button 
+                            type="button" 
+                            className="btn-secondary btn-full" 
+                            style={{ 
+                              padding: '0.65rem', 
+                              fontWeight: 700, 
+                              fontSize: '0.78rem', 
+                              borderRadius: '0.5rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.4rem',
+                              backgroundColor: 'rgba(255,255,255,0.06)',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                              color: '#d1d5db',
+                              cursor: 'pointer'
+                            }}
+                            onClick={handleCancelCheckout}
+                          >
+                            <Home size={15} />
+                            <span>Kembali ke Halaman Utama</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // 2. Gateway Aulaa Mode
+                    if (paymentSystemMode === 'gateway_aulaa') {
+                      const showQRIS = settings.payment_aulaa_channel_qris !== '0';
+                      const showVA = settings.payment_aulaa_channel_va !== '0';
+                      const showEWallet = settings.payment_aulaa_channel_ewallet !== '0';
+                      const showCC = settings.payment_aulaa_channel_cc === '1';
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                          <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <Zap size={18} color="#10b981" />
+                              <strong style={{ fontSize: '0.88rem', color: '#ffffff' }}>Pembayaran Otomatis (Aulaa Gateway)</strong>
+                            </div>
+                            <p style={{ fontSize: '0.76rem', color: '#cbd5e1', margin: 0, lineHeight: 1.45 }}>
+                              Pembayaran diproses secara instan dan aman. Transaksi Anda akan otomatis terverifikasi tanpa perlu konfirmasi manual.
+                            </p>
+                          </div>
+
+                          {/* Sub-channel Badges */}
+                          <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#e5e7eb', marginBottom: '0.5rem', display: 'block' }}>
+                              Metode Pembayaran yang Tersedia:
+                            </label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              {showQRIS && (
+                                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                  <QrCode size={16} color="#34d399" />
+                                  <div>
+                                    <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#ffffff' }}>QRIS Instan</div>
+                                    <div style={{ fontSize: '0.66rem', color: '#9ca3af' }}>GoPay, OVO, ShopeePay, BCA</div>
+                                  </div>
+                                </div>
+                              )}
+                              {showVA && (
+                                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                  <CreditCard size={16} color="#38bdf8" />
+                                  <div>
+                                    <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#ffffff' }}>Virtual Account</div>
+                                    <div style={{ fontSize: '0.66rem', color: '#9ca3af' }}>BCA, Mandiri, BRI, BNI</div>
+                                  </div>
+                                </div>
+                              )}
+                              {showEWallet && (
+                                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                  <Zap size={16} color="#f59e0b" />
+                                  <div>
+                                    <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#ffffff' }}>Dompet Digital</div>
+                                    <div style={{ fontSize: '0.66rem', color: '#9ca3af' }}>DANA, LinkAja, AstraPay</div>
+                                  </div>
+                                </div>
+                              )}
+                              {showCC && (
+                                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                  <CreditCard size={16} color="#c084fc" />
+                                  <div>
+                                    <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#ffffff' }}>Kartu Kredit / Debit</div>
+                                    <div style={{ fontSize: '0.66rem', color: '#9ca3af' }}>Visa &amp; Mastercard</div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div style={{ padding: '0.75rem', borderRadius: '0.65rem', backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', fontSize: '0.74rem', color: '#94a3b8', lineHeight: 1.45 }}>
+                            Klik tombol di bawah untuk membuat akun dan Anda akan langsung diarahkan ke halaman pembayaran resmi yang aman dan terenkripsi.
+                          </div>
+
+                          <button 
+                            type="button" 
+                            className="btn-primary btn-full" 
+                            style={{ 
+                              padding: '0.85rem', 
+                              fontWeight: 800, 
+                              fontSize: '0.88rem', 
+                              borderRadius: '0.65rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              boxShadow: '0 4px 15px rgba(16, 185, 129, 0.35)',
+                              border: 'none',
+                              cursor: registerLoading ? 'not-allowed' : 'pointer'
+                            }}
+                            onClick={() => processCheckoutSubmission(false)}
+                            disabled={registerLoading}
+                          >
+                            {registerLoading ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
+                            <span>{registerLoading ? 'Memproses Pendaftaran...' : 'Lanjutkan ke Pembayaran Aman'}</span>
+                          </button>
+
+                          <button 
+                            type="button" 
+                            className="btn-secondary btn-full" 
+                            style={{ 
+                              padding: '0.65rem', 
+                              fontWeight: 700, 
+                              fontSize: '0.78rem', 
+                              borderRadius: '0.5rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.4rem',
+                              backgroundColor: 'rgba(255,255,255,0.06)',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                              color: '#d1d5db',
+                              cursor: 'pointer'
+                            }}
+                            onClick={handleCancelCheckout}
+                          >
+                            <Home size={15} />
+                            <span>Kembali ke Halaman Utama</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // 3. Manual QRIS & Bank Transfer Mode
                     return (
                       <>
                         {/* Payment Method Selector Tabs */}
                         <div>
-                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e5e7eb', marginBottom: '0.6rem', display: 'block' }}>Pilih Metode Pembayaran:</label>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e5e7eb', marginBottom: '0.6rem', display: 'block' }}>Pilih Metode Pembayaran Manual:</label>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
                             <button 
                               type="button"
@@ -17454,9 +17639,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         {/* Panel Details: QRIS */}
                         {paymentMethod === 'qris' && (
                           <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#38bdf8' }}>
+                              {settings.payment_qris_manual_merchant || 'Catavor Official Store'}
+                            </div>
                             <div style={{ width: '180px', height: '180px', borderRadius: '12px', background: '#ffffff', padding: '8px', boxShadow: '0 0 20px rgba(16, 185, 129, 0.25)', border: '2px solid #10b981' }}>
                               <img 
-                                src={settings.payment_qris_image || '/img/qris_demo.svg'} 
+                                src={settings.payment_qris_manual_image || settings.payment_qris_image || '/img/qris_demo.svg'} 
                                 alt="QRIS Catavor" 
                                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                               />
@@ -17465,7 +17653,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               Scan kode QRIS di atas menggunakan M-Banking (BCA, Mandiri, BRI, BNI) atau E-Wallet (GoPay, OVO, ShopeePay, DANA, LinkAja).
                             </p>
                             <a 
-                              href={settings.payment_qris_image || '/img/qris_demo.svg'} 
+                              href={settings.payment_qris_manual_image || settings.payment_qris_image || '/img/qris_demo.svg'} 
                               download="QRIS_Catavor_Payment.svg"
                               style={{ 
                                 display: 'inline-flex', 
@@ -17485,6 +17673,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             </a>
                           </div>
                         )}
+
+                        {/* Notice Unique Nominal */}
+                        <div style={{ padding: '0.65rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)', fontSize: '0.74rem', color: '#7dd3fc', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <Info size={15} style={{ flexShrink: 0 }} />
+                          <span>Sistem akan menambahkan nominal unik 3-digit saat pendaftaran untuk mempercepat verifikasi otomatis/manual.</span>
+                        </div>
 
                         {/* Form Upload Bukti Transfer */}
                         <form 
@@ -35000,6 +35194,24 @@ Terima kasih atas perhatian dan kerja samanya.`;
         storeSlogan={settings.about_slogan || settings.store_slogan}
         onToast={showToast} 
       />
+
+      {/* Subscription Modal for Upgrade Triggers */}
+      {showSubscriptionModal && (
+        <SubscriptionModal
+          isOpen={showSubscriptionModal}
+          onClose={() => setShowSubscriptionModal(false)}
+          currentQuota={storeQuota}
+          plans={subscriptionPlans}
+          settings={settings}
+          onSuccessUpgrade={() => {
+            fetchMyQuota();
+            loadData();
+            showToast('Status langganan dan kuota berhasil diperbarui!', 'success');
+          }}
+          apiBase={API_BASE}
+          token={token}
+        />
+      )}
 
       {/* Floating Toast Notification */}
       <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />

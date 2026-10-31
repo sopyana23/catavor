@@ -21,6 +21,8 @@ import {
   Search,
   Filter,
   Eye,
+  EyeOff,
+  QrCode,
   Check,
   Trash2,
   Plus,
@@ -310,7 +312,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
   const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
   const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
-  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || isSuperAdmin(currentUser);
+  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || hasPermission(currentUser, 'finance:settings:manage') || isSuperAdmin(currentUser);
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
@@ -322,6 +324,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canReplySupport = hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
   const canManageReports = hasPermission(currentUser, 'compliance:reports:manage') || isSuperAdmin(currentUser);
   const canManageFinance = hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
+  const canManagePaymentSettings = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:settings:manage') || hasPermission(currentUser, 'system:settings:manage');
   const canSendBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
@@ -1476,6 +1479,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersFilter, setOrdersFilter] = useState<'all' | 'pending' | 'active' | 'rejected'>('all');
+  const [financeSubTab, setFinanceSubTab] = useState<'orders' | 'settings'>('orders');
+  const [showAulaaSecrets, setShowAulaaSecrets] = useState(false);
+  const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
+  const [isUploadingQRISImage, setIsUploadingQRISImage] = useState(false);
 
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
 
@@ -2500,8 +2507,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (canAccessAutomation) {
         fetchAutomationData();
       }
-      if (canAccessMonetization || canAccessMasterData) {
-        const setRes = await fetch('/api/settings');
+      if (canAccessMonetization || canAccessMasterData || canAccessFinance) {
+        const setRes = await fetch('/api/admin/settings', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        }).catch(() => fetch('/api/settings'));
         if (setRes.ok) {
           const setData = await setRes.json();
           if (setData.data) {
@@ -3174,19 +3183,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   // Finance Order Status Update
-  const handleUpdateOrderStatus = async (orderId: number, status: 'active' | 'rejected') => {
+  const handleUpdateOrderStatus = async (orderId: number, status: 'active' | 'rejected', reason?: string) => {
     try {
-      const res = await fetch(`/api/admin/subscription/orders/${orderId}`, {
-        method: 'PUT',
+      const endpoint = status === 'active' 
+        ? `/api/admin/subscription/orders/${orderId}/approve` 
+        : `/api/admin/subscription/orders/${orderId}/reject`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ reason: reason || undefined })
       });
       if (res.ok) {
         showToast(status === 'active' ? 'Paket langganan berhasil diaktifkan' : 'Pesanan ditandai ditolak', 'success');
         loadData();
         setSelectedProofOrder(null);
       } else {
-        showToast('Gagal memproses pesanan', 'error');
+        const d = await res.json().catch(() => ({}));
+        showToast(d.message || 'Gagal memproses pesanan', 'error');
       }
     } catch {
       showToast('Kesalahan server', 'error');
@@ -3464,6 +3477,87 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
+  // Save Payment System Platform Settings
+  const handleSavePaymentSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingSettings(true);
+    try {
+      const payload: Record<string, string> = {
+        payment_system_mode: googleSettings.payment_system_mode || 'gateway_aulaa',
+        payment_maintenance_title: googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan',
+        payment_maintenance_message: googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.',
+        payment_qris_manual_image: googleSettings.payment_qris_manual_image || '/img/qris_demo.svg',
+        payment_qris_manual_merchant: googleSettings.payment_qris_manual_merchant || 'Catavor Official Store',
+        payment_bank_name: googleSettings.payment_bank_name || 'Bank Central Asia (BCA)',
+        payment_bank_account: googleSettings.payment_bank_account || '8830-1928-3920',
+        payment_bank_holder: googleSettings.payment_bank_holder || 'PT Catavor Media Digital',
+        payment_aulaa_channel_qris: googleSettings.payment_aulaa_channel_qris !== undefined ? googleSettings.payment_aulaa_channel_qris : '1',
+        payment_aulaa_channel_va: googleSettings.payment_aulaa_channel_va !== undefined ? googleSettings.payment_aulaa_channel_va : '1',
+        payment_aulaa_channel_cc: googleSettings.payment_aulaa_channel_cc !== undefined ? googleSettings.payment_aulaa_channel_cc : '0',
+        payment_aulaa_channel_ewallet: googleSettings.payment_aulaa_channel_ewallet !== undefined ? googleSettings.payment_aulaa_channel_ewallet : '1',
+        aulaa_base_url: googleSettings.aulaa_base_url || 'https://api.aulaa.co/v1',
+        aulaa_api_key: googleSettings.aulaa_api_key || '',
+        aulaa_webhook_secret: googleSettings.aulaa_webhook_secret || '',
+      };
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        showToast('Konfigurasi sistem pembayaran berhasil disimpan!', 'success');
+        loadData();
+      } else {
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal menyimpan konfigurasi sistem pembayaran', 'error');
+      }
+    } catch {
+      showToast('Kesalahan jaringan saat menyimpan konfigurasi pembayaran', 'error');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleUploadQRISImage = async (file: File) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Ukuran berkas QRIS maksimal 5MB', 'error');
+      return;
+    }
+    setIsUploadingQRISImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('category', 'billing');
+      const res = await fetch('/api/storage/upload?category=billing', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const uploadedUrl = data.url || data.path || data.file_url;
+        if (uploadedUrl) {
+          setGoogleSettings(prev => ({
+            ...prev,
+            payment_qris_manual_image: uploadedUrl,
+          }));
+          showToast('Gambar QRIS berhasil diunggah!', 'success');
+        }
+      } else {
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal mengunggah gambar QRIS', 'error');
+      }
+    } catch {
+      showToast('Kesalahan jaringan saat mengunggah QRIS', 'error');
+    } finally {
+      setIsUploadingQRISImage(false);
+    }
+  };
+
   const handleUploadRekberLogo = async (file: File) => {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
@@ -3508,7 +3602,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const urgentTicketsCount = ticketsMetrics.urgent ?? tickets.filter(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'resolved' && t.status !== 'closed').length;
   const resolvedTicketsCount = ticketsMetrics.resolved ?? tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
   const totalTicketsCount = ticketsMetrics.total ?? tickets.length;
-  const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
+  const pendingOrdersCount = orders.filter(o => {
+    const st = o.payment_status || o.status;
+    return st === 'pending' || st === 'pending_verification';
+  }).length;
   const totalAlertsCount = pendingReportsCount + actionRequiredTicketsCount + pendingOrdersCount + (dormancyMetrics?.dormant_stores || 0);
 
   // Dynamic Mobile Triage Status Options: strictly count > 0
@@ -3947,12 +4044,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     // 4. FINANCE VIEW
     if (activeView === 'finance') {
       if (selectedProofOrder) {
+        const storeTitle = selectedProofOrder.store?.store_title || selectedProofOrder.store?.name || selectedProofOrder.store_name || 'Toko';
+        const finalAmt = selectedProofOrder.final_amount ?? selectedProofOrder.amount ?? 0;
+        const currentSt = selectedProofOrder.payment_status || selectedProofOrder.status;
+        const isPending = currentSt === 'pending' || currentSt === 'pending_verification';
+
         return {
           showMenu: true,
-          title: `Pesanan #${selectedProofOrder.id}`,
-          subtitle: `${selectedProofOrder.store_name || 'Toko'} • Rp ${(selectedProofOrder.amount || 99000).toLocaleString('id-ID')}`,
+          title: `Pesanan #${selectedProofOrder.order_number || selectedProofOrder.id}`,
+          subtitle: `${storeTitle} • Rp ${finalAmt.toLocaleString('id-ID')}`,
           items: [
-            ...(selectedProofOrder.status === 'pending' && canManageFinance ? [
+            ...(isPending && canManageFinance ? [
               {
                 id: 'approve_payment',
                 label: 'Setujui & Aktifkan Paket',
@@ -8286,16 +8388,83 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {activeView === 'finance' && canAccessFinance && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-          {/* Filter Chips */}
-          <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
-            {(['all', 'pending', 'active', 'rejected'] as const).map(f => (
+          {/* Mobile Sub-tab Switcher */}
+          <div style={{ display: 'flex', gap: '0.4rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.65rem' }}>
+            <button
+              type="button"
+              onClick={() => setFinanceSubTab('orders')}
+              style={{
+                flex: 1,
+                minHeight: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.75rem',
+                borderRadius: '0.55rem',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                backgroundColor: financeSubTab === 'orders' ? '#10b981' : theme.surface,
+                color: financeSubTab === 'orders' ? '#ffffff' : theme.textSecondary,
+                border: `1px solid ${financeSubTab === 'orders' ? '#10b981' : theme.border}`,
+                cursor: 'pointer'
+              }}
+            >
+              <CreditCard size={15} />
+              <span>Daftar Pesanan</span>
+              {pendingOrdersCount > 0 && (
+                <span style={{
+                  backgroundColor: financeSubTab === 'orders' ? '#ffffff' : '#f59e0b',
+                  color: financeSubTab === 'orders' ? '#10b981' : '#ffffff',
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  padding: '0.1rem 0.4rem',
+                  borderRadius: '999px'
+                }}>
+                  {pendingOrdersCount}
+                </span>
+              )}
+            </button>
+
+            {canManagePaymentSettings && (
               <button
-                key={f}
-                onClick={() => setOrdersFilter(f)}
+                type="button"
+                onClick={() => setFinanceSubTab('settings')}
                 style={{
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '999px',
-                  fontSize: '0.72rem',
+                  flex: 1,
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  padding: '0.45rem 0.75rem',
+                  borderRadius: '0.55rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  backgroundColor: financeSubTab === 'settings' ? '#10b981' : theme.surface,
+                  color: financeSubTab === 'settings' ? '#ffffff' : theme.textSecondary,
+                  border: `1px solid ${financeSubTab === 'settings' ? '#10b981' : theme.border}`,
+                  cursor: 'pointer'
+                }}
+              >
+                <SlidersHorizontal size={15} />
+                <span>Pengaturan Sistem</span>
+              </button>
+            )}
+          </div>
+
+          {financeSubTab === 'orders' && (
+            <>
+              {/* Filter Chips */}
+              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+                {(['all', 'pending', 'active', 'rejected'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setOrdersFilter(f)}
+                    style={{
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '999px',
+                      fontSize: '0.72rem',
                   fontWeight: 700,
                   backgroundColor: ordersFilter === f ? '#10b981' : theme.chipInactiveBg,
                   color: ordersFilter === f ? '#ffffff' : theme.chipInactiveText,
@@ -8311,7 +8480,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
           {/* Orders Feed */}
           {orders
-            .filter(o => ordersFilter === 'all' || o.status === ordersFilter)
+            .filter(o => {
+              const st = o.payment_status || o.status || 'pending';
+              if (ordersFilter === 'all') return true;
+              if (ordersFilter === 'pending') return st === 'pending' || st === 'pending_verification';
+              if (ordersFilter === 'active') return st === 'paid' || st === 'active';
+              if (ordersFilter === 'rejected') return st === 'rejected';
+              return st === ordersFilter;
+            })
             .length === 0 ? (
             <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
               <CreditCard size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
@@ -8320,86 +8496,110 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
           ) : (
             orders
-              .filter(o => ordersFilter === 'all' || o.status === ordersFilter)
-              .map(o => (
-                <div
-                  key={o.id}
-                  style={{
-                    padding: '1.05rem',
-                    borderRadius: '1.15rem',
-                    backgroundColor: theme.surface,
-                    border: o.status === 'pending' ? '1px solid rgba(250, 204, 21, 0.5)' : `1px solid ${theme.border}`,
-                    boxShadow: theme.cardShadow,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{
-                      padding: '0.15rem 0.55rem',
-                      borderRadius: '999px',
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
-                      backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                      color: isDark ? '#34d399' : '#059669',
-                      border: '1px solid rgba(16, 185, 129, 0.3)'
-                    }}>
-                      {o.plan_name || 'PRO STARTER'}
-                    </span>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: o.status === 'active' ? (isDark ? '#34d399' : '#059669') : o.status === 'pending' ? (isDark ? '#facc15' : '#d97706') : '#f87171' }}>
-                      {o.status ? o.status.toUpperCase() : 'PENDING'}
-                    </span>
-                  </div>
+              .filter(o => {
+                const st = o.payment_status || o.status || 'pending';
+                if (ordersFilter === 'all') return true;
+                if (ordersFilter === 'pending') return st === 'pending' || st === 'pending_verification';
+                if (ordersFilter === 'active') return st === 'paid' || st === 'active';
+                if (ordersFilter === 'rejected') return st === 'rejected';
+                return st === ordersFilter;
+              })
+              .map(o => {
+                const orderStatus = o.payment_status || o.status || 'pending';
+                const isPending = orderStatus === 'pending' || orderStatus === 'pending_verification';
+                const isPaid = orderStatus === 'paid' || orderStatus === 'active';
+                const storeName = o.store?.store_title || o.store?.name || o.store_name || `Store #${o.store_id || ''}`;
+                const amount = o.final_amount ?? o.amount ?? o.price ?? 0;
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
-                        {o.store_name || `Store #${o.store_id || ''}`}
-                      </h4>
-                      <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
-                        Metode: {o.payment_method ? o.payment_method.toUpperCase() : 'TRANSFER BANK'}
+                return (
+                  <div
+                    key={o.id}
+                    style={{
+                      padding: '1.05rem',
+                      borderRadius: '1.15rem',
+                      backgroundColor: theme.surface,
+                      border: isPending ? '1px solid rgba(250, 204, 21, 0.5)' : `1px solid ${theme.border}`,
+                      boxShadow: theme.cardShadow,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{
+                        padding: '0.15rem 0.55rem',
+                        borderRadius: '999px',
+                        fontSize: '0.65rem',
+                        fontWeight: 800,
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        color: isDark ? '#34d399' : '#059669',
+                        border: '1px solid rgba(16, 185, 129, 0.3)'
+                      }}>
+                        {o.plan_code ? o.plan_code.toUpperCase().replace('_', ' ') : 'PRO STARTER'}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isPaid ? (isDark ? '#34d399' : '#059669') : isPending ? (isDark ? '#facc15' : '#d97706') : '#f87171' }}>
+                        {isPaid ? 'LUNAS' : isPending ? 'PENDING' : orderStatus === 'rejected' ? 'DITOLAK' : orderStatus.toUpperCase()}
                       </span>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '1rem', fontWeight: 900, color: isDark ? '#34d399' : '#059669', display: 'block' }}>
-                        Rp {(o.amount || o.price || 99000).toLocaleString('id-ID')}
-                      </span>
-                      <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                        {o.created_at ? new Date(o.created_at).toLocaleDateString('id-ID') : 'Baru'}
-                      </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                          {storeName}
+                        </h4>
+                        <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                          Metode: {o.payment_method ? o.payment_method.toUpperCase() : 'TRANSFER BANK'} {o.sender_account_name ? `• a.n. ${o.sender_account_name}` : ''}
+                        </span>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '1rem', fontWeight: 900, color: isDark ? '#34d399' : '#059669', display: 'block' }}>
+                          Rp {amount.toLocaleString('id-ID')}
+                        </span>
+                        {o.unique_code > 0 && (
+                          <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block' }}>
+                            Kode Unik: +{o.unique_code}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                          {o.created_at ? new Date(o.created_at).toLocaleDateString('id-ID') : 'Baru'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  {o.payment_proof_url && (
-                    <button
-                      onClick={() => setSelectedProofOrder(o)}
-                      style={{
-                        padding: '0.45rem',
-                        borderRadius: '0.6rem',
-                        backgroundColor: theme.cardAlt,
-                        border: `1px solid ${theme.border}`,
-                        color: isDark ? '#38bdf8' : '#0284c7',
-                        fontSize: '0.74rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem'
-                      }}
-                    >
-                      <Eye size={13} />
-                      <span>Lihat Bukti Pembayaran</span>
-                    </button>
-                  )}
+                    {o.payment_proof_url && (
+                      <button
+                        onClick={() => setSelectedProofOrder(o)}
+                        style={{
+                          padding: '0.45rem',
+                          borderRadius: '0.6rem',
+                          backgroundColor: theme.cardAlt,
+                          border: `1px solid ${theme.border}`,
+                          color: isDark ? '#38bdf8' : '#0284c7',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <Eye size={13} />
+                        <span>Lihat Bukti Pembayaran</span>
+                      </button>
+                    )}
 
-                  {o.status === 'pending' && (
-                    canManageFinance ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
+                    {isPending && (
+                      canManageFinance ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
                         <button
-                          onClick={() => handleUpdateOrderStatus(o.id, 'rejected')}
+                          onClick={() => {
+                            const reason = window.prompt('Masukkan alasan penolakan (opsional):', 'Dana belum masuk ke mutasi merchant');
+                            if (reason !== null) {
+                              handleUpdateOrderStatus(o.id, 'rejected', reason);
+                            }
+                          }}
                           style={{
                             padding: '0.5rem',
                             borderRadius: '0.65rem',
@@ -8445,7 +8645,713 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     )
                   )}
                 </div>
-              ))
+              );
+            })
+          )}
+            </>
+          )}
+
+          {/* Mobile Payment System Configuration */}
+          {financeSubTab === 'settings' && canManagePaymentSettings && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Header Info & Save Button */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '0.85rem 1rem',
+                borderRadius: '0.85rem',
+                backgroundColor: theme.surface,
+                border: `1px solid ${theme.border}`,
+                boxShadow: theme.cardShadow
+              }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                    Konfigurasi Pembayaran
+                  </h4>
+                  <p style={{ margin: '0.15rem 0 0', fontSize: '0.7rem', color: theme.textSecondary }}>
+                    Atur mode checkout &amp; integrasi gateway
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSavePaymentSettings}
+                  disabled={savingSettings}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0 1rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    cursor: savingSettings ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {savingSettings ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                  <span>{savingSettings ? 'Menyimpan...' : 'Simpan'}</span>
+                </button>
+              </div>
+
+              {/* 1. Mode Switcher Tabs (3 Interactive Vertical Cards) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
+                  Pilih Mode Sistem Pembayaran Platform:
+                </label>
+                {[
+                  { key: 'gateway_aulaa', label: 'Aulaa Payment Gateway', desc: 'Otomatis via API Aulaa.co (QRIS Instan, VA, E-Wallet, CC)', icon: Zap, color: '#10b981' },
+                  { key: 'manual_qris', label: 'QRIS & Rekening Manual', desc: 'Scan QRIS ShopeePay/BCA mandiri + kode unik nominal 3-digit', icon: QrCode, color: '#0284c7' },
+                  { key: 'maintenance', label: 'Mode Pemeliharaan (Tutup)', desc: 'Tutup sementara transaksi paket langganan berbayar', icon: ShieldAlert, color: '#ef4444' }
+                ].map(mode => {
+                  const isSelected = (googleSettings.payment_system_mode || 'gateway_aulaa') === mode.key;
+                  const ModeIcon = mode.icon;
+                  const activeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.08)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.08)' : 'rgba(239, 68, 68, 0.08)';
+                  const activeBadgeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.15)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+
+                  return (
+                    <div
+                      key={mode.key}
+                      onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: mode.key }))}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: isSelected ? activeBg : theme.surface,
+                        border: `2px solid ${isSelected ? mode.color : theme.border}`,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        boxShadow: isSelected ? `0 0 0 1px ${mode.color}` : undefined,
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '0.5rem',
+                        backgroundColor: isSelected ? mode.color : theme.cardAlt,
+                        color: isSelected ? '#ffffff' : theme.textPrimary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <ModeIcon size={18} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: theme.textPrimary }}>{mode.label}</span>
+                          {isSelected ? (
+                            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: mode.color, backgroundColor: activeBadgeBg, padding: '0.15rem 0.5rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <CheckCircle2 size={10} /> MODE AKTIF
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.64rem', color: theme.textSecondary }}>
+                              Klik untuk aktifkan
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                          {mode.desc}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 2. Focused Configuration Panel (Only Shows Settings for Selected Tab) */}
+              {(() => {
+                const activeMode = googleSettings.payment_system_mode || 'gateway_aulaa';
+
+                // PANEL 1: AULAA GATEWAY
+                if (activeMode === 'gateway_aulaa') {
+                  return (
+                    <div style={{
+                      padding: '1.15rem',
+                      backgroundColor: theme.surface,
+                      borderRadius: '0.95rem',
+                      border: `1px solid ${theme.border}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem'
+                    }}>
+                      {/* Active Status Banner */}
+                      <div style={{
+                        padding: '0.75rem 0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.65rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Zap size={18} color="#10b981" />
+                          <div>
+                            <strong style={{ fontSize: '0.8rem', color: theme.textPrimary, display: 'block' }}>
+                              Gateway Aulaa.co (Mode Aktif)
+                            </strong>
+                            <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
+                              Pembayaran instan otomatis via API Aulaa.co
+                            </span>
+                          </div>
+                        </div>
+                        <a
+                          href="https://aulaa.co/docs"
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            minHeight: '44px',
+                            fontSize: '0.68rem',
+                            color: '#10b981',
+                            textDecoration: 'none',
+                            fontWeight: 700,
+                            padding: '0 0.6rem',
+                            borderRadius: '0.4rem',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <ExternalLink size={12} /> API Docs
+                        </a>
+                      </div>
+
+                      {/* Sub-channel Toggles */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary }}>
+                          Sub-Kanal yang Ditampilkan di Checkout:
+                        </label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                          {[
+                            { key: 'payment_aulaa_channel_qris', label: 'QRIS Instan', desc: 'GoPay, OVO, ShopeePay, BCA', icon: QrCode, color: '#10b981' },
+                            { key: 'payment_aulaa_channel_va', label: 'Virtual Account', desc: 'BCA, Mandiri, BRI, BNI', icon: CreditCard, color: '#0284c7' },
+                            { key: 'payment_aulaa_channel_ewallet', label: 'Dompet Digital', desc: 'DANA, LinkAja, AstraPay', icon: Zap, color: '#f59e0b' },
+                            { key: 'payment_aulaa_channel_cc', label: 'Kartu Kredit / Debit', desc: 'Visa & Mastercard', icon: CreditCard, color: '#a855f7' },
+                          ].map(ch => {
+                            const isEnabled = googleSettings[ch.key] !== '0';
+                            const ChIcon = ch.icon;
+                            return (
+                              <div
+                                key={ch.key}
+                                onClick={() => setGoogleSettings(prev => ({ ...prev, [ch.key]: isEnabled ? '0' : '1' }))}
+                                style={{
+                                  minHeight: '44px',
+                                  padding: '0.55rem 0.75rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: isEnabled ? 'rgba(16, 185, 129, 0.08)' : theme.cardAlt,
+                                  border: `1px solid ${isEnabled ? '#10b981' : theme.border}`,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <ChIcon size={16} color={ch.color} />
+                                  <div>
+                                    <div style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary }}>{ch.label}</div>
+                                    <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>{ch.desc}</div>
+                                  </div>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={isEnabled}
+                                  onChange={() => {}}
+                                  style={{ accentColor: '#10b981', cursor: 'pointer', width: '18px', height: '18px' }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* API Key */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary }}>
+                            Aulaa API Key:
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowAulaaSecrets(!showAulaaSecrets)}
+                            style={{ minHeight: '44px', background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          >
+                            {showAulaaSecrets ? <EyeOff size={13} /> : <Eye size={13} />}
+                            <span>{showAulaaSecrets ? 'Tutup' : 'Lihat'}</span>
+                          </button>
+                        </div>
+                        <input
+                          type={showAulaaSecrets ? 'text' : 'password'}
+                          value={googleSettings.aulaa_api_key || ''}
+                          onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_api_key: e.target.value }))}
+                          placeholder="aulk_live_xxxxxxxxxxxxxxxx"
+                          style={{
+                            width: '100%',
+                            minHeight: '44px',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.8rem',
+                            fontFamily: 'monospace'
+                          }}
+                        />
+                      </div>
+
+                      {/* Webhook Secret */}
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.3rem' }}>
+                          Aulaa Webhook Secret (HMAC-SHA256):
+                        </label>
+                        <input
+                          type={showAulaaSecrets ? 'text' : 'password'}
+                          value={googleSettings.aulaa_webhook_secret || ''}
+                          onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_webhook_secret: e.target.value }))}
+                          placeholder="whsec_xxxxxxxxxxxxxxxxxxxxxxxx"
+                          style={{
+                            width: '100%',
+                            minHeight: '44px',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.8rem',
+                            fontFamily: 'monospace'
+                          }}
+                        />
+                      </div>
+
+                      {/* Base URL */}
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.3rem' }}>
+                          Base URL API:
+                        </label>
+                        <input
+                          type="text"
+                          value={googleSettings.aulaa_base_url || 'https://api.aulaa.co/v1'}
+                          onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_base_url: e.target.value }))}
+                          placeholder="https://api.aulaa.co/v1"
+                          style={{
+                            width: '100%',
+                            minHeight: '44px',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.8rem'
+                          }}
+                        />
+                      </div>
+
+                      {/* Webhook URL Box */}
+                      <div style={{
+                        padding: '0.75rem',
+                        borderRadius: '0.6rem',
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.35rem'
+                      }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#10b981' }}>
+                          URL Webhook Catavor:
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <code style={{
+                            flex: 1,
+                            fontSize: '0.7rem',
+                            padding: '0.35rem 0.5rem',
+                            backgroundColor: theme.surface,
+                            borderRadius: '0.35rem',
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {typeof window !== 'undefined' ? `${window.location.origin}/api/payments/webhook/aulaa` : '/api/payments/webhook/aulaa'}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof window !== 'undefined') {
+                                navigator.clipboard.writeText(`${window.location.origin}/api/payments/webhook/aulaa`);
+                                setCopiedWebhookUrl(true);
+                                setTimeout(() => setCopiedWebhookUrl(false), 2000);
+                                showToast('URL webhook disalin!', 'success');
+                              }
+                            }}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0 0.65rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: copiedWebhookUrl ? '#10b981' : theme.surface,
+                              color: copiedWebhookUrl ? '#ffffff' : theme.textPrimary,
+                              border: `1px solid ${theme.border}`,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}
+                          >
+                            {copiedWebhookUrl ? <CheckCheck size={13} /> : <Copy size={13} />}
+                            <span>{copiedWebhookUrl ? 'Tersalin' : 'Salin'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // PANEL 2: MANUAL QRIS & REKENING
+                if (activeMode === 'manual_qris') {
+                  return (
+                    <div style={{
+                      padding: '1.15rem',
+                      backgroundColor: theme.surface,
+                      borderRadius: '0.95rem',
+                      border: `1px solid ${theme.border}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.85rem'
+                    }}>
+                      {/* Active Status Banner */}
+                      <div style={{
+                        padding: '0.75rem 0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                        border: '1px solid rgba(2, 132, 199, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}>
+                        <QrCode size={18} color="#0284c7" />
+                        <div>
+                          <strong style={{ fontSize: '0.8rem', color: theme.textPrimary, display: 'block' }}>
+                            QRIS &amp; Transfer Manual (Mode Aktif)
+                          </strong>
+                          <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
+                            Pembayaran manual diverifikasi oleh staf admin dengan alokasi kode unik 3-digit.
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.3rem' }}>
+                          Nama Merchant QRIS:
+                        </label>
+                        <input
+                          type="text"
+                          value={googleSettings.payment_qris_manual_merchant || 'Catavor Official Store'}
+                          onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_merchant: e.target.value }))}
+                          placeholder="Catavor Official Store"
+                          style={{
+                            width: '100%',
+                            minHeight: '44px',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.8rem'
+                          }}
+                        />
+                      </div>
+
+                      {/* QRIS Image Upload / URL */}
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.3rem' }}>
+                          Gambar QRIS Merchant:
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{
+                            width: '60px',
+                            height: '60px',
+                            borderRadius: '0.5rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: '#ffffff',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                            flexShrink: 0
+                          }}>
+                            <img
+                              src={googleSettings.payment_qris_manual_image || '/img/qris_demo.svg'}
+                              alt="QRIS Merchant"
+                              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                            />
+                          </div>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <input
+                              type="text"
+                              value={googleSettings.payment_qris_manual_image || ''}
+                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: e.target.value }))}
+                              placeholder="/img/qris_demo.svg"
+                              style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                padding: '0.45rem 0.65rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: theme.cardAlt,
+                                border: `1px solid ${theme.border}`,
+                                color: theme.textPrimary,
+                                fontSize: '0.75rem'
+                              }}
+                            />
+                            <label style={{
+                              minHeight: '44px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0 0.75rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: theme.surface,
+                              border: `1px solid ${theme.border}`,
+                              color: theme.textPrimary,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
+                              width: 'fit-content'
+                            }}>
+                              <Upload size={13} color="#0284c7" />
+                              <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File'}</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                disabled={isUploadingQRISImage}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleUploadQRISImage(f);
+                                }}
+                                style={{ display: 'none' }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.3rem' }}>
+                          Nama Bank Penerima:
+                        </label>
+                        <input
+                          type="text"
+                          value={googleSettings.payment_bank_name || 'Bank Central Asia (BCA)'}
+                          onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_name: e.target.value }))}
+                          placeholder="BCA"
+                          style={{
+                            width: '100%',
+                            minHeight: '44px',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.8rem'
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.3rem' }}>
+                          Nomor Rekening:
+                        </label>
+                        <input
+                          type="text"
+                          value={googleSettings.payment_bank_account || '8830-1928-3920'}
+                          onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_account: e.target.value }))}
+                          placeholder="8830-1928-3920"
+                          style={{
+                            width: '100%',
+                            minHeight: '44px',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.8rem'
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.3rem' }}>
+                          Atas Nama Rekening:
+                        </label>
+                        <input
+                          type="text"
+                          value={googleSettings.payment_bank_holder || 'PT Catavor Media Digital'}
+                          onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_holder: e.target.value }))}
+                          placeholder="PT Catavor Media Digital"
+                          style={{
+                            width: '100%',
+                            minHeight: '44px',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.8rem'
+                          }}
+                        />
+                      </div>
+
+                      {/* Info Unique Code */}
+                      <div style={{
+                        padding: '0.75rem',
+                        borderRadius: '0.6rem',
+                        backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                        border: '1px solid rgba(2, 132, 199, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem'
+                      }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0284c7' }}>
+                          Kode Unik 3-Digit Otomatis:
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.68rem', color: theme.textSecondary, lineHeight: 1.4 }}>
+                          Setiap invoice pembayaran manual otomatis ditambah kode unik 3 digit (100–999) pada total tagihan untuk pencocokan mutasi.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // PANEL 3: MAINTENANCE MODE
+                if (activeMode === 'maintenance') {
+                  return (
+                    <div style={{
+                      padding: '1.15rem',
+                      backgroundColor: theme.surface,
+                      borderRadius: '0.95rem',
+                      border: `1px solid ${theme.border}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.85rem'
+                    }}>
+                      {/* Active Status Banner */}
+                      <div style={{
+                        padding: '0.75rem 0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}>
+                        <ShieldAlert size={18} color="#ef4444" />
+                        <div>
+                          <strong style={{ fontSize: '0.8rem', color: '#ef4444', display: 'block' }}>
+                            PERINGATAN: Mode Pemeliharaan Aktif
+                          </strong>
+                          <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
+                            Seluruh formulir transaksi pembayaran paket saat ini ditutup.
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.3rem' }}>
+                          Judul Pengumuman:
+                        </label>
+                        <input
+                          type="text"
+                          value={googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan'}
+                          onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_maintenance_title: e.target.value }))}
+                          placeholder="Sistem Pembayaran Dalam Pemeliharaan"
+                          style={{
+                            width: '100%',
+                            minHeight: '44px',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.8rem'
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.3rem' }}>
+                          Isi Pesan Peringatan Pemeliharaan:
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.'}
+                          onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_maintenance_message: e.target.value }))}
+                          placeholder="Pesan pemeliharaan..."
+                          style={{
+                            width: '100%',
+                            padding: '0.6rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.8rem',
+                            lineHeight: 1.45,
+                            resize: 'vertical'
+                          }}
+                        />
+                      </div>
+
+                      {/* Mobile Live Preview Card */}
+                      <div style={{
+                        marginTop: '0.5rem',
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'rgba(239, 68, 68, 0.06)',
+                        border: '1.5px solid rgba(239, 68, 68, 0.25)',
+                        textAlign: 'center',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.45rem'
+                      }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ef4444'
+                        }}>
+                          <ShieldAlert size={18} />
+                        </div>
+                        <h5 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: theme.textPrimary }}>
+                          {googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan'}
+                        </h5>
+                        <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                          {googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
+            </div>
           )}
         </div>
       )}
@@ -14462,15 +15368,32 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', color: theme.textSecondary }}>
-              <span>Toko: <strong style={{ color: theme.textPrimary }}>{selectedProofOrder.store_name}</strong></span>
-              <span>Nominal: <strong style={{ color: isDark ? '#34d399' : '#059669' }}>Rp {(selectedProofOrder.amount || 99000).toLocaleString('id-ID')}</strong></span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.76rem', color: theme.textSecondary }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Toko: <strong style={{ color: theme.textPrimary }}>{selectedProofOrder.store?.store_title || selectedProofOrder.store?.name || selectedProofOrder.store_name || 'Toko'}</strong></span>
+                <span>Nominal: <strong style={{ color: isDark ? '#34d399' : '#059669' }}>Rp {(selectedProofOrder.final_amount ?? selectedProofOrder.amount ?? 0).toLocaleString('id-ID')}</strong></span>
+              </div>
+              {selectedProofOrder.unique_code > 0 && (
+                <div style={{ fontSize: '0.7rem', color: isDark ? '#38bdf8' : '#0284c7' }}>
+                  <span>Termasuk Kode Unik: +{selectedProofOrder.unique_code}</span>
+                </div>
+              )}
+              {selectedProofOrder.sender_account_name && (
+                <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                  <span>Pengirim: <strong>{selectedProofOrder.sender_account_name}</strong> {selectedProofOrder.sender_phone ? `(${selectedProofOrder.sender_phone})` : ''}</span>
+                </div>
+              )}
             </div>
 
-            {selectedProofOrder.status === 'pending' ? (
+            {((selectedProofOrder.payment_status || selectedProofOrder.status) === 'pending' || (selectedProofOrder.payment_status || selectedProofOrder.status) === 'pending_verification') ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.35rem' }}>
                 <button
-                  onClick={() => handleUpdateOrderStatus(selectedProofOrder.id, 'rejected')}
+                  onClick={() => {
+                    const reason = window.prompt('Masukkan alasan penolakan bukti pembayaran:', 'Dana belum masuk ke mutasi merchant');
+                    if (reason !== null) {
+                      handleUpdateOrderStatus(selectedProofOrder.id, 'rejected', reason);
+                    }
+                  }}
                   style={{
                     padding: '0.65rem',
                     borderRadius: '0.65rem',
