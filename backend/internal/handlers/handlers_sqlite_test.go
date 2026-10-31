@@ -863,4 +863,150 @@ func TestFeaturedStores_SQLite(t *testing.T) {
 			t.Fatalf("status = %d, want 503 (%s)", r.Status, r.Raw)
 		}
 	})
+
+	t.Run("sorting_popularitas_dan_filter_tipe", func(t *testing.T) {
+		db := newTestDB(t)
+		u := models.User{Name: "Dewi", Email: "dewi@example.com"}
+		_ = u.SetPassword("Rahasia123!")
+		mustCreate(t, db, &u)
+
+		mustCreate(t, db, &models.Store{
+			UserID:             u.ID,
+			Slug:               "toko-fauna-populer",
+			StoreTitle:         "Toko Fauna Populer",
+			DormancyStatus:     "active",
+			ViewCount:          500,
+			TotalActionsCount:  50,
+			PrimaryProductType: "fauna",
+			IsFeatured:         true,
+		})
+		mustCreate(t, db, &models.Store{
+			UserID:             u.ID,
+			Slug:               "toko-food-sedang",
+			StoreTitle:         "Toko Food Sedang",
+			DormancyStatus:     "active",
+			ViewCount:          200,
+			TotalActionsCount:  20,
+			PrimaryProductType: "food",
+		})
+		mustCreate(t, db, &models.Store{
+			UserID:             u.ID,
+			Slug:               "toko-fauna-baru",
+			StoreTitle:         "Toko Fauna Baru",
+			DormancyStatus:     "active",
+			ViewCount:          10,
+			TotalActionsCount:  1,
+			PrimaryProductType: "fauna",
+		})
+
+		app := newTestApp(db)
+
+		// 1. Filter by product_type=fauna
+		rFauna := call(t, app, "GET", "/api/stores/featured?product_type=fauna", nil)
+		if rFauna.Status != http.StatusOK {
+			t.Fatalf("status = %d, want 200 (%s)", rFauna.Status, rFauna.Raw)
+		}
+		if !strings.Contains(rFauna.Raw, "Toko Fauna Populer") || !strings.Contains(rFauna.Raw, "Toko Fauna Baru") {
+			t.Errorf("toko fauna seharusnya muncul: %s", rFauna.Raw)
+		}
+		if strings.Contains(rFauna.Raw, "Toko Food Sedang") {
+			t.Errorf("toko food tidak boleh muncul di filter fauna: %s", rFauna.Raw)
+		}
+
+		// 2. Default sort (popularitas): Toko Fauna Populer (500 views) harus mendahului Toko Fauna Baru (10 views)
+		idxPopuler := strings.Index(rFauna.Raw, "Toko Fauna Populer")
+		idxBaru := strings.Index(rFauna.Raw, "Toko Fauna Baru")
+		if idxPopuler == -1 || idxBaru == -1 || idxPopuler > idxBaru {
+			t.Errorf("urutan salah, harusnya toko populer (500 views) lebih dulu dari toko baru (10 views): %s", rFauna.Raw)
+		}
+	})
+}
+
+func TestProducts_PopularitySorting_SQLite(t *testing.T) {
+	db := newTestDB(t)
+	u := models.User{Name: "Siti", Email: "siti@example.com"}
+	_ = u.SetPassword("Rahasia123!")
+	mustCreate(t, db, &u)
+
+	store := models.Store{UserID: u.ID, Slug: "store-test", StoreTitle: "Store Test", DormancyStatus: "active"}
+	mustCreate(t, db, &store)
+
+	mustCreate(t, db, &models.Product{
+		StoreID:         store.ID,
+		Name:            "Kucing Persia Populer",
+		Class:           "Mamalia",
+		Habitat:         "Darat",
+		ProductType:     "fauna",
+		Price:           1500000,
+		IsActive:        true,
+		ViewCount:       1000,
+		WaClicksCount:   50,
+		PopularityScore: 1150, // 1000 + 50*3
+	})
+	mustCreate(t, db, &models.Product{
+		StoreID:         store.ID,
+		Name:            "Kucing Kampung Biasa",
+		Class:           "Mamalia",
+		Habitat:         "Darat",
+		ProductType:     "fauna",
+		Price:           100000,
+		IsActive:        true,
+		ViewCount:       50,
+		WaClicksCount:   2,
+		PopularityScore: 56, // 50 + 2*3
+	})
+	mustCreate(t, db, &models.Product{
+		StoreID:         store.ID,
+		Name:            "Ikan Cupang Laris",
+		Class:           "Pisces",
+		Habitat:         "Air Tawar",
+		ProductType:     "fauna",
+		Price:           50000,
+		IsActive:        true,
+		ViewCount:       300,
+		WaClicksCount:   200, // Highest orders
+		PopularityScore: 900,
+	})
+
+	app := newTestApp(db)
+
+	t.Run("sort_popular", func(t *testing.T) {
+		r := call(t, app, "GET", "/api/products?sort=popular", nil)
+		if r.Status != http.StatusOK {
+			t.Fatalf("status = %d, want 200 (%s)", r.Status, r.Raw)
+		}
+		idxPersia := strings.Index(r.Raw, "Kucing Persia Populer")
+		idxCupang := strings.Index(r.Raw, "Ikan Cupang Laris")
+		idxKampung := strings.Index(r.Raw, "Kucing Kampung Biasa")
+
+		if idxPersia > idxCupang || idxCupang > idxKampung {
+			t.Errorf("urutan salah untuk sort=popular: %s", r.Raw)
+		}
+	})
+
+	t.Run("sort_best_seller", func(t *testing.T) {
+		r := call(t, app, "GET", "/api/products?sort=best_seller", nil)
+		if r.Status != http.StatusOK {
+			t.Fatalf("status = %d, want 200 (%s)", r.Status, r.Raw)
+		}
+		idxCupang := strings.Index(r.Raw, "Ikan Cupang Laris")
+		idxPersia := strings.Index(r.Raw, "Kucing Persia Populer")
+
+		if idxCupang > idxPersia {
+			t.Errorf("Ikan Cupang (200 wa clicks) harus mendahului Kucing Persia (50 wa clicks): %s", r.Raw)
+		}
+	})
+
+	t.Run("sort_most_viewed", func(t *testing.T) {
+		r := call(t, app, "GET", "/api/products?sort=most_viewed", nil)
+		if r.Status != http.StatusOK {
+			t.Fatalf("status = %d, want 200 (%s)", r.Status, r.Raw)
+		}
+		idxPersia := strings.Index(r.Raw, "Kucing Persia Populer")
+		idxCupang := strings.Index(r.Raw, "Ikan Cupang Laris")
+
+		if idxPersia > idxCupang {
+			t.Errorf("Kucing Persia (1000 views) harus mendahului Ikan Cupang (300 views): %s", r.Raw)
+		}
+	})
 }

@@ -1425,6 +1425,16 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 			"stats":   stats,
 		})
 
+	case "market_intel_worker", "market_intel", "market_intelligence", "market_rollup":
+		if err := tracker.TriggerMarketIntelManual(h.DB); err != nil {
+			log.Error().Err(err).Msg("admin: TriggerMarketIntelManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot riset pasar & intelijen."})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Bot Agregasi Riset Pasar & Demand Gap (B2B) berhasil dipicu di latar belakang.",
+		})
+
 	case "weekly_summary", "summary", "weekly_summary_worker":
 		if err := tracker.TriggerWeeklySummaryManual(h.DB, user); err != nil {
 			log.Error().Err(err).Msg("admin: TriggerWeeklySummaryManual gagal")

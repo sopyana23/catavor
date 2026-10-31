@@ -97,8 +97,9 @@ import { PlatformAdminShell } from './PlatformAdminShell';
 import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { AdminStoresManagement } from './AdminStoresManagement';
-import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { DesktopCustomSelect, type SelectOption } from './DesktopCustomSelect';
+import { PlatformMarketIntelView } from './PlatformMarketIntelView';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
 
@@ -165,7 +166,8 @@ type ActiveView =
   | 'automation'
   | 'audit'
   | 'safe_domains'
-  | 'master_data';
+  | 'master_data'
+  | 'market_intel';
 
 const formatSupportDateTime = (dateStr?: string | Date) => {
   if (!dateStr) return '-';
@@ -320,6 +322,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
+  const canAccessMarketIntel = isSuperAdmin(currentUser) || hasPermission(currentUser, 'market_intel:manage');
 
   // Granular Sub-Action Permission Checks (Action / Execution Level)
   const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
@@ -405,6 +408,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['monetization', 'iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
       if (['broadcast', 'siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
       if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
+      if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'b2b'].includes(tabParam)) return 'market_intel';
       if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) return 'master_data';
       if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) return 'audit';
     } catch {
@@ -1477,122 +1481,96 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [ticketReplyAttachments, setTicketReplyAttachments] = useState<any[]>([]);
   const [isUploadingTicketAttachment, setIsUploadingTicketAttachment] = useState(false);
-  // Support Ticket Attachments Gallery Lightbox State (Identik dengan Admin Katalog)
-  const [attachmentLightbox, setAttachmentLightbox] = useState<{
-    isOpen: boolean;
-    images: { file_url: string; file_name?: string }[];
-    currentIndex: number;
-  } | null>(null);
-  const [zoomScale, setZoomScale] = useState<number>(1);
-  const [panPosition, setPanPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Support Ticket Attachment Preview & Direct Download States (Desktop Admin Pengelola)
+  const [docPreview, setDocPreview] = useState<DocumentPreviewData | null>(null);
 
-  const openAttachmentLightbox = (
-    images?: { file_url: string; file_name?: string; file_type?: string }[],
-    indexOrTarget: number | string | { file_url: string } = 0
-  ) => {
-    if (!images || images.length === 0) return;
-    // Filter strictly to actual image attachments (exclude PDF, docs, and broken files)
-    const imageList = images.filter(att => {
-      if (!att || !att.file_url) return false;
-      const fileType = (att.file_type || '').toLowerCase().trim();
-      const name = (att.file_name || '').toLowerCase().trim();
-      const url = (att.file_url || '').toLowerCase().trim();
-
-      if (fileType.includes('pdf') || name.endsWith('.pdf') || url.endsWith('.pdf') || name.includes('.pdf') || url.includes('.pdf')) {
-        return false;
-      }
-      if (fileType.includes('document') || fileType.includes('sheet') || fileType.includes('zip') || fileType.includes('octet-stream')) {
-        return false;
-      }
-      if (fileType.startsWith('image/')) {
-        return true;
-      }
-      if (/\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(name) || /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(url)) {
-        return true;
-      }
-      return false;
-    });
-
-    if (imageList.length === 0) return;
-
-    let targetIdx = 0;
-    if (typeof indexOrTarget === 'number') {
-      const selectedItem = images[indexOrTarget];
-      if (selectedItem) {
-        const found = imageList.findIndex(img => img.file_url === selectedItem.file_url);
-        targetIdx = found !== -1 ? found : 0;
-      }
-    } else if (typeof indexOrTarget === 'string') {
-      const found = imageList.findIndex(img => img.file_url === indexOrTarget);
-      targetIdx = found !== -1 ? found : 0;
-    } else if (indexOrTarget && typeof indexOrTarget === 'object' && indexOrTarget.file_url) {
-      const found = imageList.findIndex(img => img.file_url === indexOrTarget.file_url);
-      targetIdx = found !== -1 ? found : 0;
-    }
-
-    setAttachmentLightbox({
-      isOpen: true,
-      images: imageList,
-      currentIndex: Math.max(0, Math.min(targetIdx, imageList.length - 1))
-    });
-    setZoomScale(1);
-    setPanPosition({ x: 0, y: 0 });
-    setIsDragging(false);
+  const supportAttachmentSrc = (att: any): string => {
+    if (!att) return '';
+    if (att.blob_url || att.blobUrl) return att.blob_url || att.blobUrl;
+    if (att.id) return `/api/support/attachments/${att.id}`;
+    return att.file_url || '';
   };
 
-  const closeAttachmentLightbox = () => {
-    setAttachmentLightbox(null);
-    setZoomScale(1);
-    setPanPosition({ x: 0, y: 0 });
-    setIsDragging(false);
-  };
+  const openDocumentPreview = (att: any) => {
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const isPdf = (att.file_type || '').includes('pdf') || 
+      (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+      (att.file_url || '').toLowerCase().endsWith('.pdf');
 
-  const handleDownloadAttachmentImage = (url: string, fileName?: string) => {
-    try {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName || 'lampiran_catavor.jpg';
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch (err) {
-      console.error('Failed to download image', err);
-    }
-  };
-
-  // In-App Document Preview Modal State (PDF & Documents)
-  const [docPreview, setDocPreview] = useState<{
-    isOpen: boolean;
-    fileUrl: string;
-    fileName: string;
-    fileSize?: number;
-    fileType?: string;
-    id?: string;
-  } | null>(null);
-
-  const openDocumentPreview = (att: { file_url?: string; file_name?: string; file_size?: number; file_type?: string; id?: string }) => {
-    if (!att || !att.file_url) return;
     setDocPreview({
       isOpen: true,
-      fileUrl: att.file_url,
-      fileName: att.file_name || 'Dokumen.pdf',
+      id: att.id,
+      url: supportAttachmentSrc(att),
+      blobUrl: att.blob_url || att.blobUrl,
+      fileName: att.file_name || (isPdf ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran'),
       fileSize: att.file_size,
-      fileType: att.file_type || 'application/pdf',
-      id: att.id
+      fileType: att.file_type || (isPdf ? 'application/pdf' : isImage ? 'image/jpeg' : 'application/octet-stream')
     });
   };
 
-  const handleDownloadDocument = (att: { file_url?: string; file_name?: string; id?: string }, e?: React.MouseEvent) => {
+  const openAttachmentLightbox = (
+    images?: any[],
+    indexOrTarget: number | string | any = 0
+  ) => {
+    if (!images || images.length === 0) return;
+    let selected: any = images[0];
+    if (typeof indexOrTarget === 'number') {
+      selected = images[indexOrTarget] || images[0];
+    } else if (typeof indexOrTarget === 'string') {
+      selected = images.find(img => img.file_url === indexOrTarget || String(img.id) === indexOrTarget) || images[0];
+    } else if (indexOrTarget && typeof indexOrTarget === 'object') {
+      selected = images.find(img => (indexOrTarget.id && img.id === indexOrTarget.id) || (indexOrTarget.file_url && img.file_url === indexOrTarget.file_url)) || indexOrTarget;
+    }
+    openDocumentPreview(selected);
+  };
+
+  const handleDownloadDocument = async (att: any, e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
       e.preventDefault();
     }
-    const fileName = att.file_name || 'Dokumen.pdf';
+    if (!att) return;
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+    const fileName = att.file_name || (isImage ? 'Lampiran_Gambar.jpg' : 'Dokumen.pdf');
+    const authToken = token || localStorage.getItem('catavor_token') || '';
+
+    try {
+      if (att.blob_url || att.blobUrl) {
+        const link = document.createElement('a');
+        link.href = att.blob_url || att.blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+      const targetUrl = att.id ? `/api/support/attachments/${att.id}?download=1` : (att.file_url || supportAttachmentSrc(att));
+      const res = await fetch(targetUrl, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        return;
+      }
+    } catch (err) {
+      console.warn('Direct download blob error, falling back:', err);
+    }
+
     const link = document.createElement('a');
-    link.href = att.id ? `/api/support/attachments/${att.id}?download=1` : (att.file_url || '#');
+    link.href = att.id ? `/api/support/attachments/${att.id}?download=1` : (att.file_url || supportAttachmentSrc(att) || '#');
     link.download = fileName;
     link.target = '_blank';
     document.body.appendChild(link);
@@ -2925,12 +2903,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             else if (lowerName.endsWith('.gif')) detectedType = 'image/gif';
             else detectedType = 'application/octet-stream';
           }
+          const localBlobUrl = URL.createObjectURL(file);
           uploaded.push({
-            file_url: data.url,
-            storage_key: data.storage_key || '',
+            file_url: data.file_url || data.url || localBlobUrl,
+            storage_key: data.key || data.storage_key || '',
             file_name: file.name,
             file_size: file.size,
-            file_type: detectedType
+            file_type: detectedType,
+            blob_url: localBlobUrl
           });
         } else {
           showToast(data.message || `Gagal mengunggah ${file.name}`, 'error');
@@ -3556,6 +3536,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           : (masterSubView === 'rekber' ? 'Integrasi Rekber Syariah (rekbersyariah.com)' : 'Pusat Konfigurasi Master Data'))
     },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
+    market_intel: { title: 'Riset Pasar B2B', subtitle: 'Tren Hype, Demand Gap & Benchmark Harga' },
   };
 
   // Specialized Platform & System Management Modules on Dashboard Grid
@@ -3582,7 +3563,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       badge: dormancyMetrics?.dormant_stores || 0,
       visible: canAccessCompliance
     },
-    {
+        {
+      id: 'market_intel' as ActiveView,
+      title: 'Riset Pasar B2B',
+      subtitle: 'Tren Hype & Demand Gap',
+      icon: <TrendingUp size={20} />,
+      color: '#10b981',
+      bg: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+      border: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)',
+      badge: 0,
+      visible: canAccessMarketIntel
+    },
+{
       id: 'monetization' as ActiveView,
       title: 'Monetisasi & Iklan',
       subtitle: 'Google AdSense & GA4',
@@ -4287,6 +4279,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       canAccessAutomation={canAccessAutomation}
       canAccessAudit={canAccessAudit}
       canAccessMasterData={canAccessMasterData}
+      canAccessMarketIntel={canAccessMarketIntel}
       pendingReportsCount={pendingReportsCount}
       urgentTicketsCount={urgentTicketsCount}
       actionRequiredTicketsCount={actionRequiredTicketsCount}
@@ -5006,7 +4999,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView === 'dashboard' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Quick Metrics Strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.45rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.45rem' }}>
             <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
               <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Merchant</span>
               <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>{dormancyMetrics?.active_stores || 1}</strong>
@@ -5511,7 +5504,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               {/* Details Grid */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: moderationModalReport.target_type === 'item' ? 'repeat(6, 1fr)' : 'repeat(5, 1fr)',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                 gap: '0.65rem',
                 padding: '0.85rem',
                 borderRadius: '0.75rem',
@@ -5724,7 +5717,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.55rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.55rem' }}>
                 {[
                   { value: 'investigating', label: 'Investigasi Aktif', color: '#f59e0b', desc: 'Audit sedang berjalan & verifikasi bukti' },
                   { value: 'action_taken', label: 'Sanksi Ditindak', color: '#f43f5e', desc: 'Sanksi sementara/teguran dijatuhkan' },
@@ -6234,7 +6227,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ========================================================================= */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
           {/* Quick Metrics Bar */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.55rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.55rem' }}>
             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
               <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Menunggu Review</span>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f59e0b' }}>
@@ -7486,7 +7479,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                 </p>
                               ) : null}
 
-                              {/* Attached Images / Screenshots Gallery */}
+                              {/* Attached Files & Documents */}
                               {msg.attachments && msg.attachments.length > 0 && (
                                 <div style={{ 
                                   marginTop: msg.message ? '0.65rem' : '0.2rem', 
@@ -7494,194 +7487,159 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                   borderTop: msg.message ? `1px solid ${theme.border}` : 'none' 
                                 }}>
                                   <div style={{ fontSize: '0.67rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                    <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran File:
+                                    <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran Berkas:
                                   </div>
-                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '0.4rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
                                     {msg.attachments.map((att: any, aIdx: number) => {
-                                      const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
-                                      if (isPDF) {
-                                        return (
-                                          <div
-                                            key={aIdx}
-                                            role="button"
-                                            tabIndex={0}
-                                            style={{
-                                              gridColumn: '1 / -1',
-                                              display: 'flex',
-                                              flexDirection: 'column',
-                                              gap: '0.55rem',
-                                              padding: '0.65rem 0.75rem',
-                                              borderRadius: '0.8rem',
-                                              backgroundColor: isDark 
-                                                ? (isAgent ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.05)')
-                                                : (isAgent ? '#ffffff' : '#f8fafc'),
-                                              border: isDark
-                                                ? (isAgent ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(255, 255, 255, 0.12)')
-                                                : (isAgent ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid #e2e8f0'),
-                                              boxShadow: isDark
-                                                ? '0 2px 10px rgba(0, 0, 0, 0.3)'
-                                                : (isAgent ? '0 2px 10px rgba(2, 132, 199, 0.08)' : '0 2px 8px rgba(15, 23, 42, 0.05)'),
-                                              color: isDark ? '#ffffff' : '#0f172a',
-                                              minWidth: '220px',
-                                              maxWidth: '100%',
-                                              width: '100%',
-                                              boxSizing: 'border-box',
-                                              transition: 'all 0.15s ease'
-                                            }}
-                                          >
-                                            {/* Tier 1: File Header Info */}
-                                            <div
-                                              onClick={() => openDocumentPreview(att)}
-                                              style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', width: '100%' }}
-                                              title="Klik untuk pratinjau dokumen di aplikasi"
-                                            >
-                                              <div style={{
-                                                width: '36px',
-                                                height: '36px',
-                                                borderRadius: '0.5rem',
-                                                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2',
-                                                border: isDark ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid #fca5a5',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                flexShrink: 0
-                                              }}>
-                                                <FileText size={18} color={isDark ? '#f87171' : '#dc2626'} />
-                                              </div>
-                                              <div style={{ minWidth: 0, flex: 1 }}>
-                                                <div style={{
-                                                  fontWeight: 700,
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                  whiteSpace: 'nowrap',
-                                                  fontSize: '0.78rem',
-                                                  color: isDark ? '#ffffff' : '#0f172a',
-                                                  lineHeight: 1.3
-                                                }}>
-                                                  {att.file_name || 'Dokumen.pdf'}
-                                                </div>
-                                                <div style={{
-                                                  fontSize: '0.65rem',
-                                                  color: isDark ? '#94a3b8' : '#64748b',
-                                                  marginTop: '0.12rem',
-                                                  fontWeight: 600,
-                                                  whiteSpace: 'nowrap',
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis'
-                                                }}>
-                                                  Dokumen PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
-                                                </div>
-                                              </div>
-                                            </div>
+                                      const isPDF = (att.file_type || '').includes('pdf') || 
+                                        (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+                                        (att.file_url || '').toLowerCase().endsWith('.pdf');
+                                      const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
+                                        /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+                                        /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
 
-                                            {/* Tier 2: Action Buttons Row */}
-                                            <div style={{
-                                              display: 'grid',
-                                              gridTemplateColumns: '1fr 1fr',
-                                              gap: '0.45rem',
-                                              paddingTop: '0.5rem',
-                                              borderTop: isDark
-                                                ? (isAgent ? '1px solid rgba(6, 182, 212, 0.25)' : '1px solid rgba(255, 255, 255, 0.1)')
-                                                : (isAgent ? '1px solid rgba(2, 132, 199, 0.15)' : '1px solid #e2e8f0'),
-                                              width: '100%',
-                                              boxSizing: 'border-box'
-                                            }}>
-                                              <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
-                                                style={{
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                  justifyContent: 'center',
-                                                  gap: '0.3rem',
-                                                  padding: '0.38rem 0.5rem',
-                                                  borderRadius: '0.45rem',
-                                                  backgroundColor: isDark ? '#0ea5e9' : '#0284c7',
-                                                  color: '#ffffff',
-                                                  border: 'none',
-                                                  fontSize: '0.72rem',
-                                                  fontWeight: 700,
-                                                  cursor: 'pointer',
-                                                  boxShadow: isDark ? '0 2px 10px rgba(14, 165, 233, 0.35)' : '0 2px 8px rgba(2, 132, 199, 0.25)'
-                                                }}
-                                                title="Lihat Pratinjau Dokumen"
-                                              >
-                                                <Eye size={12} strokeWidth={2.2} /> Preview
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={(e) => handleDownloadDocument(att, e)}
-                                                style={{
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                  justifyContent: 'center',
-                                                  gap: '0.3rem',
-                                                  padding: '0.38rem 0.5rem',
-                                                  borderRadius: '0.45rem',
-                                                  backgroundColor: isDark 
-                                                    ? 'rgba(255, 255, 255, 0.08)' 
-                                                    : (isAgent ? 'rgba(2, 132, 199, 0.06)' : '#ffffff'),
-                                                  color: isDark 
-                                                    ? '#f8fafc' 
-                                                    : (isAgent ? '#0369a1' : '#334155'),
-                                                  border: isDark 
-                                                    ? '1px solid rgba(255, 255, 255, 0.2)' 
-                                                    : (isAgent ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid #cbd5e1'),
-                                                  fontSize: '0.72rem',
-                                                  fontWeight: 700,
-                                                  cursor: 'pointer'
-                                                }}
-                                                title="Unduh Berkas ke Perangkat"
-                                              >
-                                                <Download size={12} strokeWidth={2.2} /> Unduh
-                                              </button>
-                                            </div>
-                                          </div>
-                                        );
-                                      }
                                       return (
                                         <div
                                           key={aIdx}
                                           role="button"
                                           tabIndex={0}
-                                          onClick={() => openAttachmentLightbox(msg.attachments, aIdx)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter' || e.key === ' ') {
-                                              e.preventDefault();
-                                              openAttachmentLightbox(msg.attachments, aIdx);
-                                            }
-                                          }}
                                           style={{
-                                            position: 'relative',
-                                            borderRadius: '0.5rem',
-                                            overflow: 'hidden',
-                                            border: `1px solid ${theme.border}`,
-                                            aspectRatio: '1',
-                                            cursor: 'pointer',
-                                            backgroundColor: '#000000'
-                                          }}
-                                          title="Perbesar gambar"
-                                        >
-                                          <img
-                                            src={att.file_url}
-                                            alt={att.file_name || 'Attachment'}
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                          />
-                                          <div style={{
-                                            position: 'absolute',
-                                            bottom: 0,
-                                            left: 0,
-                                            right: 0,
-                                            padding: '2px 4px',
-                                            backgroundColor: 'rgba(0,0,0,0.7)',
-                                            fontSize: '0.55rem',
-                                            color: '#ffffff',
                                             display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center'
+                                            flexDirection: 'column',
+                                            gap: '0.55rem',
+                                            padding: '0.65rem 0.75rem',
+                                            borderRadius: '0.8rem',
+                                            backgroundColor: isDark 
+                                              ? (isAgent ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.05)')
+                                              : (isAgent ? '#ffffff' : '#f8fafc'),
+                                            border: isDark
+                                              ? (isAgent ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(255, 255, 255, 0.12)')
+                                              : (isAgent ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid #e2e8f0'),
+                                            boxShadow: isDark
+                                              ? '0 2px 10px rgba(0, 0, 0, 0.3)'
+                                              : (isAgent ? '0 2px 10px rgba(2, 132, 199, 0.08)' : '0 2px 8px rgba(15, 23, 42, 0.05)'),
+                                            color: isDark ? '#ffffff' : '#0f172a',
+                                            minWidth: '220px',
+                                            maxWidth: '380px',
+                                            width: '100%',
+                                            boxSizing: 'border-box',
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                        >
+                                          {/* Tier 1: File Header Info */}
+                                          <div
+                                            onClick={() => openDocumentPreview(att)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', width: '100%' }}
+                                            title="Klik untuk pratinjau berkas di aplikasi"
+                                          >
+                                            <div style={{
+                                              width: '36px',
+                                              height: '36px',
+                                              borderRadius: '0.5rem',
+                                              backgroundColor: isPDF 
+                                                ? (isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2')
+                                                : (isDark ? 'rgba(14, 165, 233, 0.18)' : '#e0f2fe'),
+                                              border: isPDF
+                                                ? (isDark ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid #fca5a5')
+                                                : (isDark ? '1px solid rgba(14, 165, 233, 0.4)' : '1px solid #bae6fd'),
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              flexShrink: 0
+                                            }}>
+                                              {isPDF ? (
+                                                <FileText size={18} color={isDark ? '#f87171' : '#dc2626'} />
+                                              ) : (
+                                                <ImageIcon size={18} color={isDark ? '#38bdf8' : '#0284c7'} />
+                                              )}
+                                            </div>
+                                            <div style={{ minWidth: 0, flex: 1 }}>
+                                              <div style={{
+                                                fontWeight: 700,
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                fontSize: '0.78rem',
+                                                color: isDark ? '#ffffff' : '#0f172a',
+                                                lineHeight: 1.3
+                                              }}>
+                                                {att.file_name || (isPDF ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran')}
+                                              </div>
+                                              <div style={{
+                                                fontSize: '0.65rem',
+                                                color: isDark ? '#94a3b8' : '#64748b',
+                                                marginTop: '0.12rem',
+                                                fontWeight: 600,
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis'
+                                              }}>
+                                                {isPDF ? 'Dokumen PDF' : isImage ? 'Lampiran Gambar' : 'Berkas Lampiran'} {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Tier 2: Action Buttons Row */}
+                                          <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '1fr 1fr',
+                                            gap: '0.45rem',
+                                            paddingTop: '0.5rem',
+                                            borderTop: isDark
+                                              ? (isAgent ? '1px solid rgba(6, 182, 212, 0.25)' : '1px solid rgba(255, 255, 255, 0.1)')
+                                              : (isAgent ? '1px solid rgba(2, 132, 199, 0.15)' : '1px solid #e2e8f0'),
+                                            width: '100%',
+                                            boxSizing: 'border-box'
                                           }}>
-                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.file_name || `Foto ${aIdx+1}`}</span>
-                                            <ZoomIn size={10} />
+                                            <button
+                                              type="button"
+                                              onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '0.3rem',
+                                                padding: '0.38rem 0.5rem',
+                                                borderRadius: '0.45rem',
+                                                backgroundColor: isDark ? '#0ea5e9' : '#0284c7',
+                                                color: '#ffffff',
+                                                border: 'none',
+                                                fontSize: '0.72rem',
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                                boxShadow: isDark ? '0 2px 10px rgba(14, 165, 233, 0.35)' : '0 2px 8px rgba(2, 132, 199, 0.25)'
+                                              }}
+                                              title="Lihat Pratinjau Berkas"
+                                            >
+                                              <Eye size={12} strokeWidth={2.2} /> Preview
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleDownloadDocument(att, e)}
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '0.3rem',
+                                                padding: '0.38rem 0.5rem',
+                                                borderRadius: '0.45rem',
+                                                backgroundColor: isDark 
+                                                  ? 'rgba(255, 255, 255, 0.08)' 
+                                                  : (isAgent ? 'rgba(2, 132, 199, 0.06)' : '#ffffff'),
+                                                color: isDark 
+                                                  ? '#f8fafc' 
+                                                  : (isAgent ? '#0369a1' : '#334155'),
+                                                border: isDark 
+                                                  ? '1px solid rgba(255, 255, 255, 0.2)' 
+                                                  : (isAgent ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid #cbd5e1'),
+                                                fontSize: '0.72rem',
+                                                fontWeight: 700,
+                                                cursor: 'pointer'
+                                              }}
+                                              title="Unduh Berkas ke Perangkat"
+                                            >
+                                              <Download size={12} strokeWidth={2.2} /> Unduh
+                                            </button>
                                           </div>
                                         </div>
                                       );
@@ -7838,9 +7796,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       backgroundColor: (att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? 'rgba(239,68,68,0.1)' : 'transparent'
                     }}>
                       {(att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? (
-                        <FileText size={20} color="#ef4444" />
+                        <div
+                          onClick={() => openDocumentPreview(att)}
+                          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}
+                          title="Klik untuk melihat pratinjau dokumen PDF"
+                        >
+                          <FileText size={20} color="#ef4444" />
+                        </div>
                       ) : (
-                        <img src={att.file_url} alt="Attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img
+                          src={att.blob_url || att.file_url}
+                          alt="Attachment"
+                          onClick={() => openDocumentPreview(att)}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                          title="Klik untuk melihat pratinjau gambar"
+                        />
                       )}
                       <button
                         type="button"
@@ -8090,7 +8060,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ----------------------------------------------------------------------- */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
             {/* Quick Metrics Bar for Support Tickets */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.55rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
               <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                 <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Total Tiket</span>
                 <span style={{ fontSize: '1.15rem', fontWeight: 800, color: theme.textPrimary }}>
@@ -11999,6 +11969,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {/* 4. MODULE 7B: DEDICATED AUTOMATION ENGINE PORTAL                          */}
       {/* ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* MODULE: MARKET INTELLIGENCE & B2B RESEARCH                                */}
+      {/* ========================================================================= */}
+      {activeView === 'market_intel' && canAccessMarketIntel && (
+        <PlatformMarketIntelView
+          token={token}
+          isDark={isDark}
+          theme={theme}
+          showToast={showToast}
+        />
+      )}
+
       {activeView === 'automation' && canAccessAutomation && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem', animation: 'fadeIn 0.25s ease-out', paddingBottom: '4.5rem' }}>
           {/* Module Header Sub-Tabs Switcher */}
@@ -15749,449 +15731,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
-      {/* DOCUMENT PREVIEW MODAL (PDF / IN-APP VIEWER & DIRECT DOWNLOAD) */}
-      <DocumentPreviewModal
-        data={docPreview}
-        onClose={() => setDocPreview(null)}
-        token={token || localStorage.getItem('catavor_token') || ''}
-      />
+      {/* DOCUMENT & IMAGE PREVIEW MODAL (IN-APP VIEWER & DIRECT DOWNLOAD) */}
+      {docPreview && docPreview.isOpen && (
+        <DocumentPreviewModal
+          data={docPreview}
+          onClose={() => setDocPreview(null)}
+          token={token || localStorage.getItem('catavor_token') || ''}
+        />
+      )}
 
-      {/* SUPPORT TICKET ATTACHMENTS GALLERY LIGHTBOX MODAL (IDENTIK DENGAN ADMIN KATALOG) */}
-      {attachmentLightbox?.isOpen && attachmentLightbox.images.length > 0 && (() => {
-        const currentImg = attachmentLightbox.images[attachmentLightbox.currentIndex] || attachmentLightbox.images[0];
-        const total = attachmentLightbox.images.length;
-        const currentIdx = attachmentLightbox.currentIndex;
-
-        return (
-          <div 
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 9999999,
-              backgroundColor: 'rgba(5, 8, 15, 0.96)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              userSelect: 'none',
-              touchAction: 'none',
-              animation: 'fadeIn 0.2s ease-out'
-            }}
-            onClick={closeAttachmentLightbox}
-          >
-            {/* Top Header Bar */}
-            <div 
-              style={{
-                padding: '0.85rem 1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'linear-gradient(180deg, rgba(0,0,0,0.85) 0%, transparent 100%)',
-                zIndex: 10,
-                gap: '0.75rem'
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
-                <span style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '999px',
-                  backgroundColor: 'rgba(56, 189, 248, 0.18)',
-                  color: isDark ? '#38bdf8' : '#0284c7',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0
-                }}>
-                  {currentIdx + 1} / {total} Foto
-                </span>
-                <span style={{
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  color: '#ffffff',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}>
-                  {currentImg.file_name || `Lampiran_${currentIdx + 1}`}
-                </span>
-              </div>
-
-              {/* Action buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  title="Download Foto"
-                  onClick={() => handleDownloadAttachmentImage(currentImg.file_url, currentImg.file_name)}
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <Download size={16} />
-                </button>
-
-                <a
-                  href={currentImg.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Buka File Asli di Tab Baru"
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textDecoration: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <ExternalLink size={16} />
-                </a>
-
-                <button
-                  type="button"
-                  title="Tutup (Esc)"
-                  onClick={closeAttachmentLightbox}
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(239, 68, 68, 0.9)',
-                    border: 'none',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    fontWeight: 800,
-                    boxShadow: '0 2px 10px rgba(239, 68, 68, 0.4)'
-                  }}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
-            {/* Main Image Stage with Zoom & Pan */}
-            <div 
-              style={{
-                flex: 1,
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                padding: '0.75rem',
-                touchAction: 'none'
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseMove={(e) => {
-                if (isDragging && zoomScale > 1) {
-                  e.preventDefault();
-                  setPanPosition({
-                    x: e.clientX - dragStart.x,
-                    y: e.clientY - dragStart.y
-                  });
-                }
-              }}
-              onMouseUp={() => setIsDragging(false)}
-              onMouseLeave={() => setIsDragging(false)}
-              onTouchMove={(e) => {
-                if (isDragging && zoomScale > 1 && e.touches.length === 1) {
-                  const touch = e.touches[0];
-                  setPanPosition({
-                    x: touch.clientX - dragStart.x,
-                    y: touch.clientY - dragStart.y
-                  });
-                }
-              }}
-              onTouchEnd={() => setIsDragging(false)}
-              onTouchCancel={() => setIsDragging(false)}
-              onWheel={(e) => {
-                e.stopPropagation();
-                const delta = e.deltaY < 0 ? 0.25 : -0.25;
-                setZoomScale(prev => {
-                  const next = Math.min(Math.max(Number((prev + delta).toFixed(2)), 0.75), 4);
-                  if (next <= 1) setPanPosition({ x: 0, y: 0 });
-                  return next;
-                });
-              }}
-            >
-              {/* Left Nav Button (if multiple images) */}
-              {total > 1 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex - 1 + total) % total } : null);
-                    setZoomScale(1);
-                    setPanPosition({ x: 0, y: 0 });
-                    setIsDragging(false);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    left: '0.75rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(0,0,0,0.65)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    zIndex: 20,
-                    backdropFilter: 'blur(8px)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)'
-                  }}
-                >
-                  <ChevronLeft size={22} />
-                </button>
-              )}
-
-              {/* Right Nav Button (if multiple images) */}
-              {total > 1 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex + 1) % total } : null);
-                    setZoomScale(1);
-                    setPanPosition({ x: 0, y: 0 });
-                    setIsDragging(false);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    right: '0.75rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(0,0,0,0.65)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    zIndex: 20,
-                    backdropFilter: 'blur(8px)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)'
-                  }}
-                >
-                  <ChevronRight size={22} />
-                </button>
-              )}
-
-              {/* Center Canvas */}
-              <div
-                style={{
-                  maxWidth: '94vw',
-                  maxHeight: '72vh',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`,
-                  transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
-                  cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
-                  userSelect: 'none',
-                  WebkitUserSelect: 'none',
-                  touchAction: 'none'
-                }}
-                onMouseDown={(e) => {
-                  if (zoomScale > 1) {
-                    e.preventDefault();
-                    setIsDragging(true);
-                    setDragStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
-                  }
-                }}
-                onMouseMove={(e) => {
-                  if (isDragging && zoomScale > 1) {
-                    e.preventDefault();
-                    setPanPosition({
-                      x: e.clientX - dragStart.x,
-                      y: e.clientY - dragStart.y
-                    });
-                  }
-                }}
-                onMouseUp={() => setIsDragging(false)}
-                onTouchStart={(e) => {
-                  if (zoomScale > 1 && e.touches.length === 1) {
-                    setIsDragging(true);
-                    const touch = e.touches[0];
-                    setDragStart({ x: touch.clientX - panPosition.x, y: touch.clientY - panPosition.y });
-                  }
-                }}
-                onTouchMove={(e) => {
-                  if (isDragging && zoomScale > 1 && e.touches.length === 1) {
-                    const touch = e.touches[0];
-                    setPanPosition({
-                      x: touch.clientX - dragStart.x,
-                      y: touch.clientY - dragStart.y
-                    });
-                  }
-                }}
-                onTouchEnd={() => setIsDragging(false)}
-                onTouchCancel={() => setIsDragging(false)}
-                onDoubleClick={() => {
-                  if (zoomScale > 1) {
-                    setZoomScale(1);
-                    setPanPosition({ x: 0, y: 0 });
-                    setIsDragging(false);
-                  } else {
-                    setZoomScale(2.5);
-                  }
-                }}
-              >
-                <img
-                  src={currentImg.file_url}
-                  alt={currentImg.file_name || 'Screenshot'}
-                  draggable={false}
-                  style={{
-                    maxWidth: '92vw',
-                    maxHeight: '68vh',
-                    objectFit: 'contain',
-                    borderRadius: '0.75rem',
-                    boxShadow: '0 12px 40px rgba(0,0,0,0.85)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                    pointerEvents: 'none'
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Bottom Thumbnail Strip & Zoom Bar */}
-            <div
-              style={{
-                padding: '0.75rem 1.25rem',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.65rem',
-                background: 'linear-gradient(0deg, rgba(0,0,0,0.92) 0%, transparent 100%)',
-                zIndex: 10
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Zoom Controls Pill */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                padding: '0.35rem 0.85rem',
-                borderRadius: '999px',
-                border: '1px solid rgba(255,255,255,0.15)',
-                backdropFilter: 'blur(10px)'
-              }}>
-                <button
-                  type="button"
-                  title="Zoom Out"
-                  disabled={zoomScale <= 0.75}
-                  onClick={() => setZoomScale(prev => Math.max(prev - 0.3, 0.75))}
-                  style={{ background: 'none', border: 'none', color: zoomScale <= 0.75 ? 'rgba(255,255,255,0.3)' : '#ffffff', cursor: zoomScale <= 0.75 ? 'default' : 'pointer', display: 'flex', alignItems: 'center' }}
-                >
-                  <ZoomOut size={16} />
-                </button>
-                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#ffffff', minWidth: '45px', textAlign: 'center' }}>
-                  {Math.round(zoomScale * 100)}%
-                </span>
-                <button
-                  type="button"
-                  title="Zoom In"
-                  disabled={zoomScale >= 3.5}
-                  onClick={() => setZoomScale(prev => Math.min(prev + 0.3, 3.5))}
-                  style={{ background: 'none', border: 'none', color: zoomScale >= 3.5 ? 'rgba(255,255,255,0.3)' : '#ffffff', cursor: zoomScale >= 3.5 ? 'default' : 'pointer', display: 'flex', alignItems: 'center' }}
-                >
-                  <ZoomIn size={16} />
-                </button>
-                <button
-                  type="button"
-                  title="Reset Zoom"
-                  onClick={() => {
-                    setZoomScale(1);
-                    setPanPosition({ x: 0, y: 0 });
-                  }}
-                  style={{
-                    padding: '0.15rem 0.45rem',
-                    borderRadius: '4px',
-                    backgroundColor: 'rgba(255,255,255,0.12)',
-                    border: 'none',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    color: '#ffffff',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Reset
-                </button>
-              </div>
-
-              {/* Thumbnail Preview Strip (if > 1 image) */}
-              {total > 1 && (
-                <div style={{
-                  display: 'flex',
-                  gap: '0.5rem',
-                  overflowX: 'auto',
-                  maxWidth: '100%',
-                  padding: '0.25rem',
-                  justifyContent: 'center'
-                }}>
-                  {attachmentLightbox.images.map((att, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: idx } : null);
-                        setZoomScale(1);
-                        setPanPosition({ x: 0, y: 0 });
-                      }}
-                      style={{
-                        width: '46px',
-                        height: '46px',
-                        borderRadius: '0.45rem',
-                        overflow: 'hidden',
-                        border: currentIdx === idx ? '2.5px solid #06b6d4' : '1px solid rgba(255,255,255,0.25)',
-                        padding: 0,
-                        cursor: 'pointer',
-                        backgroundColor: 'transparent',
-                        transform: currentIdx === idx ? 'scale(1.08)' : 'scale(1)',
-                        transition: 'all 0.2s ease',
-                        flexShrink: 0
-                      }}
-                    >
-                      <img src={att.file_url} alt={`Thumb ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* LUXURY DESKTOP CENTERED MODAL: CRUD FORM DROPDOWN PICKER */}
       {crudDropdownPicker && (

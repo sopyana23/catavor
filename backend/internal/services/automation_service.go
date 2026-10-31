@@ -184,6 +184,16 @@ func InitAutomationTracker(db *gorm.DB, strg storage.StorageService) *Automation
 					NextRunAt:    now.Add(24 * time.Hour),
 					LastSummary:  "Memusnahkan tiket closed (billing/akun 30h, teknis 60h) beserta berkas lampiran fisik sesuai UU PDP No. 27/2022.",
 				},
+				"market_intel_worker": {
+					Name:         "market_intel_worker",
+					Title:        "Bot Agregasi Riset Pasar & Demand Gap (B2B)",
+					Category:     "system",
+					Status:       "running",
+					IntervalDesc: "Setiap 24 Jam (00:05 UTC)",
+					LastRunAt:    now,
+					NextRunAt:    now.Add(24 * time.Hour),
+					LastSummary:  "Mengompilasi tren pencarian konsumen, demand gap zero-result, benchmark harga industri, dan purge data mentah >90 hari (Zero-PII).",
+				},
 			},
 			runningBots: make(map[string]bool),
 			logs:        make([]AutomationLogEntry, 0, 100),
@@ -1090,5 +1100,67 @@ func (t *AutomationTracker) TriggerTicketRetentionManual(db *gorm.DB) (*TicketRe
 
 	return &stats, err
 }
+
+// TriggerMarketIntelManual forces an immediate rollup and purge of market intelligence telemetry.
+func (t *AutomationTracker) TriggerMarketIntelManual(db *gorm.DB) error {
+	if db == nil {
+		db = t.db
+	}
+	if db == nil {
+		return fmt.Errorf("koneksi database tidak tersedia")
+	}
+
+	if !t.TryLockBot("market_intel_worker") {
+		return fmt.Errorf("bot agregasi riset pasar sedang berjalan, silakan tunggu")
+	}
+
+	go func() {
+		defer t.UnlockBot("market_intel_worker")
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("panic", r).Msg("Recovered from panic in TriggerMarketIntelManual")
+			}
+		}()
+
+		start := time.Now()
+		yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+
+		err1 := RollupDailySearchTrends(db, yesterday)
+		err2 := RollupDailyMarketTrends(db, yesterday)
+		err3 := CalculatePriceBenchmarks(db, yesterday)
+		purged, err4 := PurgeOldSearchAnalytics90D(db)
+		InvalidateMarketIntelCache()
+
+		duration := time.Since(start).Milliseconds()
+		now := time.Now().UTC()
+		status := "success"
+		errStr := ""
+		if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+			status = "warning"
+			errStr = fmt.Sprintf("errs: %v, %v, %v, %v", err1, err2, err3, err4)
+		}
+
+		summary := fmt.Sprintf("Agregasi tren pencarian, demand gap, dan benchmark harga selesai (%d ms). Data mentah kedaluwarsa dibersihkan: %d baris.", duration, purged)
+
+		t.RecordWorkerHeartbeat("market_intel_worker", status, summary, errStr, purged, now.Add(24*time.Hour))
+		t.RecordLog(AutomationLogEntry{
+			ID:            fmt.Sprintf("log_%d_market_intel", now.UnixNano()),
+			BotName:       "market_intel_worker",
+			BotTitle:      "Bot Agregasi Riset Pasar & Demand Gap (B2B)",
+			Target:        "Tabel search_analytics & rollups",
+			Action:        "executed_cycle",
+			TriggerType:   "manual_admin",
+			TriggeredBy:   "Admin Portal",
+			Status:        status,
+			DurationMs:    duration,
+			AffectedCount: purged,
+			Details:       summary,
+			Timestamp:     now,
+		})
+	}()
+
+	return nil
+}
+
 
 

@@ -979,35 +979,74 @@ func (h *StoreHandler) FeaturedStores(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
+
+	query := h.db.Where("dormancy_status NOT IN (?) AND is_blacklisted = false", []string{"suspended", "banned", "purged"})
+
+	// Optional product_type / specialization filter
+	if pType := strings.TrimSpace(c.Query("product_type")); pType != "" && pType != "all" {
+		query = query.Where("primary_product_type = ?", pType)
+	}
+
+	limit := 12
+	if lStr := strings.TrimSpace(c.Query("limit")); lStr != "" {
+		if lVal, err := strconv.Atoi(lStr); err == nil && lVal > 0 {
+			limit = lVal
+			if limit > 50 {
+				limit = 50
+			}
+		}
+	}
+
+	orderClause := "stores.is_featured DESC, stores.view_count DESC, stores.total_actions_count DESC, stores.created_at DESC"
+	sortParam := strings.ToLower(strings.TrimSpace(c.Query("sort")))
+	if sortParam == "newest" {
+		orderClause = "stores.created_at DESC"
+	} else if sortParam == "actions" || sortParam == "most_active" {
+		orderClause = "stores.total_actions_count DESC, stores.view_count DESC, stores.created_at DESC"
+	}
+
 	var stores []models.Store
-	h.db.Where("dormancy_status NOT IN (?) AND is_blacklisted = false", []string{"suspended", "banned", "purged"}).Order("created_at desc").Limit(12).Find(&stores)
+	if err := query.Order(orderClause).Limit(limit).Find(&stores).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengambil daftar profil toko.",
+		})
+	}
 
 	type StoreCard struct {
-		ID             uint   `json:"id"`
-		Slug           string `json:"slug"`
-		StoreTitle     string `json:"store_title"`
-		StoreSlogan    string `json:"store_slogan"`
-		StoreLogoURL   string `json:"store_logo_url"`
-		StoreTheme     string `json:"store_theme"`
-		Plan           string `json:"plan"`
-		ItemCount      int64  `json:"item_count"`
-		WhatsappNumber string `json:"whatsapp_number"`
+		ID                 uint   `json:"id"`
+		Slug               string `json:"slug"`
+		StoreTitle         string `json:"store_title"`
+		StoreSlogan        string `json:"store_slogan"`
+		StoreLogoURL       string `json:"store_logo_url"`
+		StoreTheme         string `json:"store_theme"`
+		Plan               string `json:"plan"`
+		ItemCount          int64  `json:"item_count"`
+		WhatsappNumber     string `json:"whatsapp_number"`
+		ViewCount          int64  `json:"view_count"`
+		TotalActionsCount  int64  `json:"total_actions_count"`
+		PrimaryProductType string `json:"primary_product_type"`
+		IsFeatured         bool   `json:"is_featured"`
 	}
 
 	var result []StoreCard
 	for _, s := range stores {
 		var cnt int64
-		h.db.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&cnt)
+		h.db.Model(&models.Product{}).Where("store_id = ? AND is_active = true", s.ID).Count(&cnt)
 		result = append(result, StoreCard{
-			ID:             s.ID,
-			Slug:           s.Slug,
-			StoreTitle:     s.StoreTitle,
-			StoreSlogan:    s.StoreSlogan,
-			StoreLogoURL:   s.StoreLogoURL,
-			StoreTheme:     s.StoreTheme,
-			Plan:           s.Plan,
-			ItemCount:      cnt,
-			WhatsappNumber: s.WhatsappNumber,
+			ID:                 s.ID,
+			Slug:               s.Slug,
+			StoreTitle:         s.StoreTitle,
+			StoreSlogan:        s.StoreSlogan,
+			StoreLogoURL:       s.StoreLogoURL,
+			StoreTheme:         s.StoreTheme,
+			Plan:               s.Plan,
+			ItemCount:          cnt,
+			WhatsappNumber:     s.WhatsappNumber,
+			ViewCount:          s.ViewCount,
+			TotalActionsCount:  s.TotalActionsCount,
+			PrimaryProductType: s.PrimaryProductType,
+			IsFeatured:         s.IsFeatured,
 		})
 	}
 

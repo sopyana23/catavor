@@ -101,6 +101,9 @@ func main() {
 	// Initialize Automation Tracker
 	services.InitAutomationTracker(database.DB, storageService)
 
+	// Initialize Search Telemetry & Demand Gap Buffer Ingestion
+	services.InitSearchTelemetryService(database.DB)
+
 	// Start Background Transactional Email Queue Worker (Outbox Pattern with Exponential Retry)
 	services.InitEmailQueue(database.DB)
 
@@ -160,6 +163,41 @@ func main() {
 					Int("hard_deleted", stats.HardDeleted).
 					Msg("Periodic item retention cycle completed")
 			}
+		}
+	}()
+
+	// Start Background Market Intelligence Daily Rollup & Retention Worker (Runs daily at midnight / staggered on boot)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("panic", r).Msg("Recovered from panic in Market Intelligence background worker")
+			}
+		}()
+		time.Sleep(45 * time.Second) // Stagger startup
+		runMarketRollup := func() {
+			yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+			_ = services.RollupDailySearchTrends(database.DB, yesterday)
+			_ = services.RollupDailyMarketTrends(database.DB, yesterday)
+			_ = services.CalculatePriceBenchmarks(database.DB, yesterday)
+			purged, _ := services.PurgeOldSearchAnalytics90D(database.DB)
+			tracker := services.GetAutomationTracker()
+			if tracker != nil {
+				tracker.RecordWorkerHeartbeat(
+					"market_intel_worker",
+					"running",
+					fmt.Sprintf("Siklus agregasi harian selesai (%s). Data mentah kedaluwarsa dibersihkan: %d baris.", yesterday, purged),
+					"",
+					purged,
+					time.Now().UTC().Add(24*time.Hour),
+				)
+			}
+		}
+
+		runMarketRollup()
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			runMarketRollup()
 		}
 	}()
 
@@ -253,14 +291,18 @@ func main() {
 	// Public Subscription Plans
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
 
-	// Public Telemetry & Analytics Tracking
-	api.Post("/analytics/track", middleware.PublicSubmissionRateLimiter(), analyticsHandler.TrackEvent)
+	// Public Telemetry & Analytics Tracking (Isolated High-Capacity Rate Limiter, Zero PII)
+	api.Post("/analytics/track", middleware.TelemetryRateLimiter(), analyticsHandler.TrackEvent)
+	api.Post("/telemetry/search", middleware.TelemetryRateLimiter(), analyticsHandler.TrackSearchEvent)
 	api.Post("/client-logs", middleware.PublicSubmissionRateLimiter(), handlers.LogClientError)
 
 	// Public Market Intelligence & Macro Trends (Aggregated & Zero PII)
 	api.Get("/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)
 	api.Get("/market-intelligence/summary", analyticsHandler.GetMarketIntelligenceSummary)
 	api.Get("/market-intelligence/export", analyticsHandler.ExportMarketIntelligenceData)
+	api.Get("/market-intelligence/trending-keywords", analyticsHandler.GetTrendingKeywords)
+	api.Get("/market-intelligence/demand-gaps", analyticsHandler.GetDemandGaps)
+	api.Get("/market-intelligence/price-benchmarks", analyticsHandler.GetCategoryPriceBenchmarks)
 
 	// Public Master Safe Domains (Ecosystem Whitelist)
 	api.Get("/safe-domains", safeDomainHandler.GetPublicSafeDomains)
@@ -539,6 +581,9 @@ func main() {
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)
 		adminApi.Get("/market-intelligence", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetMarketIntelligenceSummary)
 		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.ExportMarketIntelligenceData)
+		adminApi.Get("/market-intelligence/trending-keywords", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetTrendingKeywords)
+		adminApi.Get("/market-intelligence/demand-gaps", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetDemandGaps)
+		adminApi.Get("/market-intelligence/price-benchmarks", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetCategoryPriceBenchmarks)
 	}
 
 	// 9. SPA Wildcard Fallback Router for Desktop & Mobile clients

@@ -40,6 +40,7 @@ export interface PlatformAdminShellProps {
   canAccessAutomation: boolean;
   canAccessAudit: boolean;
   canAccessMasterData: boolean;
+  canAccessMarketIntel?: boolean;
   pendingReportsCount: number;
   urgentTicketsCount: number;
   actionRequiredTicketsCount: number;
@@ -68,6 +69,7 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
   canAccessAutomation,
   canAccessAudit,
   canAccessMasterData,
+  canAccessMarketIntel = false,
   pendingReportsCount,
   urgentTicketsCount,
   actionRequiredTicketsCount,
@@ -185,6 +187,14 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
       group: 'Sistem & Konfigurasi',
       items: [
         {
+          id: 'market_intel',
+          label: 'Riset Pasar B2B',
+          sublabel: 'Tren Hype & Demand Gap',
+          icon: <TrendingUp size={18} strokeWidth={1.75} />,
+          badge: 0,
+          visible: Boolean(canAccessMarketIntel)
+        },
+        {
           id: 'automation',
           label: 'Mesin Otomatisasi',
           sublabel: 'Bot Worker & Daemon',
@@ -236,6 +246,8 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
         return { title: 'Keuangan & Billing Langganan', subtitle: 'Verifikasi aktivasi paket Pro, laporan omzet, dan invoice langganan' };
       case 'broadcast':
         return { title: 'Siaran Broadcast Notifikasi', subtitle: 'Pengiriman pesan pengumuman resmi ke seluruh merchant secara serentak' };
+      case 'market_intel':
+        return { title: 'Riset Pasar & Intelijen Permintaan B2B', subtitle: 'Analitik tren belanja nasional, demand gap, benchmark harga, dan ekspor data komersial' };
       case 'automation':
         return { title: 'Mesin Otomatisasi & Cron Bot', subtitle: 'Pemantauan kesehatan daemon worker, background scheduler, dan log otomatisasi' };
       case 'monetization':

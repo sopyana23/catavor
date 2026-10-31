@@ -32,6 +32,10 @@ type Store struct {
 	PlanExpiresAt            *time.Time     `json:"plan_expires_at,omitempty"`
 	GracePeriodUntil         *time.Time     `json:"grace_period_until,omitempty"`
 	StorageUsedBytes         int64          `gorm:"default:0" json:"storage_used_bytes"`
+	ViewCount                int64          `gorm:"default:0;index" json:"view_count"`
+	TotalActionsCount        int64          `gorm:"default:0" json:"total_actions_count"`
+	PrimaryProductType       string         `gorm:"size:50;default:'general';index" json:"primary_product_type"`
+	IsFeatured               bool           `gorm:"default:false;index" json:"is_featured"`
 	CustomDomain             *string        `gorm:"size:255;index" json:"custom_domain,omitempty"`
 	CustomDomainStatus       string         `gorm:"size:50;default:'none'" json:"custom_domain_status"` // none | pending | active | inactive_expired
 	PaymentStatus            string         `gorm:"size:50;default:'free_active'" json:"payment_status"`

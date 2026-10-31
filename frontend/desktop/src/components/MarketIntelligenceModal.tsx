@@ -13,9 +13,26 @@ import {
   RefreshCw,
   X,
   FileSpreadsheet,
-  AlertCircle
+  AlertCircle,
+  Search,
+  ArrowUpRight
 } from 'lucide-react';
 import { useModalBackHandler } from '../utils/navigation';
+
+export interface TrendingKeywordItem {
+  keyword: string;
+  product_type: string;
+  search_volume: number;
+  zero_count: number;
+  ctr: number;
+}
+
+export interface DemandGapItem {
+  keyword: string;
+  product_type: string;
+  zero_result_count: number;
+  total_searches: number;
+}
 
 export interface MarketIntelligenceData {
   total_active_stores: number;
@@ -79,6 +96,8 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
   });
 
   const [data, setData] = useState<MarketIntelligenceData | null>(null);
+  const [trendingKeywords, setTrendingKeywords] = useState<TrendingKeywordItem[]>([]);
+  const [demandGaps, setDemandGaps] = useState<DemandGapItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
@@ -87,13 +106,29 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/api/market-intelligence`);
-      const json = await res.json();
+      const [mainRes, trendRes, gapRes] = await Promise.all([
+        fetch(`${apiBase}/api/market-intelligence`),
+        fetch(`${apiBase}/api/market-intelligence/trending-keywords`),
+        fetch(`${apiBase}/api/market-intelligence/demand-gaps`)
+      ]);
+      const json = await mainRes.json();
       if (json.success && json.data) {
         setData(json.data);
       } else {
         setError(json.message || 'Gagal memuat data riset pasar.');
       }
+      try {
+        const trendJson = await trendRes.json();
+        if (trendJson.success && Array.isArray(trendJson.data)) {
+          setTrendingKeywords(trendJson.data);
+        }
+      } catch {}
+      try {
+        const gapJson = await gapRes.json();
+        if (gapJson.success && Array.isArray(gapJson.data)) {
+          setDemandGaps(gapJson.data);
+        }
+      } catch {}
     } catch (err: any) {
       setError(err.message || 'Koneksi ke server gagal.');
     } finally {
@@ -371,6 +406,82 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Trending Search Keywords (Hype Tracker) */}
+              {trendingKeywords.length > 0 && (
+                <div className="glass-panel" style={{ padding: '1.15rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)' }}>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Search size={16} style={{ color: '#3b82f6' }} />
+                    Kata Kunci Pencarian Paling Dicari (Tren Hype Pasar)
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
+                    {trendingKeywords.slice(0, 12).map((item, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.keyword}
+                          </span>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                            {item.product_type || 'Umum'}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '0.4rem', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', flexShrink: 0 }}>
+                          {item.search_volume}x cari
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Demand Gap / Zero Result Searches (Peluang Pasar Kosong) */}
+              {demandGaps.length > 0 && (
+                <div className="glass-panel" style={{ padding: '1.15rem', borderRadius: '0.85rem', border: '1px solid rgba(245, 158, 11, 0.25)', backgroundColor: 'rgba(245, 158, 11, 0.03)' }}>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <ArrowUpRight size={16} style={{ color: '#f59e0b' }} />
+                    Peluang Pasokan Baru (Pencarian Konsumen Belum Terlayani / Demand Gap)
+                  </h4>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0 0 0.75rem 0', lineHeight: 1.45 }}>
+                    Konsumen mencari kata kunci berikut tetapi stok etalase toko saat ini belum tersedia. Ini adalah data wawasan bernilai tinggi bagi prinsipal dan distributor untuk memasok barang baru.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
+                    {demandGaps.slice(0, 8).map((gap, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {gap.keyword}
+                        </span>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '0.4rem', backgroundColor: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', flexShrink: 0 }}>
+                          {gap.zero_result_count}x nihil
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

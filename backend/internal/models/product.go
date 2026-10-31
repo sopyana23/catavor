@@ -1,6 +1,8 @@
 package models
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 
 	"gorm.io/datatypes"
@@ -53,8 +55,9 @@ type Product struct {
 	ResubmitCount       int            `gorm:"default:0" json:"resubmit_count"`
 	ArchivedAt          *time.Time     `gorm:"index" json:"archived_at,omitempty"`
 	DeletedAt           gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	ViewCount              int64          `gorm:"default:0" json:"view_count"`
-	WaClicksCount          int64          `gorm:"default:0" json:"wa_clicks_count"`
+	ViewCount              int64          `gorm:"default:0;index" json:"view_count"`
+	PopularityScore        int64          `gorm:"default:0;index" json:"popularity_score"`
+	WaClicksCount          int64          `gorm:"default:0;index" json:"wa_clicks_count"`
 	MarketplaceClicksCount int64          `gorm:"default:0" json:"marketplace_clicks_count"`
 	RekberClicksCount      int64          `gorm:"default:0" json:"rekber_clicks_count"`
 	VideoViewsCount        int64          `gorm:"default:0" json:"video_views_count"`
@@ -71,6 +74,55 @@ type Product struct {
 // TableName explicitly maps the Product model to the 'products' database table.
 func (Product) TableName() string {
 	return "products"
+}
+
+// GetEffectiveCategory returns the normalized category name for any product across all industries.
+// Priority resolution:
+// 1. Normalized Category relation (Category.Name)
+// 2. JSONB Attributes ["category"] or ["class"]
+// 3. Physical Product.Class column (backward compatibility)
+// 4. Formatted ProductType
+// 5. Default "Umum"
+func (p *Product) GetEffectiveCategory() string {
+	if p.Category != nil && strings.TrimSpace(p.Category.Name) != "" {
+		return strings.TrimSpace(p.Category.Name)
+	}
+	if len(p.Attributes) > 0 {
+		var attrMap map[string]interface{}
+		if err := json.Unmarshal(p.Attributes, &attrMap); err == nil {
+			if cat, ok := attrMap["category"].(string); ok && strings.TrimSpace(cat) != "" {
+				return strings.TrimSpace(cat)
+			}
+			if cls, ok := attrMap["class"].(string); ok && strings.TrimSpace(cls) != "" {
+				return strings.TrimSpace(cls)
+			}
+		}
+	}
+	if strings.TrimSpace(p.Class) != "" {
+		return strings.TrimSpace(p.Class)
+	}
+	if strings.TrimSpace(p.ProductType) != "" {
+		pt := strings.TrimSpace(p.ProductType)
+		switch pt {
+		case "food":
+			return "Kuliner & F&B"
+		case "service":
+			return "Jasa Profesional"
+		case "digital":
+			return "Produk Digital"
+		case "property":
+			return "Properti"
+		case "physical":
+			return "Produk Fisik"
+		case "plant":
+			return "Tanaman & Flora"
+		case "fauna":
+			return "Satwa & Fauna"
+		default:
+			return strings.ToUpper(pt[:1]) + pt[1:]
+		}
+	}
+	return "Umum"
 }
 
 // ProductImage represents multiple gallery images attached to a product.

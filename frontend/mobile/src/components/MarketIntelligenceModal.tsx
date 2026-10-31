@@ -13,9 +13,26 @@ import {
   Sparkles,
   RefreshCw,
   FileSpreadsheet,
-  AlertCircle
+  AlertCircle,
+  Search,
+  ArrowUpRight
 } from 'lucide-react';
 import { useModalBackHandler } from '../utils/navigation';
+
+export interface TrendingKeywordItem {
+  keyword: string;
+  product_type: string;
+  search_volume: number;
+  zero_count: number;
+  ctr: number;
+}
+
+export interface DemandGapItem {
+  keyword: string;
+  product_type: string;
+  zero_result_count: number;
+  total_searches: number;
+}
 
 export interface MarketIntelligenceData {
   total_active_stores: number;
@@ -118,6 +135,8 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
   };
 
   const [data, setData] = useState<MarketIntelligenceData | null>(null);
+  const [trendingKeywords, setTrendingKeywords] = useState<TrendingKeywordItem[]>([]);
+  const [demandGaps, setDemandGaps] = useState<DemandGapItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
@@ -126,13 +145,29 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/api/market-intelligence`);
-      const json = await res.json();
+      const [mainRes, trendRes, gapRes] = await Promise.all([
+        fetch(`${apiBase}/api/market-intelligence`),
+        fetch(`${apiBase}/api/market-intelligence/trending-keywords`),
+        fetch(`${apiBase}/api/market-intelligence/demand-gaps`)
+      ]);
+      const json = await mainRes.json();
       if (json.success && json.data) {
         setData(json.data);
       } else {
         setError(json.message || 'Gagal memuat data riset pasar.');
       }
+      try {
+        const trendJson = await trendRes.json();
+        if (trendJson.success && Array.isArray(trendJson.data)) {
+          setTrendingKeywords(trendJson.data);
+        }
+      } catch {}
+      try {
+        const gapJson = await gapRes.json();
+        if (gapJson.success && Array.isArray(gapJson.data)) {
+          setDemandGaps(gapJson.data);
+        }
+      } catch {}
     } catch (err: any) {
       setError(err.message || 'Koneksi ke server gagal.');
     } finally {

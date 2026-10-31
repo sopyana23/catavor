@@ -12,6 +12,7 @@ import {
   DollarSign,
   Layers,
   History,
+  TrendingUp,
   Sun,
   Moon,
   LogOut,
@@ -57,6 +58,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
   const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
+  const canAccessMarketIntel = isSuperAdmin(currentUser) || hasPermission(currentUser, 'market_intel:manage');
 
   const navItems = [
     { key: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard, visible: true },
@@ -81,6 +83,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
     { key: 'finance', label: 'Keuangan & Billing', icon: CreditCard, visible: canAccessFinance },
     { key: 'broadcast', label: 'Siaran Broadcast', icon: Radio, visible: canAccessBroadcast },
     { key: 'automation', label: 'Mesin Otomatisasi', icon: Cpu, visible: canAccessAutomation },
+    { key: 'market_intel', label: 'Riset Pasar B2B', icon: TrendingUp, visible: canAccessMarketIntel },
     { key: 'monetization', label: 'Monetisasi & Iklan', icon: DollarSign, visible: canAccessMonetization },
     { key: 'master-data', label: 'Master Data', icon: Layers, visible: canAccessMasterData },
     { key: 'audit', label: 'Audit Trail', icon: History, visible: canAccessAudit },

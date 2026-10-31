@@ -419,3 +419,21 @@ func TestPublicSubmissionRateLimiter(t *testing.T) {
 		t.Fatalf("kiriman ke-16 status %d, harus 429", res.StatusCode)
 	}
 }
+
+// TestTelemetryRateLimiter: 180 requests per menit, ke-181 mengembalikan 202 Accepted (silent drop).
+func TestTelemetryRateLimiter(t *testing.T) {
+	app := rateLimitApp(t, TelemetryRateLimiter(), map[string]string{"/api/telemetry/search": http.MethodPost})
+	const ip = "192.0.2.45"
+
+	for i := 1; i <= 180; i++ {
+		res := hit(t, app, http.MethodPost, "/api/telemetry/search", ip)
+		if res.StatusCode != 200 {
+			t.Fatalf("kiriman telemetri ke-%d status %d, harus 200", i, res.StatusCode)
+		}
+	}
+	res := hit(t, app, http.MethodPost, "/api/telemetry/search", ip)
+	if res.StatusCode != fiber.StatusAccepted {
+		t.Fatalf("kiriman telemetri ke-181 status %d, harus 202 (silent drop)", res.StatusCode)
+	}
+}
+

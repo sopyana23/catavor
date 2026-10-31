@@ -158,6 +158,16 @@ const POLICY_SECTIONS: PolicyDoc[] = [
           'Catavor tidak pernah meminta kata sandi akun profil Anda melalui saluran apa pun.',
           'Seluruh riwayat audit log aktivitas merchant dicatat secara permanen untuk keperluan pembuktian hukum dan transparansi operasional.'
         ]
+      },
+      {
+        number: 'Pasal 3',
+        heading: 'Pengolahan Data Statistik Tren Pasar Agregat (Zero-PII)',
+        content: 'Platform Catavor berhak mencatat, mengolah, dan mempublikasikan data statistik dan tren pasar agregat tanpa identitas pribadi (anonymized aggregate data) untuk keperluan riset industri, peningkatan ekosistem katalog, analitik tren pasar, dan kemitraan intelijen bisnis sesuai ketentuan UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi.',
+        highlights: [
+          'Seluruh data tren pasar (kata kunci populer, volume pencarian, indeks harga rata-rata, demand gap) diolah secara anonim murni tanpa memuat nama, nomor kontak, alamat, atau identitas pribadi konsumen.',
+          'Pencatatan telemetri pencarian tidak merekam data identitas pribadi dan menerapkan ambang batas privasi (K-Anonymity) guna mencegah re-identifikasi subjek data.',
+          'Hasil riset pasar disajikan dalam wawasan tren makro industri untuk membantu ekosistem UMKM dan pengelola katalog memahami dinamika permintaan pasar.'
+        ]
       }
     ]
   },

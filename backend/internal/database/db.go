@@ -163,6 +163,11 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.StoreDailyAnalytics{},
 		&models.ProductDailyAnalytics{},
 		&models.StoreDailyTrafficSource{},
+		&models.SearchAnalytics{},
+		&models.SearchDailyRollup{},
+		&models.MarketDailyRollup{},
+		&models.CategoryPriceBenchmark{},
+		&models.B2BAPIKey{},
 		&models.Notification{},
 		&models.NotificationRead{},
 		&models.MasterCategory{},
@@ -364,6 +369,14 @@ func runPreMigrationRenames(db *gorm.DB) {
 			log.Info().Msg("Database table 'faunas' successfully renamed to 'products'")
 		}
 	}
+
+	// Normalisasi penamaan unique constraint master_presets agar AutoMigrate GORM tidak gagal
+	_ = db.Exec(`DO $$
+	BEGIN
+		IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'master_presets_product_type_key') THEN
+			ALTER TABLE master_presets RENAME CONSTRAINT master_presets_product_type_key TO uni_master_presets_product_type;
+		END IF;
+	END $$;`).Error
 }
 
 func runPostMigrationOptimizations(db *gorm.DB) {
@@ -382,6 +395,12 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_type ON products(product_type);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_price ON products(store_id, price);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_attributes_gin ON products USING GIN (attributes);").Error
+	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS popularity_score BIGINT DEFAULT 0;").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_active_views ON products(is_active, view_count DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_active_popularity ON products(is_active, popularity_score DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_active_type_views ON products(is_active, product_type, view_count DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_active_type_popularity ON products(is_active, product_type, popularity_score DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_active_wa_clicks ON products(is_active, wa_clicks_count DESC);").Error
 
 	// 2.1 Ensure Schema Columns and High-Performance Indexes on reports table
 	mustAutoMigrate(db, "reports/blacklisted_slugs", &models.Report{}, &models.BlacklistedSlug{})
@@ -426,7 +445,14 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS reactivation_token VARCHAR(128);").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_exempt_from_dormancy BOOLEAN DEFAULT FALSE;").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS view_count BIGINT DEFAULT 0;").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS total_actions_count BIGINT DEFAULT 0;").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS primary_product_type VARCHAR(50) DEFAULT 'general';").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_dormancy ON stores(plan, dormancy_status, is_exempt_from_dormancy, last_activity_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_popularity ON stores(dormancy_status, is_blacklisted, is_suspended, view_count DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_primary_type ON stores(primary_product_type);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_is_featured ON stores(is_featured);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_is_suspended ON stores(is_suspended);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_is_blacklisted ON stores(is_blacklisted);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_reactivation_token ON stores(reactivation_token);").Error
@@ -555,6 +581,22 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS moderation_reason TEXT;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_moderation ON products(moderation_status, moderated_at);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_deleted_at ON products(deleted_at);").Error
+
+	// 10.1 Ensure Reports Universal Product ID & Indexes
+	_ = db.Exec("ALTER TABLE reports ADD COLUMN IF NOT EXISTS product_id BIGINT;").Error
+	_ = db.Exec("UPDATE reports SET product_id = fauna_id WHERE product_id IS NULL AND fauna_id IS NOT NULL;").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_reports_product_id ON reports(product_id);").Error
+
+	// 10.2 Ensure Search Analytics & Market Intelligence Indexes
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_search_clean_kw ON search_analytics(clean_keyword);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_search_zero_date ON search_analytics(is_zero_result, date);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_search_rollup_vol ON search_daily_rollups(date, search_volume DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_search_zero_vol ON search_daily_rollups(date, zero_result_count DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_market_rollup_type_date ON market_daily_rollups(product_type, date DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_price_bench_cat ON category_price_benchmarks(category_name, date DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_prod_analytics_date_type_views ON product_daily_analytics(date, product_type, views DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_prod_analytics_date_views ON product_daily_analytics(date, views DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_prod_analytics_date_actions ON product_daily_analytics(date, total_actions DESC);").Error
 
 	// 11. Seed Default Support Canned Responses if table is empty
 	var cannedCount int64

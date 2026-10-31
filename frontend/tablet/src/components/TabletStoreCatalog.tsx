@@ -85,7 +85,51 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     return matchCategory && matchSearch;
   });
 
+  // Anonymous Search Telemetry Beacon (Zero PII & Honeypot Trap)
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 3) return;
+    const timer = setTimeout(() => {
+      const matchCount = filteredProducts.length;
+      try {
+        fetch('/api/telemetry/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            keyword: trimmed,
+            store_slug: slug,
+            category_slug: selectedCategory !== 'all' ? selectedCategory : '',
+            result_count: matchCount,
+            is_zero_result: matchCount === 0,
+            _hp_check: ''
+          }),
+          keepalive: true
+        }).catch(() => {});
+      } catch {}
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery, slug, selectedCategory, filteredProducts.length]);
+
+  const trackStoreEvent = (eventType: 'direct_wa_click' | 'store_view' | 'marketplace_click', productId: number = 0) => {
+    if (!slug) return;
+    try {
+      fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          store_slug: slug,
+          event: eventType,
+          product_id: productId,
+          source: 'tablet_catalog',
+          _hp_check: ''
+        }),
+        keepalive: true
+      }).catch(() => {});
+    } catch {}
+  };
+
   const handleShareStore = () => {
+    trackStoreEvent('store_view');
     if (navigator.share) {
       navigator.share({
         title: store?.name || 'Katalog Catavor',
@@ -103,6 +147,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       alert('Nomor WhatsApp toko belum dikonfigurasi.');
       return;
     }
+    trackStoreEvent('direct_wa_click');
     const cleanNumber = (store.whatsapp_number || store.phone || '').replace(/\D/g, '');
     const finalNumber = cleanNumber.startsWith('0') ? '62' + cleanNumber.slice(1) : cleanNumber;
     const message = encodeURIComponent(`Halo ${store?.name || 'Toko'}, saya sedang melihat katalog Anda di Catavor.`);
