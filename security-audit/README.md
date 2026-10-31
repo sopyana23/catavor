@@ -23,7 +23,8 @@ Putaran 2 dan 3 menyertakan perbaikan, masing-masing dengan verifikasi runtime.
 
 | File | Isi |
 |---|---|
-| [audit-putaran-5.md](audit-putaran-5.md) | **Laporan terbaru** — N-25 & N-26: penanda staf tanpa hardcode email, perbaikan hapus toko |
+| [audit-merchant-admin-triple-device-2026-10-31.md](audit-merchant-admin-triple-device-2026-10-31.md) | **Audit Komprehensif Admin Merchant & Storage S3 (31 Okt 2026)** — 8 Fitur Inti, Triple-Device Parity, S3-Readiness, OWASP Security |
+| [audit-putaran-5.md](audit-putaran-5.md) | N-25 & N-26: penanda staf tanpa hardcode email, perbaikan hapus toko |
 | [audit-putaran-3.md](audit-putaran-3.md) | Laporan — N-07…N-22, cakupan rute 195/195, sisa risiko |
 | [audit-putaran-4.md](audit-putaran-4.md) | Putaran 4 — N-23 & N-24: pemisahan bidang otorisasi staf platform vs merchant |
 | [audit-putaran-2.md](audit-putaran-2.md) | Putaran 2 — N-01…N-06 (JWT secret, path guard, route gating) |
