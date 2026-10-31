@@ -93,6 +93,7 @@ import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '..
 import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { AdminStoresManagement } from './AdminStoresManagement';
+import { MobileMarketIntelView } from './MobileMarketIntelView';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
@@ -3604,6 +3605,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       border: isDark ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.25)',
       badge: 0,
       visible: canAccessRBAC
+    },
+    {
+      id: 'market_intel' as ActiveView,
+      title: 'Riset Pasar B2B',
+      subtitle: 'Tren Hype & Demand Gap',
+      icon: <TrendingUp size={20} />,
+      color: '#10b981',
+      bg: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+      border: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)',
+      badge: 0,
+      visible: canAccessMarketIntel
     },
     {
       id: 'stores' as ActiveView,
@@ -10843,6 +10855,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             )}
           </div>
         )
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODULE: MARKET INTELLIGENCE & B2B RESEARCH                                */}
+      {/* ========================================================================= */}
+      {activeView === 'market_intel' && canAccessMarketIntel && (
+        <div style={{ animation: 'fadeIn 0.25s ease-out', paddingBottom: '4.5rem' }}>
+          <MobileMarketIntelView
+            token={token}
+            themeMode={isDark ? 'dark' : 'light'}
+            showToast={showToast}
+          />
+        </div>
       )}
 
       {/* ========================================================================= */}

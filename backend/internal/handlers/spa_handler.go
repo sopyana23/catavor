@@ -171,20 +171,20 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 }
 
 func resolveIndexHTML(distDir string) string {
+	if distDir == "" {
+		return ""
+	}
+
+	cleanDir := filepath.Clean(distDir)
+	base := filepath.Base(cleanDir) // "desktop", "tablet", or "mobile"
+
 	candidates := []string{
-		filepath.Join(distDir, "index.html"),
-		filepath.Join(distDir, "..", "desktop", "index.html"),
-		filepath.Join(distDir, "..", "tablet", "index.html"),
-		filepath.Join(distDir, "..", "mobile", "index.html"),
-		filepath.Join("public", "desktop", "index.html"),
-		filepath.Join("public", "tablet", "index.html"),
-		filepath.Join("public", "mobile", "index.html"),
-		filepath.Join(".", "public", "desktop", "index.html"),
-		filepath.Join(".", "public", "tablet", "index.html"),
-		filepath.Join(".", "public", "mobile", "index.html"),
-		filepath.Join("..", "public", "desktop", "index.html"),
-		filepath.Join("..", "public", "tablet", "index.html"),
-		filepath.Join("..", "public", "mobile", "index.html"),
+		filepath.Join(cleanDir, "index.html"),
+		filepath.Join(".", cleanDir, "index.html"),
+		filepath.Join("..", cleanDir, "index.html"),
+		filepath.Join("public", base, "index.html"),
+		filepath.Join(".", "public", base, "index.html"),
+		filepath.Join("..", "public", base, "index.html"),
 	}
 
 	for _, p := range candidates {
