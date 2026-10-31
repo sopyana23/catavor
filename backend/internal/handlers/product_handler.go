@@ -140,7 +140,9 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 	if search := strings.TrimSpace(c.Query("search")); search != "" {
 		escaped := escapeLikePattern(search)
 		searchTerm := "%" + strings.ToLower(escaped) + "%"
-		query = query.Where("LOWER(products.name) LIKE ? OR LOWER(products.description) LIKE ? OR LOWER(products.class) LIKE ?", searchTerm, searchTerm, searchTerm)
+		query = query.Joins("LEFT JOIN categories c_srch ON c_srch.id = products.category_id").
+			Where("(LOWER(products.name) LIKE ? OR LOWER(products.description) LIKE ? OR LOWER(products.class) LIKE ? OR LOWER(c_srch.name) LIKE ? OR LOWER(CAST(products.attributes AS TEXT)) LIKE ?)",
+				searchTerm, searchTerm, searchTerm, searchTerm, searchTerm)
 	}
 
 	if class := c.Query("class"); class != "" && class != "Semua" && class != "all" {
@@ -1181,11 +1183,15 @@ func (h *ProductHandler) GetRecommendations(c *fiber.Ctx) error {
 	}
 
 	var recs []models.Product
-	h.db.Where("store_id = ? AND id != ? AND is_active = true", current.StoreID, current.ID).
-		Where("class = ? OR product_type = ?", current.Class, current.ProductType).
-		Order("id DESC").
-		Limit(4).
-		Find(&recs)
+	recQ := h.db.Where("store_id = ? AND id != ? AND is_active = true", current.StoreID, current.ID)
+	if current.CategoryID != nil && *current.CategoryID > 0 {
+		recQ = recQ.Where("category_id = ? OR product_type = ?", *current.CategoryID, current.ProductType)
+	} else if current.Class != "" {
+		recQ = recQ.Where("class = ? OR product_type = ?", current.Class, current.ProductType)
+	} else {
+		recQ = recQ.Where("product_type = ?", current.ProductType)
+	}
+	recQ.Order("id DESC").Limit(4).Find(&recs)
 
 	return c.JSON(fiber.Map{
 		"success": true,

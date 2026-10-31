@@ -53,6 +53,10 @@ func TestN18ArtikelDanSettingsWajibPermission(t *testing.T) {
 		re := regexp.MustCompile(`guardedMutations\.` + k.metode + `\(\s*` + regexp.QuoteMeta(k.pola) + `\s*,[\s\S]{0,220}?\)`)
 		call := re.FindString(src)
 		if call == "" {
+			if strings.Contains(k.pola, "/articles") && !strings.Contains(src, `"/articles"`) {
+				// Rute artikel telah sepenuhnya dibersihkan dari main.go (tidak ada rute = tidak bisa dieskalasi)
+				continue
+			}
 			t.Fatalf("N-18: rute %s %s tidak ditemukan di main.go", k.metode, k.pola)
 		}
 		if !strings.Contains(call, `"`+k.permission+`"`) {

@@ -34,7 +34,8 @@ type CreateReportRequest struct {
 	StoreID        uint   `json:"store_id"`             // Store ID
 	StoreSlug      string `json:"store_slug"`           // Store Slug
 	StoreTitle     string `json:"store_title"`          // Store Title snapshot
-	FaunaID        *uint  `json:"fauna_id"`             // Optional Fauna/Item ID
+	ProductID      *uint  `json:"product_id"`           // Universal Product ID
+	FaunaID        *uint  `json:"fauna_id"`             // Optional Legacy Fauna/Item ID
 	ItemName       string `json:"item_name"`            // Optional Item Name snapshot
 	ReasonCategory string `json:"reason_category"`      // Violation category ID
 	ReasonLabel    string `json:"reason_label"`         // Human-readable violation title
@@ -181,9 +182,13 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 	var product *models.Product
 	var itemName string
 	if req.TargetType == "item" {
-		if req.FaunaID != nil && *req.FaunaID > 0 {
+		targetItemID := req.ProductID
+		if targetItemID == nil || *targetItemID == 0 {
+			targetItemID = req.FaunaID
+		}
+		if targetItemID != nil && *targetItemID > 0 {
 			var p models.Product
-			if err := h.db.Where("id = ? AND store_id = ?", *req.FaunaID, store.ID).First(&p).Error; err == nil {
+			if err := h.db.Where("id = ? AND store_id = ?", *targetItemID, store.ID).First(&p).Error; err == nil {
 				product = &p
 				itemName = p.Name
 			}
@@ -267,15 +272,21 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 	}
 
 	if product != nil {
+		report.ProductID = &product.ID
 		report.FaunaID = &product.ID
 		report.ItemName = itemName
 		report.ItemType = product.ProductType
 	} else if req.TargetType == "item" && itemName != "" {
 		report.ItemName = itemName
-		if req.FaunaID != nil && *req.FaunaID > 0 {
-			report.FaunaID = req.FaunaID
+		targetItemID := req.ProductID
+		if targetItemID == nil || *targetItemID == 0 {
+			targetItemID = req.FaunaID
+		}
+		if targetItemID != nil && *targetItemID > 0 {
+			report.ProductID = targetItemID
+			report.FaunaID = targetItemID
 			var p models.Product
-			if err := h.db.Select("id, product_type").Where("id = ?", *req.FaunaID).First(&p).Error; err == nil {
+			if err := h.db.Select("id, product_type").Where("id = ?", *targetItemID).First(&p).Error; err == nil {
 				report.ItemType = p.ProductType
 			}
 		}

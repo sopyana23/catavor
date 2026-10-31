@@ -6,12 +6,29 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"sync"
 	"time"
 
 	"catavor-backend/internal/models"
 
 	"gorm.io/gorm"
 )
+
+type marketIntelCacheHolder struct {
+	mu       sync.RWMutex
+	cachedAt int64
+	summary  *MacroMarketSummary
+}
+
+var globalMarketIntelCache = &marketIntelCacheHolder{}
+
+// InvalidateMarketIntelCache purges cached macro intelligence so next request computes freshly.
+func InvalidateMarketIntelCache() {
+	globalMarketIntelCache.mu.Lock()
+	defer globalMarketIntelCache.mu.Unlock()
+	globalMarketIntelCache.cachedAt = 0
+	globalMarketIntelCache.summary = nil
+}
 
 // MacroMarketSummary represents aggregated high-level market intelligence across Catavor ecosystem.
 type MacroMarketSummary struct {
@@ -68,6 +85,15 @@ type DailyMarketTrendPoint struct {
 
 // GetMacroMarketSummary aggregates ecosystem-wide statistics ensuring strict K-Anonymity (Zero PII).
 func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
+	nowUnix := time.Now().Unix()
+	globalMarketIntelCache.mu.RLock()
+	if globalMarketIntelCache.summary != nil && (nowUnix-globalMarketIntelCache.cachedAt) < 180 {
+		cached := globalMarketIntelCache.summary
+		globalMarketIntelCache.mu.RUnlock()
+		return cached, nil
+	}
+	globalMarketIntelCache.mu.RUnlock()
+
 	summary := &MacroMarketSummary{
 		GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
 		DataPrivacyNotice: "Seluruh data pasar disajikan dalam bentuk agregat statistik anonim sesuai UU No. 27 Tahun 2022 (UU PDP) & standar GDPR. Tanpa memuat data identitas pribadi atau toko individual.",
@@ -251,6 +277,11 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 			TotalActions: dp.TotalActions,
 		})
 	}
+
+	globalMarketIntelCache.mu.Lock()
+	globalMarketIntelCache.summary = summary
+	globalMarketIntelCache.cachedAt = time.Now().Unix()
+	globalMarketIntelCache.mu.Unlock()
 
 	return summary, nil
 }

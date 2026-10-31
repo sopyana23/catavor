@@ -207,3 +207,29 @@ func PublicSubmissionRateLimiter() fiber.Handler {
 		},
 	})
 }
+
+// TelemetryRateLimiter provides Layer-7 protection for high-frequency telemetry events
+// (search telemetry & storefront action analytics) without interfering with transactional forms.
+// Returns HTTP 202 Accepted on limit breach (silent drop) so client UX is never interrupted.
+func TelemetryRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        180, // 180 requests per minute per IP for dynamic user browsing
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP() + "_telemetry"
+		},
+		Next: func(c *fiber.Ctx) bool {
+			ip := c.IP()
+			// Exclude localhost / loopback in development to avoid lockouts during testing
+			return ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost"
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			// Graceful degradation: return 202 Accepted (silent drop) rather than 429 error
+			return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+				"success": true,
+				"message": "Telemetry accepted.",
+			})
+		},
+	})
+}
+

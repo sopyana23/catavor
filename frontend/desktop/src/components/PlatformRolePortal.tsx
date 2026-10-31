@@ -99,6 +99,7 @@ import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { AdminStoresManagement } from './AdminStoresManagement';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { DesktopCustomSelect, type SelectOption } from './DesktopCustomSelect';
+import { PlatformMarketIntelView } from './PlatformMarketIntelView';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
 
@@ -165,7 +166,8 @@ type ActiveView =
   | 'automation'
   | 'audit'
   | 'safe_domains'
-  | 'master_data';
+  | 'master_data'
+  | 'market_intel';
 
 const formatSupportDateTime = (dateStr?: string | Date) => {
   if (!dateStr) return '-';
@@ -320,6 +322,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
+  const canAccessMarketIntel = isSuperAdmin(currentUser) || hasPermission(currentUser, 'market_intel:manage');
 
   // Granular Sub-Action Permission Checks (Action / Execution Level)
   const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
@@ -405,6 +408,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['monetization', 'iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
       if (['broadcast', 'siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
       if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
+      if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'b2b'].includes(tabParam)) return 'market_intel';
       if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) return 'master_data';
       if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) return 'audit';
     } catch {
@@ -3532,6 +3536,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           : (masterSubView === 'rekber' ? 'Integrasi Rekber Syariah (rekbersyariah.com)' : 'Pusat Konfigurasi Master Data'))
     },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
+    market_intel: { title: 'Riset Pasar B2B', subtitle: 'Tren Hype, Demand Gap & Benchmark Harga' },
   };
 
   // Specialized Platform & System Management Modules on Dashboard Grid
@@ -3558,7 +3563,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       badge: dormancyMetrics?.dormant_stores || 0,
       visible: canAccessCompliance
     },
-    {
+        {
+      id: 'market_intel' as ActiveView,
+      title: 'Riset Pasar B2B',
+      subtitle: 'Tren Hype & Demand Gap',
+      icon: <TrendingUp size={20} />,
+      color: '#10b981',
+      bg: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+      border: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)',
+      badge: 0,
+      visible: canAccessMarketIntel
+    },
+{
       id: 'monetization' as ActiveView,
       title: 'Monetisasi & Iklan',
       subtitle: 'Google AdSense & GA4',
@@ -4263,6 +4279,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       canAccessAutomation={canAccessAutomation}
       canAccessAudit={canAccessAudit}
       canAccessMasterData={canAccessMasterData}
+      canAccessMarketIntel={canAccessMarketIntel}
       pendingReportsCount={pendingReportsCount}
       urgentTicketsCount={urgentTicketsCount}
       actionRequiredTicketsCount={actionRequiredTicketsCount}
@@ -11952,6 +11969,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {/* 4. MODULE 7B: DEDICATED AUTOMATION ENGINE PORTAL                          */}
       {/* ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* MODULE: MARKET INTELLIGENCE & B2B RESEARCH                                */}
+      {/* ========================================================================= */}
+      {activeView === 'market_intel' && canAccessMarketIntel && (
+        <PlatformMarketIntelView
+          token={token}
+          isDark={isDark}
+          theme={theme}
+          showToast={showToast}
+        />
+      )}
+
       {activeView === 'automation' && canAccessAutomation && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem', animation: 'fadeIn 0.25s ease-out', paddingBottom: '4.5rem' }}>
           {/* Module Header Sub-Tabs Switcher */}

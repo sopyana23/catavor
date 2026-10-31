@@ -30,6 +30,7 @@ import {
   User,
   Zap,
   Globe,
+  TrendingUp,
   DollarSign,
   FileText,
   Copy,
@@ -85,6 +86,7 @@ import {
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
 import { TabletRailNav } from './TabletRailNav';
+import { TabletMarketIntelView } from './TabletMarketIntelView';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletPlatformStoresView } from './TabletPlatformStoresView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
@@ -287,6 +289,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     if (['finance', 'keuangan', 'billing', 'orders'].includes(t)) return 'finance';
     if (['broadcast', 'siaran', 'notifikasi'].includes(t)) return 'broadcast';
     if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(t)) return 'automation';
+    if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'b2b'].includes(t)) return 'market_intel';
     if (['monetization', 'iklan', 'ads', 'google'].includes(t)) return 'monetization';
     if (['master-data', 'master_data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(t)) return 'master-data';
     if (['audit', 'logs', 'activity', 'jejak'].includes(t)) return 'audit';
@@ -361,6 +364,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
   const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
+  const canAccessMarketIntel = isSuperAdmin(currentUser) || hasPermission(currentUser, 'market_intel:manage');
 
   // Granular Sub-Action Permission Checks
   const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
@@ -385,6 +389,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         return { title: 'Keuangan & Verifikasi Billing', subtitle: 'Verifikasi aktivasi paket Pro dan invoice langganan' };
       case 'broadcast':
         return { title: 'Siaran Broadcast Pengumuman', subtitle: 'Penyampaian notifikasi masal ke seluruh merchant' };
+      case 'market_intel':
+      case 'market-intel':
+        return { title: 'Riset Pasar & Intelijen Permintaan B2B', subtitle: 'Analitik tren belanja nasional, demand gap, dan benchmark harga' };
       case 'automation':
         return { title: 'Mesin Otomatisasi & Bot Worker', subtitle: 'Pemantauan status daemon dan background job' };
       case 'monetization':
@@ -4094,6 +4101,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       { key: 'staff', label: 'Staf & Role RBAC', desc: 'Penugasan hak akses tim', icon: ShieldCheck, color: '#8b5cf6', visible: canAccessRBAC },
                       { key: 'broadcast', label: 'Siaran Broadcast', desc: 'Kirim notifikasi masal', icon: Radio, color: '#ec4899', visible: canAccessBroadcast },
                       { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316', visible: canAccessAutomation },
+                      { key: 'market_intel', label: 'Riset Pasar B2B', desc: 'Tren Hype & Demand Gap', icon: TrendingUp, color: '#10b981', visible: canAccessMarketIntel },
                       { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308', visible: canAccessMonetization },
                       { key: 'master-data', label: 'Master Data', desc: 'Whitelist domain aman, template CS, dan proteksi rekber', icon: Layers, color: '#10b981', visible: canAccessMasterData },
                       { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b', visible: canAccessAudit }
@@ -8656,6 +8664,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB 8: AUTOMATION (MESIN OTOMATISASI & 11 BOTS) */}
+          {activeView === 'market_intel' && canAccessMarketIntel && (
+            <TabletMarketIntelView
+              token={token}
+              showToast={showToast}
+            />
+          )}
+
           {activeView === 'automation' && canAccessAutomation && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
               {/* Module Header Sub-Tabs Switcher */}

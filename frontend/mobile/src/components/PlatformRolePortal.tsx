@@ -159,7 +159,8 @@ type ActiveView =
   | 'automation'
   | 'audit'
   | 'safe_domains'
-  | 'master_data';
+  | 'master_data'
+  | 'market_intel';
 
 const formatSupportDateTime = (dateStr?: string | Date) => {
   if (!dateStr) return '-';
@@ -314,6 +315,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
   const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
+  const canAccessMarketIntel = isSuperAdmin(currentUser) || hasPermission(currentUser, 'market_intel:manage');
 
   // Granular Sub-Action Level Permissions
   const canReplySupport = hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
@@ -403,6 +405,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
       if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) return 'master_data';
       if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) return 'audit';
+      if (['market_intel', 'market-intel', 'intelligence', 'riset', 'riset-pasar'].includes(tabParam)) return 'market_intel';
     } catch {
       // fallback
     }
@@ -3586,6 +3589,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           : (masterSubView === 'rekber' ? 'Integrasi Rekber Syariah (rekbersyariah.com)' : 'Pusat Konfigurasi Master Data'))
     },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
+    market_intel: { title: 'Riset Pasar B2B', subtitle: 'Tren Hype, Demand Gap & Benchmark Harga' },
   };
 
   // Specialized Platform & System Management Modules on Dashboard Grid
@@ -4295,6 +4299,30 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             onClick: () => {
               loadData();
               showToast('Log audit berhasil diperbarui', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 12. MARKET INTELLIGENCE VIEW
+    if (activeView === 'market_intel') {
+      return {
+        showMenu: true,
+        title: 'Riset Pasar B2B',
+        subtitle: 'Tren Hype, Demand Gap & Benchmark Harga',
+        items: [
+          {
+            id: 'refresh_market_intel',
+            label: 'Segarkan Data Riset Pasar',
+            description: 'Sinkronkan metrik tren dan agregat pasar',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(16, 185, 129, 0.15)',
+            iconColor: '#10b981',
+            onClick: () => {
+              loadData();
+              showToast('Data riset pasar diperbarui', 'success');
             }
           }
         ],

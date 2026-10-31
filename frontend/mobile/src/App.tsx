@@ -7356,6 +7356,26 @@ Terima kasih.`;
               hasNext: Boolean(json.pagination.has_next)
             });
           }
+
+          // Anonymous Search Telemetry & Demand Gap Ingestion (Zero PII)
+          const totalFound = json.pagination?.total_items ?? json.data.length;
+          if (debouncedSearch.trim().length >= 3 && !append) {
+            try {
+              fetch(`${API_BASE}/api/telemetry/search`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  keyword: debouncedSearch.trim(),
+                  store_slug: slug,
+                  product_type: productTypeFilter,
+                  result_count: totalFound,
+                  is_zero_result: totalFound === 0,
+                  _hp_check: ''
+                }),
+                keepalive: true
+              }).catch(() => {});
+            } catch {}
+          }
         }
       }
     } catch (err) {

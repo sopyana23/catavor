@@ -10,7 +10,8 @@ type Report struct {
 	ReportNumber      string     `gorm:"size:50;uniqueIndex;not null" json:"report_number"`
 	TargetType        string     `gorm:"size:50;index;not null" json:"target_type"` // 'catalog' | 'item'
 	StoreID           uint       `gorm:"index;not null" json:"store_id"`
-	FaunaID           *uint      `gorm:"index" json:"fauna_id,omitempty"` // nullable, present if target_type == 'item'
+	ProductID         *uint      `gorm:"index" json:"product_id,omitempty"` // Universal product foreign key
+	FaunaID           *uint      `gorm:"index" json:"fauna_id,omitempty"`   // Legacy backward-compatible field
 	StoreSlug         string     `gorm:"size:255;not null" json:"store_slug"`
 	StoreTitle        string     `gorm:"size:255;not null" json:"store_title"`
 	ItemName          string     `gorm:"size:255" json:"item_name,omitempty"`
@@ -31,6 +32,14 @@ type Report struct {
 
 	// Relations
 	Store   *Store   `gorm:"foreignKey:StoreID" json:"store,omitempty"`
-	Product *Product `gorm:"foreignKey:FaunaID" json:"product,omitempty"`
+	Product *Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
 	Fauna   *Product `gorm:"foreignKey:FaunaID" json:"fauna,omitempty"`
+}
+
+// GetTargetProductID returns the effective target product ID regardless of which column is populated.
+func (r *Report) GetTargetProductID() *uint {
+	if r.ProductID != nil && *r.ProductID > 0 {
+		return r.ProductID
+	}
+	return r.FaunaID
 }

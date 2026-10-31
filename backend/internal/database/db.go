@@ -163,6 +163,11 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.StoreDailyAnalytics{},
 		&models.ProductDailyAnalytics{},
 		&models.StoreDailyTrafficSource{},
+		&models.SearchAnalytics{},
+		&models.SearchDailyRollup{},
+		&models.MarketDailyRollup{},
+		&models.CategoryPriceBenchmark{},
+		&models.B2BAPIKey{},
 		&models.Notification{},
 		&models.NotificationRead{},
 		&models.MasterCategory{},
@@ -563,6 +568,19 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS moderation_reason TEXT;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_moderation ON products(moderation_status, moderated_at);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_deleted_at ON products(deleted_at);").Error
+
+	// 10.1 Ensure Reports Universal Product ID & Indexes
+	_ = db.Exec("ALTER TABLE reports ADD COLUMN IF NOT EXISTS product_id BIGINT;").Error
+	_ = db.Exec("UPDATE reports SET product_id = fauna_id WHERE product_id IS NULL AND fauna_id IS NOT NULL;").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_reports_product_id ON reports(product_id);").Error
+
+	// 10.2 Ensure Search Analytics & Market Intelligence Indexes
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_search_clean_kw ON search_analytics(clean_keyword);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_search_zero_date ON search_analytics(is_zero_result, date);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_search_rollup_vol ON search_daily_rollups(date, search_volume DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_search_zero_vol ON search_daily_rollups(date, zero_result_count DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_market_rollup_type_date ON market_daily_rollups(product_type, date DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_price_bench_cat ON category_price_benchmarks(category_name, date DESC);").Error
 
 	// 11. Seed Default Support Canned Responses if table is empty
 	var cannedCount int64

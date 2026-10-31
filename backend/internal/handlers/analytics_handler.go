@@ -77,6 +77,62 @@ type TrackEventRequest struct {
 	Metadata    map[string]interface{} `json:"metadata"`     // optional metadata (platform name, etc.)
 }
 
+// In-memory cache for store slug to ID resolution to eliminate redundant database queries
+type storeSlugIDCache struct {
+	mu      sync.RWMutex
+	entries map[string]storeSlugIDEntry
+}
+
+type storeSlugIDEntry struct {
+	id       uint
+	cachedAt int64
+}
+
+var globalStoreSlugCache = &storeSlugIDCache{
+	entries: make(map[string]storeSlugIDEntry),
+}
+
+func (c *storeSlugIDCache) getOrFetch(slug string, db *gorm.DB) (uint, error) {
+	slug = strings.TrimSpace(strings.ToLower(slug))
+	if slug == "" {
+		return 0, fmt.Errorf("empty slug")
+	}
+
+	now := time.Now().Unix()
+	c.mu.RLock()
+	item, exists := c.entries[slug]
+	c.mu.RUnlock()
+
+	// 15 minutes TTL
+	if exists && (now-item.cachedAt) < 900 {
+		return item.id, nil
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Double check under write lock
+	if item, exists = c.entries[slug]; exists && (now-item.cachedAt) < 900 {
+		return item.id, nil
+	}
+
+	var st models.Store
+	if err := db.Select("id").Where("slug = ?", slug).First(&st).Error; err != nil {
+		return 0, err
+	}
+
+	// Periodic cleanup of stale cache entries
+	if len(c.entries) > 2000 {
+		for k, v := range c.entries {
+			if now-v.cachedAt > 1800 {
+				delete(c.entries, k)
+			}
+		}
+	}
+
+	c.entries[slug] = storeSlugIDEntry{id: st.ID, cachedAt: now}
+	return st.ID, nil
+}
+
 // isBotOrCrawler checks User-Agent against standard automated crawler and bot signatures.
 func isBotOrCrawler(ua string) bool {
 	if ua == "" {
@@ -92,6 +148,8 @@ func isBotOrCrawler(ua string) bool {
 		"curl", "wget", "python-requests", "python-urllib", "postmanruntime",
 		"axios", "go-http-client", "node-fetch", "got/", "insomnia",
 		"ahrefsbot", "semrushbot", "dotbot", "mj12bot", "screaming frog",
+		"bytespider", "petalbot", "gptbot", "chatgpt-user", "claudebot",
+		"amazonbot", "dataforseo", "aiohttp", "scrapy",
 	}
 
 	for _, pattern := range botPatterns {
@@ -149,9 +207,9 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 
 	db := h.db
 
-	// Find store by slug
-	var store models.Store
-	if err := db.Select("id, slug, user_id").Where("slug = ?", slug).First(&store).Error; err != nil {
+	// Find store by slug using in-memory cache (0 DB query if cached)
+	storeID, err := globalStoreSlugCache.getOrFetch(slug, db)
+	if err != nil || storeID == 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Toko tidak ditemukan.",
@@ -169,9 +227,9 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 	sessionToken := strings.TrimSpace(req.SessionID)
 	var dedupKey string
 	if sessionToken != "" {
-		dedupKey = fmt.Sprintf("%s:%s:%s:%d:%s:%d", clientIP, sessionToken, uaHash, store.ID, event, req.ProductID)
+		dedupKey = fmt.Sprintf("%s:%s:%s:%d:%s:%d", clientIP, sessionToken, uaHash, storeID, event, req.ProductID)
 	} else {
-		dedupKey = fmt.Sprintf("%s:%s:%d:%s:%d", clientIP, uaHash, store.ID, event, req.ProductID)
+		dedupKey = fmt.Sprintf("%s:%s:%d:%s:%d", clientIP, uaHash, storeID, event, req.ProductID)
 	}
 
 	// TTL: 1 Hour (3600s) for view events; 30 seconds for action clicks to prevent rapid spam clicking
@@ -219,7 +277,7 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 		"updated_at": time.Now(),
 	}
 	initialTraffic := models.StoreDailyTrafficSource{
-		StoreID: store.ID,
+		StoreID: storeID,
 		Date:    today,
 		Source:  normSource,
 	}
@@ -240,7 +298,7 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 		"updated_at": time.Now(),
 	}
 	initialStore := models.StoreDailyAnalytics{
-		StoreID: store.ID,
+		StoreID: storeID,
 		Date:    today,
 	}
 
@@ -284,7 +342,7 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 	if req.ProductID > 0 {
 		var product models.Product
 		if err := db.Select("id, store_id, product_type").
-			Where("id = ? AND store_id = ?", req.ProductID, store.ID).
+			Where("id = ? AND store_id = ?", req.ProductID, storeID).
 			First(&product).Error; err == nil {
 
 			pType := product.ProductType
@@ -296,7 +354,7 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 				"updated_at": time.Now(),
 			}
 			initialProd := models.ProductDailyAnalytics{
-				StoreID:     store.ID,
+				StoreID:     storeID,
 				ProductID:   req.ProductID,
 				ProductType: pType,
 				Date:        today,
@@ -587,7 +645,7 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 
 	// 2. Query top performing active products for this store leaderboard (limited to top 50 for lightweight payload)
 	var products []models.Product
-	_ = db.Select("id, name, image_url, price, class, view_count, wa_clicks_count, marketplace_clicks_count, rekber_clicks_count, video_views_count, product_type").
+	_ = db.Preload("Category").
 		Where("store_id = ? AND is_active = ?", store.ID, true).
 		Order("view_count DESC, wa_clicks_count DESC, id DESC").
 		Limit(50).
@@ -629,12 +687,13 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 			}
 		}
 
+		effCategory := p.GetEffectiveCategory()
 		topSummary[i] = TopProductSummary{
 			ID:                     p.ID,
 			Name:                   p.Name,
 			ImageURL:               p.ImageURL,
 			Price:                  p.Price,
-			Class:                  p.Class,
+			Class:                  effCategory,
 			ViewCount:              p.ViewCount,
 			WaClicksCount:          p.WaClicksCount,
 			MarketplaceClicksCount: p.MarketplaceClicksCount,
@@ -657,7 +716,7 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		}
 
 		// Update category summary
-		catName := p.Class
+		catName := effCategory
 		if strings.TrimSpace(catName) == "" {
 			catName = "Umum"
 		}
@@ -1168,6 +1227,244 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 	return c.Send(csvData)
 }
 
+type TrackSearchRequest struct {
+	Keyword      string `json:"keyword"`
+	StoreSlug    string `json:"store_slug"`
+	CategorySlug string `json:"category_slug"`
+	ProductType  string `json:"product_type"`
+	ResultCount  int    `json:"result_count"`
+	IsZeroResult bool   `json:"is_zero_result"`
+	City         string `json:"city"`
+	HpCheck      string `json:"_hp_check"`
+}
+
+// TrackSearchEvent handles public non-blocking ingestion of search keywords & zero-result demand gaps.
+func (h *AnalyticsHandler) TrackSearchEvent(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false})
+	}
+	var req TrackSearchRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "Payload search tidak valid."})
+	}
+	if strings.TrimSpace(req.HpCheck) != "" {
+		return c.JSON(fiber.Map{"success": true, "message": "Search tercatat."})
+	}
+	ua := c.Get("User-Agent")
+	if isBotOrCrawler(ua) {
+		return c.JSON(fiber.Map{"success": true, "message": "Search tercatat."})
+	}
+
+	kw := strings.TrimSpace(req.Keyword)
+	if !services.IsValidSearchKeyword(kw) {
+		return c.JSON(fiber.Map{"success": true, "message": "Search diabaikan."})
+	}
+
+	cleanKw := services.CleanSearchKeyword(kw)
+	if cleanKw == "" {
+		return c.JSON(fiber.Map{"success": true, "message": "Search diabaikan."})
+	}
+
+	// Sliding-window keyword deduplication per IP + Store + Keyword (TTL 60s)
+	// Prevents repeated enter-pressing / bot looping from inflating search analytics
+	dedupKey := fmt.Sprintf("search:%s:%s:%s", c.IP(), strings.ToLower(req.StoreSlug), cleanKw)
+	if telemetryDedup.isDuplicate(dedupKey, 60) {
+		return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+			"success": true,
+			"message": "Search telemetry deduplicated.",
+		})
+	}
+
+	svc := services.GetSearchTelemetryService()
+	if svc == nil {
+		return c.JSON(fiber.Map{"success": true, "message": "Search service offline."})
+	}
+
+	var storeID *uint
+	if req.StoreSlug != "" {
+		if sid, err := globalStoreSlugCache.getOrFetch(req.StoreSlug, h.db); err == nil && sid > 0 {
+			storeID = &sid
+		}
+	}
+
+	city := strings.TrimSpace(req.City)
+	if city == "" {
+		city = "Indonesia"
+	}
+
+	event := models.SearchAnalytics{
+		StoreID:      storeID,
+		StoreSlug:    req.StoreSlug,
+		Keyword:      kw,
+		CategorySlug: req.CategorySlug,
+		ProductType:  req.ProductType,
+		City:         city,
+		ResultCount:  req.ResultCount,
+		IsZeroResult: req.IsZeroResult || req.ResultCount == 0,
+		Date:         time.Now().UTC().Format("2006-01-02"),
+		CreatedAt:    time.Now().UTC(),
+	}
+
+	svc.EnqueueSearchEvent(event)
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"success": true,
+		"message": "Search telemetry queued.",
+	})
+}
+
+type TrendingItem struct {
+	Keyword      string  `json:"keyword"`
+	ProductType  string  `json:"product_type"`
+	SearchVolume int64   `json:"search_volume"`
+	ZeroCount    int64   `json:"zero_count"`
+	CTR          float64 `json:"ctr"`
+}
+
+type GapItem struct {
+	Keyword         string `json:"keyword"`
+	ProductType     string `json:"product_type"`
+	ZeroResultCount int64  `json:"zero_result_count"`
+	TotalSearches   int64  `json:"total_searches"`
+}
+
+type marketIntelListCache struct {
+	mu           sync.RWMutex
+	trendingData []TrendingItem
+	trendingAt   int64
+	gapsData     []GapItem
+	gapsAt       int64
+}
+
+var globalMarketListCache = &marketIntelListCache{}
+
+// GetTrendingKeywords returns top trending search keywords across the ecosystem with Zero PII.
+func (h *AnalyticsHandler) GetTrendingKeywords(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false})
+	}
+	c.Set("Cache-Control", "private, no-cache")
+
+	now := time.Now().Unix()
+	globalMarketListCache.mu.RLock()
+	if globalMarketListCache.trendingData != nil && (now-globalMarketListCache.trendingAt) < 180 {
+		cached := globalMarketListCache.trendingData
+		globalMarketListCache.mu.RUnlock()
+		return c.JSON(fiber.Map{
+			"success": true,
+			"data":    cached,
+		})
+	}
+	globalMarketListCache.mu.RUnlock()
+
+	var results []TrendingItem
+	// Try daily rollups first (30 days window)
+	startDate := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02")
+	_ = h.db.Raw(`
+		SELECT 
+			keyword,
+			COALESCE(product_type, 'all') as product_type,
+			SUM(search_volume) as search_volume,
+			SUM(zero_result_count) as zero_count,
+			COALESCE(AVG(ctr_percentage), 0) as ctr
+		FROM search_daily_rollups
+		WHERE date >= ?
+		GROUP BY keyword, product_type
+		ORDER BY search_volume DESC
+		LIMIT 25
+	`, startDate).Scan(&results).Error
+
+	// Fallback to raw search_analytics if rollups are not yet populated
+	if len(results) == 0 {
+		_ = h.db.Raw(`
+			SELECT 
+				clean_keyword as keyword,
+				product_type,
+				COUNT(*) as search_volume,
+				SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) as zero_count,
+				0 as ctr
+			FROM search_analytics
+			WHERE date >= ?
+			GROUP BY clean_keyword, product_type
+			ORDER BY search_volume DESC
+			LIMIT 25
+		`, startDate).Scan(&results).Error
+	}
+
+	globalMarketListCache.mu.Lock()
+	globalMarketListCache.trendingData = results
+	globalMarketListCache.trendingAt = now
+	globalMarketListCache.mu.Unlock()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    results,
+	})
+}
+
+// GetDemandGaps returns keywords with high searches but zero results (unmet market demand).
+func (h *AnalyticsHandler) GetDemandGaps(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false})
+	}
+	c.Set("Cache-Control", "private, no-cache")
+
+	now := time.Now().Unix()
+	globalMarketListCache.mu.RLock()
+	if globalMarketListCache.gapsData != nil && (now-globalMarketListCache.gapsAt) < 180 {
+		cached := globalMarketListCache.gapsData
+		globalMarketListCache.mu.RUnlock()
+		return c.JSON(fiber.Map{
+			"success": true,
+			"data":    cached,
+		})
+	}
+	globalMarketListCache.mu.RUnlock()
+
+	var gaps []GapItem
+	startDate := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02")
+
+	// Read from search_analytics for immediate real-time demand gaps
+	_ = h.db.Raw(`
+		SELECT 
+			clean_keyword as keyword,
+			product_type,
+			COUNT(*) as zero_result_count,
+			COUNT(*) as total_searches
+		FROM search_analytics
+		WHERE is_zero_result = true AND date >= ?
+		GROUP BY clean_keyword, product_type
+		ORDER BY zero_result_count DESC
+		LIMIT 20
+	`, startDate).Scan(&gaps).Error
+
+	globalMarketListCache.mu.Lock()
+	globalMarketListCache.gapsData = gaps
+	globalMarketListCache.gapsAt = now
+	globalMarketListCache.mu.Unlock()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    gaps,
+	})
+}
+
+// GetCategoryPriceBenchmarks returns statistical price distributions with strict K-Anonymity (>= 50 samples).
+func (h *AnalyticsHandler) GetCategoryPriceBenchmarks(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false})
+	}
+
+	summary, err := services.GetMacroMarketSummary(h.db)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "Gagal menghitung benchmark harga."})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    summary.PriceBenchmarks,
+	})
+}
+
 // ExportStoreAnalytics streams a clean, Excel-compatible CSV export of the store's performance metrics.
 // Supports periods ('7d', '30d', '90d', 'all') and report types ('daily', 'products', 'full').
 func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
@@ -1267,7 +1564,7 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 	// 3. Fetch product records if needed
 	var products []models.Product
 	if reportType == "products" || reportType == "full" {
-		_ = db.Select("id, name, price, class, view_count, wa_clicks_count, marketplace_clicks_count, rekber_clicks_count, video_views_count, product_type").
+		_ = db.Preload("Category").
 			Where("store_id = ? AND is_active = ?", store.ID, true).
 			Order("view_count DESC, wa_clicks_count DESC, id DESC").
 			Find(&products).Error
@@ -1286,7 +1583,7 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 					ctr = 100
 				}
 			}
-			catName := p.Class
+			catName := p.GetEffectiveCategory()
 			if catName == "" {
 				catName = "Umum"
 			}
@@ -1396,7 +1693,7 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 					ctr = 100
 				}
 			}
-			catName := p.Class
+			catName := p.GetEffectiveCategory()
 			if catName == "" {
 				catName = "Umum"
 			}
