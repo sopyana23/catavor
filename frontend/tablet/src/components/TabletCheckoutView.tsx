@@ -91,24 +91,49 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
     password: string;
     store_name: string;
     store_slug: string;
+    google_id?: string;
+    avatar?: string;
   }>(() => {
     if (typeof window !== 'undefined') {
       try {
         const saved = sessionStorage.getItem('catavor_register_form');
+        let parsed: any = {};
         if (saved) {
-          const parsed = JSON.parse(saved);
-          return {
-            name: parsed.name || '',
-            email: parsed.email || '',
-            password: parsed.password || '',
-            store_name: parsed.store_name || '',
-            store_slug: parsed.store_slug || ''
-          };
+          parsed = JSON.parse(saved);
         }
+        let localUser: any = null;
+        try {
+          const u = localStorage.getItem('catavor_user');
+          if (u) localUser = JSON.parse(u);
+        } catch {}
+
+        return {
+          name: parsed.name || localUser?.name || '',
+          email: parsed.email || localUser?.email || '',
+          password: parsed.password || '',
+          store_name: parsed.store_name || localUser?.store_title || '',
+          store_slug: parsed.store_slug || localUser?.store_slug || '',
+          google_id: parsed.google_id || localUser?.google_id || '',
+          avatar: parsed.avatar || localUser?.avatar || ''
+        };
       } catch {}
     }
-    return { name: '', email: '', password: '', store_name: '', store_slug: '' };
+    return { name: '', email: '', password: '', store_name: '', store_slug: '', google_id: '', avatar: '' };
   });
+
+  const isGoogleAuth = Boolean(
+    registerForm.google_id ||
+    (() => {
+      try {
+        const u = localStorage.getItem('catavor_user');
+        if (u) {
+          const parsed = JSON.parse(u);
+          return Boolean(parsed.google_id);
+        }
+      } catch {}
+      return false;
+    })()
+  );
 
   const [showAccountFormEdit, setShowAccountFormEdit] = useState<boolean>(() => {
     return !registerForm.name || !registerForm.email || !registerForm.store_name;
@@ -312,7 +337,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
       setShowAccountFormEdit(true);
       return;
     }
-    if (!registerForm.password || registerForm.password.length < 6) {
+    if (!isGoogleAuth && (!registerForm.password || registerForm.password.length < 6)) {
       setRegisterError('Kata sandi minimal 6 karakter.');
       setShowAccountFormEdit(true);
       return;
@@ -336,10 +361,22 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
 
     setRegisterLoading(true);
     try {
+      let effectiveGoogleId = registerForm.google_id;
+      if (!effectiveGoogleId) {
+        try {
+          const u = localStorage.getItem('catavor_user');
+          if (u) {
+            const parsed = JSON.parse(u);
+            if (parsed.google_id) effectiveGoogleId = parsed.google_id;
+          }
+        } catch {}
+      }
+
       const payload = {
         name: registerForm.name.trim(),
         email: registerForm.email.trim().toLowerCase(),
-        password: registerForm.password,
+        password: isGoogleAuth ? undefined : registerForm.password,
+        google_id: effectiveGoogleId || undefined,
         store_name: registerForm.store_name.trim(),
         store_slug: registerForm.store_slug.trim().toLowerCase(),
         plan: registerPlan,
@@ -953,29 +990,52 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
                     </div>
                   </div>
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: '0.25rem' }}>
-                      Kata Sandi Baru * (Min. 6 Karakter)
-                    </label>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '0.55rem',
-                      border: '1px solid #cbd5e1',
-                      backgroundColor: '#ffffff'
-                    }}>
-                      <Lock size={16} color="#64748b" />
-                      <input
-                        type="password"
-                        placeholder="••••••••"
-                        value={registerForm.password}
-                        onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                        style={{ flex: 1, border: 'none', outline: 'none', fontSize: '0.85rem', color: '#0f172a' }}
-                      />
+                  {isGoogleAuth ? (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: '0.25rem' }}>
+                        Autentikasi Akun
+                      </label>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.65rem',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.55rem',
+                        border: '1px solid #bfdbfe',
+                        backgroundColor: '#eff6ff',
+                        color: '#1d4ed8',
+                        fontSize: '0.8rem',
+                        fontWeight: 600
+                      }}>
+                        <Check size={16} style={{ flexShrink: 0, color: '#2563eb' }} />
+                        <span>Terotentikasi via Akun Google. Kata sandi tidak diperlukan.</span>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: '0.25rem' }}>
+                        Kata Sandi Baru * (Min. 6 Karakter)
+                      </label>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.55rem',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff'
+                      }}>
+                        <Lock size={16} color="#64748b" />
+                        <input
+                          type="password"
+                          placeholder="••••••••"
+                          value={registerForm.password}
+                          onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                          style={{ flex: 1, border: 'none', outline: 'none', fontSize: '0.85rem', color: '#0f172a' }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: '0.25rem' }}>

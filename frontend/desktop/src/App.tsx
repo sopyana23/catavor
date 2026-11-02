@@ -5075,7 +5075,16 @@ function App() {
 
       const rawPlan = urlPlan || savedPlan || 'free';
       const finalPlan = (rawPlan === 'pro' ? 'pro_starter' : rawPlan) as 'free' | 'pro_starter' | 'pro_business';
-      const finalForm = savedForm ? JSON.parse(savedForm) : { name: '', email: '', password: '', store_name: '', store_slug: '' };
+      let finalForm = savedForm ? JSON.parse(savedForm) : { name: '', email: '', password: '', store_name: '', store_slug: '' };
+      try {
+        const u = localStorage.getItem('catavor_user');
+        if (u) {
+          const parsedU = JSON.parse(u);
+          if (parsedU.google_id && !finalForm.google_id) {
+            finalForm.google_id = parsedU.google_id;
+          }
+        }
+      } catch {}
 
       return {
         tab: pathTab,
@@ -12856,6 +12865,17 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setRegisterError(null);
 
       try {
+        let effectiveGoogleId = registerForm.google_id;
+        if (!effectiveGoogleId) {
+          try {
+            const u = localStorage.getItem('catavor_user');
+            if (u) {
+              const parsedU = JSON.parse(u);
+              if (parsedU.google_id) effectiveGoogleId = parsedU.google_id;
+            }
+          } catch {}
+        }
+
         const res = await fetch(`${API_BASE}/register`, {
           method: 'POST',
           headers: {
@@ -12864,6 +12884,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           },
           body: JSON.stringify({
             ...registerForm,
+            google_id: effectiveGoogleId || undefined,
             plan: 'free',
             payment_status: 'none',
             verification_token: vToken || verificationToken || undefined,
@@ -13108,8 +13129,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setRegisterLoading(true);
     setRegisterError(null);
     try {
+      let effectiveGoogleId = registerForm.google_id;
+      if (!effectiveGoogleId) {
+        try {
+          const u = localStorage.getItem('catavor_user');
+          if (u) {
+            const parsedU = JSON.parse(u);
+            if (parsedU.google_id) effectiveGoogleId = parsedU.google_id;
+          }
+        } catch {}
+      }
+
       const payload = {
         ...registerForm,
+        google_id: effectiveGoogleId || undefined,
         plan: registerPlan,
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',

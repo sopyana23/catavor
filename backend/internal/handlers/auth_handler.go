@@ -553,7 +553,47 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	if req.GoogleID == "" {
+	// Check if this registration is authenticating via Google SSO:
+	// 1. Client explicitly passes req.GoogleID
+	// 2. An existing user with this email in the database is already linked to Google
+	// 3. Current active session token belongs to a Google-authenticated user
+	isGoogleAuth := strings.TrimSpace(req.GoogleID) != ""
+	var existingUser models.User
+	var targetUser models.User
+	userFound := false
+
+	if req.Email != "" {
+		if err := h.db.Preload("Store").Where("LOWER(email) = ?", strings.ToLower(req.Email)).First(&existingUser).Error; err == nil {
+			userFound = true
+			if existingUser.GoogleID != nil && *existingUser.GoogleID != "" {
+				isGoogleAuth = true
+				if req.GoogleID == "" {
+					req.GoogleID = *existingUser.GoogleID
+				}
+			}
+		}
+	}
+
+	if !isGoogleAuth {
+		if claims := middleware.ExtractOptionalClaims(c, h.cfg); claims != nil && claims.UserID > 0 {
+			var sessionUser models.User
+			if h.db.Preload("Store").First(&sessionUser, claims.UserID).Error == nil {
+				if sessionUser.GoogleID != nil && *sessionUser.GoogleID != "" {
+					isGoogleAuth = true
+					if req.GoogleID == "" {
+						req.GoogleID = *sessionUser.GoogleID
+					}
+					if !userFound && strings.EqualFold(sessionUser.Email, req.Email) {
+						existingUser = sessionUser
+						userFound = true
+					}
+				}
+			}
+		}
+	}
+
+	// Bypass password validation completely for Google SSO users
+	if !isGoogleAuth {
 		if err := security.ValidatePassword(req.Password); err != nil {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
@@ -614,11 +654,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check email uniqueness
-	var existingUser models.User
-	var targetUser models.User
-	if err := h.db.Preload("Store").Where("LOWER(email) = ?", req.Email).First(&existingUser).Error; err == nil {
-		if req.GoogleID != "" {
+	// Check email uniqueness and Google account linkage
+	if userFound {
+		if isGoogleAuth {
 			if existingUser.Store != nil {
 				theme := existingUser.Store.StoreTheme
 				if theme == "" {
@@ -635,6 +673,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 						"id":                  existingUser.ID,
 						"name":                existingUser.Name,
 						"email":               existingUser.Email,
+						"google_id":           existingUser.GoogleID,
 						"is_password_changed": true,
 						"store_slug":          existingUser.Store.Slug,
 						"store_title":         existingUser.Store.StoreTitle,
@@ -657,10 +696,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 	} else {
 		now := time.Now()
-		// SECURITY (N-11): registrasi wajib membawa verification_token yang sah.
-		// Sebelumnya hasil ValidateAndConsumeToken diabaikan (`_ =`) dan token
-		// kosong pun diloloskan, sehingga verifikasi email bisa dilewati total.
-		if req.GoogleID == "" {
+		// SECURITY (N-11): registrasi password manual wajib membawa verification_token yang sah.
+		// Registrasi Google SSO dilewatkan karena email sudah terverifikasi di sisi Google.
+		if !isGoogleAuth {
 			if strings.TrimSpace(req.VerificationToken) == "" {
 				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 					"success": false,
@@ -681,8 +719,11 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			EmailVerifiedAt:   &now,
 			IsPasswordChanged: true,
 		}
-		if req.GoogleID != "" {
+		if isGoogleAuth {
 			googleID := req.GoogleID
+			if googleID == "" {
+				googleID = "G_" + uuid.New().String()[:12]
+			}
 			newUser.GoogleID = &googleID
 			newUser.HasCustomPassword = false
 			_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
@@ -1179,6 +1220,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 				"id":                  user.ID,
 				"name":                user.Name,
 				"email":               user.Email,
+				"google_id":           user.GoogleID,
 				"avatar":              avatar,
 				"has_custom_password": user.HasCustomPassword,
 				"store_slug":          activeStore.Slug,

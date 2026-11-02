@@ -92,15 +92,19 @@ func ExtractOptionalClaims(c *fiber.Ctx, cfg *config.Config) *JWTClaims {
 		return nil
 	}
 	var tokenString string
-	authHeader := c.Get("Authorization")
-	if authHeader != "" {
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
-			tokenString = strings.TrimSpace(parts[1])
+	if cookieToken := strings.TrimSpace(c.Cookies(SessionCookieName)); cookieToken != "" {
+		tokenString = cookieToken
+	}
+	if tokenString == "" {
+		authHeader := c.Get("Authorization")
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+				tokenString = strings.TrimSpace(parts[1])
+			}
 		}
 	}
 	if tokenString == "" {
-		// SECURITY (N-02): ?token= TIDAK lagi diterima sebagai sumber auth.
 		return nil
 	}
 

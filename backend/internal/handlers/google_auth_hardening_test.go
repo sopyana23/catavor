@@ -119,3 +119,32 @@ func TestPenjagaanN14TidakMengunciAkunTertautGoogle(t *testing.T) {
 		t.Error("penjagaan N-14 tanpa syarat google_id akan mengunci pengguna sah")
 	}
 }
+
+// Uji: Pendaftaran / Checkout akun pengguna Google SSO wajib membebaskan validasi kata sandi manual,
+// karena pengguna tidak menginputkan kata sandi pada tahap Google SSO.
+func TestRegisterGoogleSSOBypassesPasswordRequirement(t *testing.T) {
+	src, err := bacaSumberHandler("auth_handler.go")
+	if err != nil {
+		t.Fatalf("gagal membaca sumber: %v", err)
+	}
+
+	awal := strings.Index(src, "func (h *AuthHandler) Register(")
+	if awal < 0 {
+		t.Fatal("fungsi Register tidak ditemukan")
+	}
+	akhir := strings.Index(src[awal:], "\nfunc ")
+	if akhir < 0 {
+		akhir = len(src[awal:])
+	}
+	badan := src[awal : awal+akhir]
+
+	if !strings.Contains(badan, "if !isGoogleAuth {") {
+		t.Error("Register harus memeriksa !isGoogleAuth sebelum memvalidasi kata sandi")
+	}
+	if !strings.Contains(badan, "security.ValidatePassword(req.Password)") {
+		t.Error("Register harus tetap memvalidasi kata sandi untuk pendaftaran manual non-Google")
+	}
+	if !strings.Contains(badan, "newUser.HasCustomPassword = false") {
+		t.Error("Pengguna Google SSO baru harus memiliki HasCustomPassword = false")
+	}
+}
