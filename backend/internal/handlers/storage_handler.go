@@ -81,6 +81,14 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		})
 	}
 
+	// Extract user and staff role early
+	var userID uint = 0
+	var isStaffUser bool = false
+	if userVal, ok := c.Locals("user").(*models.User); ok && userVal != nil {
+		userID = userVal.ID
+		isStaffUser = middleware.IsPlatformStaffRole(userVal.PlatformRole)
+	}
+
 	// Determine category
 	category := strings.ToLower(strings.TrimSpace(c.Query("category", "")))
 	if category == "" {
@@ -91,19 +99,27 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		category = "platform_partners"
 	case "platform", "platform_branding":
 		category = "platform_branding"
+	case "qris", "payment_qris", "platform_qris", "platform_payments", "platform_payment":
+		category = "platform_payments"
+	case "payment":
+		if isStaffUser {
+			category = "platform_payments"
+		} else {
+			category = "billing"
+		}
 	case "branding", "logo", "banner":
 		category = "branding"
 	case "articles", "article", "blog":
 		category = "articles"
 	case "support", "tickets", "ticket", "screenshots", "screenshot":
 		category = "support"
-	case "billing", "subscription", "payment", "proof":
+	case "billing", "subscription", "proof":
 		category = "billing"
 	default:
 		category = "products"
 	}
 
-	isPlatformScope := category == "platform_partners" || category == "platform_branding"
+	isPlatformScope := category == "platform_partners" || category == "platform_branding" || category == "platform_payments"
 
 	// Check if store is suspended/banned: allow support & billing proofs, block catalog changes
 	if store, ok := c.Locals("store").(*models.Store); ok && store != nil {
@@ -195,14 +211,9 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	uniqueID := uuid.New().String()
 	var objectKey string
 
-	var userID uint = 0
-	var isStaffUser bool = false
+	// Re-verify user ID and staff role if locals were updated
 	if userVal, ok := c.Locals("user").(*models.User); ok && userVal != nil {
 		userID = userVal.ID
-		// SECURITY (N-09): gunakan whitelist peran platform terpusat, bukan
-		// daftar string manual. Sebelumnya "compliance", "finance" dan
-		// "content" tidak dianggap staf, sehingga staf sah bisa ikut terkena
-		// jalur kuota toko / dianggap merchant.
 		isStaffUser = middleware.IsPlatformStaffRole(userVal.PlatformRole)
 	}
 
@@ -267,6 +278,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	// Best Practice Folder Structure (S3-Ready Key Hierarchy):
 	// - Platform Partners: platform/partners/rekber/YYYY/MM/uuid.ext
 	// - Platform Branding: platform/branding/YYYY/MM/uuid.ext
+	// - Platform Payments (QRIS): platform/payments/qris/YYYY/MM/uuid.ext
 	// - Support Tickets (Staff): support/staff/YYYY/MM/uuid.ext
 	// - Support Tickets (Tickets): support/tickets/YYYY/MM/uuid.ext
 	// - Billing & Invoices: stores/:id/billing/YYYY/MM/uuid.ext or billing/users/:id/...
@@ -276,6 +288,8 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		objectKey = fmt.Sprintf("platform/partners/rekber/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
 	} else if category == "platform_branding" {
 		objectKey = fmt.Sprintf("platform/branding/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
+	} else if category == "platform_payments" {
+		objectKey = fmt.Sprintf("platform/payments/qris/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
 	} else if category == "support" {
 		if isStaffUser {
 			objectKey = fmt.Sprintf("support/staff/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
@@ -372,8 +386,14 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 
 	// Anti-IDOR Ownership Verification:
 	// A store can only delete objects prefixed with "stores/{store_id}/"
+	// Platform staff can manage and delete objects prefixed with "platform/"
+	var isStaffDelete bool = false
+	if userVal, ok := c.Locals("user").(*models.User); ok && userVal != nil {
+		isStaffDelete = middleware.IsPlatformStaffRole(userVal.PlatformRole)
+	}
+
 	store, ok := c.Locals("store").(*models.Store)
-	if !ok || store == nil {
+	if !isStaffDelete && (!ok || store == nil) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Akses ditolak: Anda harus memiliki toko aktif.",
@@ -402,12 +422,23 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		}
 	}
 
-	expectedPrefix := fmt.Sprintf("stores/%d", store.ID)
+	var expectedPrefix string
+	if isStaffDelete && strings.HasPrefix(ownerScopedKey, "platform/") {
+		expectedPrefix = "platform"
+	} else if store != nil && store.ID > 0 {
+		expectedPrefix = fmt.Sprintf("stores/%d", store.ID)
+	} else {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses tidak sah untuk menghapus file ini.",
+		})
+	}
+
 	targetPath, ok := services.ResolveInsidePrefix(absRoot, ownerScopedKey, expectedPrefix)
 	if !ok {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
-			"message": "Akses tidak sah: Anda hanya diizinkan menghapus file milik toko Anda sendiri.",
+			"message": "Akses tidak sah: Anda hanya diizinkan menghapus file dalam cakupan otoritas Anda.",
 		})
 	}
 

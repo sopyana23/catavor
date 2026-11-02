@@ -1481,6 +1481,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const rekberLogoInputRef = useRef<HTMLInputElement | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [copiedAdsTxt, setCopiedAdsTxt] = useState(false);
+  const savedQrisImageRef = useRef<string>('');
 
   // Selected item Modals & Bottom Sheets
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
@@ -2453,6 +2454,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           const setData = await setRes.json();
           if (setData.data) {
             const d = setData.data;
+            savedQrisImageRef.current = (d.payment_qris_manual_image || '').trim();
             const stripIcons = (s?: string) => (s || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/^[ \t]+/gm, '');
             setGoogleSettings(prev => ({
               ...prev,
@@ -3452,6 +3454,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         body: JSON.stringify(payload),
       });
       if (res.ok) {
+        savedQrisImageRef.current = (googleSettings.payment_qris_manual_image || '').trim();
         showToast('Konfigurasi sistem pembayaran berhasil disimpan!', 'success');
         loadData();
       } else {
@@ -3471,12 +3474,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       showToast('Ukuran berkas QRIS maksimal 5MB', 'error');
       return;
     }
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+    if (!validTypes.includes(file.type.toLowerCase()) && !file.name.match(/\.(png|jpe?g|webp|svg)$/i)) {
+      showToast('Format berkas harus berupa gambar (PNG, JPG, WebP, SVG)', 'error');
+      return;
+    }
     setIsUploadingQRISImage(true);
     try {
       const formData = new FormData();
       formData.append('image', file);
-      formData.append('category', 'billing');
-      const res = await fetch('/api/storage/upload?category=billing', {
+      formData.append('file', file);
+      formData.append('category', 'platform_qris');
+      const res = await fetch('/api/storage/upload?category=platform_qris', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
@@ -3489,7 +3498,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             ...prev,
             payment_qris_manual_image: uploadedUrl,
           }));
-          showToast('Gambar QRIS berhasil diunggah!', 'success');
+          showToast('Gambar QRIS berhasil diunggah! Pratinjau diperbarui (klik Simpan untuk menerapkan)', 'success');
         }
       } else {
         const errData = await res.json().catch(() => null);
@@ -9860,101 +9869,160 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           </div>
 
                           {/* QRIS Image Upload & Preview */}
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                              Gambar / Kode QRIS Merchant:
-                            </label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                              <div style={{
-                                width: '84px',
-                                height: '84px',
-                                borderRadius: '0.65rem',
-                                overflow: 'hidden',
-                                flexShrink: 0
-                              }}>
-                                <SafeImage
-                                  src={googleSettings.payment_qris_manual_image}
-                                  alt="QRIS Merchant"
-                                  emptyLabel="Belum Ada QRIS"
-                                  emptySubLabel="Unggah berkas QRIS"
-                                  errorLabel="QRIS Rusak"
-                                  errorSubLabel="Tidak terbaca"
-                                  compact={true}
-                                  objectFit="contain"
-                                  isDark={isDark}
-                                  title={googleSettings.payment_qris_manual_image ? "Pratinjau Gambar QRIS" : "QRIS belum diunggah"}
-                                />
-                              </div>
-                              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                                <input
-                                  type="text"
-                                  value={googleSettings.payment_qris_manual_image || ''}
-                                  onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: e.target.value }))}
-                                  placeholder="Unggah file atau masukkan URL gambar..."
-                                  style={{
-                                    width: '100%',
-                                    padding: '0.5rem 0.75rem',
-                                    borderRadius: '0.45rem',
-                                    backgroundColor: theme.cardAlt,
-                                    border: `1px solid ${theme.border}`,
-                                    color: theme.textPrimary,
-                                    fontSize: '0.78rem'
-                                  }}
-                                />
-                                <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
-                                  <label style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.35rem',
-                                    padding: '0.45rem 0.85rem',
-                                    borderRadius: '0.45rem',
-                                    backgroundColor: theme.surface,
-                                    border: `1px solid ${theme.border}`,
-                                    color: theme.textPrimary,
-                                    fontSize: '0.74rem',
-                                    fontWeight: 700,
-                                    cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
-                                    width: 'fit-content'
-                                  }}>
-                                    <Upload size={14} color="#0284c7" />
-                                    <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File QRIS'}</span>
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      disabled={isUploadingQRISImage}
-                                      onChange={(e) => {
-                                        const f = e.target.files?.[0];
-                                        if (f) handleUploadQRISImage(f);
-                                      }}
-                                      style={{ display: 'none' }}
-                                    />
+                          {(() => {
+                            const isQrisStaged = (googleSettings.payment_qris_manual_image || '').trim() !== savedQrisImageRef.current;
+                            return (
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                                    <span>Gambar / Kode QRIS Merchant:</span>
+                                    {isQrisStaged ? (
+                                      <span style={{
+                                        fontSize: '0.67rem',
+                                        fontWeight: 800,
+                                        padding: '0.12rem 0.5rem',
+                                        borderRadius: '0.35rem',
+                                        backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                        color: '#d97706',
+                                        border: '1px solid rgba(245, 158, 11, 0.3)'
+                                      }}>
+                                        Draf Belum Disimpan
+                                      </span>
+                                    ) : googleSettings.payment_qris_manual_image ? (
+                                      <span style={{
+                                        fontSize: '0.67rem',
+                                        fontWeight: 800,
+                                        padding: '0.12rem 0.5rem',
+                                        borderRadius: '0.35rem',
+                                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                        color: '#10b981',
+                                        border: '1px solid rgba(16, 185, 129, 0.25)'
+                                      }}>
+                                        Tersimpan Aktif
+                                      </span>
+                                    ) : null}
                                   </label>
-                                  {googleSettings.payment_qris_manual_image && (
+
+                                  {isQrisStaged && (
                                     <button
                                       type="button"
-                                      onClick={() => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: '' }))}
+                                      onClick={() => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: savedQrisImageRef.current }))}
                                       style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        color: theme.textSecondary,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        padding: '0.15rem 0.4rem',
+                                        textDecoration: 'underline'
+                                      }}
+                                      title="Kembalikan ke gambar QRIS yang terakhir disimpan"
+                                    >
+                                      Batal / Kembalikan ke Awal
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                                  <div style={{
+                                    width: '84px',
+                                    height: '84px',
+                                    borderRadius: '0.65rem',
+                                    overflow: 'hidden',
+                                    flexShrink: 0
+                                  }}>
+                                    <SafeImage
+                                      src={googleSettings.payment_qris_manual_image}
+                                      alt="QRIS Merchant"
+                                      emptyLabel="Belum Ada QRIS"
+                                      emptySubLabel="Unggah berkas QRIS"
+                                      errorLabel="QRIS Rusak"
+                                      errorSubLabel="Tidak terbaca"
+                                      compact={true}
+                                      objectFit="contain"
+                                      isDark={isDark}
+                                      title={googleSettings.payment_qris_manual_image ? "Pratinjau Gambar QRIS" : "QRIS belum diunggah"}
+                                    />
+                                  </div>
+                                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                                    <input
+                                      type="text"
+                                      value={googleSettings.payment_qris_manual_image || ''}
+                                      onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: e.target.value }))}
+                                      placeholder="Unggah berkas QRIS atau tempel URL gambar..."
+                                      style={{
+                                        width: '100%',
+                                        padding: '0.5rem 0.75rem',
+                                        borderRadius: '0.45rem',
+                                        backgroundColor: theme.cardAlt,
+                                        border: `1px solid ${theme.border}`,
+                                        color: theme.textPrimary,
+                                        fontSize: '0.78rem'
+                                      }}
+                                    />
+                                    <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                      <label style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         gap: '0.35rem',
                                         padding: '0.45rem 0.85rem',
                                         borderRadius: '0.45rem',
-                                        backgroundColor: 'transparent',
+                                        backgroundColor: theme.surface,
                                         border: `1px solid ${theme.border}`,
-                                        color: '#ef4444',
+                                        color: theme.textPrimary,
                                         fontSize: '0.74rem',
                                         fontWeight: 700,
-                                        cursor: 'pointer'
-                                      }}
-                                    >
-                                      <Trash2 size={13} />
-                                      <span>Hapus</span>
-                                    </button>
-                                  )}
+                                        cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
+                                        width: 'fit-content'
+                                      }}>
+                                        <Upload size={14} color="#0284c7" />
+                                        <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File QRIS'}</span>
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          disabled={isUploadingQRISImage}
+                                          onChange={(e) => {
+                                            const f = e.target.files?.[0];
+                                            if (f) handleUploadQRISImage(f);
+                                            e.target.value = '';
+                                          }}
+                                          style={{ display: 'none' }}
+                                        />
+                                      </label>
+                                      {googleSettings.payment_qris_manual_image && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: '' }))}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem',
+                                            padding: '0.45rem 0.85rem',
+                                            borderRadius: '0.45rem',
+                                            backgroundColor: 'transparent',
+                                            border: `1px solid ${theme.border}`,
+                                            color: '#ef4444',
+                                            fontSize: '0.74rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <Trash2 size={13} />
+                                          <span>Hapus</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                    {isQrisStaged && (
+                                      <div style={{ fontSize: '0.71rem', color: '#d97706', lineHeight: 1.35, marginTop: '0.15rem' }}>
+                                        Gambar QRIS berada dalam status pratinjau draf. Klik tombol <strong>"Simpan Pengaturan Pembayaran"</strong> di bawah untuk menerapkan perubahan secara permanen ke sistem.
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Right: Bank Details & Unique Code Notice */}

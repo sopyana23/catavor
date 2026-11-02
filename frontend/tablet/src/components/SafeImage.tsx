@@ -21,15 +21,17 @@ export interface SafeImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageEl
   errorSubLabel?: string;
   /** Ikon kustom untuk kondisi error (JSX Element atau komponen Icon) */
   errorIcon?: React.ReactNode | React.ElementType;
-  /** Tampilkan teks keterangan atau cukup ikon (berguna pada thumbnail ringkas) */
+  /** Ukuran ikon kustom (opsional, jika tidak disetel akan dihitung otomatis sesuai dimensi kontainer) */
+  iconSize?: number;
+  /** Tampilkan teks keterangan di bawah ikon (default: false, hanya aktif jika kontainer >= 160x130px) */
   showLabel?: boolean;
-  /** Mode ringkas: hanya tampilkan ikon dengan tooltip native title */
+  /** Mode ringkas: hanya tampilkan ikon dengan tooltip native title (default: true) */
   compact?: boolean;
   /** Tipe object-fit untuk gambar */
   objectFit?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down';
   /** Mode tema gelap / terang */
   isDark?: boolean;
-  /** Izinkan tombol muat ulang saat gambar gagal terbaca */
+  /** Izinkan muat ulang saat gambar gagal terbaca */
   allowRetry?: boolean;
   /** Kustom styling untuk pembungkus */
   wrapperStyle?: React.CSSProperties;
@@ -66,10 +68,10 @@ export const cleanImageSrc = (s?: string | null): string | null => {
 };
 
 /**
- * SafeImage: Komponen Standar Industri untuk Penampil Gambar Catavor (Tablet Native)
+ * SafeImage: Komponen Standar Industri untuk Penampil Gambar Catavor
  * 
  * Mengelola 4 fase gambar secara elegan tanpa layout shift:
- * 1. Empty State: Belum diunggah / URL kosong (Ikon ImageIcon + Dashed Muted Container)
+ * 1. Empty State (Default): Belum diunggah / URL kosong (Ikon ImageIcon + Dashed Muted Container)
  * 2. Loading State: Menunggu pemuatan gambar (Skeleton Muted Pulse)
  * 3. Error State: Gambar rusak / 404 / format korup (Ikon ImageOff + Soft Red Border)
  * 4. Success State: Gambar berhasil ter-render dengan object-fit terukur
@@ -88,13 +90,15 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   errorText: errorTextProp,
   errorSubLabel = 'Berkas rusak atau tautan terputus',
   errorIcon,
-  showLabel = true,
-  compact = false,
+  iconSize,
+  showLabel = false,
+  compact = true,
   objectFit = 'cover',
   isDark = false,
   allowRetry = true,
   wrapperStyle,
   wrapperClassName = '',
+  title: titleProp,
   style,
   className = '',
   onLoad,
@@ -106,7 +110,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   const finalErrorLabel = errorLabel || errorTextProp || 'Gambar Rusak';
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [measuredSmall, setMeasuredSmall] = useState<boolean>(false);
+  const [measuredDim, setMeasuredDim] = useState<{ width: number; height: number } | null>(null);
 
   const validInitialSrc = cleanImageSrc(src) || cleanImageSrc(fallbackSrc);
   const [currentSrc, setCurrentSrc] = useState<string | null>(validInitialSrc);
@@ -118,16 +122,14 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   });
 
   // Dynamic dimension observer: mendeteksi ukuran kontainer induk secara akurat
-  // agar thumbnail (<= 96px) otomatis beroperasi dalam mode compact anti-overflow.
+  // agar skala ikon proporsional dan teks tidak pernah merusak kontainer kecil
   useEffect(() => {
     if (!containerRef.current) return;
     const checkDim = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        if ((rect.width > 0 && rect.width <= 96) || (rect.height > 0 && rect.height <= 96)) {
-          setMeasuredSmall(true);
-        } else if (rect.width > 96 && rect.height > 96) {
-          setMeasuredSmall(false);
+        if (rect.width > 0 && rect.height > 0) {
+          setMeasuredDim({ width: rect.width, height: rect.height });
         }
       }
     };
@@ -180,6 +182,14 @@ export const SafeImage: React.FC<SafeImageProps> = ({
     setRetryKey(prev => prev + 1);
   };
 
+  const handleContainerClick = (e: React.MouseEvent) => {
+    if (onPreview) {
+      onPreview();
+    } else if (status === 'error' && allowRetry) {
+      handleRetry(e);
+    }
+  };
+
   // Kalkulasi URL dengan cache buster jika retry dilakukan
   const resolvedSrc = currentSrc && retryKey > 0
     ? `${currentSrc}${currentSrc.includes('?') ? '&' : '?'}_retry=${retryKey}`
@@ -187,12 +197,12 @@ export const SafeImage: React.FC<SafeImageProps> = ({
 
   // Palette warna elegan anti-AI slop
   const emptyBg = isDark ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc';
-  const emptyBorder = isDark ? 'rgba(255, 255, 255, 0.14)' : '#cbd5e1';
+  const emptyBorder = isDark ? 'rgba(255, 255, 255, 0.16)' : '#cbd5e1';
   const emptyTextColor = isDark ? '#94a3b8' : '#64748b';
   const emptySubColor = isDark ? '#64748b' : '#94a3b8';
 
   const errorBg = isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.04)';
-  const errorBorder = isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(239, 68, 68, 0.25)';
+  const errorBorder = isDark ? 'rgba(239, 68, 68, 0.45)' : 'rgba(239, 68, 68, 0.35)';
   const errorTextColor = isDark ? '#f87171' : '#dc2626';
   const errorSubColor = isDark ? '#cbd5e1' : '#64748b';
 
@@ -207,12 +217,12 @@ export const SafeImage: React.FC<SafeImageProps> = ({
     boxSizing: 'border-box',
     width: '100%',
     height: '100%',
-    cursor: onPreview ? 'pointer' : undefined,
+    cursor: onPreview ? 'pointer' : (status === 'error' && allowRetry ? 'pointer' : undefined),
     userSelect: 'none',
     ...wrapperStyle
   };
 
-  // Defensive Guard: Deteksi ukuran thumbnail agar teks tidak pernah merusak / bertumpuk di kontainer kecil
+  // Defensive Guard: Deteksi ukuran thumbnail & kontainer agar teks tidak pernah merusak / bertumpuk
   const parseDimension = (val: any): number => {
     if (typeof val === 'number') return val;
     if (typeof val === 'string') {
@@ -221,26 +231,41 @@ export const SafeImage: React.FC<SafeImageProps> = ({
     }
     return 999;
   };
-  const isSmallExplicit = (
-    parseDimension(wrapperStyle?.width) <= 96 ||
-    parseDimension(wrapperStyle?.height) <= 96 ||
-    parseDimension(style?.width) <= 96 ||
-    parseDimension(style?.height) <= 96
-  );
-  const isEffectivelyCompact = compact || !showLabel || isSmallExplicit || measuredSmall;
+
+  const explicitW = Math.min(parseDimension(wrapperStyle?.width), parseDimension(style?.width));
+  const explicitH = Math.min(parseDimension(wrapperStyle?.height), parseDimension(style?.height));
+  const effW = measuredDim?.width || explicitW;
+  const effH = measuredDim?.height || explicitH;
+  const minDim = Math.min(effW, effH);
+
+  // Ukuran ikon adaptif proporsional
+  const getIconSize = (): number => {
+    if (typeof iconSize === 'number' && iconSize > 0) return iconSize;
+    if (minDim <= 32) return 14;
+    if (minDim <= 48) return 18;
+    if (minDim <= 76) return 22;
+    if (minDim <= 120) return 24;
+    if (minDim <= 180) return 28;
+    return 32;
+  };
+
+  const activeIconSize = getIconSize();
+
+  // Hanya izinkan teks muncul jika user secara eksplisit meminta showLabel={true} DAN kontainer memiliki ruang lapang
+  const canShowLabel = showLabel && !compact && effW >= 160 && effH >= 130;
 
   const renderEmptyIcon = () => {
-    if (!emptyIcon) return <ImageIcon size={isEffectivelyCompact ? 20 : 26} strokeWidth={1.75} />;
+    if (!emptyIcon) return <ImageIcon size={activeIconSize} strokeWidth={1.75} />;
     if (React.isValidElement(emptyIcon)) return emptyIcon;
     const IconComp = emptyIcon as React.ElementType;
-    return <IconComp size={isEffectivelyCompact ? 20 : 26} strokeWidth={1.75} />;
+    return <IconComp size={activeIconSize} strokeWidth={1.75} />;
   };
 
   const renderErrorIcon = () => {
-    if (!errorIcon) return <ImageOff size={isEffectivelyCompact ? 20 : 24} strokeWidth={1.75} />;
+    if (!errorIcon) return <ImageOff size={activeIconSize} strokeWidth={1.75} />;
     if (React.isValidElement(errorIcon)) return errorIcon;
     const IconComp = errorIcon as React.ElementType;
-    return <IconComp size={isEffectivelyCompact ? 20 : 24} strokeWidth={1.75} />;
+    return <IconComp size={activeIconSize} strokeWidth={1.75} />;
   };
 
   if (status === 'empty') {
@@ -253,16 +278,16 @@ export const SafeImage: React.FC<SafeImageProps> = ({
           backgroundColor: emptyBg,
           border: `1px dashed ${emptyBorder}`,
           borderRadius: wrapperStyle?.borderRadius || '0.75rem',
-          padding: isEffectivelyCompact ? '0.2rem' : '0.75rem'
+          padding: canShowLabel ? '0.75rem' : '0.25rem'
         }}
-        title={isEffectivelyCompact ? `${finalEmptyLabel} (${emptySubLabel})` : undefined}
-        onClick={onPreview}
+        title={titleProp || `${finalEmptyLabel}${emptySubLabel ? ` (${emptySubLabel})` : ''}`}
+        onClick={handleContainerClick}
       >
-        <div style={{ color: emptyTextColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: emptyTextColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {renderEmptyIcon()}
         </div>
-        {!isEffectivelyCompact && (
-          <div style={{ marginTop: '0.4rem', textAlign: 'center', maxWidth: '90%', overflow: 'hidden' }}>
+        {canShowLabel && (
+          <div style={{ marginTop: '0.4rem', textAlign: 'center', maxWidth: '85%', overflow: 'hidden' }}>
             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: emptyTextColor, lineHeight: 1.25, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
               {finalEmptyLabel}
             </div>
@@ -287,16 +312,16 @@ export const SafeImage: React.FC<SafeImageProps> = ({
           backgroundColor: errorBg,
           border: `1px solid ${errorBorder}`,
           borderRadius: wrapperStyle?.borderRadius || '0.75rem',
-          padding: isEffectivelyCompact ? '0.2rem' : '0.75rem'
+          padding: canShowLabel ? '0.75rem' : '0.25rem'
         }}
-        title={isEffectivelyCompact ? `${finalErrorLabel} (${errorSubLabel})` : undefined}
-        onClick={onPreview}
+        title={titleProp || `${finalErrorLabel}${errorSubLabel ? ` (${errorSubLabel})` : ''}${allowRetry ? ' (Klik untuk muat ulang)' : ''}`}
+        onClick={handleContainerClick}
       >
-        <div style={{ color: errorTextColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: errorTextColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {renderErrorIcon()}
         </div>
-        {!isEffectivelyCompact && (
-          <div style={{ marginTop: '0.35rem', textAlign: 'center', maxWidth: '90%', overflow: 'hidden' }}>
+        {canShowLabel && (
+          <div style={{ marginTop: '0.35rem', textAlign: 'center', maxWidth: '85%', overflow: 'hidden' }}>
             <div style={{ fontSize: '0.74rem', fontWeight: 800, color: errorTextColor, lineHeight: 1.25, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
               {finalErrorLabel}
             </div>
@@ -358,7 +383,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
             color: emptyTextColor
           }}
         >
-          <ImageIcon size={isEffectivelyCompact ? 18 : 24} strokeWidth={1.5} className="animate-pulse" />
+          <ImageIcon size={activeIconSize} strokeWidth={1.5} className="animate-pulse" />
         </div>
       )}
       <img
