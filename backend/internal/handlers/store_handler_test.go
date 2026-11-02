@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"strings"
@@ -133,6 +134,8 @@ func storeApp(t *testing.T, db *gorm.DB) *fiber.App {
 	app.Get("/stores/:slug", h.ShowStore)
 	app.Get("/stores/check-slug/:slug", h.CheckSlug)
 	app.Put("/stores/profile", actor, h.UpdateStore)
+	app.Post("/stores/rename-master-option", actor, h.RenameMasterOption)
+	app.Post("/stores/delete-master-option", actor, h.DeleteMasterOption)
 	app.Delete("/stores/:id", actor, h.DeleteStore)
 	app.Get("/admin/stores", actor, h.AdminListStores)
 	app.Get("/admin/stores/:id", actor, h.AdminGetStoreDetail)
@@ -482,6 +485,23 @@ func TestStoreUpdateProfile_SQLite(t *testing.T) {
 			t.Errorf("slug = %q, want toko-baru-ku", got.Slug)
 		}
 	})
+
+	t.Run("ganti_logo_lama_terhapus_dari_storage", func(t *testing.T) {
+		oldLogo := fmt.Sprintf("http://localhost:8000/storage/stores/%d/branding/2026/11/old_logo.jpg", own.ID)
+		db.Model(&models.Store{}).Where("id = ?", own.ID).Update("store_logo_url", oldLogo)
+		newLogo := fmt.Sprintf("http://localhost:8000/storage/stores/%d/branding/2026/11/new_logo.jpg", own.ID)
+		code, _ := storeReq(t, app, "PUT", "/stores/profile", fmt.Sprintf(`{"store_logo_url":"%s"}`, newLogo), withStore("owner", "toko-baru-ku"))
+		if code != 200 {
+			t.Fatalf("status = %d, want 200", code)
+		}
+		var got models.Store
+		if err := db.First(&got, own.ID).Error; err != nil {
+			t.Fatalf("reload store: %v", err)
+		}
+		if got.StoreLogoURL != newLogo {
+			t.Errorf("store_logo_url = %q, want %q", got.StoreLogoURL, newLogo)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -780,4 +800,82 @@ func TestDestructiveContractCompatibility(t *testing.T) {
 		t.Errorf("expected phrase 'HAPUS AKUN SAYA' from confirmation alias, got %q", phrase)
 	}
 }
+
+func TestStoreMasterOptions_Transaction_SQLite(t *testing.T) {
+	db := newTestDB(t)
+	app := storeApp(t, db)
+	own := seedStore(t, db, 10, "toko-opsi", "Toko Opsi")
+
+	withStore := func(actor, slug string) map[string]string {
+		return map[string]string{
+			"X-Test-Actor":      actor,
+			"X-Test-Store-Slug": slug,
+		}
+	}
+
+	// Seed product with initial habitat
+	prod := models.Product{
+		StoreID: own.ID,
+		Name:    "Burung Kutilang",
+		Habitat: "Hutan Bambu",
+	}
+	if err := db.Create(&prod).Error; err != nil {
+		t.Fatalf("seed product: %v", err)
+	}
+
+	// Update store master habitats
+	own.MasterHabitats = appendJSONString(own.MasterHabitats, "Hutan Bambu")
+	db.Save(&own)
+
+	// Test RenameMasterOption
+	t.Run("rename_master_option_atomik", func(t *testing.T) {
+		payload := `{"field":"habitat","old_value":"Hutan Bambu","new_value":"Hutan Tropis"}`
+		code, resp := storeReq(t, app, "POST", "/stores/rename-master-option", payload, withStore("owner", "toko-opsi"))
+		if code != 200 {
+			t.Fatalf("status = %d, want 200 (resp: %v)", code, resp)
+		}
+
+		var updatedProd models.Product
+		if err := db.First(&updatedProd, prod.ID).Error; err != nil {
+			t.Fatalf("reload product: %v", err)
+		}
+		if updatedProd.Habitat != "Hutan Tropis" {
+			t.Errorf("product habitat = %q, want 'Hutan Tropis'", updatedProd.Habitat)
+		}
+
+		var updatedStore models.Store
+		if err := db.First(&updatedStore, own.ID).Error; err != nil {
+			t.Fatalf("reload store: %v", err)
+		}
+		if !strings.Contains(string(updatedStore.MasterHabitats), "Hutan Tropis") {
+			t.Errorf("store master_habitats does not contain 'Hutan Tropis'")
+		}
+	})
+
+	// Test DeleteMasterOption with replacement
+	t.Run("delete_master_option_atomik_dengan_replacement", func(t *testing.T) {
+		payload := `{"field":"habitat","value":"Hutan Tropis","replacement_option":"Hutan Lindung"}`
+		code, resp := storeReq(t, app, "POST", "/stores/delete-master-option", payload, withStore("owner", "toko-opsi"))
+		if code != 200 {
+			t.Fatalf("status = %d, want 200 (resp: %v)", code, resp)
+		}
+
+		var updatedProd models.Product
+		if err := db.First(&updatedProd, prod.ID).Error; err != nil {
+			t.Fatalf("reload product: %v", err)
+		}
+		if updatedProd.Habitat != "Hutan Lindung" {
+			t.Errorf("product habitat = %q, want 'Hutan Lindung'", updatedProd.Habitat)
+		}
+
+		var updatedStore models.Store
+		if err := db.First(&updatedStore, own.ID).Error; err != nil {
+			t.Fatalf("reload store: %v", err)
+		}
+		if strings.Contains(string(updatedStore.MasterHabitats), "Hutan Tropis") {
+			t.Errorf("store master_habitats still contains 'Hutan Tropis' after delete")
+		}
+	})
+}
+
 

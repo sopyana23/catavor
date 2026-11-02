@@ -1010,3 +1010,58 @@ func TestProducts_PopularitySorting_SQLite(t *testing.T) {
 		}
 	})
 }
+
+func TestCategoryDestroy_Transaction_SQLite(t *testing.T) {
+	db := newTestDB(t)
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	catH := NewCategoryHandler(db)
+
+	store := models.Store{UserID: 1, Slug: "toko-kategori", StoreTitle: "Toko Kategori"}
+	if err := db.Create(&store).Error; err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+
+	app.Delete("/api/categories/:id", func(c *fiber.Ctx) error {
+		c.Locals("store", &store)
+		return catH.Destroy(c)
+	})
+
+	cat := models.Category{
+		StoreID:     store.ID,
+		Name:        "Burung Kicau",
+		Slug:        "burung-kicau",
+		ProductType: "fauna",
+	}
+	if err := db.Create(&cat).Error; err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+
+	prod := models.Product{
+		StoreID:    store.ID,
+		CategoryID: &cat.ID,
+		Name:       "Murai Batu",
+	}
+	if err := db.Create(&prod).Error; err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+
+	r := call(t, app, "DELETE", fmt.Sprintf("/api/categories/%d", cat.ID), nil)
+	if r.Status != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (%s)", r.Status, r.Raw)
+	}
+
+	// Verify category is deleted
+	var checkCat models.Category
+	if err := db.First(&checkCat, cat.ID).Error; err == nil {
+		t.Errorf("category still exists after destroy")
+	}
+
+	// Verify product category_id is detached (NULL)
+	var checkProd models.Product
+	if err := db.First(&checkProd, prod.ID).Error; err != nil {
+		t.Fatalf("reload product: %v", err)
+	}
+	if checkProd.CategoryID != nil {
+		t.Errorf("product category_id = %v, want nil", checkProd.CategoryID)
+	}
+}

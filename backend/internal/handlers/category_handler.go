@@ -278,10 +278,15 @@ func (h *CategoryHandler) Destroy(c *fiber.Ctx) error {
 		})
 	}
 
-	// Detach products linked to this category
-	_ = h.db.Model(&models.Product{}).Where("category_id = ?", category.ID).Update("category_id", nil).Error
+	// ACID Atomic Database Transaction: Detach products and delete category (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Product{}).Where("category_id = ?", category.ID).Update("category_id", nil).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&category).Error
+	})
 
-	if err := h.db.Delete(&category).Error; err != nil {
+	if txErr != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal menghapus kategori.",

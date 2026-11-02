@@ -1080,14 +1080,25 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		})
 	}
 
+	var filesToDelete []string
+
 	if val, ok := payload["store_title"].(string); ok {
 		store.StoreTitle = security.SanitizePlainText(val, 255)
 	}
 	if val, ok := payload["store_slogan"].(string); ok {
 		store.StoreSlogan = security.SanitizePlainText(val, 500)
 	}
+	oldBanner := store.PromoBanner
 	if val, ok := payload["promo_banner"].(string); ok {
-		store.PromoBanner = security.SanitizeRichText(val, 2000)
+		cleanBanner := security.SanitizeRichText(val, 2000)
+		if cleanBanner != oldBanner {
+			// Zero Orphan Objects: catat berkas banner lama untuk dihapus dari Cloudflare R2 / storage
+			// HANYA SETELAH transaksi database berhasil di-commit (AGENTS.md Rule 10).
+			if oldBanner != "" && strings.Contains(oldBanner, fmt.Sprintf("stores/%d/branding/", store.ID)) {
+				filesToDelete = append(filesToDelete, oldBanner)
+			}
+			store.PromoBanner = cleanBanner
+		}
 	}
 	if val, ok := payload["whatsapp_contacts"]; ok {
 		if str, ok := val.(string); ok {
@@ -1101,8 +1112,17 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 	if val, ok := payload["official_website"].(string); ok {
 		store.OfficialWebsite = security.SanitizeURL(val)
 	}
+	oldLogo := store.StoreLogoURL
 	if val, ok := payload["store_logo_url"].(string); ok {
-		store.StoreLogoURL = security.SanitizeURL(val)
+		cleanLogoURL := security.SanitizeURL(val)
+		if cleanLogoURL != oldLogo {
+			// Zero Orphan Objects: catat berkas logo lama untuk dihapus dari Cloudflare R2 / storage
+			// HANYA SETELAH transaksi database berhasil di-commit (AGENTS.md Rule 10).
+			if oldLogo != "" && strings.Contains(oldLogo, fmt.Sprintf("stores/%d/branding/", store.ID)) {
+				filesToDelete = append(filesToDelete, oldLogo)
+			}
+			store.StoreLogoURL = cleanLogoURL
+		}
 	}
 	if val, ok := payload["store_theme"].(string); ok && val != "" {
 		store.StoreTheme = security.SanitizePlainText(val, 50)
@@ -1183,22 +1203,7 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		}
 	}
 
-	if err := h.db.Save(store).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal memperbarui profil toko.",
-		})
-	}
-
-	InvalidateStoreProfileCache(store.Slug)
-	if slugChanged {
-		InvalidateStoreProfileCache(oldSlug)
-	}
-
-	// Refresh store activity timestamp for active stores
-	services.TouchStoreActivity(h.db, store.ID)
-
-	// Record Activity Log
+	// Record Activity Log Metadata
 	userVal := c.Locals("user")
 	var userID *uint
 	actorName := "Pemilik Toko"
@@ -1219,22 +1224,57 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		desc = fmt.Sprintf("Pengaturan profil katalog '%s' diperbarui dan link username diubah dari '%s' menjadi '%s'.", store.StoreTitle, oldSlug, store.Slug)
 	}
 
-	services.RecordActivity(services.RecordActivityParams{
-		DB:          h.db,
-		StoreID:     &store.ID,
-		UserID:      userID,
-		ActorRole:   actorRole,
-		ActorName:   actorName,
-		ActorEmail:  actorEmail,
-		Action:      action,
-		Category:    "store",
-		EntityType:  "store",
-		EntityID:    &store.ID,
-		EntityTitle: store.StoreTitle,
-		Description: desc,
-		IPAddress:   c.IP(),
-		UserAgent:   c.Get("User-Agent"),
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(store).Error; err != nil {
+			return err
+		}
+
+		// Refresh store activity timestamp for active stores
+		services.TouchStoreActivity(tx, store.ID)
+
+		// Record Activity Log within the same transaction
+		services.RecordActivity(services.RecordActivityParams{
+			DB:          tx,
+			StoreID:     &store.ID,
+			UserID:      userID,
+			ActorRole:   actorRole,
+			ActorName:   actorName,
+			ActorEmail:  actorEmail,
+			Action:      action,
+			Category:    "store",
+			EntityType:  "store",
+			EntityID:    &store.ID,
+			EntityTitle: store.StoreTitle,
+			Description: desc,
+			IPAddress:   c.IP(),
+			UserAgent:   c.Get("User-Agent"),
+		})
+		return nil
 	})
+
+	if txErr != nil {
+		log.Error().Err(txErr).Uint("store_id", store.ID).Msg("store: gagal memperbarui profil katalog dalam DB transaction")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperbarui profil toko.",
+		})
+	}
+
+	InvalidateStoreProfileCache(store.Slug)
+	if slugChanged {
+		InvalidateStoreProfileCache(oldSlug)
+	}
+
+	// Multi-Layer Rollback: Berkas fisik lama di Cloudflare R2 / storage DIHAPUS HANYA
+	// setelah transaksi basis data berhasil di-commit (AGENTS.md Rule 10).
+	if len(filesToDelete) > 0 && h.storage != nil {
+		for _, f := range filesToDelete {
+			go func(fileToDel string, strg storage.StorageService) {
+				_, _ = services.HardDeleteFile(fileToDel, strg)
+			}(f, h.storage)
+		}
+	}
 
 	return c.JSON(fiber.Map{
 		"success":      true,
@@ -1335,36 +1375,40 @@ func (h *StoreHandler) RenameMasterOption(c *fiber.Ctx) error {
 	newVal := security.SanitizePlainText(req.NewValue, 100)
 	prodType := security.SanitizePlainText(req.ProductType, 50)
 
-	switch req.Field {
-	case "class", "master_classes", "category", "master_categories":
-		if IsSystemDefaultCategory(h.db, prodType, oldVal) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"success": false,
-				"message": fmt.Sprintf("Kategori '%s' adalah standar bawaan sistem dan tidak dapat diubah namanya.", oldVal),
-			})
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		switch req.Field {
+		case "class", "master_classes", "category", "master_categories":
+			if prodType != "" {
+				store.MasterCategories = replaceMasterCategory(tx, store.MasterCategories, prodType, oldVal, newVal)
+			}
+			store.MasterClasses = replaceJSONString(store.MasterClasses, oldVal, newVal)
+			if err := tx.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, oldVal).Update("class", newVal).Error; err != nil {
+				return err
+			}
+		case "habitat", "master_habitats":
+			store.MasterHabitats = replaceJSONString(store.MasterHabitats, oldVal, newVal)
+			if err := tx.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, oldVal).Update("habitat", newVal).Error; err != nil {
+				return err
+			}
+		case "conservation_status", "master_statuses":
+			store.MasterStatuses = replaceJSONString(store.MasterStatuses, oldVal, newVal)
+			if err := tx.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, oldVal).Update("conservation_status", newVal).Error; err != nil {
+				return err
+			}
+		case "shipping_coverage", "master_shipping_coverages":
+			store.MasterShippingCoverages = replaceJSONString(store.MasterShippingCoverages, oldVal, newVal)
 		}
-		if IsSystemDefaultCategory(h.db, prodType, newVal) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"success": false,
-				"message": fmt.Sprintf("Kategori '%s' sudah merupakan nama standar bawaan sistem.", newVal),
-			})
-		}
-		if prodType != "" {
-			store.MasterCategories = replaceMasterCategory(h.db, store.MasterCategories, prodType, oldVal, newVal)
-		}
-		store.MasterClasses = replaceJSONString(store.MasterClasses, oldVal, newVal)
-		h.db.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, oldVal).Update("class", newVal)
-	case "habitat", "master_habitats":
-		store.MasterHabitats = replaceJSONString(store.MasterHabitats, oldVal, newVal)
-		h.db.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, oldVal).Update("habitat", newVal)
-	case "conservation_status", "master_statuses":
-		store.MasterStatuses = replaceJSONString(store.MasterStatuses, oldVal, newVal)
-		h.db.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, oldVal).Update("conservation_status", newVal)
-	case "shipping_coverage", "master_shipping_coverages":
-		store.MasterShippingCoverages = replaceJSONString(store.MasterShippingCoverages, oldVal, newVal)
-	}
 
-	h.db.Save(store)
+		return tx.Save(store).Error
+	})
+
+	if txErr != nil {
+		log.Error().Err(txErr).Uint("store_id", store.ID).Msg("store: gagal mengubah nama opsi master data dalam DB transaction")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperbarui opsi master data.",
+		})
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1398,36 +1442,53 @@ func (h *StoreHandler) DeleteMasterOption(c *fiber.Ctx) error {
 	val := strings.TrimSpace(req.Value)
 	replacement := strings.TrimSpace(req.ReplacementOption)
 
-	switch req.Field {
-	case "class", "master_classes", "category", "master_categories":
-		if IsSystemDefaultCategory(h.db, req.ProductType, val) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"success": false,
-				"message": fmt.Sprintf("Kategori '%s' adalah standar bawaan sistem dan tidak dapat dihapus.", val),
-			})
-		}
-		if req.ProductType != "" {
-			store.MasterCategories = removeMasterCategory(h.db, store.MasterCategories, req.ProductType, val)
-		}
-		store.MasterClasses = removeJSONString(store.MasterClasses, val)
-		if replacement != "" {
-			h.db.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, val).Update("class", replacement)
-		}
-	case "habitat", "master_habitats":
-		store.MasterHabitats = removeJSONString(store.MasterHabitats, val)
-		if replacement != "" {
-			h.db.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, val).Update("habitat", replacement)
-		}
-	case "conservation_status", "master_statuses":
-		store.MasterStatuses = removeJSONString(store.MasterStatuses, val)
-		if replacement != "" {
-			h.db.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, val).Update("conservation_status", replacement)
-		}
-	case "shipping_coverage", "master_shipping_coverages":
-		store.MasterShippingCoverages = removeJSONString(store.MasterShippingCoverages, val)
+	if (req.Field == "class" || req.Field == "master_classes" || req.Field == "category" || req.Field == "master_categories") && IsSystemDefaultCategory(h.db, req.ProductType, val) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Kategori '%s' adalah standar bawaan sistem dan tidak dapat dihapus.", val),
+		})
 	}
 
-	h.db.Save(store)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		switch req.Field {
+		case "class", "master_classes", "category", "master_categories":
+			if req.ProductType != "" {
+				store.MasterCategories = removeMasterCategory(tx, store.MasterCategories, req.ProductType, val)
+			}
+			store.MasterClasses = removeJSONString(store.MasterClasses, val)
+			if replacement != "" {
+				if err := tx.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, val).Update("class", replacement).Error; err != nil {
+					return err
+				}
+			}
+		case "habitat", "master_habitats":
+			store.MasterHabitats = removeJSONString(store.MasterHabitats, val)
+			if replacement != "" {
+				if err := tx.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, val).Update("habitat", replacement).Error; err != nil {
+					return err
+				}
+			}
+		case "conservation_status", "master_statuses":
+			store.MasterStatuses = removeJSONString(store.MasterStatuses, val)
+			if replacement != "" {
+				if err := tx.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, val).Update("conservation_status", replacement).Error; err != nil {
+					return err
+				}
+			}
+		case "shipping_coverage", "master_shipping_coverages":
+			store.MasterShippingCoverages = removeJSONString(store.MasterShippingCoverages, val)
+		}
+
+		return tx.Save(store).Error
+	})
+
+	if txErr != nil {
+		log.Error().Err(txErr).Uint("store_id", store.ID).Msg("store: gagal menghapus opsi master data dalam DB transaction")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghapus opsi master data.",
+		})
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,

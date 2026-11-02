@@ -18,6 +18,7 @@ import (
 	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog/log"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -1252,7 +1253,50 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 	product.ResubmittedAt = &now
 	product.ResubmitCount = product.ResubmitCount + 1
 
-	if err := h.db.Save(&product).Error; err != nil {
+	merchantNotif := models.Notification{
+		ID:            fmt.Sprintf("notif_resubmit_ack_%d_%d", product.ID, now.UnixNano()),
+		TargetType:    "single_store",
+		TargetID:      store.ID,
+		TargetName:    store.StoreTitle,
+		Title:         "Pengajuan Perbaikan Produk Terkirim",
+		Message:       fmt.Sprintf("Perbaikan data produk \"%s\" telah kami terima dan masuk dalam antrean peninjauan oleh tim kepatuhan.", product.Name),
+		Type:          "info",
+		Category:      "MODERASI",
+		ActionEnabled: false,
+		ActionType:    "none",
+		ActionLabel:   "",
+		ActionURL:     "",
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&product).Error; err != nil {
+			return err
+		}
+
+		// Update associated reports to 're_review'
+		var itemReports []models.Report
+		if err := tx.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports).Error; err != nil {
+			return err
+		}
+		for _, r := range itemReports {
+			noteUpdate := strings.TrimSpace(r.AdminNotes + fmt.Sprintf("\n[%s] Merchant telah mengajukan peninjauan ulang produk.", now.Format("02 Jan 2006 15:04 WIB")))
+			if err := tx.Model(&r).Updates(map[string]interface{}{
+				"status":      "re_review",
+				"admin_notes": noteUpdate,
+				"updated_at":  now,
+			}).Error; err != nil {
+				return err
+			}
+		}
+
+		return tx.Create(&merchantNotif).Error
+	})
+
+	if txErr != nil {
+		log.Error().Err(txErr).Uint("product_id", product.ID).Msg("product: gagal mengajukan peninjauan ulang dalam DB transaction")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mengajukan peninjauan ulang.",
@@ -1260,18 +1304,6 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 	}
 
 	InvalidateStoreProductsCache(store.ID)
-
-	// Update associated reports to 're_review'
-	var itemReports []models.Report
-	h.db.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports)
-	for _, r := range itemReports {
-		noteUpdate := strings.TrimSpace(r.AdminNotes + fmt.Sprintf("\n[%s] Merchant telah mengajukan peninjauan ulang produk.", now.Format("02 Jan 2006 15:04 WIB")))
-		h.db.Model(&r).Updates(map[string]interface{}{
-			"status":      "re_review",
-			"admin_notes": noteUpdate,
-			"updated_at":  now,
-		})
-	}
 	InvalidateReportMetricsCache()
 
 	// 1. Broadcast alert to platform admins (Superadmin only)
@@ -1295,24 +1327,7 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 		services.GetNotificationHub().Broadcast(&adminNotif)
 	}(product.ID, product.Name, store.StoreTitle)
 
-	// 2. Pure informational acknowledgement notification for merchant (no action buttons)
-	merchantNotif := models.Notification{
-		ID:            fmt.Sprintf("notif_resubmit_ack_%d_%d", product.ID, now.UnixNano()),
-		TargetType:    "single_store",
-		TargetID:      store.ID,
-		TargetName:    store.StoreTitle,
-		Title:         "Pengajuan Perbaikan Produk Terkirim",
-		Message:       fmt.Sprintf("Perbaikan data produk \"%s\" telah kami terima dan masuk dalam antrean peninjauan oleh tim kepatuhan.", product.Name),
-		Type:          "info",
-		Category:      "MODERASI",
-		ActionEnabled: false,
-		ActionType:    "none",
-		ActionLabel:   "",
-		ActionURL:     "",
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
-	_ = h.db.Create(&merchantNotif).Error
+	// 2. Broadcast acknowledgement notification to merchant
 	services.GetNotificationHub().Broadcast(&merchantNotif)
 
 	return c.JSON(fiber.Map{

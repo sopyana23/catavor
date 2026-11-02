@@ -781,20 +781,26 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		PaidAt:             paidAt,
 	}
 
-	if err := db.Create(&order).Error; err != nil {
-		return nil, nil, fmt.Errorf("gagal membuat invoice langganan: %w", err)
-	}
-
-	// Security Hardening: Only execute instant Upgrade/Renewal if order is 100% free / discount coupon
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
 	var quota *StoreQuotaInfo
 	if finalAmount == 0 {
-		var err error
-		quota, err = UpgradeStorePlan(db, storeID, planCode, durationMonths)
-		if err != nil {
-			return nil, nil, fmt.Errorf("gagal mengaktifkan paket: %w", err)
+		// Instant free activation: create order and upgrade store plan atomically
+		txErr := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Create(&order).Error; err != nil {
+				return err
+			}
+			var err error
+			quota, err = UpgradeStorePlan(tx, storeID, planCode, durationMonths)
+			return err
+		})
+		if txErr != nil {
+			return nil, nil, fmt.Errorf("gagal membuat dan mengaktifkan paket langganan: %w", txErr)
 		}
 	} else {
 		// Non-free orders require payment verification / admin approval before plan activation
+		if err := db.Create(&order).Error; err != nil {
+			return nil, nil, fmt.Errorf("gagal membuat invoice langganan: %w", err)
+		}
 		quota, _ = GetStoreQuotaInfo(db, storeID)
 	}
 
@@ -1035,13 +1041,8 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	activeFiles := make(map[string]bool)
 
 	registerURL := func(rawURL string) {
-		if strings.TrimSpace(rawURL) == "" {
-			return
-		}
-		idx := strings.Index(rawURL, "/storage/")
-		if idx != -1 {
-			relPath := rawURL[idx+len("/storage/"):]
-			cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
+		cleanKey := ExtractStorageKey(rawURL)
+		if cleanKey != "" {
 			localPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
 			activeFiles[normPath(localPath)] = true
 		}
@@ -1084,13 +1085,8 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	// 1b. Gather files belonging to recently soft-deleted products (72h retention) & moderated violation products (90d retention)
 	retainedFiles := make(map[string]bool)
 	registerRetainedURL := func(rawURL string) {
-		if strings.TrimSpace(rawURL) == "" {
-			return
-		}
-		idx := strings.Index(rawURL, "/storage/")
-		if idx != -1 {
-			relPath := rawURL[idx+len("/storage/"):]
-			cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
+		cleanKey := ExtractStorageKey(rawURL)
+		if cleanKey != "" {
 			localPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
 			retainedFiles[normPath(localPath)] = true
 		}
@@ -1184,9 +1180,9 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 				cleanPath := filepath.Clean(path)
 				normClean := normPath(cleanPath)
 
-				// EXCLUDE non-catalog media (support tickets, chat attachments, billing receipts)
-				// Merchant cloud storage quota is STRICTLY for catalog products and store branding!
-				if strings.HasPrefix(normClean, supportPrefix) || strings.HasPrefix(normClean, billingPrefix) {
+				// EXCLUDE non-catalog media (support tickets, chat attachments, billing receipts, store branding/logo)
+				// Merchant cloud storage quota is STRICTLY for catalog product items!
+				if strings.HasPrefix(normClean, supportPrefix) || strings.HasPrefix(normClean, billingPrefix) || strings.HasPrefix(normClean, brandingPrefix) {
 					return nil
 				}
 
@@ -1209,8 +1205,8 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 					return nil
 				}
 
-				// Only count files strictly inside products/ or branding/
-				if strings.HasPrefix(normClean, normProdPrefix) || strings.HasPrefix(normClean, brandingPrefix) {
+				// Kebijakan: HANYA berkas item katalog/produk yang mengurangi kuota penyimpanan toko
+				if strings.HasPrefix(normClean, normProdPrefix) {
 					totalBytes += f.Size()
 				}
 			}
