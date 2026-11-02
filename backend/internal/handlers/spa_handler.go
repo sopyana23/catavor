@@ -29,6 +29,8 @@ var staticAssetPrefixes = []string{
 	"/desktop/",
 	"/tablet/",
 	"/mobile/",
+	"/img/",
+	"/assets/",
 }
 
 // isStaticAssetPath melaporkan apakah path menunjuk berkas statis yang

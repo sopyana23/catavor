@@ -150,6 +150,7 @@ import { SwipeableToast } from './components/SwipeableToast'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
 import { StoreChooserSheet, type CatalogStoreItem } from './components/StoreChooserSheet'
 import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
+import { SafeImage } from './components/SafeImage'
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from './utils/urlSecurity'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
@@ -17740,18 +17741,26 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0f172a' }}>
                               {settings.payment_qris_manual_merchant || 'Catavor Digital Ecosystem'}
                             </div>
-                            <div style={{ width: '160px', height: '160px', borderRadius: '10px', background: '#ffffff', padding: '6px', border: '2px solid #2563eb' }}>
-                              <img 
-                                src={settings.payment_qris_image || '/img/qris_demo.svg'} 
+                            <div style={{ width: '160px', height: '160px', borderRadius: '10px', background: '#ffffff', padding: '6px', border: '2px solid #2563eb', overflow: 'hidden' }}>
+                              <SafeImage 
+                                src={settings.payment_qris_manual_image || settings.payment_qris_image} 
+                                fallbackSrc="/img/qris_demo.svg"
                                 alt="QRIS Catavor" 
-                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                objectFit="contain"
+                                emptyLabel="QRIS Belum Tersedia"
+                                emptySubLabel="Hubungi admin platform"
+                                errorLabel="QRIS Rusak"
+                                errorSubLabel="Gagal memuat gambar"
+                                isDark={false}
+                                compact={true}
+                                wrapperStyle={{ width: '100%', height: '100%' }}
                               />
                             </div>
                             <p style={{ fontSize: '0.72rem', color: '#64748b', margin: 0 }}>
                               Scan QRIS dengan GoPay, OVO, ShopeePay, BCA Mobile, atau aplikasi bank lainnya.
                             </p>
                             <a 
-                              href={settings.payment_qris_image || '/img/qris_demo.svg'} 
+                              href={settings.payment_qris_manual_image || settings.payment_qris_image || '/img/qris_demo.svg'} 
                               download="QRIS_Catavor_Payment.svg"
                               style={{ 
                                 display: 'inline-flex', 

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -87,7 +88,7 @@ func main() {
 	paymentHandler := handlers.NewPaymentHandler(database.DB)
 	productHandler := handlers.NewProductHandler(cfg, database.DB, storageService)
 	categoryHandler := handlers.NewCategoryHandler(database.DB)
-	settingHandler := handlers.NewSettingHandler(database.DB)
+	settingHandler := handlers.NewSettingHandler(database.DB, storageService)
 	reportHandler := handlers.NewReportHandler(database.DB)
 	supportHandler := handlers.NewSupportHandler(cfg, storageService, database.DB)
 	analyticsHandler := handlers.NewAnalyticsHandler(cfg, database.DB)
@@ -282,6 +283,57 @@ func main() {
 		Compress:  true,
 		ByteRange: true,
 		MaxAge:    0,
+	})
+
+	// Static System Brand & Fallback Assets (/img, /assets, favicon)
+	publicRoot := filepath.Dir(cfg.StorageLocalRoot)
+	publicImgCandidates := []string{
+		filepath.Join(publicRoot, "img"),
+		filepath.Join(".", "public", "img"),
+		filepath.Join("..", "public", "img"),
+	}
+	for _, p := range publicImgCandidates {
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			app.Static("/img", p, fiber.Static{
+				Compress:  true,
+				ByteRange: true,
+				MaxAge:    86400 * 30, // 30 days caching for system fallback images
+				Browse:    false,
+			})
+			break
+		}
+	}
+
+	publicAssetsCandidates := []string{
+		filepath.Join(publicRoot, "assets"),
+		filepath.Join(".", "public", "assets"),
+		filepath.Join("..", "public", "assets"),
+	}
+	for _, p := range publicAssetsCandidates {
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			app.Static("/assets", p, fiber.Static{
+				Compress:  true,
+				ByteRange: true,
+				MaxAge:    86400 * 30,
+				Browse:    false,
+			})
+			break
+		}
+	}
+
+	app.Get("/favicon.ico", func(c *fiber.Ctx) error {
+		for _, base := range []string{publicRoot, ".", ".."} {
+			favPath := filepath.Join(base, "public", "favicon.ico")
+			if _, err := os.Stat(filepath.Join(base, "favicon.ico")); err == nil {
+				favPath = filepath.Join(base, "favicon.ico")
+			}
+			if fi, err := os.Stat(favPath); err == nil && !fi.IsDir() {
+				c.Set("Content-Type", "image/x-icon")
+				c.Set("Cache-Control", "public, max-age=86400")
+				return c.SendFile(favPath)
+			}
+		}
+		return c.Status(fiber.StatusNotFound).Send(nil)
 	})
 
 	// 8. Register API Endpoints

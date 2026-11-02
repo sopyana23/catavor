@@ -171,6 +171,7 @@ import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
 import { SwipeableToast } from './components/SwipeableToast'
 import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
+import { SafeImage } from './components/SafeImage'
 import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
@@ -17642,11 +17643,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#38bdf8' }}>
                               {settings.payment_qris_manual_merchant || 'Catavor Official Store'}
                             </div>
-                            <div style={{ width: '180px', height: '180px', borderRadius: '12px', background: '#ffffff', padding: '8px', boxShadow: '0 0 20px rgba(16, 185, 129, 0.25)', border: '2px solid #10b981' }}>
-                              <img 
-                                src={settings.payment_qris_manual_image || settings.payment_qris_image || '/img/qris_demo.svg'} 
+                            <div style={{ width: '180px', height: '180px', borderRadius: '12px', background: '#ffffff', padding: '8px', boxShadow: '0 0 20px rgba(16, 185, 129, 0.25)', border: '2px solid #10b981', overflow: 'hidden' }}>
+                              <SafeImage 
+                                src={settings.payment_qris_manual_image || settings.payment_qris_image} 
+                                fallbackSrc="/img/qris_demo.svg"
                                 alt="QRIS Catavor" 
-                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                objectFit="contain"
+                                emptyLabel="QRIS Belum Tersedia"
+                                emptySubLabel="Hubungi admin platform"
+                                errorLabel="QRIS Rusak"
+                                errorSubLabel="Gagal memuat gambar"
+                                isDark={false}
+                                compact={true}
+                                wrapperStyle={{ width: '100%', height: '100%' }}
                               />
                             </div>
                             <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: 0, lineHeight: 1.35 }}>

@@ -1,23 +1,43 @@
 package handlers
 
 import (
+	"context"
 	"strings"
 	"time"
 
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
+	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
 type SettingHandler struct {
-	db *gorm.DB
+	db      *gorm.DB
+	storage storage.StorageService
 }
 
-func NewSettingHandler(db *gorm.DB) *SettingHandler {
-	return &SettingHandler{db: db}
+func NewSettingHandler(db *gorm.DB, storageService ...storage.StorageService) *SettingHandler {
+	var s storage.StorageService
+	if len(storageService) > 0 {
+		s = storageService[0]
+	}
+	return &SettingHandler{db: db, storage: s}
+}
+
+// extractPlatformStorageKey extracts a relative platform object key (e.g. platform/payments/qris/... or platform/partners/...)
+// from either a storage URL or raw object key string.
+func extractPlatformStorageKey(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if idx := strings.Index(raw, "platform/"); idx != -1 {
+		return strings.TrimLeft(raw[idx:], "/")
+	}
+	return ""
 }
 
 // PublicIndex returns ONLY allowlisted public platform settings with safe defaults.
@@ -351,6 +371,17 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		if err := h.db.Where("key = ?", sanitizedKey).First(&s).Error; err != nil {
 			h.db.Create(&models.Setting{Key: sanitizedKey, Value: sanitizedVal})
 		} else {
+			// Standar Industri: jika aset dinamis platform diganti atau dikosongkan,
+			// bersihkan file lama dari Cloudflare R2 / Storage agar tidak menjadi orphan object.
+			if h.storage != nil && (sanitizedKey == "payment_qris_manual_image" || sanitizedKey == "rekber_logo_url") {
+				oldKey := extractPlatformStorageKey(s.Value)
+				newKey := extractPlatformStorageKey(sanitizedVal)
+				if oldKey != "" && oldKey != newKey {
+					go func(k string) {
+						_ = h.storage.Delete(context.Background(), k)
+					}(oldKey)
+				}
+			}
 			s.Value = sanitizedVal
 			h.db.Save(&s)
 		}
@@ -415,6 +446,18 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 		"rekber_template_service",
 		"rekber_template_plant",
 		"rekber_template_fauna",
+	}
+
+	if h.storage != nil {
+		var oldLogo models.Setting
+		if err := h.db.Where("key = ?", "rekber_logo_url").First(&oldLogo).Error; err == nil && oldLogo.Value != "" {
+			oldKey := extractPlatformStorageKey(oldLogo.Value)
+			if oldKey != "" {
+				go func(k string) {
+					_ = h.storage.Delete(context.Background(), k)
+				}(oldKey)
+			}
+		}
 	}
 
 	h.db.Where("key IN ?", keys).Delete(&models.Setting{})
