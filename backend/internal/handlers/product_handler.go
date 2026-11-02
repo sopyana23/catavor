@@ -15,6 +15,7 @@ import (
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
+	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/datatypes"
@@ -22,12 +23,17 @@ import (
 )
 
 type ProductHandler struct {
-	cfg *config.Config
-	db  *gorm.DB
+	cfg     *config.Config
+	db      *gorm.DB
+	storage storage.StorageService
 }
 
-func NewProductHandler(cfg *config.Config, db *gorm.DB) *ProductHandler {
-	return &ProductHandler{cfg: cfg, db: db}
+func NewProductHandler(cfg *config.Config, db *gorm.DB, strg ...storage.StorageService) *ProductHandler {
+	h := &ProductHandler{cfg: cfg, db: db}
+	if len(strg) > 0 {
+		h.storage = strg[0]
+	}
+	return h
 }
 
 type ProductRequest struct {
@@ -994,7 +1000,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 				Where("products.deleted_at IS NULL AND product_images.product_id != ? AND product_images.image_url = ?", product.ID, oldImg).
 				Count(&otherGalleryCount)
 			if otherProdCount == 0 && otherGalleryCount == 0 {
-				_, _ = services.HardDeleteLocalStorageFile(oldImg)
+				_, _ = services.HardDeleteFile(oldImg, h.storage)
 			}
 		}
 	}

@@ -18,6 +18,7 @@ import (
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
+	"catavor-backend/internal/storage"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -212,12 +213,17 @@ func buildStoreSummaries(db *gorm.DB, stores []models.Store, singleStore *models
 }
 
 type AuthHandler struct {
-	cfg *config.Config
-	db  *gorm.DB
+	cfg     *config.Config
+	db      *gorm.DB
+	storage storage.StorageService
 }
 
-func NewAuthHandler(cfg *config.Config, db *gorm.DB) *AuthHandler {
-	return &AuthHandler{cfg: cfg, db: db}
+func NewAuthHandler(cfg *config.Config, db *gorm.DB, strg ...storage.StorageService) *AuthHandler {
+	h := &AuthHandler{cfg: cfg, db: db}
+	if len(strg) > 0 {
+		h.storage = strg[0]
+	}
+	return h
 }
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
@@ -2174,11 +2180,20 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		_ = tx.Where("store_id = ?", s.ID).Delete(&models.ActivityLog{}).Error
 		_ = tx.Delete(&s).Error
 
-		// Disk cleanup
+		// Cloud & Disk physical media cleanup (Rule 4 & UU PDP)
+		if h.storage != nil {
+			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("stores/%d/", s.ID))
+			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/stores/%d/", s.ID))
+		}
 		if cfg.StorageLocalRoot != "" {
 			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", s.ID)))
 			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", s.ID)))
 		}
+	}
+
+	// Purge user's private billing receipts from cloud
+	if h.storage != nil {
+		_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/billing/users/%d/", user.ID))
 	}
 
 	// Delete user sessions & agreements
@@ -2186,7 +2201,7 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 	_ = tx.Where("user_id = ?", user.ID).Delete(&models.UserPolicyAgreement{}).Error
 
 	// Clean up user's support tickets and physical media attachments under UU PDP / GDPR Right to Erasure
-	_, _, _ = services.PurgeUserTicketsAndAttachments(h.db, nil, user.ID)
+	_, _, _ = services.PurgeUserTicketsAndAttachments(h.db, h.storage, user.ID)
 
 	// Invalidate tokens in memory/Redis
 	user.TokenVersion += 10

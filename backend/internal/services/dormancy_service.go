@@ -8,6 +8,7 @@ import (
 	"html"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -423,6 +424,16 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 					_ = strg.Delete(ctx, key)
 					deletedFilesCount++
 				}
+			}
+
+			// Purge entire store prefix from cloud storage and local disk to wipe any orphaned assets
+			if strg != nil {
+				_ = strg.DeletePrefix(ctx, fmt.Sprintf("stores/%d/", store.ID))
+				_ = strg.DeletePrefix(ctx, fmt.Sprintf("private/stores/%d/", store.ID))
+			}
+			if localRoot := GetStorageRoot(); localRoot != "" {
+				_ = os.RemoveAll(filepath.Join(localRoot, "stores", fmt.Sprintf("%d", store.ID)))
+				_ = os.RemoveAll(filepath.Join(localRoot, fmt.Sprintf("%d", store.ID)))
 			}
 
 			// 2. Cascade delete database records
@@ -872,15 +883,7 @@ func generateSecureToken() string {
 }
 
 func extractStorageKeyFromURL(rawURL string) string {
-	clean := strings.TrimSpace(rawURL)
-	if clean == "" {
-		return ""
-	}
-	// Extract key from path like /uploads/stores/123/product.webp
-	if idx := strings.Index(clean, "/uploads/"); idx != -1 {
-		return strings.TrimLeft(clean[idx+len("/uploads/"):], "/")
-	}
-	return strings.TrimLeft(clean, "/")
+	return ExtractStorageKey(rawURL)
 }
 
 func getAppBaseURL() string {

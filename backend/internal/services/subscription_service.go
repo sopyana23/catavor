@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/storage"
 
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
@@ -788,37 +790,79 @@ func GetStorageRoot() string {
 	return "public/storage"
 }
 
-// HardDeleteLocalStorageFile safely deletes a local storage file and its pre-compressed gzip twin
-func HardDeleteLocalStorageFile(rawURL string) (int64, error) {
+// ExtractStorageKey extracts the object key from a full URL, relative path, or storage key.
+func ExtractStorageKey(rawURL string) string {
+	clean := strings.TrimSpace(rawURL)
+	if clean == "" {
+		return ""
+	}
+	if strings.Contains(clean, "://") {
+		if u, err := url.Parse(clean); err == nil && u.Path != "" {
+			clean = u.Path
+		}
+	}
+	clean = strings.TrimLeft(filepath.ToSlash(clean), "/")
+	if idx := strings.Index(clean, "storage/"); idx != -1 {
+		clean = clean[idx+len("storage/"):]
+	} else if idx := strings.Index(clean, "uploads/"); idx != -1 {
+		clean = clean[idx+len("uploads/"):]
+	}
+	clean = strings.TrimLeft(clean, "/")
+	if strings.Contains(clean, "..") {
+		return ""
+	}
+	return clean
+}
+
+// HardDeleteFile securely deletes a file from cloud object storage (Cloudflare R2 / S3)
+// and from local storage (if present), fulfilling Rule 4 & UU PDP Right to Erasure standards.
+func HardDeleteFile(rawURL string, strg ...storage.StorageService) (int64, error) {
 	if strings.TrimSpace(rawURL) == "" {
 		return 0, nil
 	}
 
-	idx := strings.Index(rawURL, "/storage/")
-	if idx == -1 {
+	cleanKey := ExtractStorageKey(rawURL)
+	if cleanKey == "" {
 		return 0, nil
 	}
 
-	relPath := rawURL[idx+len("/storage/"):]
-	cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
-	if strings.Contains(cleanKey, "..") {
-		return 0, fmt.Errorf("invalid path traversal attempt")
+	ctx := context.Background()
+	var activeStrg storage.StorageService
+
+	if len(strg) > 0 && strg[0] != nil {
+		activeStrg = strg[0]
+	} else if config.AppConfig != nil {
+		if s, err := storage.NewStorageService(config.AppConfig); err == nil {
+			activeStrg = s
+		}
 	}
 
-	diskPath := filepath.Join(GetStorageRoot(), filepath.FromSlash(cleanKey))
+	// 1. Delete from Cloud Storage (R2 / S3 / MinIO)
+	if activeStrg != nil {
+		_ = activeStrg.Delete(ctx, cleanKey)
+		if !strings.HasPrefix(cleanKey, storage.PrivateKeyPrefix) {
+			_ = activeStrg.Delete(ctx, storage.PrivateKeyPrefix+cleanKey)
+		}
+	}
+
+	// 2. Also remove from local disk if file or gzip twin exists locally
 	var freedBytes int64 = 0
-
-	if fi, err := os.Stat(diskPath); err == nil && !fi.IsDir() {
-		freedBytes = fi.Size()
-		_ = os.Remove(diskPath)
-	}
-
-	gzPath := diskPath + ".fiber.gz"
-	if _, err := os.Stat(gzPath); err == nil {
-		_ = os.Remove(gzPath)
+	storageRoot := GetStorageRoot()
+	if storageRoot != "" {
+		diskPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
+		if fi, err := os.Stat(diskPath); err == nil && !fi.IsDir() {
+			freedBytes = fi.Size()
+			_ = os.Remove(diskPath)
+		}
+		_ = os.Remove(diskPath + ".fiber.gz")
 	}
 
 	return freedBytes, nil
+}
+
+// HardDeleteLocalStorageFile safely deletes a file across storage backends (backward-compatible alias).
+func HardDeleteLocalStorageFile(rawURL string) (int64, error) {
+	return HardDeleteFile(rawURL)
 }
 
 // SyncStoreStorageUsed audits and calculates the actual disk storage usage of a store,
@@ -1016,11 +1060,18 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 			}
 			return nil
 		})
+
+		// 3. Update DB record only when local storage directory exists
+		db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", totalBytes)
+		return totalBytes
 	}
 
-	// 3. Update DB record
-	db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", totalBytes)
-	return totalBytes
+	// In cloud storage mode (R2/S3) without a local folder mirror, preserve the atomically tracked quota
+	var currentStored models.Store
+	if err := db.Select("storage_used_bytes").First(&currentStored, storeID).Error; err == nil {
+		return currentStored.StorageUsedBytes
+	}
+	return 0
 }
 
 // BroadcastStoreQuotaSync calculates fresh StoreQuotaInfo and broadcasts it to connected clients in real-time.

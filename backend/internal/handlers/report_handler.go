@@ -1470,14 +1470,7 @@ func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNote
 
 // extractStorageKeyFromURL parses the object key from standard or local upload URLs
 func extractStorageKeyFromURL(rawURL string) string {
-	clean := strings.TrimSpace(rawURL)
-	if clean == "" {
-		return ""
-	}
-	if idx := strings.Index(clean, "/uploads/"); idx != -1 {
-		return strings.TrimLeft(clean[idx+len("/uploads/"):], "/")
-	}
-	return strings.TrimLeft(clean, "/")
+	return services.ExtractStorageKey(rawURL)
 }
 
 // purgeBannedStore safely and permanently bans a catalog store, deactivates all products,

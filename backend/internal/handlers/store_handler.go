@@ -17,6 +17,7 @@ import (
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
+	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
@@ -25,14 +26,20 @@ import (
 )
 
 type StoreHandler struct {
-	cfg *config.Config
-	db  *gorm.DB
+	cfg     *config.Config
+	db      *gorm.DB
+	storage storage.StorageService
 }
 
-func NewStoreHandler(db *gorm.DB, cfg ...*config.Config) *StoreHandler {
+func NewStoreHandler(db *gorm.DB, args ...interface{}) *StoreHandler {
 	h := &StoreHandler{db: db}
-	if len(cfg) > 0 {
-		h.cfg = cfg[0]
+	for _, arg := range args {
+		switch v := arg.(type) {
+		case *config.Config:
+			h.cfg = v
+		case storage.StorageService:
+			h.storage = v
+		}
 	}
 	return h
 }
@@ -2285,8 +2292,12 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		})
 	}
 
-	// Hard-delete physical media files from disk (AGENTS.md Rule 4)
-	if cfg.StorageLocalRoot != "" {
+	// Hard-delete physical media files from cloud storage and disk (AGENTS.md Rule 4)
+	if h.storage != nil {
+		_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("stores/%d/", store.ID))
+		_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/stores/%d/", store.ID))
+	}
+	if cfg != nil && cfg.StorageLocalRoot != "" {
 		storeMediaDir := filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", store.ID))
 		_ = os.RemoveAll(storeMediaDir)
 		legacyMediaDir := filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", store.ID))

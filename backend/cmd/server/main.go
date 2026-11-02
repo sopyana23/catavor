@@ -77,14 +77,14 @@ func main() {
 		log.Fatal().Err(err).Msg("Fatal: Storage service initialization failed")
 	}
 
-	authHandler := handlers.NewAuthHandler(cfg, database.DB)
+	authHandler := handlers.NewAuthHandler(cfg, database.DB, storageService)
 	sessionHandler := handlers.NewSessionHandler(cfg, database.DB)
-	storeHandler := handlers.NewStoreHandler(database.DB, cfg)
+	storeHandler := handlers.NewStoreHandler(database.DB, cfg, storageService)
 	// Muat cache master categories dari DB (single source of truth).
 	handlers.LoadMasterCategoryCache(database.DB)
 	handlers.LoadMasterPresetCache(database.DB)
 	subscriptionHandler := handlers.NewSubscriptionHandler(database.DB)
-	productHandler := handlers.NewProductHandler(cfg, database.DB)
+	productHandler := handlers.NewProductHandler(cfg, database.DB, storageService)
 	categoryHandler := handlers.NewCategoryHandler(database.DB)
 	settingHandler := handlers.NewSettingHandler(database.DB)
 	reportHandler := handlers.NewReportHandler(database.DB)
@@ -207,11 +207,6 @@ func main() {
 	// publik. Bukti pembayaran dan lampiran tiket bantuan adalah berkas privat
 	// yang hidup di StoragePrivateRoot dan hanya dapat diakses lewat endpoint
 	// ber-otorisasi (GET /api/support/attachments/:id).
-	//
-	// Guard ini adalah lapisan kedua: berkas lama yang masih tertinggal di
-	// pohon publik (hasil upload sebelum perbaikan ini) tetap tidak akan
-	// pernah tersaji ke publik, sehingga migrasi tidak harus selesai lebih
-	// dulu sebelum kebocoran tertutup.
 	app.Use("/storage", func(c *fiber.Ctx) error {
 		rel := strings.ToLower(strings.TrimLeft(strings.TrimPrefix(c.Path(), "/storage"), "/"))
 		for _, prefix := range []string{"private/", "support/", "billing/"} {
@@ -221,57 +216,57 @@ func main() {
 		}
 		return c.Next()
 	})
-	app.Static("/storage", cfg.StorageLocalRoot, fiber.Static{
-		// Compress dimatikan: Fiber menulis cache .fiber.gz DI DALAM direktori
-		// sumber, sehingga storage root terkotori berkas turunan yang bukan
-		// objek asli (dan akan ikut tersinkron ke S3). Gambar/PDF tidak
-		// untung dari kompresi on-the-fly.
-		Compress:  false,
-		ByteRange: true,
-		MaxAge:    86400 * 30, // 30 days caching
-		Browse:    false,      // Disable directory browsing
-	})
 
-	// SMART STORAGE PROXY FALLBACK (ST-08):
-	// Bila berkas tidak ditemukan di disk lokal (mis. saat STORAGE_DRIVER=r2/s3 aktif),
-	// ambil objek langsung dari cloud storage service dan alirkan (stream) ke klien
-	// dengan HTTP caching headers (Cache-Control 30 hari).
-	// Ini menjamin gambar tetap dapat dibuka di localhost/ISP Indonesia tanpa terhambat
-	// pemblokiran wildcard *.r2.dev oleh Kominfo/ISP.
-	// Ketika pengguna menghubungkan Custom Domain nanti (STORAGE_PUBLIC_URL=https://media.catavor.id),
-	// URL langsung mengarah ke CDN tanpa memerlukan perubahan kode apa pun.
-	app.Get("/storage/*", func(c *fiber.Ctx) error {
-		rawPath := strings.TrimPrefix(c.Path(), "/storage")
-		cleanKey := strings.TrimLeft(rawPath, "/")
-		if cleanKey == "" {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Path berkas tidak valid."})
-		}
+	isCloudStorageDriver := strings.EqualFold(cfg.StorageDriver, "s3") ||
+		strings.EqualFold(cfg.StorageDriver, "r2") ||
+		strings.EqualFold(cfg.StorageDriver, "minio")
 
-		// Keamanan ketat: jangan pernah menyajikan berkas privat di route publik
-		lowerKey := strings.ToLower(cleanKey)
-		for _, prefix := range []string{"private/", "support/", "billing/"} {
-			if strings.HasPrefix(lowerKey, prefix) {
-				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
+	if isCloudStorageDriver {
+		// PENGAMBILAN DATA CLOUD NATIVE (STANDAR BEST PRACTICE - SINGLE SOURCE OF TRUTH):
+		// Pada mode cloud storage (Cloudflare R2 / S3), server Go mengambil LANGSUNG dari Cloud Storage
+		// tanpa pernah mencegat atau memeriksa disk lokal terlebih dahulu.
+		// Ini menjamin server 100% Stateless dan bebas dari data usang disk lokal.
+		app.Get("/storage/*", func(c *fiber.Ctx) error {
+			rawPath := strings.TrimPrefix(c.Path(), "/storage")
+			cleanKey := strings.TrimLeft(rawPath, "/")
+			if cleanKey == "" {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Path berkas tidak valid."})
 			}
-		}
 
-		rc, contentType, _, err := storageService.Get(c.Context(), cleanKey)
-		if err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan di penyimpanan."})
-		}
+			// Keamanan ketat: jangan pernah menyajikan berkas privat di route publik
+			lowerKey := strings.ToLower(cleanKey)
+			for _, prefix := range []string{"private/", "support/", "billing/"} {
+				if strings.HasPrefix(lowerKey, prefix) {
+					return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
+				}
+			}
 
-		data, err := io.ReadAll(rc)
-		_ = rc.Close()
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Gagal membaca berkas dari penyimpanan."})
-		}
+			rc, contentType, _, err := storageService.Get(c.Context(), cleanKey)
+			if err != nil {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan di penyimpanan."})
+			}
 
-		c.Set("Content-Type", contentType)
-		c.Set("Cache-Control", "public, max-age=2592000, immutable")
-		c.Set("X-Content-Type-Options", "nosniff")
+			data, err := io.ReadAll(rc)
+			_ = rc.Close()
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Gagal membaca berkas dari penyimpanan."})
+			}
 
-		return c.Send(data)
-	})
+			c.Set("Content-Type", contentType)
+			c.Set("Cache-Control", "public, max-age=2592000, immutable")
+			c.Set("X-Content-Type-Options", "nosniff")
+
+			return c.Send(data)
+		})
+	} else {
+		// PENGAMBILAN DATA LOKAL (HANYA UNTUK MODE PENGEMBANGAN OFFLINE):
+		app.Static("/storage", cfg.StorageLocalRoot, fiber.Static{
+			Compress:  false,
+			ByteRange: true,
+			MaxAge:    86400 * 30, // 30 days caching
+			Browse:    false,      // Disable directory browsing
+		})
+	}
 	app.Static("/desktop", cfg.DesktopDistDir, fiber.Static{
 		Compress:  true,
 		ByteRange: true,

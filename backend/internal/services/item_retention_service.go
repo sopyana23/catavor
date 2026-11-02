@@ -478,6 +478,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 			storePrefix := fmt.Sprintf("stores/%d/", s.ID)
 			if strg != nil {
 				_ = strg.DeletePrefix(ctx, storePrefix)
+				_ = strg.DeletePrefix(ctx, fmt.Sprintf("private/stores/%d/", s.ID))
 			}
 			if cfg != nil {
 				if cfg.StorageLocalRoot != "" {
