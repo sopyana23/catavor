@@ -23538,8 +23538,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               display: 'flex',
                               alignItems: 'center',
                               gap: '0.45rem',
-                              flexWrap: 'wrap',
+                              overflowX: 'auto',
+                              WebkitOverflowScrolling: 'touch',
+                              scrollbarWidth: 'none',
                               paddingTop: '0.45rem',
+                              paddingBottom: '0.15rem',
                               borderTop: '1px dashed var(--border-light)'
                             }}>
                               <span style={{
@@ -23551,7 +23554,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 marginRight: '0.15rem',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.3rem'
+                                gap: '0.3rem',
+                                flexShrink: 0
                               }}>
                                 <Layers size={13} />
                                 Tipe:
@@ -23573,6 +23577,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '0.35rem',
+                                  flexShrink: 0,
                                   transition: 'all 0.15s ease'
                                 }}
                               >
@@ -23618,6 +23623,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       display: 'inline-flex',
                                       alignItems: 'center',
                                       gap: '0.35rem',
+                                      flexShrink: 0,
                                       transition: 'all 0.15s ease'
                                     }}
                                   >
@@ -23645,7 +23651,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                     {/* Table Container */}
                     <div className="admin-table-container" style={{ background: 'var(--card-bg-gradient)' }}>
-                      <table className="admin-table">
+                      <table className="admin-table" style={{ width: '100%', minWidth: '780px' }}>
                         <thead>
                           <tr>
                             <th style={{ width: '70px' }}>Foto</th>
@@ -23999,10 +24005,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   {/* Desktop Settings Segmented Sub-Tab Bar (Full-Width Responsive Grid) */}
                   {(() => {
                     const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'domain'; label: string; icon: any; isPro?: boolean }> = [
-                      { id: 'general', label: 'Profil & Identitas Utama', icon: Store },
-                      { id: 'contact', label: 'Kontak & Saluran Resmi', icon: MessageCircle },
-                      { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
-                      { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
+                      { id: 'general', label: 'Profil & Identitas', icon: Store },
+                      { id: 'contact', label: 'Kontak Resmi', icon: MessageCircle },
+                      { id: 'about', label: 'Tentang Kami', icon: Sparkles },
+                      { id: 'theme', label: 'Tema & Tampilan', icon: Palette },
                       ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', icon: Globe, isPro: true }] : [])
                     ];
 
@@ -24997,27 +25003,58 @@ Terima kasih atas perhatian dan kerja samanya.`;
               )}
 
               {(adminTab === 'profile' || adminTab === 'audit_logs') && (
-                <div style={{ marginTop: '0.5rem' }}>
+                <div style={{ marginTop: '0.5rem', width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
                   {/* Segmented Control Header with Guaranteed Consistent Tab Bar Position */}
                   <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
-                    {/* Top Row: Page Title on the Left, Tabs on the Right - Fixed single-line alignment */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
-                          <ShieldCheck size={20} />
-                        </div>
+                    {/* Row 1: Page Title and Subtitle */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.85rem' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div>
                         <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                           Akun &amp; Keamanan
                         </h2>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0', lineHeight: 1.4 }}>
+                          Kelola kredensial akun, sesi login aktif, log audit riwayat, dan penutupan akun katalog.
+                        </p>
                       </div>
+                    </div>
 
-                      {/* Segmented SubTab Pills - Posisi selalu konsisten & tidak terpengaruh panjang/pendek deskripsi */}
-                      <div style={{ display: 'flex', gap: '0.45rem', backgroundColor: 'var(--bg-deep)', padding: '0.3rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', flexWrap: 'wrap', flexShrink: 0 }}>
+                    {/* Row 2: Dedicated Full-Width Segmented SubTab Track with Zero Page-Level Horizontal Spill */}
+                    <div 
+                      className="no-scrollbar"
+                      style={{
+                        width: '100%',
+                        maxWidth: '100%',
+                        minWidth: 0,
+                        overflowX: 'auto',
+                        WebkitOverflowScrolling: 'touch',
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none',
+                        overscrollBehaviorX: 'contain',
+                        paddingBottom: '2px',
+                        marginBottom: '0.85rem',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <div 
+                        style={{
+                          display: 'inline-flex',
+                          gap: '0.45rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          padding: '0.35rem',
+                          borderRadius: '0.75rem',
+                          border: '1px solid var(--border-light)',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         <button
                           type="button"
                           onClick={() => setProfileSubTab('info')}
                           style={{
-                            padding: '0.5rem 1.15rem',
+                            minHeight: '40px',
+                            padding: '0.45rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
@@ -25029,6 +25066,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             backgroundColor: profileSubTab === 'info' ? 'var(--primary)' : 'transparent',
                             color: profileSubTab === 'info' ? '#ffffff' : 'var(--text-secondary)',
                             boxShadow: profileSubTab === 'info' ? '0 2px 8px var(--primary-glow)' : 'none',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             transition: 'all 0.2s ease'
                           }}
                         >
@@ -25040,7 +25079,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           type="button"
                           onClick={() => setProfileSubTab('security')}
                           style={{
-                            padding: '0.5rem 1.15rem',
+                            minHeight: '40px',
+                            padding: '0.45rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
@@ -25052,6 +25092,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             backgroundColor: profileSubTab === 'security' ? 'var(--primary)' : 'transparent',
                             color: profileSubTab === 'security' ? '#ffffff' : 'var(--text-secondary)',
                             boxShadow: profileSubTab === 'security' ? '0 2px 8px var(--primary-glow)' : 'none',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             transition: 'all 0.2s ease'
                           }}
                         >
@@ -25066,7 +25108,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             fetchActivityLogs(1, false);
                           }}
                           style={{
-                            padding: '0.5rem 1.15rem',
+                            minHeight: '40px',
+                            padding: '0.45rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
@@ -25078,6 +25121,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             backgroundColor: profileSubTab === 'logs' ? 'var(--primary)' : 'transparent',
                             color: profileSubTab === 'logs' ? '#ffffff' : 'var(--text-secondary)',
                             boxShadow: profileSubTab === 'logs' ? '0 2px 8px var(--primary-glow)' : 'none',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             transition: 'all 0.2s ease'
                           }}
                         >
@@ -25089,7 +25134,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           type="button"
                           onClick={() => setProfileSubTab('danger')}
                           style={{
-                            padding: '0.5rem 1.15rem',
+                            minHeight: '40px',
+                            padding: '0.45rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
@@ -25101,6 +25147,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             backgroundColor: profileSubTab === 'danger' ? 'var(--bg-card, rgba(255,255,255,0.06))' : 'transparent',
                             color: profileSubTab === 'danger' ? 'var(--text-primary)' : 'var(--text-secondary)',
                             boxShadow: profileSubTab === 'danger' ? 'var(--shadow-sm)' : 'none',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             transition: 'all 0.2s ease'
                           }}
                         >
@@ -28173,17 +28221,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   
                   {/* Top Stats Banner Bar */}
                   <div className="glass-panel" style={{ 
-                    padding: '1.5rem 2rem', 
-                    borderRadius: '1.25rem', 
-                    border: '1px solid var(--primary-glow)', 
+                    padding: '1.25rem 1.75rem', 
+                    borderRadius: '1.15rem', 
+                    border: '1px solid var(--border-light)', 
                     background: 'var(--card-bg-gradient)', 
-                    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.3)',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '1.5rem'
+                    flexWrap: 'wrap',
+                    gap: '1rem',
+                    marginBottom: '1.25rem'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                       {(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
                         <button
                           type="button"
@@ -28195,7 +28245,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             });
                           }}
                           style={{
-                            padding: '0.55rem 0.95rem',
+                            padding: '0.5rem 0.9rem',
                             borderRadius: '0.65rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
@@ -28215,15 +28265,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         </button>
                       )}
                       <div style={{ 
-                        width: '44px', 
-                        height: '44px', 
-                        borderRadius: '0.85rem', 
+                        width: '42px', 
+                        height: '42px', 
+                        borderRadius: '0.75rem', 
                         backgroundColor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'rgba(239, 68, 68, 0.12)' : 'var(--primary-glow)', 
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center', 
                         color: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? '#ef4444' : 'var(--primary)', 
-                        border: '1px solid var(--border-light)'
+                        border: '1px solid var(--border-light)',
+                        flexShrink: 0
                       }}>
                         {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? (
                           <Scale size={22} />
@@ -28232,36 +28283,58 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         )}
                       </div>
                       <div>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                          {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Pusat Banding Kepatuhan & Tiket' : 'Pusat Tiket Support Catavor'}
-                        </h3>
-                        <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                            {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Pusat Banding Kepatuhan & Tiket' : 'Pusat Tiket Support Catavor'}
+                          </h3>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.15rem 0.55rem',
+                              borderRadius: '9999px',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              fontSize: '0.72rem',
+                              color: 'var(--text-secondary)',
+                              fontWeight: 600
+                            }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
+                              {tickets.length} Total
+                            </span>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.15rem 0.55rem',
+                              borderRadius: '9999px',
+                              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              fontSize: '0.72rem',
+                              color: '#f59e0b',
+                              fontWeight: 600
+                            }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                              {tickets.filter(t => t.status === 'open' || t.status === 'in_progress' || t.status === 'waiting_agent' || t.status === 'waiting_user').length} Aktif
+                            </span>
+                          </div>
+                        </div>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>
                           {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Layanan Klarifikasi dan Pemulihan Profil Katalog' : 'Layanan Bantuan & Monitoring Kendala Pengelolaan Katalog'}
-                        </span>
+                        </p>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                      <div style={{ display: 'flex', gap: '0.85rem', padding: '0.45rem 0.95rem', background: 'var(--bg-deep)', borderRadius: '0.75rem', border: '1px solid var(--border-light)', fontSize: '0.8rem' }}>
-                        <div>
-                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.68rem', fontWeight: 600 }}>Total Tiket</span>
-                          <strong style={{ color: 'var(--text-primary)', fontSize: '0.98rem' }}>{tickets.length}</strong>
-                        </div>
-                        <div style={{ width: '1px', backgroundColor: 'var(--border-light)' }} />
-                        <div>
-                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.68rem', fontWeight: 600 }}>Aktif Diproses</span>
-                          <strong style={{ color: '#f59e0b', fontSize: '0.98rem' }}>{tickets.filter(t => t.status === 'open' || t.status === 'in_progress' || t.status === 'waiting_agent' || t.status === 'waiting_user').length}</strong>
-                        </div>
-                      </div>
-
-                      {/* Official Contact Button (Desktop) */}
+                    {/* Right: Actions Only */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                       <button
                         type="button"
                         onClick={() => setShowOfficialContactModal(true)}
                         style={{
-                          padding: '0.65rem 1.15rem',
-                          borderRadius: '0.75rem',
-                          fontSize: '0.85rem',
+                          padding: '0.55rem 1.05rem',
+                          borderRadius: '0.65rem',
+                          fontSize: '0.82rem',
                           fontWeight: 700,
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -28293,9 +28366,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             setShowCreateTicketModal(true);
                           }}
                           style={{
-                            padding: '0.65rem 1.25rem',
-                            borderRadius: '0.75rem',
-                            fontSize: '0.85rem',
+                            padding: '0.55rem 1.15rem',
+                            borderRadius: '0.65rem',
+                            fontSize: '0.82rem',
                             fontWeight: 800,
                             display: 'flex',
                             alignItems: 'center',
@@ -28311,12 +28384,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '0.5rem',
-                          padding: '0.55rem 1rem',
-                          borderRadius: '0.75rem',
+                          padding: '0.5rem 0.95rem',
+                          borderRadius: '0.65rem',
                           backgroundColor: 'rgba(245, 158, 11, 0.12)',
                           border: '1px solid rgba(245, 158, 11, 0.35)',
                           color: '#f59e0b',
-                          fontSize: '0.82rem',
+                          fontSize: '0.8rem',
                           fontWeight: 700
                         }}>
                           <Clock size={16} />

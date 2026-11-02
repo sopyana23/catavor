@@ -1207,7 +1207,7 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
     isPro?: boolean 
   }> = [
     { id: 'general', label: 'Profil & Identitas', description: 'Nama katalog, tautan unik, logo, dan slogan bisnis', icon: StoreIcon },
-    { id: 'contact', label: 'Kontak & Saluran', description: 'WhatsApp CS, telepon, jam operasional, dan lokasi toko', icon: MessageCircle },
+    { id: 'contact', label: 'Kontak Resmi', description: 'WhatsApp CS, telepon, jam operasional, dan lokasi toko', icon: MessageCircle },
     { id: 'about', label: 'Tentang Kami', description: 'Profil cerita bisnis, visi-misi, dan kartu nilai komitmen', icon: Sparkles },
     { id: 'theme', label: 'Tema & Tampilan', description: 'Preset warna estetika, palet brand, dan gaya visual etalase', icon: Palette },
     ...(quota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', description: 'Tautkan nama domain pribadi Anda ke etalase katalog', icon: Globe, isPro: true }] : [])

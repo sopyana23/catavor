@@ -40,8 +40,12 @@
 
           // Accurate Viewport Measurement (Prioritizes CSS Media Query & innerWidth over physical screen)
           var isMobileMedia = window.matchMedia ? window.matchMedia('(max-width: 767.98px)').matches : false;
-          var isTabletMedia = window.matchMedia ? window.matchMedia('(min-width: 768px) and (max-width: 1023.98px)').matches : false;
           var winW = window.innerWidth || (document.documentElement ? document.documentElement.clientWidth : 0);
+          var winH = window.innerHeight || (document.documentElement ? document.documentElement.clientHeight : 0);
+          var isPortrait = winH > winW;
+
+          // Tablet media: 768px to 1023.98px standard, OR up to 1080px in portrait (large tablets: iPad Pro 12.9" 1024px, Galaxy Tab 1032px, Pixel Tablet)
+          var isTabletMedia = (winW >= 768 && winW < 1024) || (winW >= 768 && winW <= 1080 && isPortrait);
 
           // Classification logic:
           // A. Mobile Viewport or Phone UA
@@ -53,7 +57,7 @@
           }
 
           // B. Tablet Viewport or Tablet UA
-          if (isTabletMedia || (winW >= 768 && winW < 1024) || isAppleTablet || isAndroidTablet || isGenericTabletUA) {
+          if (isTabletMedia || isAppleTablet || isAndroidTablet || isGenericTabletUA) {
             return 'tablet';
           }
 
@@ -169,8 +173,8 @@
         }
       })();
     </script>
-    <script type="module" crossorigin src="/tablet/assets/index-DH0piW_y-t.js"></script>
-    <link rel="stylesheet" crossorigin href="/tablet/assets/index-CU9c0scu.css">
+    <script type="module" crossorigin src="/tablet/assets/index-BKouhPC1-t.js"></script>
+    <link rel="stylesheet" crossorigin href="/tablet/assets/index-Du6OwQeh.css">
   </head>
   <body>
     <div id="root"></div>

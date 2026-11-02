@@ -7837,8 +7837,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               <div style={{
                 display: 'flex',
                 gap: '0.5rem',
-                flexWrap: 'wrap',
-                alignItems: 'center'
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                alignItems: 'center',
+                paddingBottom: '0.25rem'
               }}>
                 {MASTER_CATEGORY_DEFINITIONS.map(tab => {
                   const isSelected = masterCategoryContextTab === tab.id;
@@ -7857,6 +7860,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         fontSize: '0.82rem',
                         fontWeight: isSelected ? 800 : 600,
                         whiteSpace: 'nowrap',
+                        flexShrink: 0,
                         border: isSelected ? `1.5px solid ${tab.color}` : '1px solid var(--border-light)',
                         backgroundColor: isSelected ? tab.color : 'var(--bg-card)',
                         color: isSelected ? '#ffffff' : 'var(--text-secondary)',
@@ -8543,6 +8547,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             height: '100%',
             maxHeight: '100%',
             overflowY: 'auto',
+            overflowX: 'hidden',
             WebkitOverflowScrolling: 'touch',
             overscrollBehavior: 'contain',
             width: '100%',
@@ -8553,46 +8558,60 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               margin: '0 auto',
               padding: '1.75rem 2rem 8rem 2rem',
               width: '100%',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              overflowX: 'hidden'
             }}>
             {/* Segmented Control Header with Guaranteed Consistent Tab Bar Position (Desktop Parity with Tablet Ergonomics) */}
             <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
-              {/* Top Row: Page Title on the Left, Tabs on the Right - Responsive single-line or clean tablet wrap */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
-                    <ShieldCheck size={20} />
-                  </div>
+              {/* Row 1: Page Title and Subtitle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.85rem' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
                   <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                     Akun &amp; Keamanan
                   </h2>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0', lineHeight: 1.4 }}>
+                    Kelola kredensial akun, sesi login aktif, log audit riwayat, dan penutupan akun katalog.
+                  </p>
                 </div>
+              </div>
 
-                {/* Segmented SubTab Pills - Posisi selalu konsisten & tidak terpengaruh panjang/pendek deskripsi */}
+              {/* Row 2: Dedicated Full-Width Segmented SubTab Track with Zero Page-Level Horizontal Spill */}
+              <div 
+                className="no-scrollbar"
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  overscrollBehaviorX: 'contain',
+                  paddingBottom: '2px',
+                  marginBottom: '0.85rem',
+                  boxSizing: 'border-box'
+                }}
+              >
                 <div 
-                  className="no-scrollbar"
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     gap: '0.45rem',
                     backgroundColor: 'var(--bg-deep)',
-                    padding: '0.3rem',
+                    padding: '0.35rem',
                     borderRadius: '0.75rem',
                     border: '1px solid var(--border-light)',
-                    flexWrap: 'nowrap',
-                    overflowX: 'auto',
-                    maxWidth: '100%',
-                    WebkitOverflowScrolling: 'touch',
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none',
-                    flexShrink: 0
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   <button
                     type="button"
                     onClick={() => setProfileSubTab('info')}
                     style={{
-                      minHeight: '44px',
-                      padding: '0.5rem 1.15rem',
+                      minHeight: '40px',
+                      padding: '0.45rem 1rem',
                       borderRadius: '0.55rem',
                       fontSize: '0.8rem',
                       fontWeight: 700,
@@ -8617,8 +8636,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     type="button"
                     onClick={() => setProfileSubTab('devices')}
                     style={{
-                      minHeight: '44px',
-                      padding: '0.5rem 1.15rem',
+                      minHeight: '40px',
+                      padding: '0.45rem 1rem',
                       borderRadius: '0.55rem',
                       fontSize: '0.8rem',
                       fontWeight: 700,
@@ -8643,8 +8662,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     type="button"
                     onClick={() => setProfileSubTab('audit_logs')}
                     style={{
-                      minHeight: '44px',
-                      padding: '0.5rem 1.15rem',
+                      minHeight: '40px',
+                      padding: '0.45rem 1rem',
                       borderRadius: '0.55rem',
                       fontSize: '0.8rem',
                       fontWeight: 700,
@@ -8669,8 +8688,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     type="button"
                     onClick={() => setProfileSubTab('danger')}
                     style={{
-                      minHeight: '44px',
-                      padding: '0.5rem 1.15rem',
+                      minHeight: '40px',
+                      padding: '0.45rem 1rem',
                       borderRadius: '0.55rem',
                       fontSize: '0.8rem',
                       fontWeight: 700,

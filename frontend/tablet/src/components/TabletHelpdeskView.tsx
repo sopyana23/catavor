@@ -859,17 +859,17 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
           1. TOP TABLET STATS BANNER
           =================================================================== */}
       <div style={{
-        padding: '1.25rem 1.5rem',
+        padding: '1.15rem 1.5rem',
         borderBottom: '1px solid var(--border-light)',
         backgroundColor: 'var(--bg-card)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '1rem',
+        gap: '0.85rem',
         flexShrink: 0
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
           <div style={{
             width: '42px',
             height: '42px',
@@ -885,38 +885,51 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
             {isSuspendedAccount ? <Scale size={22} /> : <HelpCircle size={22} />}
           </div>
           <div>
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-              {isSuspendedAccount ? 'Pusat Banding Kepatuhan & Tiket' : 'Pusat Bantuan & Tiket CS'}
-            </h2>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                {isSuspendedAccount ? 'Pusat Banding Kepatuhan & Tiket' : 'Pusat Bantuan & Tiket CS'}
+              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.15rem 0.55rem',
+                  borderRadius: '9999px',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  fontSize: '0.72rem',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600
+                }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
+                  {ticketMetrics.total || tickets.length} Total
+                </span>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.15rem 0.55rem',
+                  borderRadius: '9999px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  fontSize: '0.72rem',
+                  color: '#f59e0b',
+                  fontWeight: 600
+                }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                  {ticketMetrics.active || tickets.filter(t => ['open', 'in_progress', 'waiting_agent', 'waiting_user'].includes(t.status)).length} Aktif
+                </span>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>
               {isSuspendedAccount ? 'Layanan Klarifikasi dan Pemulihan Akun Profil Katalog' : 'Layanan Bantuan & Monitoring Kendala Pengelolaan Katalog'}
-            </span>
+            </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {/* Counters Pill */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            padding: '0.4rem 0.85rem',
-            backgroundColor: 'var(--bg-deep)',
-            borderRadius: '0.65rem',
-            border: '1px solid var(--border-light)',
-            fontSize: '0.78rem'
-          }}>
-            <div>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.66rem', fontWeight: 600, display: 'block' }}>Total Tiket</span>
-              <strong style={{ color: 'var(--text-primary)', fontSize: '0.92rem' }}>{ticketMetrics.total || tickets.length}</strong>
-            </div>
-            <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-light)' }} />
-            <div>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.66rem', fontWeight: 600, display: 'block' }}>Aktif Diproses</span>
-              <strong style={{ color: '#f59e0b', fontSize: '0.92rem' }}>{ticketMetrics.active || tickets.filter(t => ['open', 'in_progress', 'waiting_agent', 'waiting_user'].includes(t.status)).length}</strong>
-            </div>
-          </div>
-
+        {/* Right Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
           {/* Official Contact Trigger Button (Tablet) */}
           <button
             type="button"
@@ -958,7 +971,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
               }}
               style={{
                 minHeight: '40px',
-                padding: '0.45rem 1rem',
+                padding: '0.45rem 1.15rem',
                 borderRadius: '0.65rem',
                 backgroundColor: 'var(--primary)',
                 color: '#ffffff',

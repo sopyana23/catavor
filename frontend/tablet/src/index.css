@@ -512,10 +512,10 @@ button, a, input, select, textarea {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  min-height: 44px;
-  gap: 0.55rem;
-  padding: 0.65rem 1.15rem;
-  font-size: 0.82rem;
+  min-height: 40px;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   border-radius: 0.6rem;
   cursor: pointer;
@@ -602,18 +602,19 @@ button, a, input, select, textarea {
   background: linear-gradient(to left, var(--bg-deep) 30%, transparent);
 }
 
-/* Large Container Mode (Only when sidebar is collapsed AND container width >= 960px) */
-@container settingsContainer (min-width: 960px) {
-  .tablet-settings-tab-wrapper:not(.is-sidebar-expanded) .tablet-settings-tabs-track {
+/* Large Container Mode (Container width >= 760px fits all sub-tabs cleanly in grid) */
+@container settingsContainer (min-width: 760px) {
+  .tablet-settings-tabs-track {
     display: grid;
     grid-template-columns: repeat(var(--tab-count, 5), minmax(0, 1fr));
     gap: 0.45rem;
     overflow-x: visible;
   }
-  .tablet-settings-tab-wrapper:not(.is-sidebar-expanded) .tablet-settings-tab-btn {
+  .tablet-settings-tab-btn {
     flex: 1 1 0;
     width: 100%;
-    padding: 0.65rem 0.65rem;
+    padding: 0.55rem 0.5rem;
+    font-size: 0.8rem;
   }
 }
 
