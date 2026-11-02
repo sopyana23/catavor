@@ -700,33 +700,17 @@ func (h *SubscriptionHandler) VerifyCoupon(c *fiber.Ctx) error {
 		planCode = "pro_starter"
 	}
 
-	cycle := strings.ToLower(strings.TrimSpace(req.BillingCycle))
-	if cycle != "annual" {
-		cycle = "monthly"
-	}
-
+	// Strict platform policy: Only monthly billing cycle is supported (no annual)
 	var originalAmount float64
 	planInfo, _ := services.GetPlanByCode(h.db, planCode)
 	if planInfo != nil {
-		if cycle == "annual" {
-			originalAmount = planInfo.PriceAnnual
-		} else {
-			originalAmount = planInfo.PriceMonthly
-		}
+		originalAmount = planInfo.PriceMonthly
 	} else {
 		// Fallbacks
 		if planCode == "pro_business" {
-			if cycle == "annual" {
-				originalAmount = 1290000
-			} else {
-				originalAmount = 129000
-			}
+			originalAmount = 129000
 		} else {
-			if cycle == "annual" {
-				originalAmount = 490000
-			} else {
-				originalAmount = 49000
-			}
+			originalAmount = 30000
 		}
 	}
 

@@ -27,7 +27,8 @@ import {
   ShieldAlert,
   Zap,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Calendar
 } from 'lucide-react';
 
 export interface SubscriptionPlanData {
@@ -739,70 +740,34 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
           {/* VIEW 1: PLANS */}
           {modalView === 'plans' && (
             <>
-              {/* Billing Cycle Toggle */}
+              {/* Billing Cycle Locked Badge */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.5rem',
-                padding: '0.3rem',
+                gap: '0.45rem',
+                padding: '0.5rem 1rem',
                 background: 'var(--card-bg-gradient, var(--bg-card))',
                 border: '1px solid var(--border-light)',
                 borderRadius: '0.75rem',
-                width: '100%'
+                width: '100%',
+                color: 'var(--text-primary)',
+                fontSize: '0.8rem',
+                fontWeight: 700
               }}>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('monthly')}
-                  style={{
-                    flex: 1,
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '0.55rem',
-                    border: 'none',
-                    background: billingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
-                    color: billingCycle === 'monthly' ? '#ffffff' : 'var(--text-secondary)',
-                    fontWeight: 800,
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: billingCycle === 'monthly' ? '0 2px 8px var(--primary-glow)' : 'none'
-                  }}
-                >
-                  Bulanan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('annual')}
-                  style={{
-                    flex: 1.2,
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '0.55rem',
-                    border: 'none',
-                    background: billingCycle === 'annual' ? 'var(--primary)' : 'transparent',
-                    color: billingCycle === 'annual' ? '#ffffff' : 'var(--text-secondary)',
-                    fontWeight: 800,
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: billingCycle === 'annual' ? '0 2px 8px var(--primary-glow)' : 'none'
-                  }}
-                >
-                  <span>Tahunan</span>
-                  <span style={{
-                    fontSize: '0.66rem',
-                    padding: '0.1rem 0.4rem',
-                    borderRadius: '9999px',
-                    background: billingCycle === 'annual' ? 'rgba(255,255,255,0.25)' : 'rgba(16, 185, 129, 0.15)',
-                    color: billingCycle === 'annual' ? '#ffffff' : '#10b981',
-                    fontWeight: 800
-                  }}>
-                    Hemat 20%
-                  </span>
-                </button>
+                <Calendar size={14} style={{ color: 'var(--primary)' }} />
+                <span>Tagihan Bulanan (1 Bulan)</span>
+                <span style={{
+                  fontSize: '0.66rem',
+                  padding: '0.12rem 0.5rem',
+                  borderRadius: '9999px',
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  color: 'var(--primary)',
+                  fontWeight: 800,
+                  marginLeft: '0.25rem'
+                }}>
+                  30 Hari
+                </span>
               </div>
 
               {/* Plan Cards List */}
@@ -878,15 +843,10 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                           </span>
                           {price > 0 && (
                             <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                              /{billingCycle === 'annual' ? 'tahun' : 'bulan'}
+                              /bulan
                             </span>
                           )}
                         </div>
-                        {billingCycle === 'annual' && price > 0 && (
-                          <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 700, display: 'block', marginTop: '0.1rem' }}>
-                            Setara {formatRupiah(monthlyEquivalent)}/bulan (hemat 20%)
-                          </span>
-                        )}
                       </div>
 
                       {/* Quota Highlights */}
@@ -1056,7 +1016,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                     </span>
                   </div>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                    Durasi: {billingCycle === 'annual' ? '12 Bulan (Tahunan Diskon 20%)' : '1 Bulan (Bulanan)'}
+                    Periode Sewa: 1 Bulan (30 Hari)
                   </span>
                 </div>
               </div>

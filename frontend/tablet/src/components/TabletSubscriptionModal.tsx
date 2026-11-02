@@ -507,60 +507,18 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
               }}>
                 <div style={{
                   display: 'inline-flex',
-                  padding: '0.3rem',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.45rem 1.25rem',
                   backgroundColor: 'var(--bg-deep)',
                   borderRadius: '999px',
-                  border: '1px solid var(--border-light)'
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem',
+                  fontWeight: 700
                 }}>
-                  <button
-                    type="button"
-                    onClick={() => setBillingCycle('monthly')}
-                    style={{
-                      minHeight: '40px',
-                      padding: '0.45rem 1.25rem',
-                      borderRadius: '999px',
-                      border: 'none',
-                      backgroundColor: billingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
-                      color: billingCycle === 'monthly' ? '#ffffff' : 'var(--text-secondary)',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    Bulanan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBillingCycle('annual')}
-                    style={{
-                      minHeight: '40px',
-                      padding: '0.45rem 1.25rem',
-                      borderRadius: '999px',
-                      border: 'none',
-                      backgroundColor: billingCycle === 'annual' ? 'var(--primary)' : 'transparent',
-                      color: billingCycle === 'annual' ? '#ffffff' : 'var(--text-secondary)',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    Tahunan
-                    <span style={{
-                      fontSize: '0.7rem',
-                      backgroundColor: '#10b981',
-                      color: '#ffffff',
-                      padding: '0.1rem 0.45rem',
-                      borderRadius: '999px',
-                      fontWeight: 800
-                    }}>
-                      HEMAT 20%
-                    </span>
-                  </button>
+                  <Calendar size={15} style={{ color: 'var(--primary)' }} />
+                  <span>Tagihan Bulanan (1 Bulan)</span>
                 </div>
               </div>
 

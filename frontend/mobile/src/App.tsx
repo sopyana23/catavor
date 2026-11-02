@@ -13452,9 +13452,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
               type: 'success'
             });
           } else {
-            const basePrice = registerPlan === 'pro_business' 
-              ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
-              : (registerBillingCycle === 'annual' ? 490000 : 49000);
+            const basePrice = registerPlan === 'pro_business' ? 129000 : 30000;
             const finalPrice = Math.max(0, basePrice - appliedCoupon.discount);
             newNotifs.push({
               id: Date.now() + 2,
@@ -13483,9 +13481,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
         } else {
           // Bayar biasa tanpa kupon
-          const basePrice = registerPlan === 'pro_business' 
-            ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
-            : (registerBillingCycle === 'annual' ? 490000 : 49000);
+          const basePrice = registerPlan === 'pro_business' ? 129000 : 30000;
           newNotifs.push({
             id: Date.now() + 2,
             title: '⏳ Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
@@ -16440,22 +16436,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     Paket Bisnis Sesuai Kebutuhan
                   </h2>
 
-                  {/* Monthly vs Annual Toggle */}
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem', borderRadius: '999px', background: '#f1f5f9', border: '1px solid #e2e8f0', marginTop: '1rem' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => setPricingBillingCycle('monthly')}
-                      style={{ padding: '0.35rem 0.95rem', borderRadius: '999px', border: 'none', background: pricingBillingCycle === 'monthly' ? '#2563eb' : 'transparent', color: pricingBillingCycle === 'monthly' ? '#ffffff' : '#475569', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Bulanan
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => setPricingBillingCycle('yearly')}
-                      style={{ padding: '0.35rem 0.95rem', borderRadius: '999px', border: 'none', background: pricingBillingCycle === 'yearly' ? '#2563eb' : 'transparent', color: pricingBillingCycle === 'yearly' ? '#ffffff' : '#475569', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Tahunan (-20%)
-                    </button>
+                  {/* Monthly Billing Indicator (Monthly Only) */}
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.85rem', borderRadius: '999px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '0.75rem', fontWeight: 700, marginTop: '0.75rem' }}>
+                    <Calendar size={13} />
+                    <span>Tagihan Bulanan (1 Bulan)</span>
                   </div>
                 </div>
 
@@ -16474,7 +16458,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       <li>✅ Subdomain kustom &amp; WhatsApp Order</li>
                       <li>✅ Download QR Code siap cetak</li>
                     </ul>
-                    <button className="btn-portal-secondary" style={{ padding: '0.7rem', fontSize: '0.8rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                    <button className="btn-portal-secondary" style={{ padding: '0.7rem', fontSize: '0.8rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setRegisterBillingCycle('monthly'); setPortalTab('register'); }}>
                       Daftar Gratis Sekarang
                     </button>
                   </div>
@@ -16489,7 +16473,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase' }}>Pro Starter</span>
                       </div>
                       <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#0f172a', margin: '0.2rem 0' }}>
-                        {pricingBillingCycle === 'monthly' ? 'Rp 30.000' : 'Rp 25.000'} <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ bulan</span>
+                        Rp 30.000 <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ bulan</span>
                       </div>
                     </div>
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.76rem', color: '#0f172a' }}>
@@ -16498,7 +16482,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       <li>⚡ Lencana Katalog Terverifikasi</li>
                       <li>⚡ <strong>100% Bebas Watermark</strong></li>
                     </ul>
-                    <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 800, justifyContent: 'center', background: '#0284c7' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_starter'); setRegisterBillingCycle(pricingBillingCycle === 'yearly' ? 'annual' : 'monthly'); setPortalTab('register'); }}>
+                    <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 800, justifyContent: 'center', background: '#0284c7' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_starter'); setRegisterBillingCycle('monthly'); setPortalTab('register'); }}>
                       <span>Pilih Pro Starter</span>
                       <ArrowRight size={14} />
                     </button>
@@ -16514,7 +16498,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase' }}>Pro Bisnis</span>
                       </div>
                       <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#0f172a', margin: '0.2rem 0' }}>
-                        {pricingBillingCycle === 'monthly' ? 'Rp 129.000' : 'Rp 107.500'} <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ bulan</span>
+                        Rp 129.000 <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ bulan</span>
                       </div>
                     </div>
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.76rem', color: '#0f172a' }}>
@@ -16523,7 +16507,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       <li>👑 <strong>Custom Domain (brand.com)</strong></li>
                       <li>👑 Prioritas VIP Support 24/7</li>
                     </ul>
-                    <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 900, justifyContent: 'center', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_business'); setRegisterBillingCycle(pricingBillingCycle === 'yearly' ? 'annual' : 'monthly'); setPortalTab('register'); }}>
+                    <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 900, justifyContent: 'center', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_business'); setRegisterBillingCycle('monthly'); setPortalTab('register'); }}>
                       <span>Pilih Pro Bisnis</span>
                       <ArrowRight size={14} />
                     </button>
@@ -17206,49 +17190,22 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               {/* STEP 3: Plan Selection Mobile */}
               {registerStep === 3 && (
                 <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  {/* Billing Cycle Selector Switcher Mobile */}
+                  {/* Billing Cycle Pill Indicator Mobile (Monthly Only) */}
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ display: 'inline-flex', padding: '0.25rem', borderRadius: '999px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>
-                      <button
-                        type="button"
-                        onClick={() => setRegisterBillingCycle('monthly')}
-                        style={{
-                          padding: '0.4rem 0.95rem',
-                          borderRadius: '999px',
-                          fontSize: '0.76rem',
-                          fontWeight: registerBillingCycle === 'monthly' ? 800 : 600,
-                          border: 'none',
-                          cursor: 'pointer',
-                          backgroundColor: registerBillingCycle === 'monthly' ? '#2563eb' : 'transparent',
-                          color: registerBillingCycle === 'monthly' ? '#ffffff' : '#64748b',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        Bulanan
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRegisterBillingCycle('annual')}
-                        style={{
-                          padding: '0.4rem 0.95rem',
-                          borderRadius: '999px',
-                          fontSize: '0.76rem',
-                          fontWeight: registerBillingCycle === 'annual' ? 800 : 600,
-                          border: 'none',
-                          cursor: 'pointer',
-                          backgroundColor: registerBillingCycle === 'annual' ? '#2563eb' : 'transparent',
-                          color: registerBillingCycle === 'annual' ? '#ffffff' : '#64748b',
-                          transition: 'all 0.15s ease',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem'
-                        }}
-                      >
-                        <span>Tahunan</span>
-                        <span style={{ fontSize: '0.6rem', fontWeight: 800, padding: '0.08rem 0.4rem', borderRadius: '999px', backgroundColor: '#dcfce7', color: '#15803d' }}>
-                          Hemat 2 Bln
-                        </span>
-                      </button>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.35rem 0.85rem',
+                      borderRadius: '999px',
+                      backgroundColor: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      color: '#1d4ed8',
+                      fontSize: '0.74rem',
+                      fontWeight: 700
+                    }}>
+                      <Calendar size={13} />
+                      <span>Periode Sewa: Bulanan (1 Bulan)</span>
                     </div>
                   </div>
 
@@ -17314,7 +17271,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'pro_starter' ? '#0284c7' : '#0f172a' }}>Pro Starter</span>
                         </div>
                         <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>
-                          {registerBillingCycle === 'annual' ? 'Rp 300.000' : 'Rp 30.000'} <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>{registerBillingCycle === 'annual' ? '/thn' : '/bln'}</small>
+                          Rp 30.000 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/bln</small>
                         </span>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 0.5rem', paddingLeft: '1.45rem' }}>
@@ -17358,7 +17315,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'pro_business' ? '#d97706' : '#0f172a' }}>Pro Bisnis</span>
                         </div>
                         <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>
-                          {registerBillingCycle === 'annual' ? 'Rp 1.290.000' : 'Rp 129.000'} <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>{registerBillingCycle === 'annual' ? '/thn' : '/bln'}</small>
+                          Rp 129.000 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/bln</small>
                         </span>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 0.5rem', paddingLeft: '1.45rem' }}>
@@ -17511,12 +17468,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
               {/* Price Calculations Mobile */}
               {(() => {
-                const originalPrice = registerPlan === 'pro_business'
-                  ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
-                  : (registerBillingCycle === 'annual' ? 490000 : 49000);
-                const normalPrice = registerPlan === 'pro_business'
-                  ? (registerBillingCycle === 'annual' ? 1548000 : 150000)
-                  : (registerBillingCycle === 'annual' ? 588000 : 65000);
+                const originalPrice = registerPlan === 'pro_business' ? 129000 : 30000;
+                const normalPrice = registerPlan === 'pro_business' ? 150000 : 65000;
                 const discountAmount = appliedCoupon ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount) : 0;
                 const finalPrice = Math.max(0, originalPrice - discountAmount);
 
@@ -17530,9 +17483,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         </strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#64748b' }}>
-                        <span>Siklus:</span>
+                        <span>Periode Sewa:</span>
                         <strong style={{ color: '#0f172a' }}>
-                          {registerBillingCycle === 'annual' ? '1 Tahun (12 Bulan)' : '1 Bulan'}
+                          1 Bulan (30 Hari)
                         </strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#64748b' }}>
@@ -17634,6 +17587,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <span style={{ fontSize: '1.15rem', color: finalPrice === 0 ? '#16a34a' : '#2563eb' }}>
                             Rp {finalPrice.toLocaleString('id-ID')}
                           </span>
+                          <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500, marginLeft: '0.2rem' }}>/ bulan</span>
                           {finalPrice === 0 && (
                             <span style={{ fontSize: '0.72rem', color: '#16a34a', marginLeft: '0.35rem', fontWeight: 800 }}>(GRATIS)</span>
                           )}

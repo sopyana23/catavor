@@ -759,15 +759,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		requestedPlan = "pro_business"
 	}
 
-	billingCycle := strings.ToLower(strings.TrimSpace(req.BillingCycle))
-	if billingCycle != "annual" {
-		billingCycle = "monthly"
-	}
-
+	// Strict platform policy: Only monthly billing cycle is supported (no annual)
+	billingCycle := "monthly"
 	durationMonths := 1
-	if billingCycle == "annual" {
-		durationMonths = 12
-	}
 
 	now := time.Now().UTC()
 	var origAmount float64
@@ -778,25 +772,13 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if requestedPlan != "free" {
 		planInfo, _ := services.GetPlanByCode(h.db, requestedPlan)
 		if planInfo != nil {
-			if billingCycle == "annual" {
-				origAmount = planInfo.PriceAnnual
-			} else {
-				origAmount = planInfo.PriceMonthly
-			}
+			origAmount = planInfo.PriceMonthly
 		} else {
 			// Fallbacks
 			if requestedPlan == "pro_business" {
-				if billingCycle == "annual" {
-					origAmount = 1290000
-				} else {
-					origAmount = 129000
-				}
+				origAmount = 129000
 			} else {
-				if billingCycle == "annual" {
-					origAmount = 490000
-				} else {
-					origAmount = 49000
-				}
+				origAmount = 30000
 			}
 		}
 

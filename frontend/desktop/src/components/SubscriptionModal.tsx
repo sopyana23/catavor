@@ -756,51 +756,19 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               justifyContent: 'center'
             }}>
               <div style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
+                gap: '0.45rem',
                 background: 'var(--btn-secondary-bg)',
-                padding: '4px',
+                padding: '0.45rem 1.25rem',
                 borderRadius: '0.65rem',
-                border: '1px solid var(--btn-secondary-border)'
+                border: '1px solid var(--btn-secondary-border)',
+                color: 'var(--text-primary)',
+                fontSize: '0.84rem',
+                fontWeight: 700
               }}>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('monthly')}
-                  style={{
-                    padding: '0.45rem 1.25rem',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.84rem',
-                    fontWeight: 800,
-                    border: 'none',
-                    background: billingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
-                    color: billingCycle === 'monthly' ? 'var(--btn-primary-text, #ffffff)' : 'var(--btn-secondary-text)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  Tagihan Bulanan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('annual')}
-                  style={{
-                    padding: '0.45rem 1.25rem',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.84rem',
-                    fontWeight: 800,
-                    border: 'none',
-                    background: billingCycle === 'annual' ? 'var(--primary)' : 'transparent',
-                    color: billingCycle === 'annual' ? 'var(--btn-primary-text, #ffffff)' : 'var(--btn-secondary-text)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <span>Tagihan Tahunan</span>
-                  <span style={{ fontSize: '0.68rem', background: '#10b981', color: '#ffffff', padding: '1px 6px', borderRadius: '4px', fontWeight: 900 }}>Hemat 20%</span>
-                </button>
+                <Calendar size={15} style={{ color: 'var(--primary)' }} />
+                <span>Tagihan Bulanan (1 Bulan)</span>
               </div>
             </div>
 

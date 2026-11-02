@@ -28,7 +28,8 @@ import {
   BadgeCheck,
   HelpCircle,
   Menu,
-  Compass
+  Compass,
+  Calendar
 } from 'lucide-react';
 
 import { TabletPoliciesView } from './TabletPoliciesView';
@@ -1825,65 +1826,21 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             Mulai gratis selamanya untuk pemula, atau upgrade ke Pro untuk fitur tanpa batas.
           </p>
 
-          {/* Billing Cycle Switcher */}
+          {/* Monthly Billing Indicator (Monthly Only) */}
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.35rem',
-            padding: '0.25rem',
+            gap: '0.45rem',
+            padding: '0.4rem 1.15rem',
             borderRadius: '999px',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)'
+            backgroundColor: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            color: '#1d4ed8',
+            fontSize: '0.84rem',
+            fontWeight: 700
           }}>
-            <button
-              type="button"
-              onClick={() => setBillingCycle('monthly')}
-              style={{
-                padding: '0.38rem 1.15rem',
-                minHeight: '44px',
-                borderRadius: '999px',
-                border: 'none',
-                backgroundColor: billingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
-                color: billingCycle === 'monthly' ? '#ffffff' : 'var(--text-secondary)',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              Bulanan
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingCycle('yearly')}
-              style={{
-                padding: '0.38rem 1.15rem',
-                minHeight: '44px',
-                borderRadius: '999px',
-                border: 'none',
-                backgroundColor: billingCycle === 'yearly' ? 'var(--primary)' : 'transparent',
-                color: billingCycle === 'yearly' ? '#ffffff' : 'var(--text-secondary)',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <span>Tahunan</span>
-              <span style={{
-                backgroundColor: 'rgba(22, 163, 74, 0.18)',
-                color: '#16a34a',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-                padding: '0.1rem 0.5rem',
-                borderRadius: '999px'
-              }}>
-                -20% Hemat
-              </span>
-            </button>
+            <Calendar size={15} />
+            <span>Tagihan Bulanan (1 Bulan)</span>
           </div>
         </div>
 
@@ -2032,7 +1989,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   </span>
                 </div>
                 <div style={{ fontSize: isMiniTablet ? '1.85rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.35rem 0 0.55rem 0', display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
-                  <span style={{ color: '#0284c7' }}>{billingCycle === 'monthly' ? 'Rp 30.000' : 'Rp 25.000'}</span>
+                  <span style={{ color: '#0284c7' }}>Rp 30.000</span>
                   <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>/ bulan</span>
                 </div>
                 <p style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-secondary)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
@@ -2050,7 +2007,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 type="button"
                 onClick={() => {
                   if (onSelectPlan) {
-                    onSelectPlan('pro_starter', billingCycle === 'yearly' ? 'annual' : 'monthly');
+                    onSelectPlan('pro_starter', 'monthly');
                   } else {
                     onOpenLogin();
                   }
@@ -2114,7 +2071,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   </span>
                 </div>
                 <div style={{ fontSize: isMiniTablet ? '1.85rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.35rem 0 0.55rem 0', display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
-                  <span style={{ color: '#d97706' }}>{billingCycle === 'monthly' ? 'Rp 129.000' : 'Rp 107.500'}</span>
+                  <span style={{ color: '#d97706' }}>Rp 129.000</span>
                   <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>/ bulan</span>
                 </div>
                 <p style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-secondary)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
@@ -2131,7 +2088,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   type="button"
                   onClick={() => {
                     if (onSelectPlan) {
-                      onSelectPlan('pro_business', billingCycle === 'yearly' ? 'annual' : 'monthly');
+                      onSelectPlan('pro_business', 'monthly');
                     } else {
                       onOpenLogin();
                     }

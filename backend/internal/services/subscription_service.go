@@ -623,19 +623,10 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		return nil, nil, fmt.Errorf("paket langganan '%s' tidak valid", planCode)
 	}
 
+	// Strict platform policy: Only monthly billing cycle (1 month) is supported (no annual)
+	req.BillingCycle = "monthly"
 	durationMonths := 1
-	var originalAmount float64
-	if req.BillingCycle == "annual" {
-		durationMonths = 12
-		originalAmount = plan.PriceAnnual
-		if originalAmount <= 0 {
-			originalAmount = plan.PriceMonthly * 10 // 2 months free discount default
-		}
-	} else {
-		req.BillingCycle = "monthly"
-		durationMonths = 1
-		originalAmount = plan.PriceMonthly
-	}
+	originalAmount := plan.PriceMonthly
 
 	// Calculate Coupon Discount via master_coupons setting
 	var discountAmount float64

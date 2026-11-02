@@ -72,17 +72,8 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
     return (initialPlan === 'pro_business' ? 'pro_business' : 'pro_starter');
   });
 
-  const [registerBillingCycle, setRegisterBillingCycle] = useState<'monthly' | 'annual'>(() => {
-    if (typeof window !== 'undefined') {
-      const qBilling = new URLSearchParams(window.location.search).get('billing');
-      if (qBilling === 'annual') return 'annual';
-      if (qBilling === 'monthly') return 'monthly';
-      const savedBilling = sessionStorage.getItem('catavor_register_billing');
-      if (savedBilling === 'annual') return 'annual';
-      if (savedBilling === 'monthly') return 'monthly';
-    }
-    return initialBilling;
-  });
+  // Strict Policy: Payments & Leases are ONLY Monthly (1 Month)
+  const registerBillingCycle = 'monthly';
 
   // Registration Form State (Account & Store Info)
   const [registerForm, setRegisterForm] = useState<{
@@ -213,14 +204,9 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [createdUserData, setCreatedUserData] = useState<any>(null);
 
-  // Price Calculations
-  const originalPrice = registerPlan === 'pro_business'
-    ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
-    : (registerBillingCycle === 'annual' ? 490000 : 49000);
-
-  const normalPrice = registerPlan === 'pro_business'
-    ? (registerBillingCycle === 'annual' ? 1548000 : 150000)
-    : (registerBillingCycle === 'annual' ? 588000 : 65000);
+  // Strict Monthly Price Calculations (1 Month)
+  const originalPrice = registerPlan === 'pro_business' ? 129000 : 30000;
+  const normalPrice = registerPlan === 'pro_business' ? 150000 : 65000;
 
   const discountAmount = appliedCoupon
     ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount)
@@ -666,52 +652,55 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {/* Billing Cycle Indicator (Monthly Only) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>
-                  Siklus Pembayaran:
+                  Periode Sewa / Langganan:
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setRegisterBillingCycle('monthly')}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0.5rem 0.65rem',
-                      borderRadius: '0.55rem',
-                      border: registerBillingCycle === 'monthly' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                      backgroundColor: registerBillingCycle === 'monthly' ? '#eff6ff' : '#ffffff',
-                      color: registerBillingCycle === 'monthly' ? '#1d4ed8' : '#475569',
-                      fontWeight: 700,
-                      fontSize: '0.76rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    1 Bulan
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setRegisterBillingCycle('annual')}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0.5rem 0.65rem',
-                      borderRadius: '0.55rem',
-                      border: registerBillingCycle === 'annual' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                      backgroundColor: registerBillingCycle === 'annual' ? '#eff6ff' : '#ffffff',
-                      color: registerBillingCycle === 'annual' ? '#1d4ed8' : '#475569',
-                      fontWeight: 700,
-                      fontSize: '0.76rem',
-                      cursor: 'pointer',
+                <div style={{
+                  padding: '0.75rem 0.95rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: '#eff6ff',
+                  border: '1.5px solid #bfdbfe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      backgroundColor: '#dbeafe',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      lineHeight: 1.2
-                    }}
-                  >
-                    <span>1 Tahun (Hemat)</span>
-                    <span style={{ fontSize: '0.65rem', color: '#16a34a', fontWeight: 800 }}>Hemat s/d 20%</span>
-                  </button>
+                      color: '#2563eb',
+                      flexShrink: 0
+                    }}>
+                      <Calendar size={16} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#1e40af' }}>
+                        Bulanan (1 Bulan)
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                        Tagihan dibayarkan per bulan (30 hari). Fleksibel dan tanpa komitmen panjang.
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 800,
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '999px',
+                    backgroundColor: '#dbeafe',
+                    color: '#1d4ed8',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    Aktif 30 Hari
+                  </span>
                 </div>
               </div>
 
@@ -726,6 +715,11 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
                 gap: '0.5rem',
                 fontSize: '0.8rem'
               }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                  <span>Periode Sewa:</span>
+                  <strong style={{ color: '#0f172a' }}>1 Bulan (30 Hari)</strong>
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
                   <span>Harga Normal:</span>
                   <span style={{ textDecoration: 'line-through' }}>
@@ -791,6 +785,9 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
                       color: finalPrice === 0 ? '#16a34a' : '#2563eb'
                     }}>
                       Rp {finalPrice.toLocaleString('id-ID')}
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 500, marginLeft: '0.25rem' }}>
+                      / bulan
                     </span>
                     {finalPrice === 0 && (
                       <span style={{
