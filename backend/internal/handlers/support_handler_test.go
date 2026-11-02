@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"os"
@@ -384,6 +387,180 @@ func TestSupportServeAttachment_SQLite(t *testing.T) {
 		code, _, raw := supportReq(t, app, "GET", "/attachments/%25", "", "penyusup")
 		if code == 200 && strings.Contains(string(raw), "PNGDATA") {
 			t.Fatal("wildcard '%' mencocokkan lampiran milik akun lain")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Cloud Storage (Cloudflare R2 / S3) Proxy Streaming Tests
+// ---------------------------------------------------------------------------
+
+type mockCloudStorage struct {
+	files map[string][]byte
+}
+
+func (m *mockCloudStorage) Upload(ctx context.Context, key string, r io.Reader, size int64, contentType string) (string, error) {
+	return "", nil
+}
+func (m *mockCloudStorage) Delete(ctx context.Context, key string) error { return nil }
+func (m *mockCloudStorage) DeletePrefix(ctx context.Context, prefix string) error { return nil }
+func (m *mockCloudStorage) GetURL(key string) string { return "" }
+func (m *mockCloudStorage) GetDriverName() string { return "r2" }
+func (m *mockCloudStorage) Get(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	cleanKey := strings.TrimLeft(filepath.ToSlash(key), "/")
+	data, ok := m.files[cleanKey]
+	if !ok {
+		return nil, "", 0, fmt.Errorf("object not found: %s", key)
+	}
+	cType := "image/png"
+	if strings.HasSuffix(cleanKey, ".pdf") {
+		cType = "application/pdf"
+	}
+	return io.NopCloser(bytes.NewReader(data)), cType, int64(len(data)), nil
+}
+func (m *mockCloudStorage) GetPresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	return "", nil
+}
+
+func TestSupportServeAttachment_CloudStorageDriver(t *testing.T) {
+	cfg := testCfg()
+	// Kosongkan root lokal untuk memastikan berkas HANYA bisa diambil dari cloud storage driver
+	cfg.StorageLocalRoot = ""
+	cfg.StoragePrivateRoot = ""
+
+	mockS3 := &mockCloudStorage{
+		files: map[string][]byte{
+			"private/support/tickets/2026/11/cloud-screenshot.png": []byte("CLOUD_IMAGE_BYTES_OK"),
+			"private/support/tickets/2026/11/rekening-koran.pdf":    []byte("%PDF-1.4 CLOUD_PDF_BYTES_OK"),
+		},
+	}
+
+	db := supportDB(t)
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	h := NewSupportHandler(cfg, mockS3, db)
+
+	actor := func(c *fiber.Ctx) error {
+		switch c.Get("X-Test-Actor") {
+		case "pemilik":
+			c.Locals("user", &models.User{ID: 10, Name: "Pemilik", Email: "pemilik@example.com", PlatformRole: "merchant"})
+		case "penyusup":
+			c.Locals("user", &models.User{ID: 99, Name: "Penyusup", Email: "hacker@example.com", PlatformRole: "merchant"})
+		case "staf":
+			c.Locals("user", &models.User{ID: 2, Name: "Staf", Email: "support@catavor.id", PlatformRole: "support"})
+		}
+		return c.Next()
+	}
+	app.Get("/attachments/:id", actor, h.ServeAttachment)
+
+	tiket := seedTicket(t, db, 10, "TCK-20261102-1001", "Tiket Bantuan Cloud", "open")
+	msg := models.SupportMessage{TicketID: tiket.ID, SenderID: 10, SenderType: "user", Message: "Mohon cek bukti cloud", CreatedAt: time.Now().UTC()}
+	db.Create(&msg)
+
+	attImg := models.SupportAttachment{
+		MessageID:  msg.ID,
+		FileURL:    "",
+		StorageKey: "private/support/tickets/2026/11/cloud-screenshot.png",
+		FileName:   "cloud-screenshot.png",
+		FileType:   "image/png",
+	}
+	db.Create(&attImg)
+
+	attPdf := models.SupportAttachment{
+		MessageID:  msg.ID,
+		FileURL:    "",
+		StorageKey: "private/support/tickets/2026/11/rekening-koran.pdf",
+		FileName:   "rekening-koran.pdf",
+		FileType:   "application/pdf",
+	}
+	db.Create(&attPdf)
+
+	t.Run("pemilik_bisa_preview_gambar_dari_cloud_r2", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/attachments/"+itoa(attImg.ID), nil)
+		req.Header.Set("X-Test-Actor", "pemilik")
+		res, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+
+		if res.StatusCode != 200 {
+			t.Fatalf("status = %d, want 200 (body: %s)", res.StatusCode, string(body))
+		}
+		if string(body) != "CLOUD_IMAGE_BYTES_OK" {
+			t.Fatalf("isi body = %q, want CLOUD_IMAGE_BYTES_OK", string(body))
+		}
+		if cType := res.Header.Get("Content-Type"); !strings.Contains(cType, "image/png") {
+			t.Errorf("Content-Type = %q, want image/png", cType)
+		}
+		if disp := res.Header.Get("Content-Disposition"); !strings.Contains(disp, "inline") {
+			t.Errorf("Content-Disposition = %q, want inline for in-app image preview", disp)
+		}
+		if cc := res.Header.Get("Cache-Control"); !strings.Contains(cc, "no-store") {
+			t.Errorf("Cache-Control = %q, want private, no-store for UU PDP compliance", cc)
+		}
+	})
+
+	t.Run("pemilik_bisa_preview_pdf_dari_cloud_r2", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/attachments/"+itoa(attPdf.ID), nil)
+		req.Header.Set("X-Test-Actor", "pemilik")
+		res, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+
+		if res.StatusCode != 200 {
+			t.Fatalf("status = %d, want 200 (body: %s)", res.StatusCode, string(body))
+		}
+		if !strings.Contains(string(body), "CLOUD_PDF_BYTES_OK") {
+			t.Fatalf("isi body = %q, want CLOUD_PDF_BYTES_OK", string(body))
+		}
+		if cType := res.Header.Get("Content-Type"); !strings.Contains(cType, "application/pdf") {
+			t.Errorf("Content-Type = %q, want application/pdf", cType)
+		}
+		if disp := res.Header.Get("Content-Disposition"); !strings.Contains(disp, "inline") {
+			t.Errorf("Content-Disposition = %q, want inline for in-app PDF preview", disp)
+		}
+	})
+
+	t.Run("download_query_param_mengubah_disposition_ke_attachment", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/attachments/"+itoa(attPdf.ID)+"?download=1", nil)
+		req.Header.Set("X-Test-Actor", "pemilik")
+		res, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer res.Body.Close()
+		if disp := res.Header.Get("Content-Disposition"); !strings.Contains(disp, "attachment") {
+			t.Errorf("Content-Disposition = %q, want attachment for download", disp)
+		}
+	})
+
+	t.Run("anti_idor_penyusup_ditolak_403", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/attachments/"+itoa(attImg.ID), nil)
+		req.Header.Set("X-Test-Actor", "penyusup")
+		res, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 403 {
+			t.Fatalf("status = %d, want 403 Forbidden", res.StatusCode)
+		}
+	})
+
+	t.Run("staf_bisa_akses_lampiran_merchant", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/attachments/"+itoa(attImg.ID), nil)
+		req.Header.Set("X-Test-Actor", "staf")
+		res, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 200 {
+			t.Fatalf("status = %d, want 200 OK for staff", res.StatusCode)
 		}
 	})
 }

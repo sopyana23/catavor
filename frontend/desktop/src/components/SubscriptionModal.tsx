@@ -248,8 +248,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       });
 
       const data = await res.json();
-      if (res.ok && data.success && data.url) {
-        setPaymentProofUrl(data.url);
+      const uploadedUrl = data.url || data.storage_key || data.key || (data.data && (data.data.url || data.data.storage_key || data.data.key));
+      if (res.ok && data.success && uploadedUrl) {
+        setPaymentProofUrl(uploadedUrl);
         setProofPreview(URL.createObjectURL(file));
       } else {
         throw new Error(data.message || 'Gagal mengupload bukti pembayaran.');

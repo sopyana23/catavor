@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"mime"
 	"net/url"
@@ -2415,61 +2416,125 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 		})
 	}
 
-	// 4. Resolve Local File Path on Server
-	// SECURITY (L1 + ST-01): semua path WAJIB tetap di dalam root yang sesuai.
-	// Tanpa ini, StorageKey/FileURL berisi "../" bisa membaca berkas di luar root
-	// (path traversal). resolveInsideRoot menolak hasil yang keluar dari root.
-	// Key privat ("private/...") dipetakan ke StoragePrivateRoot; key lama
-	// (publik) tetap dipetakan ke StorageLocalRoot agar data historis terbaca.
-	cleanKey := strings.TrimLeft(filepath.ToSlash(attachment.StorageKey), "/")
-	var filePath string
+	// 4. Resolve File Content from Cloud Storage (Cloudflare R2 / S3) or Local Disk
+	// SECURITY (L1 + ST-01 & UU PDP No. 27/2022):
+	// Berkas privat pada Cloudflare R2 / S3 diambil secara aman lewat storage driver
+	// dan dialirkan (secure streaming proxy) tanpa membocorkan kredensial atau endpoint R2 ke publik.
+	// Seluruh path divalidasi ketat terhadap path traversal ("..").
+	cleanKey := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(attachment.StorageKey)), "/")
+
+	candidateKeys := make([]string, 0, 4)
 	if cleanKey != "" {
-		if candidate, ok := h.resolveAttachmentPath(cleanKey); ok {
-			filePath = candidate
+		candidateKeys = append(candidateKeys, cleanKey)
+		if strings.HasPrefix(cleanKey, storage.PrivateKeyPrefix) {
+			candidateKeys = append(candidateKeys, strings.TrimPrefix(cleanKey, storage.PrivateKeyPrefix))
+		} else {
+			candidateKeys = append(candidateKeys, storage.PrivateKeyPrefix+cleanKey)
 		}
 	}
 
-	// Fallback lookup via FileURL if storage_key is relative or changed
-	if filePath == "" && attachment.FileURL != "" {
+	if attachment.FileURL != "" {
 		if u, err := url.Parse(attachment.FileURL); err == nil {
-			urlPath := strings.TrimPrefix(u.Path, "/storage/")
+			urlPath := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(u.Path)), "/")
 			urlPath = strings.TrimPrefix(urlPath, "storage/")
-			if candidate, ok := h.resolveAttachmentPath(urlPath); ok {
-				filePath = candidate
+			urlPath = strings.TrimLeft(urlPath, "/")
+			if urlPath != "" && urlPath != cleanKey {
+				candidateKeys = append(candidateKeys, urlPath)
+				if !strings.HasPrefix(urlPath, storage.PrivateKeyPrefix) {
+					candidateKeys = append(candidateKeys, storage.PrivateKeyPrefix+urlPath)
+				}
 			}
 		}
 	}
 
-	if filePath == "" || !isRegularFile(filePath) {
+	var (
+		fileData            []byte
+		resolvedContentType string
+		localFilePath       string
+		contentFound        bool
+	)
+
+	// A. Try retrieving from configured StorageService (Cloudflare R2 / S3 / MinIO)
+	if h.storage != nil {
+		for _, key := range candidateKeys {
+			if strings.Contains(key, "..") || filepath.IsAbs(key) || strings.Contains(key, ":") {
+				continue
+			}
+			rc, cType, _, err := h.storage.Get(c.Context(), key)
+			if err == nil && rc != nil {
+				data, readErr := io.ReadAll(io.LimitReader(rc, 15*1024*1024))
+				_ = rc.Close()
+				if readErr == nil && len(data) > 0 {
+					fileData = data
+					resolvedContentType = cType
+					contentFound = true
+					break
+				}
+			}
+		}
+	}
+
+	// B. Fallback to Local Disk if not found via storage driver or if h.storage == nil (e.g. unit tests or local legacy files)
+	if !contentFound {
+		for _, key := range candidateKeys {
+			if strings.Contains(key, "..") || filepath.IsAbs(key) || strings.Contains(key, ":") {
+				continue
+			}
+			if candidate, ok := h.resolveAttachmentPath(key); ok && isRegularFile(candidate) {
+				localFilePath = candidate
+				contentFound = true
+				break
+			}
+		}
+	}
+
+	if !contentFound {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
-			"message": "File fisik lampiran tidak ditemukan di penyimpanan server.",
+			"message": "File fisik lampiran tidak ditemukan di penyimpanan cloud maupun server.",
 		})
 	}
 
 	// 5. Response Headers & Content Negotiation
 	fileName := attachment.FileName
 	if fileName == "" {
-		fileName = filepath.Base(filePath)
+		if localFilePath != "" {
+			fileName = filepath.Base(localFilePath)
+		} else if cleanKey != "" {
+			fileName = filepath.Base(cleanKey)
+		}
+	}
+	if fileName == "" || fileName == "." || fileName == "/" {
+		fileName = "lampiran_tiket"
 	}
 
 	contentType := attachment.FileType
 	if contentType == "" || contentType == "application/octet-stream" {
-		contentType = mime.TypeByExtension(filepath.Ext(filePath))
-		if contentType == "" {
-			contentType = "application/octet-stream"
+		if resolvedContentType != "" && resolvedContentType != "application/octet-stream" {
+			contentType = resolvedContentType
+		} else {
+			ext := filepath.Ext(fileName)
+			if ext == "" && localFilePath != "" {
+				ext = filepath.Ext(localFilePath)
+			}
+			if ext == "" && cleanKey != "" {
+				ext = filepath.Ext(cleanKey)
+			}
+			contentType = mime.TypeByExtension(ext)
+			if contentType == "" {
+				contentType = "application/octet-stream"
+			}
 		}
 	}
 
 	isDownload := c.Query("download") == "1" || strings.EqualFold(c.Query("download"), "true")
 
-	// SECURITY (ST-08): berkas non-gambar TIDAK boleh dirender inline oleh
-	// browser. Render inline same-origin memungkinkan dokumen (khususnya PDF)
-	// tampil seolah berasal dari domain Catavor — bahan phishing yang meyakinkan
-	// — dan memaksa parser PDF berjalan di origin aplikasi. Gambar tetap inline
-	// agar preview lampiran berfungsi.
+	// SECURITY (ST-08 & UU PDP): Berkas gambar dan dokumen PDF diizinkan inline untuk preview in-app (modal & chat gallery).
+	// Dokumen PDF dirender secara terisolasi pada canvas klien (DocumentPreviewModal).
+	// Berkas biner lain dipaksa unduh (attachment) demi pencegahan eksekusi skrip / payload berbahaya.
 	dispositionType := "attachment"
-	if !isDownload && strings.HasPrefix(strings.ToLower(contentType), "image/") {
+	lowerType := strings.ToLower(contentType)
+	if !isDownload && (strings.HasPrefix(lowerType, "image/") || lowerType == "application/pdf") {
 		dispositionType = "inline"
 	}
 
@@ -2478,12 +2543,16 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	c.Set("Content-Type", contentType)
 	c.Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, dispositionType, safeFileName))
 	c.Set("X-Content-Type-Options", "nosniff")
-	// SECURITY (ST-01): lampiran tiket bersifat privat per-pengguna. Cache
-	// bersama (proxy, cache disk browser) tidak boleh menyimpannya.
+	// SECURITY (ST-01): Lampiran tiket bersifat privat per-pengguna (UU PDP). Cache
+	// bersama (proxy publik, cache disk browser bersama) tidak boleh menyimpannya.
 	c.Set("Cache-Control", "private, no-store")
 	c.Set("Pragma", "no-cache")
 
-	return c.SendFile(filePath)
+	if localFilePath != "" {
+		return c.SendFile(localFilePath)
+	}
+
+	return c.Send(fileData)
 }
 
 // resolveAttachmentPath memetakan storage key lampiran ke path fisik di disk.
@@ -2499,14 +2568,23 @@ func (h *SupportHandler) resolveAttachmentPath(key string) (string, bool) {
 
 	if storage.IsPrivateKey(cleanKey) {
 		relKey := strings.TrimPrefix(cleanKey, storage.PrivateKeyPrefix)
-		if candidate, ok := resolveInsideRoot(h.cfg.StoragePrivateRoot, relKey); ok && isRegularFile(candidate) {
-			return candidate, true
+		if h.cfg.StoragePrivateRoot != "" {
+			if candidate, ok := resolveInsideRoot(h.cfg.StoragePrivateRoot, relKey); ok && isRegularFile(candidate) {
+				return candidate, true
+			}
+		}
+		if h.cfg.StorageLocalRoot != "" {
+			if candidate, ok := resolveInsideRoot(h.cfg.StorageLocalRoot, relKey); ok && isRegularFile(candidate) {
+				return candidate, true
+			}
 		}
 		return "", false
 	}
 
-	if candidate, ok := resolveInsideRoot(h.cfg.StorageLocalRoot, cleanKey); ok && isRegularFile(candidate) {
-		return candidate, true
+	if h.cfg.StorageLocalRoot != "" {
+		if candidate, ok := resolveInsideRoot(h.cfg.StorageLocalRoot, cleanKey); ok && isRegularFile(candidate) {
+			return candidate, true
+		}
 	}
 	return "", false
 }

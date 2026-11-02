@@ -258,8 +258,9 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
         body: formData
       });
       const data = await res.json();
-      if (res.ok && data.success && (data.url || data.data?.url)) {
-        setPaymentProofUrl(data.url || data.data?.url);
+      const uploadedUrl = data.url || data.storage_key || data.key || (data.data && (data.data.url || data.data.storage_key || data.data.key));
+      if (res.ok && data.success && uploadedUrl) {
+        setPaymentProofUrl(uploadedUrl);
       } else {
         setPaymentProofUrl(proofPreview || '');
       }

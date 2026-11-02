@@ -43,31 +43,63 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to initialize S3 storage driver")
 	}
 
+	type migrationItem struct {
+		filePath  string
+		objectKey string
+	}
+	var filesToMigrate []migrationItem
+
+	// 1. Scan Public Local Storage Root
 	localRoot := cfg.StorageLocalRoot
-	if _, err := os.Stat(localRoot); os.IsNotExist(err) {
-		log.Fatal().Str("path", localRoot).Msg("Local storage root directory does not exist")
+	if _, err := os.Stat(localRoot); err == nil {
+		_ = filepath.Walk(localRoot, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return err
+			}
+			relPath, err := filepath.Rel(localRoot, path)
+			if err == nil {
+				key := strings.TrimLeft(filepath.ToSlash(relPath), "/")
+				filesToMigrate = append(filesToMigrate, migrationItem{filePath: path, objectKey: key})
+			}
+			return nil
+		})
 	}
 
-	var filesToMigrate []string
-	err = filepath.Walk(localRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	// 2. Scan Private Storage Root (supporting root or parent project paths)
+	privateCandidates := []string{
+		cfg.StoragePrivateRoot,
+		filepath.Join("..", cfg.StoragePrivateRoot),
+		"storage/private",
+		"../storage/private",
+	}
+	var detectedPrivateRoot string
+	for _, p := range privateCandidates {
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			detectedPrivateRoot = p
+			break
 		}
-		if !info.IsDir() {
-			filesToMigrate = append(filesToMigrate, path)
-		}
-		return nil
-	})
+	}
 
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to scan local storage directory")
+	if detectedPrivateRoot != "" {
+		log.Info().Str("private_root", detectedPrivateRoot).Msg("Found private storage directory, scanning private files...")
+		_ = filepath.Walk(detectedPrivateRoot, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return err
+			}
+			relPath, err := filepath.Rel(detectedPrivateRoot, path)
+			if err == nil {
+				key := "private/" + strings.TrimLeft(filepath.ToSlash(relPath), "/")
+				filesToMigrate = append(filesToMigrate, migrationItem{filePath: path, objectKey: key})
+			}
+			return nil
+		})
 	}
 
 	total := len(filesToMigrate)
-	log.Info().Int("total_files", total).Msg("Found files to migrate to S3/MinIO")
+	log.Info().Int("total_files", total).Msg("Found total files to migrate to S3/MinIO (public + private)")
 
 	if total == 0 {
-		log.Info().Msg("No files to migrate. Storage directory is empty.")
+		log.Info().Msg("No files to migrate. Storage directories are empty.")
 		return
 	}
 
@@ -77,15 +109,9 @@ func main() {
 
 	startTime := time.Now()
 
-	for idx, filePath := range filesToMigrate {
-		relPath, err := filepath.Rel(localRoot, filePath)
-		if err != nil {
-			log.Warn().Err(err).Str("file", filePath).Msg("Failed to determine relative key")
-			failCount++
-			continue
-		}
-
-		objectKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
+	for idx, item := range filesToMigrate {
+		filePath := item.filePath
+		objectKey := item.objectKey
 
 		file, err := os.Open(filePath)
 		if err != nil {

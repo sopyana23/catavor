@@ -111,7 +111,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
         const urlParams = new URLSearchParams(window.location.search);
         const tParam = urlParams.get('ticket');
         if (tParam) return tParam;
-      } catch {}
+      } catch { }
     }
     return null;
   });
@@ -188,7 +188,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.33);
-    } catch {}
+    } catch { }
   }, []);
 
   // Helper: Auth Headers
@@ -416,7 +416,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
           fetch(`/api/support/tickets/${ticketId}/mark-read`, {
             method: 'POST',
             headers: getAuthHeaders()
-          }).catch(() => {});
+          }).catch(() => { });
 
           // Clear unread in list
           setTickets(prev => prev.map(item => String(item.id) === String(ticketId) ? { ...item, unread_count: 0, has_unread: false } : item));
@@ -656,8 +656,8 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   const handleDownloadAttachment = async (att: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!att) return;
-    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
-      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) ||
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') ||
       /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
     const fileName = att.file_name || (isImage ? 'Lampiran_Gambar.jpg' : 'Dokumen.pdf');
     const authToken = token || localStorage.getItem('catavor_token') || '';
@@ -694,11 +694,11 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
 
   const openDocumentPreview = (att: any) => {
     if (!att) return;
-    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
-      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) ||
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') ||
       /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
-    const isPdf = (att.file_type || '').includes('pdf') || 
-      (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+    const isPdf = (att.file_type || '').includes('pdf') ||
+      (att.file_name || '').toLowerCase().endsWith('.pdf') ||
       (att.file_url || '').toLowerCase().endsWith('.pdf');
 
     setDocPreview({
@@ -856,7 +856,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden' }}>
-      
+
       {/* ===================================================================
           1. TOP TABLET STATS BANNER
           =================================================================== */}
@@ -1028,7 +1028,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
           isSidebarExpanded={isNavExpanded}
           masterPane={
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '0.85rem', gap: '0.65rem' }}>
-              
+
               {/* Search input with clear button */}
               <div style={{ position: 'relative' }}>
                 <input
@@ -1502,7 +1502,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                  VIEW: TICKET DETAIL & INTERACTIVE CHAT THREAD
                  =================================================================== */
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                
+
                 {/* Detail Header */}
                 <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', flexShrink: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1751,8 +1751,8 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                             <>
                               <User size={13} color="var(--primary)" />
                               <strong>
-                                {ticketDetails.store?.name 
-                                  ? `${ticketDetails.store.name} (${msg.sender_name || currentUser?.name || 'Pengelola'})` 
+                                {ticketDetails.store?.name
+                                  ? `${ticketDetails.store.name} (${msg.sender_name || currentUser?.name || 'Pengelola'})`
                                   : (msg.sender_name || currentUser?.name || 'Pengelola')}
                               </strong>
                             </>
@@ -2014,7 +2014,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                 {/* Reply Bar Footer */}
                 {!['resolved', 'closed'].includes(ticketDetails.status) ? (
                   <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', flexShrink: 0 }}>
-                    
+
                     {/* Attachment Chips before sending */}
                     {ticketReplyAttachments.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.5rem' }}>
