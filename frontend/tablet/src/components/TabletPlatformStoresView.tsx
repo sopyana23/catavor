@@ -1324,8 +1324,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                                 src={item.store_logo_url}
                                 alt={item.store_title}
                                 compact={true}
-                                emptyIcon={<Store size={20} color="var(--text-muted)" />}
-                                emptyLabel="Logo Belum Diunggah"
+                                emptyLabel="Belum Ada Logo"
                                 errorLabel="Logo Rusak"
                                 objectFit="cover"
                               />
@@ -1735,8 +1734,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                           src={item.store_logo_url}
                           alt={item.store_title}
                           compact={true}
-                          emptyIcon={<Store size={20} color="var(--text-muted)" />}
-                          emptyLabel="Logo Belum Diunggah"
+                          emptyLabel="Belum Ada Logo"
                           errorLabel="Logo Rusak"
                           objectFit="cover"
                         />
@@ -2759,8 +2757,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                             src={s.store_logo_url}
                             alt={s.store_title}
                             compact={true}
-                            emptyIcon={<Store size={22} color="var(--text-muted)" />}
-                            emptyLabel="Logo Belum Diunggah"
+                            emptyLabel="Belum Ada Logo"
                             errorLabel="Logo Rusak"
                             objectFit="cover"
                           />
@@ -2862,7 +2859,6 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                                       src={p.image_url || p.cover_url || (Array.isArray(p.images) && p.images[0]) || ''}
                                       alt={p.name}
                                       compact={true}
-                                      emptyIcon={<Package size={14} color="var(--text-muted)" />}
                                       emptyLabel="Belum ada gambar"
                                       errorLabel="Gambar rusak"
                                       objectFit="cover"

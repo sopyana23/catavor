@@ -139,12 +139,12 @@ export const SafeImage: React.FC<SafeImageProps> = ({
 
   // Palette warna elegan anti-AI slop
   const emptyBg = isDark ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc';
-  const emptyBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0';
+  const emptyBorder = isDark ? 'rgba(255, 255, 255, 0.14)' : '#cbd5e1';
   const emptyTextColor = isDark ? '#94a3b8' : '#64748b';
   const emptySubColor = isDark ? '#64748b' : '#94a3b8';
 
   const errorBg = isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.04)';
-  const errorBorder = isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.2)';
+  const errorBorder = isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(239, 68, 68, 0.25)';
   const errorTextColor = isDark ? '#f87171' : '#dc2626';
   const errorSubColor = isDark ? '#cbd5e1' : '#64748b';
 

@@ -11476,7 +11476,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     <SafeImage
                                       src={googleSettings.rekber_logo_url}
                                       alt="Logo Partner"
-                                      emptyIcon={ShieldCheck}
                                       emptyText="Logo Rekber"
                                       errorText="Logo Rusak"
                                       compact={true}

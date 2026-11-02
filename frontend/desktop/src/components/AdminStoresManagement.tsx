@@ -1623,8 +1623,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                               src={item.store_logo_url}
                               alt={item.store_title}
                               compact={true}
-                              emptyIcon={<Store size={20} color={isDark ? '#9ca3af' : '#6b7280'} />}
-                              emptyLabel="Logo Belum Diunggah"
+                              emptyLabel="Belum Ada Logo"
                               errorLabel="Logo Rusak"
                               isDark={isDark}
                               objectFit="cover"
@@ -2311,12 +2310,9 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                           <SafeImage
                             src={s.store_logo_url}
                             alt={s.store_title}
-                            compact={false}
-                            showLabel={false}
-                            emptyIcon={<Store size={28} color="#10b981" />}
+                            compact={true}
                             emptyLabel="Belum Ada Logo"
                             errorLabel="Logo Rusak"
-                            errorSubLabel="Tidak terbaca"
                             isDark={isDark}
                             objectFit="cover"
                           />
@@ -2551,7 +2547,6 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                                       src={p.image_url || p.cover_url || (Array.isArray(p.images) && p.images[0]) || ''}
                                       alt={p.name}
                                       compact={true}
-                                      emptyIcon={<Package size={14} color={isDark ? '#9ca3af' : '#6b7280'} />}
                                       emptyLabel="Belum ada gambar"
                                       errorLabel="Gambar rusak"
                                       isDark={isDark}

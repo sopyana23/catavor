@@ -14595,7 +14595,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             <SafeImage
                               src={googleSettings.rekber_logo_url}
                               alt="Logo Partner"
-                              emptyIcon={<ShieldCheck size={24} style={{ color: '#10b981' }} />}
                               emptyLabel="Logo Rekber"
                               errorLabel="Logo Rusak"
                               compact={true}
