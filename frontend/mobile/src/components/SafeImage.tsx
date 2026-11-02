@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon, ImageOff, RotateCcw } from 'lucide-react';
 
 export interface SafeImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'onError' | 'onLoad' | 'src'> {
@@ -44,12 +44,34 @@ export interface SafeImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageEl
 }
 
 /**
+ * Filter dan sanitasi URL gambar untuk mencegah string sentinel 'null', 'undefined', dll.
+ * Dianggap valid hanya jika berupa path/URL riil non-kosong.
+ */
+export const cleanImageSrc = (s?: string | null): string | null => {
+  if (!s) return null;
+  const trimmed = s.trim();
+  if (
+    !trimmed ||
+    trimmed === 'null' ||
+    trimmed === 'undefined' ||
+    trimmed === '""' ||
+    trimmed === "''" ||
+    trimmed === '{}' ||
+    trimmed === '[]' ||
+    trimmed === '[object Object]'
+  ) {
+    return null;
+  }
+  return trimmed;
+};
+
+/**
  * SafeImage: Komponen Standar Industri untuk Penampil Gambar Catavor (Mobile Native)
  * 
  * Mengelola 4 fase gambar secara elegan tanpa layout shift:
- * 1. Empty State: Belum diunggah / URL kosong (Ikon ImageIcon + Muted Container)
+ * 1. Empty State: Belum diunggah / URL kosong (Ikon ImageIcon + Dashed Muted Container)
  * 2. Loading State: Menunggu pemuatan gambar (Skeleton Muted Pulse)
- * 3. Error State: Gambar rusak / 404 / format korup (Ikon ImageOff + Opsi Muat Ulang)
+ * 3. Error State: Gambar rusak / 404 / format korup (Ikon ImageOff + Soft Red Border)
  * 4. Success State: Gambar berhasil ter-render dengan object-fit terukur
  * 
  * Sesuai Standar: Bebas Emoji, Vektor Profesional Lucide (1.75px stroke), Anti-AI Slop.
@@ -81,27 +103,52 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   ...restProps
 }) => {
   const finalEmptyLabel = emptyLabel || emptyTextProp || 'Belum Ada Gambar';
-  const finalErrorLabel = errorLabel || errorTextProp || 'Gambar Tidak Terbaca';
+  const finalErrorLabel = errorLabel || errorTextProp || 'Gambar Rusak';
 
-  const [currentSrc, setCurrentSrc] = useState<string | null>(() => {
-    return src && src.trim() ? src : (fallbackSrc && fallbackSrc.trim() ? fallbackSrc : null);
-  });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [measuredSmall, setMeasuredSmall] = useState<boolean>(false);
+
+  const validInitialSrc = cleanImageSrc(src) || cleanImageSrc(fallbackSrc);
+  const [currentSrc, setCurrentSrc] = useState<string | null>(validInitialSrc);
   const [hasTriedFallback, setHasTriedFallback] = useState<boolean>(false);
   const [retryKey, setRetryKey] = useState<number>(0);
 
   const [status, setStatus] = useState<'empty' | 'loading' | 'loaded' | 'error'>(() => {
-    const initial = src && src.trim() ? src : (fallbackSrc && fallbackSrc.trim() ? fallbackSrc : null);
-    return !initial ? 'empty' : 'loading';
+    return !validInitialSrc ? 'empty' : 'loading';
   });
+
+  // Dynamic dimension observer: mendeteksi ukuran kontainer induk secara akurat
+  // agar thumbnail (<= 96px) otomatis beroperasi dalam mode compact anti-overflow.
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const checkDim = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        if ((rect.width > 0 && rect.width <= 96) || (rect.height > 0 && rect.height <= 96)) {
+          setMeasuredSmall(true);
+        } else if (rect.width > 96 && rect.height > 96) {
+          setMeasuredSmall(false);
+        }
+      }
+    };
+    checkDim();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(checkDim);
+      ro.observe(containerRef.current);
+      return () => ro.disconnect();
+    }
+  }, []);
 
   // Sinkronisasi status saat prop `src` atau `fallbackSrc` berubah
   useEffect(() => {
     setHasTriedFallback(false);
-    if (src && src.trim()) {
-      setCurrentSrc(src);
+    const validSrc = cleanImageSrc(src);
+    const validFallback = cleanImageSrc(fallbackSrc);
+    if (validSrc) {
+      setCurrentSrc(validSrc);
       setStatus('loading');
-    } else if (fallbackSrc && fallbackSrc.trim()) {
-      setCurrentSrc(fallbackSrc);
+    } else if (validFallback) {
+      setCurrentSrc(validFallback);
       setStatus('loading');
     } else {
       setCurrentSrc(null);
@@ -115,9 +162,10 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    if (fallbackSrc && fallbackSrc.trim() && !hasTriedFallback && currentSrc !== fallbackSrc) {
+    const validFallback = cleanImageSrc(fallbackSrc);
+    if (validFallback && !hasTriedFallback && currentSrc !== validFallback) {
       setHasTriedFallback(true);
-      setCurrentSrc(fallbackSrc);
+      setCurrentSrc(validFallback);
       setStatus('loading');
       return;
     }
@@ -173,13 +221,13 @@ export const SafeImage: React.FC<SafeImageProps> = ({
     }
     return 999;
   };
-  const isSmallSize = (
-    parseDimension(wrapperStyle?.width) <= 84 ||
-    parseDimension(wrapperStyle?.height) <= 84 ||
-    parseDimension(style?.width) <= 84 ||
-    parseDimension(style?.height) <= 84
+  const isSmallExplicit = (
+    parseDimension(wrapperStyle?.width) <= 96 ||
+    parseDimension(wrapperStyle?.height) <= 96 ||
+    parseDimension(style?.width) <= 96 ||
+    parseDimension(style?.height) <= 96
   );
-  const isEffectivelyCompact = compact || !showLabel || isSmallSize;
+  const isEffectivelyCompact = compact || !showLabel || isSmallExplicit || measuredSmall;
 
   const renderEmptyIcon = () => {
     if (!emptyIcon) return <ImageIcon size={isEffectivelyCompact ? 20 : 26} strokeWidth={1.75} />;
@@ -198,6 +246,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   if (status === 'empty') {
     return (
       <div
+        ref={containerRef}
         className={`safe-image-empty ${wrapperClassName}`}
         style={{
           ...containerStyle,
@@ -213,12 +262,12 @@ export const SafeImage: React.FC<SafeImageProps> = ({
           {renderEmptyIcon()}
         </div>
         {!isEffectivelyCompact && (
-          <div style={{ marginTop: '0.4rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: emptyTextColor, lineHeight: 1.25 }}>
+          <div style={{ marginTop: '0.4rem', textAlign: 'center', maxWidth: '90%', overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: emptyTextColor, lineHeight: 1.25, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
               {finalEmptyLabel}
             </div>
             {emptySubLabel && (
-              <div style={{ fontSize: '0.66rem', color: emptySubColor, marginTop: '0.15rem' }}>
+              <div style={{ fontSize: '0.66rem', color: emptySubColor, marginTop: '0.15rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                 {emptySubLabel}
               </div>
             )}
@@ -231,6 +280,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   if (status === 'error') {
     return (
       <div
+        ref={containerRef}
         className={`safe-image-error ${wrapperClassName}`}
         style={{
           ...containerStyle,
@@ -246,12 +296,12 @@ export const SafeImage: React.FC<SafeImageProps> = ({
           {renderErrorIcon()}
         </div>
         {!isEffectivelyCompact && (
-          <div style={{ marginTop: '0.35rem', textAlign: 'center', maxWidth: '90%' }}>
-            <div style={{ fontSize: '0.74rem', fontWeight: 800, color: errorTextColor, lineHeight: 1.25 }}>
+          <div style={{ marginTop: '0.35rem', textAlign: 'center', maxWidth: '90%', overflow: 'hidden' }}>
+            <div style={{ fontSize: '0.74rem', fontWeight: 800, color: errorTextColor, lineHeight: 1.25, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
               {finalErrorLabel}
             </div>
             {errorSubLabel && (
-              <div style={{ fontSize: '0.65rem', color: errorSubColor, marginTop: '0.15rem', lineHeight: 1.2 }}>
+              <div style={{ fontSize: '0.65rem', color: errorSubColor, marginTop: '0.15rem', lineHeight: 1.2, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                 {errorSubLabel}
               </div>
             )}
@@ -286,6 +336,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className={`safe-image-wrapper ${wrapperClassName}`}
       style={{
         ...containerStyle,

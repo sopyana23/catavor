@@ -3489,7 +3489,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         payment_system_mode: googleSettings.payment_system_mode || 'gateway_aulaa',
         payment_maintenance_title: googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan',
         payment_maintenance_message: googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.',
-        payment_qris_manual_image: googleSettings.payment_qris_manual_image || '/img/qris_demo.svg',
+        payment_qris_manual_image: (googleSettings.payment_qris_manual_image || '').trim(),
         payment_qris_manual_merchant: googleSettings.payment_qris_manual_merchant || 'Catavor Official Store',
         payment_bank_name: googleSettings.payment_bank_name || 'Bank Central Asia (BCA)',
         payment_bank_account: googleSettings.payment_bank_account || '8830-1928-3920',
@@ -9106,27 +9106,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         </label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <div style={{
-                            width: '60px',
-                            height: '60px',
-                            borderRadius: '0.5rem',
-                            border: `1px solid ${theme.border}`,
-                            backgroundColor: '#ffffff',
-                            padding: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: '0.65rem',
                             overflow: 'hidden',
                             flexShrink: 0
                           }}>
                             <SafeImage
                               src={googleSettings.payment_qris_manual_image}
                               alt="QRIS Merchant"
-                              fallbackSrc="/img/qris_demo.svg"
                               emptyLabel="Belum Ada QRIS"
+                              emptySubLabel="Unggah berkas QRIS"
                               errorLabel="QRIS Rusak"
+                              errorSubLabel="Tidak terbaca"
                               compact={true}
+                              objectFit="contain"
                               isDark={isDark}
-                              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                              title={googleSettings.payment_qris_manual_image ? "Pratinjau Gambar QRIS" : "QRIS belum diunggah"}
                             />
                           </div>
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -9134,7 +9130,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               type="text"
                               value={googleSettings.payment_qris_manual_image || ''}
                               onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: e.target.value }))}
-                              placeholder="/img/qris_demo.svg"
+                              placeholder="Unggah file atau masukkan URL gambar..."
                               style={{
                                 width: '100%',
                                 minHeight: '44px',
@@ -9146,34 +9142,59 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                 fontSize: '0.75rem'
                               }}
                             />
-                            <label style={{
-                              minHeight: '44px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              padding: '0 0.75rem',
-                              borderRadius: '0.45rem',
-                              backgroundColor: theme.surface,
-                              border: `1px solid ${theme.border}`,
-                              color: theme.textPrimary,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
-                              width: 'fit-content'
-                            }}>
-                              <Upload size={13} color="#0284c7" />
-                              <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File'}</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                disabled={isUploadingQRISImage}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  if (f) handleUploadQRISImage(f);
-                                }}
-                                style={{ display: 'none' }}
-                              />
-                            </label>
+                            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                              <label style={{
+                                minHeight: '44px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0 0.75rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: theme.surface,
+                                border: `1px solid ${theme.border}`,
+                                color: theme.textPrimary,
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
+                                width: 'fit-content'
+                              }}>
+                                <Upload size={13} color="#0284c7" />
+                                <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File'}</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  disabled={isUploadingQRISImage}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) handleUploadQRISImage(f);
+                                  }}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                              {googleSettings.payment_qris_manual_image && (
+                                <button
+                                  type="button"
+                                  onClick={() => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: '' }))}
+                                  style={{
+                                    minHeight: '44px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    padding: '0 0.75rem',
+                                    borderRadius: '0.45rem',
+                                    backgroundColor: 'transparent',
+                                    border: `1px solid ${theme.border}`,
+                                    color: '#ef4444',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Trash2 size={13} />
+                                  <span>Hapus</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -14583,23 +14604,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           <div style={{
                             width: '56px',
                             height: '56px',
-                            borderRadius: '10px',
-                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                            border: `1px solid ${theme.border}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            borderRadius: '0.65rem',
                             overflow: 'hidden',
                             flexShrink: 0
                           }}>
                             <SafeImage
                               src={googleSettings.rekber_logo_url}
                               alt="Logo Partner"
-                              emptyLabel="Logo Rekber"
+                              emptyLabel="Logo Belum Diunggah"
+                              emptySubLabel="Pilih berkas PNG/SVG"
                               errorLabel="Logo Rusak"
+                              errorSubLabel="Tidak terbaca"
                               compact={true}
+                              objectFit="contain"
                               isDark={isDark}
-                              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
+                              title={googleSettings.rekber_logo_url ? "Logo Partner Rekber" : "Logo mitra belum diunggah"}
                             />
                           </div>
 

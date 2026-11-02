@@ -177,7 +177,7 @@ func (h *SettingHandler) applyFallbacks(res map[string]string) {
 		res["payment_maintenance_message"] = "Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi."
 	}
 	if _, ok := res["payment_qris_manual_image"]; !ok {
-		res["payment_qris_manual_image"] = "/img/qris_demo.svg"
+		res["payment_qris_manual_image"] = ""
 	}
 	if _, ok := res["payment_qris_manual_merchant"]; !ok {
 		res["payment_qris_manual_merchant"] = "Catavor Official Store"

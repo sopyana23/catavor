@@ -7467,24 +7467,20 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <div style={{
                               width: '74px',
                               height: '74px',
-                              borderRadius: '0.5rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: '#ffffff',
-                              padding: '4px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
+                              borderRadius: '0.65rem',
                               overflow: 'hidden',
                               flexShrink: 0
                             }}>
                               <SafeImage
                                 src={googleSettings.payment_qris_manual_image}
                                 alt="QRIS Merchant"
-                                fallbackSrc="/img/qris_demo.svg"
-                                emptyText="Belum Ada QRIS"
-                                errorText="QRIS Rusak"
+                                emptyLabel="Belum Ada QRIS"
+                                emptySubLabel="Unggah berkas QRIS"
+                                errorLabel="QRIS Rusak"
+                                errorSubLabel="Tidak terbaca"
                                 compact={true}
-                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                objectFit="contain"
+                                title={googleSettings.payment_qris_manual_image ? "Pratinjau Gambar QRIS" : "QRIS belum diunggah"}
                               />
                             </div>
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
@@ -7492,7 +7488,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 type="text"
                                 value={googleSettings.payment_qris_manual_image || ''}
                                 onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: e.target.value }))}
-                                placeholder="/img/qris_demo.svg"
+                                placeholder="Unggah file atau masukkan URL gambar..."
                                 style={{
                                   width: '100%',
                                   minHeight: '44px',
@@ -7504,34 +7500,59 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   fontSize: '0.76rem'
                                 }}
                               />
-                              <label style={{
-                                minHeight: '44px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem',
-                                padding: '0 0.75rem',
-                                borderRadius: '0.45rem',
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
-                                width: 'fit-content'
-                              }}>
-                                <Upload size={13} color="#0284c7" />
-                                <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File'}</span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  disabled={isUploadingQRISImage}
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0];
-                                    if (f) handleUploadQRISImage(f);
-                                  }}
-                                  style={{ display: 'none' }}
-                                />
-                              </label>
+                              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                                <label style={{
+                                  minHeight: '44px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  padding: '0 0.75rem',
+                                  borderRadius: '0.45rem',
+                                  backgroundColor: 'var(--bg-card)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
+                                  width: 'fit-content'
+                                }}>
+                                  <Upload size={13} color="#0284c7" />
+                                  <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File'}</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={isUploadingQRISImage}
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      if (f) handleUploadQRISImage(f);
+                                    }}
+                                    style={{ display: 'none' }}
+                                  />
+                                </label>
+                                {googleSettings.payment_qris_manual_image && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: '' }))}
+                                    style={{
+                                      minHeight: '44px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      padding: '0 0.75rem',
+                                      borderRadius: '0.45rem',
+                                      backgroundColor: 'transparent',
+                                      border: '1px solid var(--border-light)',
+                                      color: '#ef4444',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                    <span>Hapus</span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -11464,22 +11485,20 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   <div style={{
                                     width: '64px',
                                     height: '64px',
-                                    borderRadius: '12px',
-                                    backgroundColor: 'var(--bg-card)',
-                                    border: '1px solid var(--border-light)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
+                                    borderRadius: '0.65rem',
                                     overflow: 'hidden',
                                     flexShrink: 0
                                   }}>
                                     <SafeImage
                                       src={googleSettings.rekber_logo_url}
                                       alt="Logo Partner"
-                                      emptyText="Logo Rekber"
-                                      errorText="Logo Rusak"
+                                      emptyLabel="Logo Belum Diunggah"
+                                      emptySubLabel="Pilih berkas PNG/SVG"
+                                      errorLabel="Logo Rusak"
+                                      errorSubLabel="Tidak terbaca"
                                       compact={true}
-                                      style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
+                                      objectFit="contain"
+                                      title={googleSettings.rekber_logo_url ? "Logo Partner Rekber" : "Logo mitra belum diunggah"}
                                     />
                                   </div>
 
