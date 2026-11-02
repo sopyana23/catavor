@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useModalBackHandler } from '../utils/navigation';
 import { DesktopCustomSelect } from './DesktopCustomSelect';
+import { SafeImage } from './SafeImage';
 
 export interface AdminStoreItem {
   id: number;
@@ -1614,27 +1615,20 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                               width: '44px',
                               height: '44px',
                               borderRadius: '0.75rem',
-                              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
-                              border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
                               overflow: 'hidden',
                               flexShrink: 0
                             }}
                           >
-                            {item.store_logo_url ? (
-                              <img
-                                src={item.store_logo_url}
-                                alt={item.store_title}
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                onError={(e) => {
-                                  (e.target as HTMLElement).style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <Store size={22} color={isDark ? '#9ca3af' : '#6b7280'} />
-                            )}
+                            <SafeImage
+                              src={item.store_logo_url}
+                              alt={item.store_title}
+                              compact={true}
+                              emptyIcon={<Store size={20} color={isDark ? '#9ca3af' : '#6b7280'} />}
+                              emptyLabel="Logo Belum Diunggah"
+                              errorLabel="Logo Rusak"
+                              isDark={isDark}
+                              objectFit="cover"
+                            />
                           </div>
                           <div style={{ minWidth: 0 }}>
                             <div
@@ -2310,23 +2304,22 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                             width: '64px',
                             height: '64px',
                             borderRadius: '0.85rem',
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
                             overflow: 'hidden',
                             flexShrink: 0
                           }}
                         >
-                          {s.store_logo_url ? (
-                            <img
-                              src={s.store_logo_url}
-                              alt={s.store_title}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
-                          ) : (
-                            <Store size={28} color="#10b981" />
-                          )}
+                          <SafeImage
+                            src={s.store_logo_url}
+                            alt={s.store_title}
+                            compact={false}
+                            showLabel={false}
+                            emptyIcon={<Store size={28} color="#10b981" />}
+                            emptyLabel="Belum Ada Logo"
+                            errorLabel="Logo Rusak"
+                            errorSubLabel="Tidak terbaca"
+                            isDark={isDark}
+                            objectFit="cover"
+                          />
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -2553,7 +2546,18 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                                 }}
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                                  <Package size={16} color={isDark ? '#9ca3af' : '#6b7280'} />
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '0.4rem', overflow: 'hidden', flexShrink: 0 }}>
+                                    <SafeImage
+                                      src={p.image_url || p.cover_url || (Array.isArray(p.images) && p.images[0]) || ''}
+                                      alt={p.name}
+                                      compact={true}
+                                      emptyIcon={<Package size={14} color={isDark ? '#9ca3af' : '#6b7280'} />}
+                                      emptyLabel="Belum ada gambar"
+                                      errorLabel="Gambar rusak"
+                                      isDark={isDark}
+                                      objectFit="cover"
+                                    />
+                                  </div>
                                   <span style={{ fontWeight: 600, color: isDark ? '#f3f4f6' : '#111827' }}>
                                     {p.name}
                                   </span>

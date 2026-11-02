@@ -84,10 +84,12 @@ import {
   EyeOff,
   SlidersHorizontal,
   Server,
-  ArrowLeft
+  ArrowLeft,
+  ImageOff
 } from 'lucide-react';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
+import { SafeImage } from './SafeImage';
 import { TabletRailNav } from './TabletRailNav';
 import { TabletMarketIntelView } from './TabletMarketIntelView';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
@@ -4808,31 +4810,33 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         )}
 
                         {/* Evidence Attachment Image Preview */}
-                        {activeRep.evidence_image_url && (
-                          <div style={{ marginTop: '0.25rem' }}>
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                              Lampiran Berkas / Foto Barang Bukti:
-                            </div>
-                            <img
+                        <div style={{ marginTop: '0.25rem' }}>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                            Lampiran Berkas / Foto Barang Bukti:
+                          </div>
+                          <div style={{ width: '120px', height: '120px', borderRadius: '0.65rem', overflow: 'hidden' }}>
+                            <SafeImage
                               src={activeRep.evidence_image_url}
                               alt="Bukti Laporan"
-                              onClick={() => {
-                                openDocumentPreview({
-                                  file_url: activeRep.evidence_image_url,
-                                  file_name: `Bukti_Laporan_${activeRep.report_number || `#RPT-${activeRep.id}`}.jpg`
-                                });
+                              emptyLabel="Tidak Ada Bukti"
+                              emptySubLabel="Foto belum dilampirkan"
+                              errorLabel="Foto Rusak"
+                              errorSubLabel="Tidak terbaca"
+                              showLabel={false}
+                              compact={false}
+                              objectFit="cover"
+                              onPreview={() => {
+                                if (activeRep.evidence_image_url) {
+                                  openDocumentPreview({
+                                    file_url: activeRep.evidence_image_url,
+                                    file_name: `Bukti_Laporan_${activeRep.report_number || `#RPT-${activeRep.id}`}.jpg`
+                                  });
+                                }
                               }}
-                              style={{
-                                width: '120px',
-                                height: '120px',
-                                objectFit: 'cover',
-                                borderRadius: '0.65rem',
-                                border: '1px solid var(--border-light)',
-                                cursor: 'pointer'
-                              }}
+                              title={activeRep.evidence_image_url ? "Klik untuk melihat pratinjau bukti" : "Foto bukti belum dilampirkan"}
                             />
                           </div>
-                        )}
+                        </div>
 
                         {/* Multi-Reporter Active Evidence Timeline */}
                         {reportActiveEvidence && reportActiveEvidence.length > 0 && (
@@ -6487,9 +6491,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       <FileText size={20} color="#ef4444" />
                                     </div>
                                   ) : (
-                                    <img
+                                    <SafeImage
                                       src={att.blob_url || att.file_url}
                                       alt="Attachment"
+                                      compact
                                       onClick={() => openDocumentPreview(att)}
                                       style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
                                       title="Klik untuk melihat pratinjau gambar"
@@ -6951,28 +6956,30 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       </div>
 
                       {/* Transfer Proof Section */}
-                      {selectedOrder.transfer_proof_url ? (
-                        <div style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Bukti Transfer Bank:</div>
+                      <div style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Bukti Transfer Bank:</div>
+                        {selectedOrder.transfer_proof_url ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <img
-                              src={selectedOrder.transfer_proof_url}
-                              alt="Bukti Transfer"
-                              onClick={() => {
-                                openDocumentPreview({
-                                  file_url: selectedOrder.transfer_proof_url,
-                                  file_name: `Bukti_Transfer_Invoice_#${selectedOrder.invoice_number || selectedOrder.id}.jpg`
-                                });
-                              }}
-                              style={{
-                                width: '100px',
-                                height: '100px',
-                                objectFit: 'cover',
-                                borderRadius: '0.5rem',
-                                border: '1px solid var(--border-light)',
-                                cursor: 'pointer'
-                              }}
-                            />
+                            <div style={{ width: '100px', height: '100px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                              <SafeImage
+                                src={selectedOrder.transfer_proof_url}
+                                alt="Bukti Transfer"
+                                emptyText="Belum Ada Bukti"
+                                errorText="Bukti Rusak"
+                                onClick={() => {
+                                  openDocumentPreview({
+                                    file_url: selectedOrder.transfer_proof_url,
+                                    file_name: `Bukti_Transfer_Invoice_#${selectedOrder.invoice_number || selectedOrder.id}.jpg`
+                                  });
+                                }}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                  cursor: 'pointer'
+                                }}
+                              />
+                            </div>
                             <button
                               type="button"
                               onClick={() => {
@@ -6999,12 +7006,23 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               <span>Lihat Bukti Penuh</span>
                             </button>
                           </div>
-                        </div>
-                      ) : (
-                        <div style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          &bull; Merchant belum mengunggah foto bukti transfer
-                        </div>
-                      )}
+                        ) : (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px dashed var(--border-light)',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.78rem'
+                          }}>
+                            <ImageOff size={18} style={{ opacity: 0.7 }} />
+                            <span>Merchant belum mengunggah foto bukti transfer pembayaran</span>
+                          </div>
+                        )}
+                      </div>
 
                       {/* Approval Actions */}
                       {selectedOrder.status !== 'paid' && selectedOrder.status !== 'active' && canManageFinance && (
@@ -7459,9 +7477,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               overflow: 'hidden',
                               flexShrink: 0
                             }}>
-                              <img
-                                src={googleSettings.payment_qris_manual_image || '/img/qris_demo.svg'}
+                              <SafeImage
+                                src={googleSettings.payment_qris_manual_image}
                                 alt="QRIS Merchant"
+                                fallbackSrc="/img/qris_demo.svg"
+                                emptyText="Belum Ada QRIS"
+                                errorText="QRIS Rusak"
+                                compact={true}
                                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                               />
                             </div>
@@ -11451,18 +11473,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     overflow: 'hidden',
                                     flexShrink: 0
                                   }}>
-                                    {googleSettings.rekber_logo_url ? (
-                                      <img
-                                        src={googleSettings.rekber_logo_url}
-                                        alt="Logo Partner"
-                                        style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
-                                        onError={(e) => {
-                                          (e.target as HTMLElement).style.display = 'none';
-                                        }}
-                                      />
-                                    ) : (
-                                      <ShieldCheck size={28} style={{ color: '#10b981' }} />
-                                    )}
+                                    <SafeImage
+                                      src={googleSettings.rekber_logo_url}
+                                      alt="Logo Partner"
+                                      emptyIcon={ShieldCheck}
+                                      emptyText="Logo Rekber"
+                                      errorText="Logo Rusak"
+                                      compact={true}
+                                      style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
+                                    />
                                   </div>
 
                                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

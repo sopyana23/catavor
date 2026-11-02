@@ -89,8 +89,10 @@ import {
   Link as LinkIcon,
   Upload,
   Image as ImageIcon,
+  ImageOff,
   Server
 } from 'lucide-react';
+import { SafeImage } from './SafeImage';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
@@ -3071,8 +3073,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           setReportMetrics(d.metrics);
         }
       }
-    } catch (e) {
-      console.error('Failed to fetch reports list', e);
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      console.warn('Gagal memuat daftar laporan:', e?.message || e);
     }
   };
 
@@ -7771,7 +7774,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             {(att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? (
                               <FileText size={20} color="#ef4444" />
                             ) : (
-                              <img src={att.file_url} alt="Attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <SafeImage
+                                src={att.file_url}
+                                alt="Attachment"
+                                compact
+                                isDark={isDark}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
                             )}
                             <button
                               type="button"
@@ -8567,7 +8576,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       </div>
                     </div>
 
-                    {o.payment_proof_url && (
+                    {o.payment_proof_url ? (
                       <button
                         onClick={() => setSelectedProofOrder(o)}
                         style={{
@@ -8588,6 +8597,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         <Eye size={13} />
                         <span>Lihat Bukti Pembayaran</span>
                       </button>
+                    ) : (
+                      <div style={{
+                        padding: '0.4rem 0.5rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: theme.cardAlt,
+                        border: `1px dashed ${theme.border}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.35rem',
+                        fontSize: '0.72rem',
+                        color: theme.textMuted
+                      }}>
+                        <ImageOff size={13} />
+                        <span>Bukti transfer belum diunggah</span>
+                      </div>
                     )}
 
                     {isPending && (
@@ -9093,9 +9118,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             overflow: 'hidden',
                             flexShrink: 0
                           }}>
-                            <img
-                              src={googleSettings.payment_qris_manual_image || '/img/qris_demo.svg'}
+                            <SafeImage
+                              src={googleSettings.payment_qris_manual_image}
                               alt="QRIS Merchant"
+                              fallbackSrc="/img/qris_demo.svg"
+                              emptyLabel="Belum Ada QRIS"
+                              errorLabel="QRIS Rusak"
+                              compact={true}
+                              isDark={isDark}
                               style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                             />
                           </div>
@@ -14562,18 +14592,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             overflow: 'hidden',
                             flexShrink: 0
                           }}>
-                            {googleSettings.rekber_logo_url ? (
-                              <img
-                                src={googleSettings.rekber_logo_url}
-                                alt="Logo Partner"
-                                style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
-                                onError={(e) => {
-                                  (e.target as HTMLElement).style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <ShieldCheck size={24} style={{ color: '#10b981' }} />
-                            )}
+                            <SafeImage
+                              src={googleSettings.rekber_logo_url}
+                              alt="Logo Partner"
+                              emptyIcon={<ShieldCheck size={24} style={{ color: '#10b981' }} />}
+                              emptyLabel="Logo Rekber"
+                              errorLabel="Logo Rusak"
+                              compact={true}
+                              isDark={isDark}
+                              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
+                            />
                           </div>
 
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -15357,13 +15385,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
 
             <div 
-              onClick={() => openAttachmentLightbox([{ file_url: selectedProofOrder.payment_proof_url, file_name: `Bukti_Bayar_Order_${selectedProofOrder.id}.jpg` }])}
-              style={{ width: '100%', maxHeight: '300px', overflow: 'hidden', borderRadius: '0.75rem', backgroundColor: isDark ? '#000' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-              title="Klik untuk perbesar gambar"
+              style={{ width: '100%', minHeight: '160px', maxHeight: '300px', overflow: 'hidden', borderRadius: '0.75rem', backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
-              <img
+              <SafeImage
                 src={selectedProofOrder.payment_proof_url}
                 alt="Bukti Transfer"
+                emptyLabel="Belum Ada Bukti Transfer"
+                emptySubLabel="Merchant belum mengunggah foto bukti transfer pembayaran"
+                errorLabel="Bukti Transfer Rusak"
+                errorSubLabel="Berkas bukti transfer tidak dapat ditampilkan atau tautan terputus"
+                isDark={isDark}
+                objectFit="contain"
+                onPreview={() => {
+                  if (selectedProofOrder.payment_proof_url) {
+                    openAttachmentLightbox([{ file_url: selectedProofOrder.payment_proof_url, file_name: `Bukti_Bayar_Order_${selectedProofOrder.id}.jpg` }]);
+                  }
+                }}
                 style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain' }}
               />
             </div>

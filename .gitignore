@@ -32,6 +32,9 @@
 !/public/storage/stores/.gitkeep
 /public/storage/support/*
 !/public/storage/support/.gitkeep
+/public/storage/general/*
+!/public/storage/general/.gitkeep
+ext/
 # Berkas privat (bukti bayar, lampiran tiket) — TIDAK boleh ada di pohon publik
 /backend/storage/private/*
 !/backend/storage/private/.gitkeep

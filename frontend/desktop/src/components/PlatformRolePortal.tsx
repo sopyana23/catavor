@@ -92,6 +92,7 @@ import {
   Link as LinkIcon,
   Upload,
   Image as ImageIcon,
+  ImageOff,
   Server
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
@@ -103,6 +104,7 @@ import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPrevie
 import { DesktopCustomSelect, type SelectOption } from './DesktopCustomSelect';
 import { PlatformMarketIntelView } from './PlatformMarketIntelView';
 import { RichTextarea, FormattedText } from './RichTextarea';
+import { SafeImage } from './SafeImage';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
@@ -156,15 +158,15 @@ export interface ContextualHeaderConfig {
   includeGlobalUtilities?: boolean;
 }
 
-type ActiveView = 
-  | 'dashboard' 
-  | 'rbac' 
-  | 'stores' 
-  | 'reports' 
-  | 'support' 
-  | 'finance' 
-  | 'monetization' 
-  | 'broadcast' 
+type ActiveView =
+  | 'dashboard'
+  | 'rbac'
+  | 'stores'
+  | 'reports'
+  | 'support'
+  | 'finance'
+  | 'monetization'
+  | 'broadcast'
   | 'automation'
   | 'audit'
   | 'safe_domains'
@@ -334,8 +336,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canSendBroadcast = isSuperAdmin(currentUser) || hasPermission(currentUser, 'content:broadcast:send');
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
-    view: string, 
-    ticketRef?: string | number | null, 
+    view: string,
+    ticketRef?: string | number | null,
     subtabRef?: string | null,
     broadcastIdRef?: string | number | null,
     reportIdRef?: string | number | null
@@ -382,8 +384,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       const currentRelativePathQuery = window.location.pathname + window.location.search + window.location.hash;
       if (newRelativePathQuery !== currentRelativePathQuery) {
         window.history.pushState(
-          { view, ticket: ticketRef || null, subtab: subtabRef || null, broadcast_id: broadcastIdRef || null, report_id: reportIdRef || null }, 
-          '', 
+          { view, ticket: ticketRef || null, subtab: subtabRef || null, broadcast_id: broadcastIdRef || null, report_id: reportIdRef || null },
+          '',
           newRelativePathQuery
         );
       }
@@ -449,8 +451,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
 
     if (targetView === 'master_data') {
-      const sub = (subView === 'templates' || subView === 'domains' || subView === 'rekber') 
-        ? subView 
+      const sub = (subView === 'templates' || subView === 'domains' || subView === 'rekber')
+        ? subView
         : (view === 'safe_domains' ? 'domains' : (subView === 'menu' ? 'menu' : (subView ? (subView as any) : 'menu')));
       setMasterSubView(sub);
       updatePlatformUrl(targetView, null, sub === 'menu' ? null : sub);
@@ -536,7 +538,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['rekber', 'rekbersyariah', 'escrow'].includes(sub) || ['rekber', 'rekbersyariah'].includes(tab)) return 'rekber';
       if (['templates', 'template', 'canned', 'canned_responses'].includes(sub) || ['templates', 'canned'].includes(tab)) return 'templates';
       if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(sub) || ['domains', 'safe_domains', 'whitelist'].includes(tab)) return 'domains';
-    } catch {}
+    } catch { }
     return 'menu';
   });
   const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
@@ -1208,7 +1210,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       return getLatestTime(b) - getLatestTime(a);
     });
   }, [tickets]);
-  
+
   // Server-Side Tickets Pagination & Metrics State
   const [ticketsMetrics, setTicketsMetrics] = useState<{
     total: number;
@@ -1500,11 +1502,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const openDocumentPreview = (att: any) => {
     if (!att) return;
-    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
-      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) ||
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') ||
       /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
-    const isPdf = (att.file_type || '').includes('pdf') || 
-      (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+    const isPdf = (att.file_type || '').includes('pdf') ||
+      (att.file_name || '').toLowerCase().endsWith('.pdf') ||
       (att.file_url || '').toLowerCase().endsWith('.pdf');
 
     setDocPreview({
@@ -1540,8 +1542,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       e.preventDefault();
     }
     if (!att) return;
-    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
-      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) ||
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') ||
       /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
     const fileName = att.file_name || (isImage ? 'Lampiran_Gambar.jpg' : 'Dokumen.pdf');
     const authToken = token || localStorage.getItem('catavor_token') || '';
@@ -1687,7 +1689,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           },
           body: JSON.stringify({ is_typing: true })
         });
-      } catch {}
+      } catch { }
     }, 1200);
 
     return () => {
@@ -1705,7 +1707,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['create', 'new', 'tambah', 'buat'].includes(sub)) return 'create';
       const broadcastId = params.get('broadcast_id') || params.get('broadcast') || params.get('notif_id');
       if (sub === 'detail' || broadcastId) return 'detail';
-    } catch {}
+    } catch { }
     return 'list';
   });
   const [showBroadcastSheet, setShowBroadcastSheet] = useState(false);
@@ -1755,9 +1757,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
     // 1. Check in-memory broadcasts if available
     if (broadcasts && broadcasts.length > 0) {
-      const existing = broadcasts.find(b => 
-        String(b.id) === cleanId || 
-        String(b.id) === String(id) || 
+      const existing = broadcasts.find(b =>
+        String(b.id) === cleanId ||
+        String(b.id) === String(id) ||
         String(b.id).replace('#', '') === cleanId.replace('#', '')
       );
       if (existing) {
@@ -1794,9 +1796,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (resList.ok) {
         const listData = await resList.json();
         if (Array.isArray(listData.data)) {
-          const matched = listData.data.find((b: any) => 
-            String(b.id) === cleanId || 
-            String(b.id) === String(id) || 
+          const matched = listData.data.find((b: any) =>
+            String(b.id) === cleanId ||
+            String(b.id) === String(id) ||
             String(b.id).replace('#', '') === cleanId.replace('#', '')
           );
           if (matched) {
@@ -1978,7 +1980,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const query = targetRecipientSearch.trim();
     if (['specific', 'single_store', 'single_user'].includes(broadcastForm.target_type) && query.length >= 1) {
       const cacheKey = `${broadcastForm.target_type}:${query.toLowerCase()}`;
-      
+
       // Check in-memory fast cache first
       if (recipientSearchCacheRef.current.has(cacheKey)) {
         setRecipientSuggestions(recipientSearchCacheRef.current.get(cacheKey) || []);
@@ -2105,7 +2107,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.35);
-    } catch {}
+    } catch { }
   };
 
   const sendSupportNotification = (title: string, body: string) => {
@@ -2113,15 +2115,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (Notification.permission === 'granted') {
         try {
           new Notification(title, { body, icon: '/favicon.ico' });
-        } catch {}
+        } catch { }
       } else if (Notification.permission !== 'denied') {
         Notification.requestPermission().then(permission => {
           if (permission === 'granted') {
             try {
               new Notification(title, { body, icon: '/favicon.ico' });
-            } catch {}
+            } catch { }
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   };
@@ -2156,7 +2158,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (res.ok) {
         const json = await res.json();
         const data = Array.isArray(json) ? json : (json.data || json.tickets || []);
-        
+
         const mappedData = data.map((t: any) => {
           const msgs = Array.isArray(t.messages) ? t.messages : [];
           const isViewed = readTicketIdsRef.current.has(t.id) || readTicketIdsRef.current.has(String(t.id)) || (selectedTicket && selectedTicket.id === t.id);
@@ -2687,7 +2689,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   handleOpenModerationPage(d.data, false);
                 }
               })
-              .catch(() => {});
+              .catch(() => { });
           }
         } else if (!ticketParam && !broadcastId && activeView === 'reports') {
           setModerationModalReport(null);
@@ -2706,7 +2708,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const urlParams = new URLSearchParams(window.location.search);
     const reportParam = urlParams.get('report_id') || urlParams.get('report');
     const tabParam = (urlParams.get('tab') || urlParams.get('view') || '').toLowerCase();
-    
+
     if (reportParam || tabParam === 'reports' || ['compliance', 'laporan'].includes(tabParam)) {
       if (reportParam) {
         if (reports.length > 0) {
@@ -2724,7 +2726,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 handleOpenModerationPage(d.data, false);
               }
             })
-            .catch(() => {});
+            .catch(() => { });
         }
       }
     }
@@ -2737,7 +2739,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const ticketParam = urlParams.get('ticket') || urlParams.get('ticket_id');
     const subtabParam = (urlParams.get('subtab') || urlParams.get('subview') || urlParams.get('action') || '').toLowerCase();
     const broadcastId = urlParams.get('broadcast_id') || urlParams.get('broadcast') || urlParams.get('notif_id');
-    
+
     if (ticketParam) {
       if (activeView !== 'support') setActiveView('support');
     } else if (broadcastId || tabParam === 'broadcast' || ['siaran', 'notifikasi'].includes(tabParam)) {
@@ -2776,7 +2778,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               });
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }
   }, [tickets, token, canAccessBroadcast, canAccessSupport]);
@@ -2946,12 +2948,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         body: JSON.stringify({ status })
       });
       if (res.ok) {
-        const statusLabel = 
+        const statusLabel =
           status === 'open' ? 'OPEN' :
-          status === 'in_progress' ? 'SEDANG DIPROSES' :
-          status === 'waiting_user' ? 'MENUNGGU MERCHANT' :
-          status === 'resolved' ? 'TERSELESAIKAN' :
-          status === 'closed' ? 'DITUTUP' : status.toUpperCase();
+            status === 'in_progress' ? 'SEDANG DIPROSES' :
+              status === 'waiting_user' ? 'MENUNGGU MERCHANT' :
+                status === 'resolved' ? 'TERSELESAIKAN' :
+                  status === 'closed' ? 'DITUTUP' : status.toUpperCase();
         showToast(`Status tiket diubah ke ${statusLabel}`, 'success');
         loadData();
         if (selectedTicket && selectedTicket.id === ticketId) {
@@ -2996,14 +2998,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       }
     } catch (e) {
       console.error('Failed to fetch reports list', e);
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      console.warn('Gagal memuat daftar laporan:', e?.message || e);
     }
   };
 
   // Compliance Status & Moderation Action Update
   const handleUpdateReportStatus = async (
-    reportId: number, 
-    status: string, 
-    actionTaken: string = 'none', 
+    reportId: number,
+    status: string,
+    actionTaken: string = 'none',
     adminNotes: string = '',
     applyEnforcement: boolean = true
   ) => {
@@ -3014,11 +3019,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       const res = await fetch(`/api/admin/reports/${reportId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ 
-          status, 
-          action_taken: actionTaken, 
+        body: JSON.stringify({
+          status,
+          action_taken: actionTaken,
           admin_notes: adminNotes,
-          apply_enforcement: applyEnforcement 
+          apply_enforcement: applyEnforcement
         })
       });
       if (res.ok) {
@@ -3029,7 +3034,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             localStorage.removeItem(`catavor_store_${moderationModalReport.store_slug.toLowerCase()}`);
           }
           localStorage.removeItem('catavor_settings');
-        } catch {}
+        } catch { }
         fetchReportsList(reportsPagination.page);
         handleDismissBannedConfirmModal();
         handleCloseModerationPage();
@@ -3176,9 +3181,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           const bId = urlParams.get('broadcast_id') || urlParams.get('broadcast') || urlParams.get('notif_id');
           if (bId && bcastList.length > 0) {
             const cleanBId = String(bId).replace(/[^a-zA-Z0-9_#-]/g, '').trim();
-            const matched = bcastList.find((b: any) => 
-              String(b.id) === cleanBId || 
-              String(b.id) === String(bId) || 
+            const matched = bcastList.find((b: any) =>
+              String(b.id) === cleanBId ||
+              String(b.id) === String(bId) ||
               String(b.id).replace('#', '') === cleanBId.replace('#', '')
             );
             if (matched) {
@@ -3186,7 +3191,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               setIsFetchingBroadcastDetail(false);
             }
           }
-        } catch {}
+        } catch { }
       }
     } catch (e) {
       console.error('Failed to fetch broadcasts:', e);
@@ -3604,25 +3609,25 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     rbac: { title: 'Staf & RBAC', subtitle: 'Matriks & Izin Akses' },
     stores: { title: 'Tata Kelola Merchant', subtitle: `${dormancyMetrics?.active_stores || 1} Merchant Terdaftar` },
     reports: { title: 'Laporan Masuk', subtitle: `${pendingReportsCount} Laporan Pending` },
-    support: { 
-      title: 'Helpdesk Tiket', 
-      subtitle: actionRequiredTicketsCount > 0 
-        ? `${actionRequiredTicketsCount} Perlu Respon Tim` 
-        : (totalTicketsCount > 0 
-            ? `${totalTicketsCount} Total Tiket` 
-            : '0 Tiket Aktif')
+    support: {
+      title: 'Helpdesk Tiket',
+      subtitle: actionRequiredTicketsCount > 0
+        ? `${actionRequiredTicketsCount} Perlu Respon Tim`
+        : (totalTicketsCount > 0
+          ? `${totalTicketsCount} Total Tiket`
+          : '0 Tiket Aktif')
     },
     finance: { title: 'Keuangan & Order', subtitle: `${pendingOrdersCount} Order Pending` },
     monetization: { title: 'Monetisasi & Iklan', subtitle: 'Google AdSense & GA4' },
     broadcast: { title: 'Siaran Broadcast', subtitle: `${broadcasts.length} Siaran Aktif` },
     automation: { title: 'Mesin Otomatisasi', subtitle: `${automationStatus?.total_workers || 11} Bot & Background Workers` },
     audit: { title: 'Audit Trail', subtitle: `${auditLogs.length} Log Aktivitas` },
-    master_data: { 
-      title: 'Master Data', 
-      subtitle: masterSubView === 'domains' 
-        ? 'Whitelist URL & Navigasi Ekosistem' 
-        : (masterSubView === 'templates' 
-          ? `${cannedTemplates.length} Template Pesan Cepat CS` 
+    master_data: {
+      title: 'Master Data',
+      subtitle: masterSubView === 'domains'
+        ? 'Whitelist URL & Navigasi Ekosistem'
+        : (masterSubView === 'templates'
+          ? `${cannedTemplates.length} Template Pesan Cepat CS`
           : (masterSubView === 'rekber' ? 'Integrasi Rekber Syariah (rekbersyariah.com)' : 'Pusat Konfigurasi Master Data'))
     },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
@@ -3653,7 +3658,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       badge: dormancyMetrics?.dormant_stores || 0,
       visible: canAccessCompliance
     },
-        {
+    {
       id: 'market_intel' as ActiveView,
       title: 'Riset Pasar B2B',
       subtitle: 'Tren Hype & Demand Gap',
@@ -3664,7 +3669,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       badge: 0,
       visible: canAccessMarketIntel
     },
-{
+    {
       id: 'monetization' as ActiveView,
       title: 'Monetisasi & Iklan',
       subtitle: 'Google AdSense & GA4',
@@ -3759,7 +3764,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   ].filter(item => item.visible);
 
   // Cek apakah user sedang berada di sub-halaman/modul sekunder atau detail percakapan
-  const isSubPage = 
+  const isSubPage =
     !['dashboard', 'reports', 'support', 'finance'].includes(activeView) ||
     (activeView === 'support' && Boolean(selectedTicket)) ||
     (activeView === 'finance' && Boolean(selectedProofOrder));
@@ -4399,241 +4404,63 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           boxSizing: 'border-box'
         }}
       >
-      {/* Toast Notification */}
-      {toastMsg && (
-        <div style={{
-          position: 'fixed',
-          top: '16px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 99999,
-          padding: '0.52rem 1.05rem',
-          borderRadius: '999px',
-          backgroundColor: toastMsg.type === 'success' ? '#10b981' : toastMsg.type === 'error' ? '#ef4444' : '#3b82f6',
-          color: '#ffffff',
-          fontSize: '0.78rem',
-          fontWeight: 700,
-          boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.45rem',
-          maxWidth: '92%',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          backdropFilter: 'blur(8px)',
-          animation: 'fadeInDown 0.25s ease-out'
-        }}>
-          {toastMsg.type === 'success' ? <CheckCircle2 size={15} style={{ flexShrink: 0 }} /> : toastMsg.type === 'error' ? <AlertTriangle size={15} style={{ flexShrink: 0 }} /> : <AlertCircle size={15} style={{ flexShrink: 0 }} />}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{toastMsg.text}</span>
-        </div>
-      )}
-
-
-      {/* ========================================================================= */}
-      {/* 1. EXECUTIVE MASTER HEADER (When on Dashboard Menu)                       */}
-      {/* ========================================================================= */}
-      {activeView === 'dashboard' && false && (
-        <div style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 999,
-          boxSizing: 'border-box',
-          width: 'calc(100% + 1.7rem)',
-          maxWidth: 'calc(100% + 1.7rem)',
-          marginLeft: '-0.85rem',
-          marginRight: '-0.85rem',
-          marginTop: '-0.5rem',
-          marginBottom: '0.65rem',
-          borderRadius: 0,
-          backgroundColor: isDark 
-            ? 'rgba(15, 23, 42, 0.95)' 
-            : 'rgba(255, 255, 255, 0.95)',
-          borderTop: 'none',
-          borderLeft: 'none',
-          borderRight: 'none',
-          borderBottom: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
-          padding: '0.65rem 0.85rem',
-          boxShadow: isDark 
-            ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' 
-            : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.5rem'
-        }}>
-          {/* Left Side: Avatar & Profile Info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
-            {/* Brand Logo with Live Online Dot */}
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-              <div style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                padding: '3px',
-                boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.06)',
-                transition: 'all 0.25s ease'
-              }}>
-                <img
-                  src={appLogoImg || APP_LOGO_BASE64}
-                  alt="Catavor Logo"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    borderRadius: '0.6rem'
-                  }}
-                />
-              </div>
-              {/* Live Online Dot */}
-              <span style={{
-                position: 'absolute',
-                bottom: '-2px',
-                right: '-2px',
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                backgroundColor: '#10b981',
-                border: `2px solid ${theme.surface}`,
-                boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)'
-              }} />
-            </div>
-
-            {/* Identity Stack */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
-                <h2 style={{
-                  fontSize: '0.9rem',
-                  fontWeight: 800,
-                  margin: 0,
-                  color: theme.textPrimary,
-                  letterSpacing: '-0.01em',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0
-                }}>
-                  Catavor Executive
-                </h2>
-                <span style={{
-                  padding: '0.05rem 0.35rem',
-                  borderRadius: '999px',
-                  fontSize: '0.55rem',
-                  fontWeight: 800,
-                  backgroundColor: roleBadge.bg,
-                  color: roleBadge.color,
-                  border: `1px solid ${roleBadge.border}`,
-                  flexShrink: 0
-                }}>
-                  {roleBadge.label}
-                </span>
-              </div>
-
-              <span style={{
-                fontSize: '0.66rem',
-                color: theme.textSecondary,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                maxWidth: '220px'
-              }}>
-                {currentUser?.email || 'admin@catavor.com'}
-              </span>
-            </div>
+        {/* Toast Notification */}
+        {toastMsg && (
+          <div style={{
+            position: 'fixed',
+            top: '16px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 99999,
+            padding: '0.52rem 1.05rem',
+            borderRadius: '999px',
+            backgroundColor: toastMsg.type === 'success' ? '#10b981' : toastMsg.type === 'error' ? '#ef4444' : '#3b82f6',
+            color: '#ffffff',
+            fontSize: '0.78rem',
+            fontWeight: 700,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            maxWidth: '92%',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            backdropFilter: 'blur(8px)',
+            animation: 'fadeInDown 0.25s ease-out'
+          }}>
+            {toastMsg.type === 'success' ? <CheckCircle2 size={15} style={{ flexShrink: 0 }} /> : toastMsg.type === 'error' ? <AlertTriangle size={15} style={{ flexShrink: 0 }} /> : <AlertCircle size={15} style={{ flexShrink: 0 }} />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{toastMsg.text}</span>
           </div>
+        )}
 
-          {/* Right Side: Contextual Options Menu & Primary Action */}
-          {headerConfig.showMenu && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-              {Boolean(headerConfig.primaryAction) && (
-                <button
-                  type="button"
-                  onClick={() => headerConfig.primaryAction?.onClick?.()}
-                  title={headerConfig.primaryAction?.title || ''}
-                  style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '0.75rem',
-                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
-                    border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(56, 189, 248, 0.3)'}`,
-                    color: isDark ? '#38bdf8' : '#0284c7',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {headerConfig.primaryAction?.icon}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowOptionsMenu(true)}
-                title={headerConfig.title || "Menu Opsi"}
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <MoreVertical size={17} />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* ========================================================================= */}
-      {/* 2. DEDICATED EXCLUSIVE SUBPAGE HEADER (When in a specific sub-module)       */}
-      {/* Redundant on Desktop and Tablet since PlatformAdminShell provides top bar. */}
-      {/* ========================================================================= */}
-      {activeView !== 'dashboard' && false && (() => {
-        const currentItem = allModules[activeView];
-        const isFooterTab = ['reports', 'support', 'finance'].includes(activeView);
-        const subStatusText = 
-          activeView === 'monetization' ? 'Google AdSense & GA4' :
-          activeView === 'rbac' ? 'Matriks & Izin Staf' :
-          activeView === 'stores' ? `${dormancyMetrics?.active_stores || 1} Merchant Terdaftar` :
-          activeView === 'reports' ? `${pendingReportsCount} Laporan Pending` :
-          activeView === 'support' ? (actionRequiredTicketsCount > 0 ? `${actionRequiredTicketsCount} Perlu Respon Tim` : (tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length > 0 ? `${tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length} Tiket Aktif` : `${tickets.length} Total Tiket`)) :
-          activeView === 'finance' ? `${pendingOrdersCount} Order Pending` :
-          activeView === 'broadcast' ? `${broadcasts.length} Siaran Aktif` :
-          activeView === 'audit' ? `${auditLogs.length} Log Aktivitas` :
-          currentItem?.subtitle || '';
-
-        if (!isSubPage) return null;
-
-        return (
+        {/* ========================================================================= */}
+        {/* 1. EXECUTIVE MASTER HEADER (When on Dashboard Menu)                       */}
+        {/* ========================================================================= */}
+        {activeView === 'dashboard' && false && (
           <div style={{
             position: 'sticky',
             top: 0,
             zIndex: 999,
             boxSizing: 'border-box',
-            width: '100%',
-            marginBottom: '0.85rem',
-            borderRadius: '0.85rem',
-            backgroundColor: isDark 
-              ? 'rgba(15, 23, 42, 0.95)' 
+            width: 'calc(100% + 1.7rem)',
+            maxWidth: 'calc(100% + 1.7rem)',
+            marginLeft: '-0.85rem',
+            marginRight: '-0.85rem',
+            marginTop: '-0.5rem',
+            marginBottom: '0.65rem',
+            borderRadius: 0,
+            backgroundColor: isDark
+              ? 'rgba(15, 23, 42, 0.95)'
               : 'rgba(255, 255, 255, 0.95)',
-            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
-            padding: '0.65rem 1rem',
-            boxShadow: isDark 
-              ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' 
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: 'none',
+            borderBottom: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
+            padding: '0.65rem 0.85rem',
+            boxShadow: isDark
+              ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)'
               : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
@@ -4642,151 +4469,98 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             justifyContent: 'space-between',
             gap: '0.5rem'
           }}>
-            {/* Left Side: Brand Logo for Footer Tabs OR Pure Icon Back Button for Secondary Modules / Ticket Detail */}
-            {(isFooterTab && !(activeView === 'support' && selectedTicket)) ? (
-              <div style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                padding: '3px',
-                flexShrink: 0,
-                boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 6px rgba(0,0,0,0.05)'
-              }}>
-                <img
-                  src={appLogoImg || APP_LOGO_BASE64}
-                  alt="Catavor Logo"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    borderRadius: '0.6rem'
-                  }}
-                />
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  smartBack(() => {
-                    if (activeView === 'reports' && moderationModalReport) {
-                      handleCloseModerationPage();
-                    } else if (activeView === 'support' && selectedTicket) {
-                      handleCloseTicketChat();
-                    } else if (activeView === 'broadcast' && broadcastSubView === 'create') {
-                      handleCloseCreateBroadcast();
-                    } else if (activeView === 'broadcast' && broadcastSubView === 'detail') {
-                      handleCloseBroadcastDetail();
-                    } else if (activeView === 'master_data' && masterSubView !== 'menu') {
-                      setMasterSubView('menu');
-                      updatePlatformUrl('master_data', null, null);
-                    } else {
-                      handleSwitchView('dashboard');
-                    }
-                  });
-                }}
-                title={
-                  activeView === 'reports' && moderationModalReport
-                    ? "Kembali ke Antrean Laporan"
-                    : activeView === 'support' && selectedTicket 
-                      ? "Kembali ke Daftar Tiket" 
-                      : (activeView === 'broadcast' && broadcastSubView !== 'list')
-                        ? "Kembali ke Riwayat Siaran"
-                        : (activeView === 'master_data' && masterSubView !== 'menu')
-                          ? "Kembali ke Menu Master"
-                          : "Kembali ke Dashboard"
-                }
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '0.75rem',
-                  backgroundColor: (activeView === 'broadcast' && broadcastSubView !== 'list') 
-                    ? (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)') 
-                    : (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)'),
-                  border: `1px solid ${(activeView === 'broadcast' && broadcastSubView !== 'list') 
-                    ? (isDark ? 'rgba(245, 158, 11, 0.35)' : 'rgba(245, 158, 11, 0.25)') 
-                    : (isDark ? 'rgba(56, 189, 248, 0.28)' : 'rgba(2, 132, 199, 0.2)')}`,
-                  color: (activeView === 'broadcast' && broadcastSubView !== 'list') ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
-                  cursor: 'pointer',
+            {/* Left Side: Avatar & Profile Info */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
+              {/* Brand Logo with Live Online Dot */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '0.85rem',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
+                  border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  flexShrink: 0,
-                  transition: 'transform 0.15s ease'
-                }}
-              >
-                <ChevronLeft size={19} />
-              </button>
-            )}
+                  overflow: 'hidden',
+                  padding: '3px',
+                  boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.06)',
+                  transition: 'all 0.25s ease'
+                }}>
+                  <img
+                    src={appLogoImg || APP_LOGO_BASE64}
+                    alt="Catavor Logo"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      borderRadius: '0.6rem'
+                    }}
+                  />
+                </div>
+                {/* Live Online Dot */}
+                <span style={{
+                  position: 'absolute',
+                  bottom: '-2px',
+                  right: '-2px',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  backgroundColor: '#10b981',
+                  border: `2px solid ${theme.surface}`,
+                  boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)'
+                }} />
+              </div>
 
-            {/* Center: Module Title & Status (Clean, No Entity Icon) */}
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, paddingLeft: '0.15rem' }}>
-              <h3 style={{
-                fontSize: '0.92rem',
-                fontWeight: 800,
-                margin: 0,
-                color: theme.textPrimary,
-                letterSpacing: '-0.01em',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                {activeView === 'reports' && moderationModalReport
-                  ? 'Kelola Penegakan & Status'
-                  : activeView === 'support' && selectedTicket 
-                    ? (selectedTicket.subject || 'Detail Tiket') 
-                    : (activeView === 'broadcast' && broadcastSubView === 'create')
-                      ? 'Buat Siaran Baru'
-                      : (activeView === 'broadcast' && broadcastSubView === 'detail')
-                        ? (selectedBroadcastDetail?.title || 'Rincian Siaran')
-                        : (activeView === 'master_data' && masterSubView === 'domains')
-                          ? 'Master Domain Aman'
-                          : (activeView === 'master_data' && masterSubView === 'templates')
-                            ? 'Template Pesan Cepat CS'
-                            : (activeView === 'master_data' && masterSubView === 'rekber')
-                              ? 'Mitra Rekber Syariah'
-                              : (currentItem?.title || 'Panel Modul')}
-              </h3>
-              <span style={{
-                fontSize: '0.67rem',
-                color: theme.textSecondary,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                fontWeight: 600
-              }}>
-                {activeView === 'reports' && moderationModalReport
-                  ? `${moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`} • ${moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}`
-                  : activeView === 'support' && selectedTicket
-                    ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • 🏪 ${getStoreDisplayName(selectedTicket)}`
-                    : (activeView === 'broadcast' && broadcastSubView === 'create')
-                      ? 'Segmentasi & Pengumuman Platform'
-                      : (activeView === 'broadcast' && broadcastSubView === 'detail')
-                        ? `${selectedBroadcastDetail?.category || 'PENGUMUMAN'} • ${selectedBroadcastDetail?.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}`
-                        : (activeView === 'master_data' && masterSubView === 'domains')
-                          ? 'Whitelist URL & Proteksi Ekosistem'
-                          : (activeView === 'master_data' && masterSubView === 'templates')
-                            ? `${cannedTemplates.length} Template Respon Cepat Helpdesk`
-                            : (activeView === 'master_data' && masterSubView === 'rekber')
-                              ? 'Integrasi Escrow Amanah (rekbersyariah.com)'
-                              : (activeView === 'master_data' && masterSubView === 'menu')
-                                ? 'Pusat Entitas & Konfigurasi Master'
-                                : subStatusText}
-              </span>
+              {/* Identity Stack */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
+                  <h2 style={{
+                    fontSize: '0.9rem',
+                    fontWeight: 800,
+                    margin: 0,
+                    color: theme.textPrimary,
+                    letterSpacing: '-0.01em',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}>
+                    Catavor Executive
+                  </h2>
+                  <span style={{
+                    padding: '0.05rem 0.35rem',
+                    borderRadius: '999px',
+                    fontSize: '0.55rem',
+                    fontWeight: 800,
+                    backgroundColor: roleBadge.bg,
+                    color: roleBadge.color,
+                    border: `1px solid ${roleBadge.border}`,
+                    flexShrink: 0
+                  }}>
+                    {roleBadge.label}
+                  </span>
+                </div>
+
+                <span style={{
+                  fontSize: '0.66rem',
+                  color: theme.textSecondary,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: '220px'
+                }}>
+                  {currentUser?.email || 'admin@catavor.com'}
+                </span>
+              </div>
             </div>
 
-            {/* Right: Contextual Quick Actions + Options Menu Button */}
-            {(headerConfig.primaryAction || headerConfig.showMenu) ? (
+            {/* Right Side: Contextual Options Menu & Primary Action */}
+            {headerConfig.showMenu && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                {headerConfig.primaryAction && (
+                {Boolean(headerConfig.primaryAction) && (
                   <button
                     type="button"
-                    onClick={headerConfig.primaryAction?.onClick}
-                    title={headerConfig.primaryAction?.title}
+                    onClick={() => headerConfig.primaryAction?.onClick?.()}
+                    title={headerConfig.primaryAction?.title || ''}
                     style={{
                       width: '34px',
                       height: '34px',
@@ -4804,193 +4578,354 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     {headerConfig.primaryAction?.icon}
                   </button>
                 )}
-                {headerConfig.showMenu && (
-                  <button
-                    type="button"
-                    onClick={() => setShowOptionsMenu(true)}
-                    title={headerConfig.title || "Menu Opsi"}
-                    style={{
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '0.75rem',
-                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textPrimary,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <MoreVertical size={17} />
-                  </button>
-                )}
-              </div>
-            ) : null}
-          </div>
-        );
-      })()}
-
-      {/* ========================================================================= */}
-      {/* 2.1 EXECUTIVE OPTIONS MENU BOTTOM SHEET (Consolidated Theme, Refresh, etc) */}
-      {/* ========================================================================= */}
-      {showOptionsMenu && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 999999,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            animation: 'fadeIn 0.2s ease-out'
-          }}
-          onClick={() => {
-            setShowOptionsMenu(false);
-            setSheetDragY(0);
-          }}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onMouseMove={handleTouchMove}
-          onMouseUp={handleTouchEnd}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: '480px',
-              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-              borderTopLeftRadius: '1.6rem',
-              borderTopRightRadius: '1.6rem',
-              borderTop: `1px solid ${theme.borderStrong}`,
-              padding: '0.65rem 1.25rem 2.25rem 1.25rem',
-              boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.65rem',
-              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
-              transition: isDraggingSheet ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-              animation: isDraggingSheet ? 'none' : 'slideUp 0.25s ease-out'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Interactive Drag Handle (Drag Up/Down to Dismiss) */}
-            <div
-              onTouchStart={handleTouchStart}
-              onMouseDown={handleTouchStart}
-              style={{
-                width: '100%',
-                padding: '0.35rem 0 0.65rem 0',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: isDraggingSheet ? 'grabbing' : 'grab',
-                touchAction: 'none',
-                userSelect: 'none'
-              }}
-            >
-              <div style={{
-                width: '44px',
-                height: '5px',
-                borderRadius: '999px',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.28)' : '#cbd5e1'
-              }} />
-            </div>
-
-            {/* Header Sheet Title & Subtitle */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.45rem', borderBottom: `1px solid ${theme.border}` }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
-                  {headerConfig.title || 'Opsi Modul'}
-                </h4>
-                <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary }}>
-                  {headerConfig.subtitle || 'Aksi dan utilitas modul'}
-                </p>
-              </div>
-            </div>
-
-            {/* Menu Options List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', maxHeight: '70vh', overflowY: 'auto' }}>
-              {/* Contextual Action Items */}
-              {headerConfig.items.map((item) => (
                 <button
-                  key={item.id}
                   type="button"
-                  onClick={() => {
-                    setShowOptionsMenu(false);
-                    item.onClick();
-                  }}
+                  onClick={() => setShowOptionsMenu(true)}
+                  title={headerConfig.title || "Menu Opsi"}
                   style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+                    border: `1px solid ${theme.border}`,
+                    color: theme.textPrimary,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.75rem 0.9rem',
-                    borderRadius: '0.9rem',
-                    backgroundColor: item.variant === 'danger' 
-                      ? (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)')
-                      : theme.cardAlt,
-                    border: item.variant === 'danger'
-                      ? (isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)')
-                      : `1px solid ${theme.border}`,
-                    color: item.variant === 'danger' ? '#ef4444' : theme.textPrimary,
+                    justifyContent: 'center',
                     cursor: 'pointer',
-                    textAlign: 'left',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-                    <div style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '0.7rem',
-                      backgroundColor: item.iconBg || (isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(56, 189, 248, 0.1)'),
-                      color: item.iconColor || (isDark ? '#38bdf8' : '#0284c7'),
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      {item.icon}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '0.84rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {item.label}
-                      </div>
-                      {item.description && (
-                        <div style={{ fontSize: '0.68rem', color: item.variant === 'danger' ? '#ef4444' : theme.textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {item.description}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {item.badge && (
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '999px', backgroundColor: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', flexShrink: 0 }}>
-                      {item.badge}
-                    </span>
-                  )}
+                  <MoreVertical size={17} />
                 </button>
-              ))}
+              </div>
+            )}
+          </div>
+        )}
 
-              {/* Global Utilities Divider & Items */}
-              {headerConfig.includeGlobalUtilities !== false && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.4rem 0 0.1rem 0' }}>
-                    <div style={{ height: '1px', flex: 1, backgroundColor: theme.border }} />
-                    <span style={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.05em', color: theme.textMuted, textTransform: 'uppercase' }}>
-                      Utilitas Eksekutif
-                    </span>
-                    <div style={{ height: '1px', flex: 1, backgroundColor: theme.border }} />
-                  </div>
+        {/* ========================================================================= */}
+        {/* 2. DEDICATED EXCLUSIVE SUBPAGE HEADER (When in a specific sub-module)       */}
+        {/* Redundant on Desktop and Tablet since PlatformAdminShell provides top bar. */}
+        {/* ========================================================================= */}
+        {activeView !== 'dashboard' && false && (() => {
+          const currentItem = allModules[activeView];
+          const isFooterTab = ['reports', 'support', 'finance'].includes(activeView);
+          const subStatusText =
+            activeView === 'monetization' ? 'Google AdSense & GA4' :
+              activeView === 'rbac' ? 'Matriks & Izin Staf' :
+                activeView === 'stores' ? `${dormancyMetrics?.active_stores || 1} Merchant Terdaftar` :
+                  activeView === 'reports' ? `${pendingReportsCount} Laporan Pending` :
+                    activeView === 'support' ? (actionRequiredTicketsCount > 0 ? `${actionRequiredTicketsCount} Perlu Respon Tim` : (tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length > 0 ? `${tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length} Tiket Aktif` : `${tickets.length} Total Tiket`)) :
+                      activeView === 'finance' ? `${pendingOrdersCount} Order Pending` :
+                        activeView === 'broadcast' ? `${broadcasts.length} Siaran Aktif` :
+                          activeView === 'audit' ? `${auditLogs.length} Log Aktivitas` :
+                            currentItem?.subtitle || '';
 
-                  {/* Toggle Theme Mode */}
+          if (!isSubPage) return null;
+
+          return (
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 999,
+              boxSizing: 'border-box',
+              width: '100%',
+              marginBottom: '0.85rem',
+              borderRadius: '0.85rem',
+              backgroundColor: isDark
+                ? 'rgba(15, 23, 42, 0.95)'
+                : 'rgba(255, 255, 255, 0.95)',
+              border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
+              padding: '0.65rem 1rem',
+              boxShadow: isDark
+                ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)'
+                : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.5rem'
+            }}>
+              {/* Left Side: Brand Logo for Footer Tabs OR Pure Icon Back Button for Secondary Modules / Ticket Detail */}
+              {(isFooterTab && !(activeView === 'support' && selectedTicket)) ? (
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '0.85rem',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
+                  border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  padding: '3px',
+                  flexShrink: 0,
+                  boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 6px rgba(0,0,0,0.05)'
+                }}>
+                  <img
+                    src={appLogoImg || APP_LOGO_BASE64}
+                    alt="Catavor Logo"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      borderRadius: '0.6rem'
+                    }}
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    smartBack(() => {
+                      if (activeView === 'reports' && moderationModalReport) {
+                        handleCloseModerationPage();
+                      } else if (activeView === 'support' && selectedTicket) {
+                        handleCloseTicketChat();
+                      } else if (activeView === 'broadcast' && broadcastSubView === 'create') {
+                        handleCloseCreateBroadcast();
+                      } else if (activeView === 'broadcast' && broadcastSubView === 'detail') {
+                        handleCloseBroadcastDetail();
+                      } else if (activeView === 'master_data' && masterSubView !== 'menu') {
+                        setMasterSubView('menu');
+                        updatePlatformUrl('master_data', null, null);
+                      } else {
+                        handleSwitchView('dashboard');
+                      }
+                    });
+                  }}
+                  title={
+                    activeView === 'reports' && moderationModalReport
+                      ? "Kembali ke Antrean Laporan"
+                      : activeView === 'support' && selectedTicket
+                        ? "Kembali ke Daftar Tiket"
+                        : (activeView === 'broadcast' && broadcastSubView !== 'list')
+                          ? "Kembali ke Riwayat Siaran"
+                          : (activeView === 'master_data' && masterSubView !== 'menu')
+                            ? "Kembali ke Menu Master"
+                            : "Kembali ke Dashboard"
+                  }
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: (activeView === 'broadcast' && broadcastSubView !== 'list')
+                      ? (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)')
+                      : (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)'),
+                    border: `1px solid ${(activeView === 'broadcast' && broadcastSubView !== 'list')
+                      ? (isDark ? 'rgba(245, 158, 11, 0.35)' : 'rgba(245, 158, 11, 0.25)')
+                      : (isDark ? 'rgba(56, 189, 248, 0.28)' : 'rgba(2, 132, 199, 0.2)')}`,
+                    color: (activeView === 'broadcast' && broadcastSubView !== 'list') ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'transform 0.15s ease'
+                  }}
+                >
+                  <ChevronLeft size={19} />
+                </button>
+              )}
+
+              {/* Center: Module Title & Status (Clean, No Entity Icon) */}
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, paddingLeft: '0.15rem' }}>
+                <h3 style={{
+                  fontSize: '0.92rem',
+                  fontWeight: 800,
+                  margin: 0,
+                  color: theme.textPrimary,
+                  letterSpacing: '-0.01em',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {activeView === 'reports' && moderationModalReport
+                    ? 'Kelola Penegakan & Status'
+                    : activeView === 'support' && selectedTicket
+                      ? (selectedTicket.subject || 'Detail Tiket')
+                      : (activeView === 'broadcast' && broadcastSubView === 'create')
+                        ? 'Buat Siaran Baru'
+                        : (activeView === 'broadcast' && broadcastSubView === 'detail')
+                          ? (selectedBroadcastDetail?.title || 'Rincian Siaran')
+                          : (activeView === 'master_data' && masterSubView === 'domains')
+                            ? 'Master Domain Aman'
+                            : (activeView === 'master_data' && masterSubView === 'templates')
+                              ? 'Template Pesan Cepat CS'
+                              : (activeView === 'master_data' && masterSubView === 'rekber')
+                                ? 'Mitra Rekber Syariah'
+                                : (currentItem?.title || 'Panel Modul')}
+                </h3>
+                <span style={{
+                  fontSize: '0.67rem',
+                  color: theme.textSecondary,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  fontWeight: 600
+                }}>
+                  {activeView === 'reports' && moderationModalReport
+                    ? `${moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`} • ${moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}`
+                    : activeView === 'support' && selectedTicket
+                      ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • 🏪 ${getStoreDisplayName(selectedTicket)}`
+                      : (activeView === 'broadcast' && broadcastSubView === 'create')
+                        ? 'Segmentasi & Pengumuman Platform'
+                        : (activeView === 'broadcast' && broadcastSubView === 'detail')
+                          ? `${selectedBroadcastDetail?.category || 'PENGUMUMAN'} • ${selectedBroadcastDetail?.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}`
+                          : (activeView === 'master_data' && masterSubView === 'domains')
+                            ? 'Whitelist URL & Proteksi Ekosistem'
+                            : (activeView === 'master_data' && masterSubView === 'templates')
+                              ? `${cannedTemplates.length} Template Respon Cepat Helpdesk`
+                              : (activeView === 'master_data' && masterSubView === 'rekber')
+                                ? 'Integrasi Escrow Amanah (rekbersyariah.com)'
+                                : (activeView === 'master_data' && masterSubView === 'menu')
+                                  ? 'Pusat Entitas & Konfigurasi Master'
+                                  : subStatusText}
+                </span>
+              </div>
+
+              {/* Right: Contextual Quick Actions + Options Menu Button */}
+              {(headerConfig.primaryAction || headerConfig.showMenu) ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                  {headerConfig.primaryAction && (
+                    <button
+                      type="button"
+                      onClick={headerConfig.primaryAction?.onClick}
+                      title={headerConfig.primaryAction?.title}
+                      style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '0.75rem',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                        border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(56, 189, 248, 0.3)'}`,
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {headerConfig.primaryAction?.icon}
+                    </button>
+                  )}
+                  {headerConfig.showMenu && (
+                    <button
+                      type="button"
+                      onClick={() => setShowOptionsMenu(true)}
+                      title={headerConfig.title || "Menu Opsi"}
+                      style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '0.75rem',
+                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+                        border: `1px solid ${theme.border}`,
+                        color: theme.textPrimary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <MoreVertical size={17} />
+                    </button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          );
+        })()}
+
+        {/* ========================================================================= */}
+        {/* 2.1 EXECUTIVE OPTIONS MENU BOTTOM SHEET (Consolidated Theme, Refresh, etc) */}
+        {/* ========================================================================= */}
+        {showOptionsMenu && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 999999,
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'center',
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+            onClick={() => {
+              setShowOptionsMenu(false);
+              setSheetDragY(0);
+            }}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onMouseMove={handleTouchMove}
+            onMouseUp={handleTouchEnd}
+          >
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '480px',
+                backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                borderTopLeftRadius: '1.6rem',
+                borderTopRightRadius: '1.6rem',
+                borderTop: `1px solid ${theme.borderStrong}`,
+                padding: '0.65rem 1.25rem 2.25rem 1.25rem',
+                boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.65rem',
+                transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+                transition: isDraggingSheet ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                animation: isDraggingSheet ? 'none' : 'slideUp 0.25s ease-out'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Interactive Drag Handle (Drag Up/Down to Dismiss) */}
+              <div
+                onTouchStart={handleTouchStart}
+                onMouseDown={handleTouchStart}
+                style={{
+                  width: '100%',
+                  padding: '0.35rem 0 0.65rem 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: isDraggingSheet ? 'grabbing' : 'grab',
+                  touchAction: 'none',
+                  userSelect: 'none'
+                }}
+              >
+                <div style={{
+                  width: '44px',
+                  height: '5px',
+                  borderRadius: '999px',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.28)' : '#cbd5e1'
+                }} />
+              </div>
+
+              {/* Header Sheet Title & Subtitle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.45rem', borderBottom: `1px solid ${theme.border}` }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                    {headerConfig.title || 'Opsi Modul'}
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary }}>
+                    {headerConfig.subtitle || 'Aksi dan utilitas modul'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Menu Options List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', maxHeight: '70vh', overflowY: 'auto' }}>
+                {/* Contextual Action Items */}
+                {headerConfig.items.map((item) => (
                   <button
+                    key={item.id}
                     type="button"
                     onClick={() => {
-                      toggleTheme();
                       setShowOptionsMenu(false);
-                      showToast(`Tema dialihkan ke mode ${isDark ? 'terang' : 'gelap'}`, 'info');
+                      item.onClick();
                     }}
                     style={{
                       display: 'flex',
@@ -4998,46 +4933,69 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       justifyContent: 'space-between',
                       padding: '0.75rem 0.9rem',
                       borderRadius: '0.9rem',
-                      backgroundColor: theme.cardAlt,
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textPrimary,
+                      backgroundColor: item.variant === 'danger'
+                        ? (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)')
+                        : theme.cardAlt,
+                      border: item.variant === 'danger'
+                        ? (isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)')
+                        : `1px solid ${theme.border}`,
+                      color: item.variant === 'danger' ? '#ef4444' : theme.textPrimary,
                       cursor: 'pointer',
-                      textAlign: 'left'
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
                       <div style={{
                         width: '36px',
                         height: '36px',
                         borderRadius: '0.7rem',
-                        backgroundColor: isDark ? 'rgba(250, 204, 21, 0.15)' : 'rgba(250, 204, 21, 0.1)',
-                        color: isDark ? '#facc15' : '#d97706',
+                        backgroundColor: item.iconBg || (isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(56, 189, 248, 0.1)'),
+                        color: item.iconColor || (isDark ? '#38bdf8' : '#0284c7'),
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0
                       }}>
-                        {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                        {item.icon}
                       </div>
-                      <div>
-                        <div style={{ fontSize: '0.84rem', fontWeight: 800 }}>
-                          {isDark ? 'Mode Terang (Light Mode)' : 'Mode Gelap (Dark Mode)'}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.84rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.label}
                         </div>
-                        <div style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
-                          Ubah tampilan visual panel admin
-                        </div>
+                        {item.description && (
+                          <div style={{ fontSize: '0.68rem', color: item.variant === 'danger' ? '#ef4444' : theme.textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.description}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#38bdf8' }}>Ganti</span>
+                    {item.badge && (
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '999px', backgroundColor: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', flexShrink: 0 }}>
+                        {item.badge}
+                      </span>
+                    )}
                   </button>
+                ))}
 
-                  {/* Logout Action */}
-                  {onLogout && (
+                {/* Global Utilities Divider & Items */}
+                {headerConfig.includeGlobalUtilities !== false && (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.4rem 0 0.1rem 0' }}>
+                      <div style={{ height: '1px', flex: 1, backgroundColor: theme.border }} />
+                      <span style={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.05em', color: theme.textMuted, textTransform: 'uppercase' }}>
+                        Utilitas Eksekutif
+                      </span>
+                      <div style={{ height: '1px', flex: 1, backgroundColor: theme.border }} />
+                    </div>
+
+                    {/* Toggle Theme Mode */}
                     <button
                       type="button"
                       onClick={() => {
+                        toggleTheme();
                         setShowOptionsMenu(false);
-                        onLogout();
+                        showToast(`Tema dialihkan ke mode ${isDark ? 'terang' : 'gelap'}`, 'info');
                       }}
                       style={{
                         display: 'flex',
@@ -5045,9 +5003,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         justifyContent: 'space-between',
                         padding: '0.75rem 0.9rem',
                         borderRadius: '0.9rem',
-                        backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)',
-                        border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)',
-                        color: '#ef4444',
+                        backgroundColor: theme.cardAlt,
+                        border: `1px solid ${theme.border}`,
+                        color: theme.textPrimary,
                         cursor: 'pointer',
                         textAlign: 'left'
                       }}
@@ -5057,2899 +5015,3000 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           width: '36px',
                           height: '36px',
                           borderRadius: '0.7rem',
-                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                          color: '#ef4444',
+                          backgroundColor: isDark ? 'rgba(250, 204, 21, 0.15)' : 'rgba(250, 204, 21, 0.1)',
+                          color: isDark ? '#facc15' : '#d97706',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           flexShrink: 0
                         }}>
-                          <LogOut size={18} />
+                          {isDark ? <Sun size={18} /> : <Moon size={18} />}
                         </div>
                         <div>
-                          <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#ef4444' }}>Keluar Akun Admin</div>
-                          <div style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                            Akhiri sesi pengelolaan platform
+                          <div style={{ fontSize: '0.84rem', fontWeight: 800 }}>
+                            {isDark ? 'Mode Terang (Light Mode)' : 'Mode Gelap (Dark Mode)'}
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
+                            Ubah tampilan visual panel admin
                           </div>
                         </div>
                       </div>
-                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#ef4444' }}>Keluar</span>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#38bdf8' }}>Ganti</span>
                     </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* ========================================================================= */}
-      {/* 3. DASHBOARD VIEW: METRICS STRIP + 2-COLUMN APP CARD GRID (2x4 / 8 Cards) */}
-      {/* ========================================================================= */}
-      {activeView === 'dashboard' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Quick Metrics Strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.45rem' }}>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Merchant</span>
-              <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>{dormancyMetrics?.active_stores || 1}</strong>
-            </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Order</span>
-              <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900 }}>{orders.length}</strong>
-            </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Laporan</span>
-              <strong style={{ fontSize: '1.1rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900 }}>{reports.length}</strong>
-            </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Tiket</span>
-              <strong style={{ fontSize: '1.1rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900 }}>{tickets.length}</strong>
-            </div>
-          </div>
-
-          {/* Executive Operational Action Center / Perlu Tindakan Administrator */}
-          <div style={{
-            padding: '1rem 1.1rem',
-            borderRadius: '1.25rem',
-            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : '#ffffff',
-            border: (pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0)
-              ? (isDark ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(239, 68, 68, 0.25)')
-              : `1px solid ${theme.border}`,
-            boxShadow: theme.cardShadow,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.8rem'
-          }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: (pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0)
-                    ? 'rgba(239, 68, 68, 0.15)'
-                    : (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)'),
-                  color: (pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0) ? '#ef4444' : '#10b981',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  {(pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0)
-                    ? <AlertTriangle size={17} />
-                    : <CheckCircle2 size={17} />}
-                </div>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
-                    Perlu Tindakan Administrator
-                  </h4>
-                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
-                    {(pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount) > 0
-                      ? `${pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount} antrean tugas aktif`
-                      : 'Semua antrean operasional telah ditangani'}
-                  </span>
-                </div>
+                    {/* Logout Action */}
+                    {onLogout && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowOptionsMenu(false);
+                          onLogout();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.75rem 0.9rem',
+                          borderRadius: '0.9rem',
+                          backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)',
+                          border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '0.7rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                            color: '#ef4444',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <LogOut size={18} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#ef4444' }}>Keluar Akun Admin</div>
+                            <div style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                              Akhiri sesi pengelolaan platform
+                            </div>
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#ef4444' }}>Keluar</span>
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
-
-              {(pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount) > 0 ? (
-                <span style={{
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: '999px',
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
-                  fontSize: '0.65rem',
-                  fontWeight: 900,
-                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
-                }}>
-                  {pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount} Prioritas
-                </span>
-              ) : (
-                <span style={{
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: '999px',
-                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ecfdf5',
-                  color: isDark ? '#34d399' : '#059669',
-                  fontSize: '0.65rem',
-                  fontWeight: 800,
-                  border: isDark ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid #a7f3d0'
-                }}>
-                  Terkendali
-                </span>
-              )}
-            </div>
-
-            {/* Action Items List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {(actionRequiredTicketsCount > 0 || openTicketsCount > 0) && (
-                <div
-                  onClick={() => handleSwitchView('support')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.65rem 0.75rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: isDark ? 'rgba(2, 132, 199, 0.1)' : '#f0f9ff',
-                    border: isDark ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid #bae6fd',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '0.5rem',
-                      backgroundColor: isDark ? 'rgba(2, 132, 199, 0.25)' : '#e0f2fe',
-                      color: isDark ? '#38bdf8' : '#0284c7',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      <HelpCircle size={15} />
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Helpdesk Tiket Merchant
-                      </div>
-                      <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
-                        {actionRequiredTicketsCount || openTicketsCount} tiket butuh respon tim CS
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7' }}>Buka</span>
-                    <ChevronRight size={14} color={isDark ? '#38bdf8' : '#0284c7'} />
-                  </div>
-                </div>
-              )}
-
-              {pendingReportsCount > 0 && (
-                <div
-                  onClick={() => handleSwitchView('reports')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.65rem 0.75rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: isDark ? 'rgba(244, 63, 94, 0.1)' : '#fff1f2',
-                    border: isDark ? '1px solid rgba(244, 63, 94, 0.25)' : '1px solid #fecdd3',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '0.5rem',
-                      backgroundColor: isDark ? 'rgba(244, 63, 94, 0.25)' : '#ffe4e6',
-                      color: isDark ? '#fb7185' : '#e11d48',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      <ShieldAlert size={15} />
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Laporan Pelanggaran
-                      </div>
-                      <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
-                        {pendingReportsCount} laporan kepatuhan menunggu review
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#fb7185' : '#e11d48' }}>Tinjau</span>
-                    <ChevronRight size={14} color={isDark ? '#fb7185' : '#e11d48'} />
-                  </div>
-                </div>
-              )}
-
-              {pendingOrdersCount > 0 && (
-                <div
-                  onClick={() => handleSwitchView('finance')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.65rem 0.75rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#ecfdf5',
-                    border: isDark ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid #a7f3d0',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '0.5rem',
-                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#d1fae5',
-                      color: isDark ? '#34d399' : '#059669',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      <CreditCard size={15} />
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Verifikasi Pembayaran Paket
-                      </div>
-                      <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
-                        {pendingOrdersCount} bukti transfer menunggu konfirmasi
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#34d399' : '#059669' }}>Proses</span>
-                    <ChevronRight size={14} color={isDark ? '#34d399' : '#059669'} />
-                  </div>
-                </div>
-              )}
-
-              {/* State ketika tidak ada tindakan pending */}
-              {(pendingReportsCount === 0 && (actionRequiredTicketsCount || openTicketsCount) === 0 && pendingOrdersCount === 0) && (
-                <div style={{
-                  padding: '0.75rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                  border: `1px dashed ${theme.border}`,
-                  textAlign: 'center',
-                  color: theme.textSecondary,
-                  fontSize: '0.72rem'
-                }}>
-                  Semua tiket dan laporan operasional telah selesai ditangani.
-                </div>
-              )}
             </div>
           </div>
+        )}
 
-          {/* Section Heading: Platform & System Management */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 0.15rem' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
-                Kelola Platform & Sistem
-              </h3>
-              <span style={{ fontSize: '0.7rem', color: theme.textSecondary }}>Konfigurasi lanjutan dan tata kelola platform</span>
+        {/* ========================================================================= */}
+        {/* 3. DASHBOARD VIEW: METRICS STRIP + 2-COLUMN APP CARD GRID (2x4 / 8 Cards) */}
+        {/* ========================================================================= */}
+        {activeView === 'dashboard' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Quick Metrics Strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.45rem' }}>
+              <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Merchant</span>
+                <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>{dormancyMetrics?.active_stores || 1}</strong>
+              </div>
+              <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Order</span>
+                <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900 }}>{orders.length}</strong>
+              </div>
+              <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Laporan</span>
+                <strong style={{ fontSize: '1.1rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900 }}>{reports.length}</strong>
+              </div>
+              <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Tiket</span>
+                <strong style={{ fontSize: '1.1rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900 }}>{tickets.length}</strong>
+              </div>
             </div>
-            <span style={{
-              fontSize: '0.68rem',
-              fontWeight: 700,
-              color: theme.textSecondary,
-              backgroundColor: theme.cardAlt,
-              border: `1px solid ${theme.border}`,
-              padding: '0.2rem 0.55rem',
-              borderRadius: '999px'
+
+            {/* Executive Operational Action Center / Perlu Tindakan Administrator */}
+            <div style={{
+              padding: '1rem 1.1rem',
+              borderRadius: '1.25rem',
+              backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : '#ffffff',
+              border: (pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0)
+                ? (isDark ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(239, 68, 68, 0.25)')
+                : `1px solid ${theme.border}`,
+              boxShadow: theme.cardShadow,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.8rem'
             }}>
-              {dashboardGridItems.length} Modul
-            </span>
-          </div>
-
-          {/* 2-Column Specialized Management Grid */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '0.75rem'
-          }}>
-            {dashboardGridItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleSwitchView(item.id)}
-                style={{
-                  padding: '0.95rem 0.85rem',
-                  borderRadius: '1.15rem',
-                  backgroundColor: theme.surface,
-                  border: `1px solid ${theme.border}`,
-                  boxShadow: theme.cardShadow,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  minHeight: '105px',
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
-                }}
-              >
-                {/* Top of Card: Icon & Badge/Chevron */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                   <div style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '0.8rem',
-                    backgroundColor: item.bg,
-                    color: item.color,
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '0.65rem',
+                    backgroundColor: (pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0)
+                      ? 'rgba(239, 68, 68, 0.15)'
+                      : (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)'),
+                    color: (pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0) ? '#ef4444' : '#10b981',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    border: `1px solid ${item.border}`,
                     flexShrink: 0
                   }}>
-                    {item.icon}
+                    {(pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0)
+                      ? <AlertTriangle size={17} />
+                      : <CheckCircle2 size={17} />}
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    {item.badge > 0 && (
-                      <span style={{
-                        padding: '0.15rem 0.45rem',
-                        borderRadius: '999px',
-                        backgroundColor: '#ef4444',
-                        color: '#ffffff',
-                        fontSize: '0.62rem',
-                        fontWeight: 800,
-                        boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
-                      }}>
-                        {item.badge}
-                      </span>
-                    )}
-                    <ChevronRight size={15} style={{ color: theme.textMuted }} />
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
+                      Perlu Tindakan Administrator
+                    </h4>
+                    <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                      {(pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount) > 0
+                        ? `${pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount} antrean tugas aktif`
+                        : 'Semua antrean operasional telah ditangani'}
+                    </span>
                   </div>
                 </div>
 
-                {/* Bottom of Card: Title & Subtitle */}
-                <div>
-                  <div style={{
-                    fontSize: '0.84rem',
-                    fontWeight: 800,
-                    color: theme.textPrimary,
-                    marginBottom: '0.15rem',
-                    lineHeight: 1.25
-                  }}>
-                    {item.title}
-                  </div>
-                  <div style={{
-                    fontSize: '0.68rem',
-                    fontWeight: 500,
-                    color: theme.textSecondary,
-                    lineHeight: 1.2,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {item.subtitle}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. MODULE 1: STAF & RBAC MANAGEMENT                                       */}
-      {/* ========================================================================= */}
-      {activeView === 'rbac' && canAccessRBAC && (
-        <AdminRBACManagement
-          token={token}
-          currentUserEmail={currentUser?.email}
-          themeMode={themeMode}
-          hideHeader={true}
-        />
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. MODULE 2: TATA KELOLA MERCHANT & DORMANSI                                  */}
-      {/* ========================================================================= */}
-      {activeView === 'stores' && canAccessCompliance && (
-        <AdminStoresManagement
-          token={token}
-          themeMode={themeMode}
-          hideHeader={true}
-          onNavigateToTab={(tab: string) => setActiveView(tab as any)}
-        />
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. MODULE 3: LAPORAN PELANGGARAN & COMPLIANCE MODERATION                  */}
-      {/* ========================================================================= */}
-      {activeView === 'reports' && canAccessCompliance && (
-        moderationModalReport ? (
-          /* ========================================================================= */
-          /* 3A. DEDICATED REPORT MODERATION & ENFORCEMENT ACTION PAGE                */
-          /* ========================================================================= */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '0', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
-            {/* Section 1: Entity Profile & Evidence Card */}
-            <div style={{
-              backgroundColor: theme.surface,
-              borderRadius: '1rem',
-              border: `1px solid ${theme.border}`,
-              padding: '1.25rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.85rem',
-              boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.04)'
-            }}>
-              {/* Card Meta Row: Target Badge + Ticket + Inspeksi Publik */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                {(pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount) > 0 ? (
                   <span style={{
-                    fontSize: '0.68rem',
-                    fontWeight: 800,
-                    padding: '0.25rem 0.6rem',
-                    borderRadius: '0.45rem',
-                    backgroundColor: moderationModalReport.target_type === 'catalog' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(14, 165, 233, 0.15)',
-                    color: moderationModalReport.target_type === 'catalog' ? (isDark ? '#c084fc' : '#9333ea') : (isDark ? '#38bdf8' : '#0ea5e9'),
-                    border: `1px solid ${moderationModalReport.target_type === 'catalog' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(14, 165, 233, 0.3)'}`,
-                    letterSpacing: '0.02em'
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '999px',
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    fontSize: '0.65rem',
+                    fontWeight: 900,
+                    boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
                   }}>
-                    {moderationModalReport.target_type === 'catalog' ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
+                    {pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount} Prioritas
                   </span>
-                  {moderationModalReport.target_type === 'item' && (
+                ) : (
+                  <span style={{
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '999px',
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ecfdf5',
+                    color: isDark ? '#34d399' : '#059669',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    border: isDark ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid #a7f3d0'
+                  }}>
+                    Terkendali
+                  </span>
+                )}
+              </div>
+
+              {/* Action Items List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {(actionRequiredTicketsCount > 0 || openTicketsCount > 0) && (
+                  <div
+                    onClick={() => handleSwitchView('support')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.65rem 0.75rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: isDark ? 'rgba(2, 132, 199, 0.1)' : '#f0f9ff',
+                      border: isDark ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid #bae6fd',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '0.5rem',
+                        backgroundColor: isDark ? 'rgba(2, 132, 199, 0.25)' : '#e0f2fe',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <HelpCircle size={15} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Helpdesk Tiket Merchant
+                        </div>
+                        <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                          {actionRequiredTicketsCount || openTicketsCount} tiket butuh respon tim CS
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7' }}>Buka</span>
+                      <ChevronRight size={14} color={isDark ? '#38bdf8' : '#0284c7'} />
+                    </div>
+                  </div>
+                )}
+
+                {pendingReportsCount > 0 && (
+                  <div
+                    onClick={() => handleSwitchView('reports')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.65rem 0.75rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: isDark ? 'rgba(244, 63, 94, 0.1)' : '#fff1f2',
+                      border: isDark ? '1px solid rgba(244, 63, 94, 0.25)' : '1px solid #fecdd3',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '0.5rem',
+                        backgroundColor: isDark ? 'rgba(244, 63, 94, 0.25)' : '#ffe4e6',
+                        color: isDark ? '#fb7185' : '#e11d48',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <ShieldAlert size={15} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Laporan Pelanggaran
+                        </div>
+                        <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                          {pendingReportsCount} laporan kepatuhan menunggu review
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#fb7185' : '#e11d48' }}>Tinjau</span>
+                      <ChevronRight size={14} color={isDark ? '#fb7185' : '#e11d48'} />
+                    </div>
+                  </div>
+                )}
+
+                {pendingOrdersCount > 0 && (
+                  <div
+                    onClick={() => handleSwitchView('finance')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.65rem 0.75rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#ecfdf5',
+                      border: isDark ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid #a7f3d0',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '0.5rem',
+                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#d1fae5',
+                        color: isDark ? '#34d399' : '#059669',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <CreditCard size={15} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Verifikasi Pembayaran Paket
+                        </div>
+                        <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                          {pendingOrdersCount} bukti transfer menunggu konfirmasi
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#34d399' : '#059669' }}>Proses</span>
+                      <ChevronRight size={14} color={isDark ? '#34d399' : '#059669'} />
+                    </div>
+                  </div>
+                )}
+
+                {/* State ketika tidak ada tindakan pending */}
+                {(pendingReportsCount === 0 && (actionRequiredTicketsCount || openTicketsCount) === 0 && pendingOrdersCount === 0) && (
+                  <div style={{
+                    padding: '0.75rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                    border: `1px dashed ${theme.border}`,
+                    textAlign: 'center',
+                    color: theme.textSecondary,
+                    fontSize: '0.72rem'
+                  }}>
+                    Semua tiket dan laporan operasional telah selesai ditangani.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section Heading: Platform & System Management */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 0.15rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
+                  Kelola Platform & Sistem
+                </h3>
+                <span style={{ fontSize: '0.7rem', color: theme.textSecondary }}>Konfigurasi lanjutan dan tata kelola platform</span>
+              </div>
+              <span style={{
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                color: theme.textSecondary,
+                backgroundColor: theme.cardAlt,
+                border: `1px solid ${theme.border}`,
+                padding: '0.2rem 0.55rem',
+                borderRadius: '999px'
+              }}>
+                {dashboardGridItems.length} Modul
+              </span>
+            </div>
+
+            {/* 2-Column Specialized Management Grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '0.75rem'
+            }}>
+              {dashboardGridItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleSwitchView(item.id)}
+                  style={{
+                    padding: '0.95rem 0.85rem',
+                    borderRadius: '1.15rem',
+                    backgroundColor: theme.surface,
+                    border: `1px solid ${theme.border}`,
+                    boxShadow: theme.cardShadow,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    minHeight: '105px',
+                    transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                  }}
+                >
+                  {/* Top of Card: Icon & Badge/Chevron */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                    <div style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '0.8rem',
+                      backgroundColor: item.bg,
+                      color: item.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: `1px solid ${item.border}`,
+                      flexShrink: 0
+                    }}>
+                      {item.icon}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      {item.badge > 0 && (
+                        <span style={{
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: '999px',
+                          backgroundColor: '#ef4444',
+                          color: '#ffffff',
+                          fontSize: '0.62rem',
+                          fontWeight: 800,
+                          boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+                        }}>
+                          {item.badge}
+                        </span>
+                      )}
+                      <ChevronRight size={15} style={{ color: theme.textMuted }} />
+                    </div>
+                  </div>
+
+                  {/* Bottom of Card: Title & Subtitle */}
+                  <div>
+                    <div style={{
+                      fontSize: '0.84rem',
+                      fontWeight: 800,
+                      color: theme.textPrimary,
+                      marginBottom: '0.15rem',
+                      lineHeight: 1.25
+                    }}>
+                      {item.title}
+                    </div>
+                    <div style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 500,
+                      color: theme.textSecondary,
+                      lineHeight: 1.2,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {item.subtitle}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 4. MODULE 1: STAF & RBAC MANAGEMENT                                       */}
+        {/* ========================================================================= */}
+        {activeView === 'rbac' && canAccessRBAC && (
+          <AdminRBACManagement
+            token={token}
+            currentUserEmail={currentUser?.email}
+            themeMode={themeMode}
+            hideHeader={true}
+          />
+        )}
+
+        {/* ========================================================================= */}
+        {/* 4. MODULE 2: TATA KELOLA MERCHANT & DORMANSI                                  */}
+        {/* ========================================================================= */}
+        {activeView === 'stores' && canAccessCompliance && (
+          <AdminStoresManagement
+            token={token}
+            themeMode={themeMode}
+            hideHeader={true}
+            onNavigateToTab={(tab: string) => setActiveView(tab as any)}
+          />
+        )}
+
+        {/* ========================================================================= */}
+        {/* 4. MODULE 3: LAPORAN PELANGGARAN & COMPLIANCE MODERATION                  */}
+        {/* ========================================================================= */}
+        {activeView === 'reports' && canAccessCompliance && (
+          moderationModalReport ? (
+            /* ========================================================================= */
+            /* 3A. DEDICATED REPORT MODERATION & ENFORCEMENT ACTION PAGE                */
+            /* ========================================================================= */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '0', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+              {/* Section 1: Entity Profile & Evidence Card */}
+              <div style={{
+                backgroundColor: theme.surface,
+                borderRadius: '1rem',
+                border: `1px solid ${theme.border}`,
+                padding: '1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem',
+                boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.04)'
+              }}>
+                {/* Card Meta Row: Target Badge + Ticket + Inspeksi Publik */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                     <span style={{
                       fontSize: '0.68rem',
                       fontWeight: 800,
                       padding: '0.25rem 0.6rem',
                       borderRadius: '0.45rem',
-                      backgroundColor: 'rgba(14, 165, 233, 0.12)',
-                      color: isDark ? '#38bdf8' : '#0284c7',
-                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`,
-                      letterSpacing: '0.02em',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.3rem'
+                      backgroundColor: moderationModalReport.target_type === 'catalog' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(14, 165, 233, 0.15)',
+                      color: moderationModalReport.target_type === 'catalog' ? (isDark ? '#c084fc' : '#9333ea') : (isDark ? '#38bdf8' : '#0ea5e9'),
+                      border: `1px solid ${moderationModalReport.target_type === 'catalog' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(14, 165, 233, 0.3)'}`,
+                      letterSpacing: '0.02em'
                     }}>
-                      <Tag size={12} />
-                      {formatCatalogType(moderationModalReport.item_type || moderationModalReport.fauna?.product_type || moderationModalReport.product_type)}
+                      {moderationModalReport.target_type === 'catalog' ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
                     </span>
-                  )}
-                  <span style={{
-                    fontFamily: 'monospace',
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    color: theme.textSecondary,
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '0.45rem',
-                    border: `1px solid ${theme.border}`
-                  }}>
-                    {moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`}
-                  </span>
-                </div>
-
-                {moderationModalReport.store_slug && (
-                  <a
-                    href={`/${moderationModalReport.store_slug}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.35rem 0.75rem',
-                      borderRadius: '0.55rem',
-                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
-                      color: isDark ? '#38bdf8' : '#0284c7',
-                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(2, 132, 199, 0.2)'}`,
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      textDecoration: 'none',
-                      flexShrink: 0
-                    }}
-                  >
-                    <ExternalLink size={14} />
-                    <span>Inspeksi Publik</span>
-                  </a>
-                )}
-              </div>
-
-              {/* Entity Title */}
-              <div>
-                <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', fontWeight: 800, color: theme.textMuted, letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
-                  Entitas Terlapor
-                </div>
-                <div style={{
-                  fontSize: '1.05rem',
-                  fontWeight: 800,
-                  color: theme.textPrimary,
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.45rem',
-                  lineHeight: 1.35
-                }}>
-                  {moderationModalReport.target_type === 'item' ? (
-                    <>
-                      <Package size={18} style={{ color: '#0ea5e9', flexShrink: 0, marginTop: '2px' }} />
-                      <span>{moderationModalReport.item_name || 'Item Tanpa Nama'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Store size={18} style={{ color: '#a855f7', flexShrink: 0, marginTop: '2px' }} />
-                      <span>{moderationModalReport.store_title || moderationModalReport.store_slug || 'Profil Katalog'}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Details Grid */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: '0.65rem',
-                padding: '0.85rem',
-                borderRadius: '0.75rem',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                border: `1px solid ${theme.border}`
-              }}>
-                <div>
-                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Profil Bisnis / Usaha</span>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, wordBreak: 'break-word' }}>
-                    {moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}
-                  </span>
-                </div>
-                {moderationModalReport.target_type === 'item' && (
-                  <div>
-                    <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Jenis / Tipe Katalog</span>
-                    <span style={{ 
-                      fontSize: '0.76rem', 
-                      fontWeight: 800, 
-                      color: isDark ? '#38bdf8' : '#0284c7',
-                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(14, 165, 233, 0.1)',
-                      padding: '0.12rem 0.5rem',
-                      borderRadius: '0.4rem',
-                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                      width: 'fit-content'
-                    }}>
-                      <Tag size={11} />
-                      {formatCatalogType(moderationModalReport.item_type || moderationModalReport.fauna?.product_type || moderationModalReport.product_type)}
-                    </span>
-                  </div>
-                )}
-                <div>
-                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Kategori Pelanggaran</span>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f43f5e', wordBreak: 'break-word', lineHeight: 1.3 }}>
-                    {moderationModalReport.reason_label || moderationModalReport.reason_category || 'Lainnya'}
-                  </span>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Status Peninjauan</span>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, textTransform: 'capitalize' }}>
-                    {moderationModalReport.status || 'Pending'}
-                  </span>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Email Pelapor</span>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 600, color: theme.textSecondary, wordBreak: 'break-all' }}>
-                    {moderationModalReport.reporter_email || '-'}
-                  </span>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Alamat IP Pelapor</span>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 600, color: theme.textSecondary }}>
-                    {moderationModalReport.reporter_ip || '-'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Evidence Quote */}
-              {moderationModalReport.description && (
-                <div style={{
-                  padding: '0.85rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(244, 63, 94, 0.08)' : 'rgba(244, 63, 94, 0.04)',
-                  border: `1px solid ${isDark ? 'rgba(244, 63, 94, 0.25)' : 'rgba(244, 63, 94, 0.15)'}`
-                }}>
-                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f43f5e', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <AlertCircle size={14} />
-                    <span>Kutipan Barang Bukti & Keluhan Pelapor:</span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: theme.textPrimary, lineHeight: 1.55, fontStyle: 'italic' }}>
-                    "{moderationModalReport.description}"
-                  </p>
-                </div>
-              )}
-
-              {/* Multi-Reporter Active Evidence Timeline */}
-              {reportActiveEvidence && reportActiveEvidence.length > 0 && (
-                <div style={{
-                  padding: '0.85rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.05)',
-                  border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.65rem'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                    <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <AlertTriangle size={14} />
-                      <span>🔥 {reportActiveEvidence.length} Laporan Lain untuk Entitas Ini</span>
-                    </div>
-                    <span style={{ fontSize: '0.64rem', padding: '0.1rem 0.4rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', fontWeight: 800 }}>
-                      KASUS JAMAK
-                    </span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.4 }}>
-                    Pengguna lain juga melaporkan entitas ini. Menindak kasus ini akan otomatis memperbarui seluruh laporan terkait.
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.2rem' }}>
-                    {reportActiveEvidence.map((ae: any, idx: number) => (
-                      <div key={ae.id || idx} style={{
-                        padding: '0.65rem',
-                        borderRadius: '0.6rem',
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.8)',
-                        border: `1px solid ${theme.border}`,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.25rem'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem' }}>
-                          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: theme.textPrimary }}>
-                            {ae.report_number || `#RPT-${ae.id}`}
-                          </span>
-                          <span style={{ color: theme.textMuted }}>
-                            {ae.created_at ? new Date(ae.created_at).toLocaleString('id-ID') : '-'}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#f43f5e' }}>
-                          {ae.reason_label || ae.reason_category}
-                        </div>
-                        {ae.description && (
-                          <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontStyle: 'italic', lineHeight: 1.35 }}>
-                            "{ae.description}"
-                          </div>
-                        )}
-                        <div style={{ fontSize: '0.65rem', color: theme.textMuted }}>
-                          Pelapor: {ae.reporter_email || ae.reporter_ip || 'Anonim'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Prior Review History Ledger (Audit Context) */}
-              {reportPriorHistory && reportPriorHistory.length > 0 && (
-                <div style={{
-                  padding: '0.85rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(14, 165, 233, 0.08)' : 'rgba(14, 165, 233, 0.04)',
-                  border: `1px solid ${isDark ? 'rgba(14, 165, 233, 0.25)' : 'rgba(14, 165, 233, 0.18)'}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.55rem'
-                }}>
-                  <div style={{ fontSize: '0.74rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Clock size={14} />
-                    <span>📜 Rekam Jejak Peninjauan Terdahulu ({reportPriorHistory.length})</span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
-                    Entitas ini pernah dilaporkan dan diselesaikan sebelumnya:
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                    {reportPriorHistory.map((ph: any, pidx: number) => (
-                      <div key={ph.id || pidx} style={{
-                        padding: '0.55rem 0.65rem',
-                        borderRadius: '0.55rem',
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : '#ffffff',
-                        border: `1px solid ${theme.border}`,
-                        fontSize: '0.7rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.2rem'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 700, color: theme.textPrimary }}>
-                            {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{ph.status}</strong>
-                          </span>
-                          <span style={{ fontSize: '0.65rem', color: theme.textMuted }}>
-                            {ph.reviewed_at ? new Date(ph.reviewed_at).toLocaleDateString('id-ID') : '-'}
-                          </span>
-                        </div>
-                        {ph.action_taken && ph.action_taken !== 'none' && (
-                          <div style={{ fontSize: '0.68rem', color: '#f43f5e', fontWeight: 700 }}>
-                            Sanksi Diterapkan: {ph.action_taken}
-                          </div>
-                        )}
-                        {ph.admin_notes && (
-                          <div style={{ fontSize: '0.68rem', color: theme.textSecondary, fontStyle: 'italic' }}>
-                            Catatan Admin: "{ph.admin_notes}"
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Section 2: Update Status Laporan */}
-            <div style={{
-              backgroundColor: theme.surface,
-              borderRadius: '1rem',
-              border: `1px solid ${theme.border}`,
-              padding: '1.25rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.85rem',
-              boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.04)'
-            }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Clock size={16} style={{ color: '#f59e0b' }} />
-                  <span>Status Peninjauan Laporan</span>
-                </h4>
-                <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: theme.textMuted }}>
-                  Tentukan status progres investigasi laporan kepatuhan ini.
-                </p>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.55rem' }}>
-                {[
-                  { value: 'investigating', label: 'Investigasi Aktif', color: '#f59e0b', desc: 'Audit sedang berjalan & verifikasi bukti' },
-                  { value: 'action_taken', label: 'Sanksi Ditindak', color: '#f43f5e', desc: 'Sanksi sementara/teguran dijatuhkan' },
-                  { value: 'banned', label: 'Banned Permanen', color: '#ef4444', desc: 'Blokir permanen seluruh akses merchant/item' },
-                  { value: 'resolved', label: 'Diselesaikan', color: '#10b981', desc: 'Ditutup/dipulihkan tanpa sanksi lanjutan' },
-                  { value: 'dismissed', label: 'Ditolak (Dismiss)', color: '#64748b', desc: 'Laporan tidak valid atau palsu' }
-                ].map(opt => {
-                  const isSelected = moderationStatus === opt.value;
-                  const isItem = moderationModalReport?.target_type === 'item';
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        setModerationStatus(opt.value);
-                        if (opt.value === 'banned') {
-                          if (isItem) {
-                            setModerationAction('item_banned');
-                          } else {
-                            setModerationAction('catalog_banned');
-                          }
-                        } else if (opt.value === 'action_taken') {
-                          if (isItem && (moderationAction === 'none' || moderationAction === 'item_banned' || moderationAction === 'item_restored')) {
-                            setModerationAction('item_locked');
-                          } else if (!isItem && (moderationAction === 'none' || moderationAction === 'catalog_banned' || moderationAction === 'catalog_reactivated')) {
-                            setModerationAction('catalog_suspended');
-                          }
-                        } else if (opt.value === 'resolved') {
-                          if (isItem && (moderationAction === 'item_locked' || moderationAction === 'item_needs_fix' || moderationAction === 'item_banned')) {
-                            setModerationAction('item_restored');
-                          } else if (!isItem && (moderationAction === 'catalog_suspended' || moderationAction === 'catalog_banned')) {
-                            setModerationAction('catalog_reactivated');
-                          }
-                        } else if (opt.value === 'dismissed' || opt.value === 'investigating') {
-                          if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned') {
-                            setModerationAction('none');
-                          }
-                        }
-                      }}
-                      style={{
-                        padding: '0.85rem',
-                        borderRadius: '0.75rem',
-                        border: isSelected ? `2px solid ${opt.color}` : `1px solid ${theme.border}`,
-                        backgroundColor: isSelected ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)') : 'transparent',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.25rem',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: isSelected ? opt.color : theme.textPrimary }}>
-                          {opt.label}
-                        </span>
-                        {isSelected && (
-                          <CheckCircle2 size={16} style={{ color: opt.color }} />
-                        )}
-                      </div>
-                      <span style={{ fontSize: '0.68rem', color: theme.textMuted, lineHeight: 1.35 }}>
-                        {opt.desc}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Section 3: Tindakan Penegakan Sistem (Real-time Enforcement) */}
-            <div style={{
-              backgroundColor: theme.surface,
-              borderRadius: '1rem',
-              border: `1px solid ${theme.border}`,
-              padding: '1.25rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.85rem',
-              boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.04)'
-            }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <ShieldAlert size={16} style={{ color: '#f43f5e' }} />
-                  <span>Tindakan Penegakan Sistem (Real-time Enforcement)</span>
-                </h4>
-                <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: theme.textMuted }}>
-                  Sistem akan secara instan mengubah status database katalog/item dan mencatat audit trail.
-                </p>
-              </div>
-
-              {/* Dropdown Modal Trigger */}
-              {(() => {
-                const getModerationActionConfig = (action: string) => {
-                  switch (action) {
-                    case 'warning_issued':
-                      return {
-                        label: 'Terbitkan Peringatan Resmi',
-                        desc: 'Notifikasi peringatan kepatuhan dikirim ke pengelola katalog',
-                        icon: AlertTriangle,
-                        color: '#f59e0b',
-                        badge: 'PERINGATAN',
-                        badgeColor: '#f59e0b',
-                        info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pengelola katalog. Status profil katalog dan item tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
-                      };
-                    case 'item_needs_fix':
-                      return {
-                        label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
-                        desc: 'Disembunyikan, pengelola diizinkan edit data untuk diajukan ulang',
-                        icon: AlertTriangle,
-                        color: '#f59e0b',
-                        badge: 'PERLU EDIT',
-                        badgeColor: '#f59e0b',
-                        info: 'Item disembunyikan dari etalase publik (IsActive=False, ModerationStatus=needs_fix). Pengelola diberikan hak mengoreksi atribut item (foto, deskripsi, harga, spesifikasi) dan dapat mengajukan peninjauan ulang secara tertib.'
-                      };
-                    case 'item_locked':
-                    case 'item_hidden':
-                      return {
-                        label: 'Nonaktifkan & Kunci: Pelanggaran Keras',
-                        desc: 'Disembunyikan & kunci edit (read-only), hanya klarifikasi banding atau hapus',
-                        icon: XCircle,
-                        color: '#ef4444',
-                        badge: 'TERKUNCI',
-                        badgeColor: '#ef4444',
-                        info: 'Item dinonaktifkan dan dikunci permanen (ModerationStatus=locked) karena terindikasi komoditas terlarang/berbahaya. Pengelola dilarang mengedit item untuk mencegah peredaran materi terlarang. Hanya tersedia hak banding resmi atau hapus item.'
-                      };
-                    case 'item_banned':
-                      return {
-                        label: 'Blokir & Hapus Item (Banned Permanen)',
-                        desc: 'Hapus permanen dari inventaris katalog & pulihkan kuota pengelola seketika',
-                        icon: ShieldAlert,
-                        color: '#ef4444',
-                        badge: 'BANNED ITEM',
-                        badgeColor: '#ef4444',
-                        info: 'Item diblokir dan dihapus seketika dari inventaris profil katalog. Beban kuota item dan storage katalog langsung dipulihkan (0 byte terhitung). Dokumen & berkas digital diarsipkan 90 hari di vault forensik kepatuhan (PP 71/2019) dan tidak dapat diajukan banding.'
-                      };
-                    case 'item_restored':
-                      return {
-                        label: 'Pulihkan / Aktifkan Item',
-                        desc: 'Item dipulihkan dan dapat kembali diakses publik',
-                        icon: CheckCircle2,
-                        color: '#10b981',
-                        badge: 'AKTIF',
-                        badgeColor: '#10b981',
-                        info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta ditampilkan secara publik seperti biasa.'
-                      };
-                    case 'catalog_suspended':
-                      return {
-                        label: 'Bekukan / Suspend Profil Katalog',
-                        desc: 'Seluruh etalase profil katalog dibekukan dari akses publik',
-                        icon: Lock,
-                        color: '#dc2626',
-                        badge: 'SUSPEND',
-                        badgeColor: '#dc2626',
-                        info: 'Seketika mengubah status dormansi profil katalog menjadi Suspended. Seluruh etalase katalog dan itemnya dinonaktifkan sementara dari akses publik secara real-time.'
-                      };
-                    case 'catalog_banned':
-                      return {
-                        label: 'Blokir / Banned Permanen Profil Katalog',
-                        desc: 'Tutup akses publik profil katalog dan akun pemilik secara permanen',
-                        icon: ShieldAlert,
-                        color: '#b91c1c',
-                        badge: 'BANNED',
-                        badgeColor: '#b91c1c',
-                        info: 'Seketika mengubah status dormansi profil katalog menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
-                      };
-                    case 'catalog_reactivated':
-                      return {
-                        label: 'Pulihkan / Aktifkan Profil Katalog',
-                        desc: 'Cabut sanksi penangguhan dan buka etalase profil katalog',
-                        icon: Store,
-                        color: '#10b981',
-                        badge: 'PULIHKAN',
-                        badgeColor: '#10b981',
-                        info: 'Seketika memulihkan status dormansi profil katalog menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase profil katalog ke publik.'
-                      };
-                    case 'none':
-                    default:
-                      return {
-                        label: 'Tanpa Sanksi Otomatis',
-                        desc: 'Hanya mencatat investigasi tanpa mengubah status',
-                        icon: FileText,
-                        color: theme.textSecondary,
-                        badge: 'CATATAN',
-                        badgeColor: '#64748b',
-                        info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik profil katalog atau item.'
-                      };
-                  }
-                };
-
-                const activeCfg = getModerationActionConfig(moderationAction);
-                const ActiveIcon = activeCfg.icon;
-                const isItem = moderationModalReport.target_type === 'item';
-
-                return (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const actionOptions: Array<{
-                          value: string;
-                          label: string;
-                          desc: string;
-                          info: string;
-                        }> = [
-                          {
-                            value: 'none',
-                            label: 'Tanpa Sanksi Otomatis',
-                            desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis pada profil katalog maupun item',
-                            info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik profil katalog atau item.'
-                          },
-                          {
-                            value: 'warning_issued',
-                            label: 'Terbitkan Peringatan Resmi',
-                            desc: 'Kirim surat notifikasi peringatan resmi kepatuhan ke pengelola katalog',
-                            info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pengelola katalog. Status profil katalog dan item tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
-                          },
-                          ...(isItem ? [
-                            {
-                              value: 'item_needs_fix',
-                              label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
-                              desc: 'Sembunyikan dari publik namun pengelola diizinkan mengedit foto/deskripsi/spesifikasi untuk diajukan ulang',
-                              info: 'Item disembunyikan dari etalase publik (IsActive=False, ModerationStatus=needs_fix). Pengelola diberikan hak mengoreksi atribut item (foto, deskripsi, harga, spesifikasi) dan dapat mengajukan peninjauan ulang secara tertib.'
-                            },
-                            {
-                              value: 'item_locked',
-                              label: 'Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras',
-                              desc: 'Sembunyikan dari publik dan kunci fitur edit (read-only) karena indikasi pelanggaran kebijakan keras/fatal. Hanya banding atau hapus',
-                              info: 'Item dinonaktifkan dan dikunci permanen (ModerationStatus=locked) karena terindikasi komoditas terlarang/berbahaya. Pengelola dilarang mengedit item untuk mencegah peredaran materi terlarang. Hanya tersedia hak banding resmi atau hapus item.'
-                            },
-                            {
-                              value: 'item_banned',
-                              label: 'Blokir atau Hapus Item (Banned Permanen)',
-                              desc: 'Hapus permanen dari inventaris katalog & pulihkan kuota pengelola seketika. Bukti forensik disimpan 90 hari tanpa hak banding',
-                              info: 'Item diblokir dan dihapus seketika dari inventaris profil katalog. Beban kuota item dan storage katalog langsung dipulihkan (0 byte terhitung). Dokumen & berkas digital diarsipkan 90 hari di vault forensik kepatuhan (PP 71/2019) dan tidak dapat diajukan banding.'
-                            },
-                            {
-                              value: 'item_restored',
-                              label: 'Pulihkan / Aktifkan Item',
-                              desc: 'Memulihkan item agar dapat kembali dilihat dan diakses publik secara normal',
-                              info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta ditampilkan secara publik seperti biasa.'
-                            }
-                          ] : []),
-                          {
-                            value: 'catalog_suspended',
-                            label: 'Bekukan / Suspend Profil Katalog',
-                            desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time',
-                            info: 'Seketika mengubah status dormansi profil katalog menjadi Suspended. Seluruh etalase katalog dan itemnya dinonaktifkan sementara dari akses publik secara real-time.'
-                          },
-                          {
-                            value: 'catalog_banned',
-                            label: 'Blokir / Banned Permanen Profil Katalog',
-                            desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding',
-                            info: 'Seketika mengubah status dormansi profil katalog menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
-                          },
-                          {
-                            value: 'catalog_reactivated',
-                            label: 'Pulihkan / Aktifkan Profil Katalog',
-                            desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog',
-                            info: 'Seketika memulihkan status dormansi profil katalog menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase profil katalog ke publik.'
-                          }
-                        ];
-
-                        setCrudDropdownPicker({
-                          title: 'Tindakan Penegakan Sistem',
-                          subtitle: 'Pilih sanksi atau tindakan kepatuhan yang akan dieksekusi secara real-time',
-                          icon: ShieldAlert,
-                          selectedValue: moderationAction,
-                          options: actionOptions,
-                          onSelect: (val) => {
-                            setModerationAction(val);
-                            if (val === 'item_banned' || val === 'catalog_banned') {
-                              setModerationStatus('banned');
-                            } else if (val === 'item_locked' || val === 'item_needs_fix' || val === 'catalog_suspended' || val === 'warning_issued') {
-                              if (moderationStatus !== 'banned') {
-                                setModerationStatus('action_taken');
-                              }
-                            } else if (val === 'item_restored' || val === 'catalog_reactivated') {
-                              setModerationStatus('resolved');
-                            }
-                          }
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem 0.95rem',
-                        borderRadius: '0.75rem',
-                        border: `1px solid ${theme.border}`,
-                        backgroundColor: theme.inputBg,
-                        color: theme.textPrimary,
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.65rem',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'border-color 0.18s ease, box-shadow 0.18s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.55rem',
-                          backgroundColor: `${activeCfg.badgeColor}18`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: activeCfg.color,
-                          flexShrink: 0
-                        }}>
-                          <ActiveIcon size={16} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                          <span style={{
-                            fontSize: '0.82rem',
-                            fontWeight: 700,
-                            color: theme.textPrimary,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {activeCfg.label}
-                          </span>
-                          <span style={{
-                            fontSize: '0.68rem',
-                            color: theme.textMuted,
-                            fontWeight: 500,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {activeCfg.desc}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronDown size={17} color={theme.textMuted} style={{ flexShrink: 0 }} />
-                    </button>
-                  </div>
-                );
-              })()}
-
-              <div style={{
-                padding: '0.7rem 0.95rem',
-                borderRadius: '0.75rem',
-                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.05)',
-                border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.15)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.55rem'
-              }}>
-                <Info size={16} style={{ color: isDark ? '#38bdf8' : '#0284c7', flexShrink: 0 }} />
-                <span style={{ fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                  Eksekusi sanksi bersifat seketika (*instant*). Pemilik merchant akan melihat status item/katalog terbarui di portal mereka.
-                </span>
-              </div>
-            </div>
-
-            {/* Section 4: Catatan Kepatuhan & Audit (Admin Notes) */}
-            <div style={{
-              backgroundColor: theme.surface,
-              borderRadius: '1rem',
-              border: `1px solid ${theme.border}`,
-              padding: '1.25rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.85rem',
-              boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.04)'
-            }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <FileText size={16} style={{ color: '#0ea5e9' }} />
-                  <span>Catatan Kepatuhan & Audit (Admin Notes)</span>
-                </h4>
-                <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: theme.textMuted }}>
-                  Dokumentasikan temuan investigasi, nomor tiket referensi, atau alasan keputusan untuk audit internal.
-                </p>
-              </div>
-
-              <textarea
-                value={moderationNotes}
-                onChange={e => setModerationNotes(e.target.value)}
-                rows={4}
-                placeholder="Tuliskan temuan audit, riwayat kontak penjual, alasan sanksi atau dasar penolakan laporan..."
-                style={{
-                  width: '100%',
-                  padding: '0.8rem 1rem',
-                  borderRadius: '0.75rem',
-                  border: `1px solid ${theme.border}`,
-                  backgroundColor: theme.inputBg,
-                  color: theme.textPrimary,
-                  fontSize: '0.82rem',
-                  outline: 'none',
-                  resize: 'vertical',
-                  boxSizing: 'border-box',
-                  fontFamily: 'inherit',
-                  lineHeight: 1.55
-                }}
-              />
-
-              {moderationModalReport.reviewed_by && (
-                <div style={{ fontSize: '0.72rem', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <User size={13} />
-                  <span>Terakhir ditinjau oleh Admin ID: <strong>{moderationModalReport.reviewed_by}</strong></span>
-                  {moderationModalReport.reviewed_at && (
-                    <span>pada {new Date(moderationModalReport.reviewed_at).toLocaleDateString('id-ID')}</span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Section 5: Action Buttons */}
-            <div style={{
-              display: 'flex',
-              gap: '0.85rem',
-              paddingTop: '0.5rem'
-            }}>
-              <button
-                type="button"
-                onClick={handleCloseModerationPage}
-                style={{
-                  flex: 1,
-                  padding: '0.8rem 1.25rem',
-                  borderRadius: '0.75rem',
-                  border: `1px solid ${theme.border}`,
-                  backgroundColor: 'transparent',
-                  color: theme.textSecondary,
-                  fontSize: '0.84rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  textAlign: 'center'
-                }}
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleCopyReportWarning(moderationModalReport)}
-                style={{
-                  padding: '0.8rem 1.25rem',
-                  borderRadius: '0.75rem',
-                  border: `1px solid ${theme.border}`,
-                  backgroundColor: theme.surface,
-                  color: theme.textSecondary,
-                  fontSize: '0.84rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.45rem',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <Copy size={15} />
-                <span>Salin Format Peringatan</span>
-              </button>
-              <button
-                type="button"
-                disabled={isSubmittingModeration}
-                onClick={() => {
-                  if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned' || moderationAction === 'account_banned' || moderationStatus === 'banned') {
-                    setBannedConfirmModalReport(moderationModalReport);
-                    setBannedConfirmAcknowledged(false);
-                    setShowModerationConfirmModal(true);
-                  } else {
-                    handleUpdateReportStatus(
-                      moderationModalReport.id,
-                      moderationStatus,
-                      moderationAction,
-                      moderationNotes,
-                      true
-                    );
-                  }
-                }}
-                style={{
-                  flex: 2,
-                  padding: '0.8rem 1.25rem',
-                  borderRadius: '0.75rem',
-                  border: 'none',
-                  backgroundColor: '#f43f5e',
-                  color: '#ffffff',
-                  fontSize: '0.84rem',
-                  fontWeight: 800,
-                  cursor: isSubmittingModeration ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  opacity: isSubmittingModeration ? 0.7 : 1,
-                  boxShadow: '0 4px 16px rgba(244, 63, 94, 0.35)'
-                }}
-              >
-                {isSubmittingModeration ? (
-                  <RefreshCw size={16} className="animate-spin" />
-                ) : (
-                  <ShieldCheck size={16} />
-                )}
-                <span>Terapkan Tindakan</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* ========================================================================= */
-          /* 3B. ANTREAN & DAFTAR LAPORAN PELANGGARAN                                  */
-          /* ========================================================================= */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
-          {/* Quick Metrics Bar */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.55rem' }}>
-            <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Menunggu Review</span>
-              <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f59e0b' }}>
-                {reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length}
-              </span>
-            </div>
-            <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Investigasi Aktif</span>
-              <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#38bdf8' }}>
-                {reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length}
-              </span>
-            </div>
-            <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Sanksi Ditindak</span>
-              <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f43f5e' }}>
-                {reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length}
-              </span>
-            </div>
-            <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <span style={{ fontSize: '0.66rem', color: '#ef4444', fontWeight: 700 }}>Banned Permanen</span>
-              <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ef4444' }}>
-                {reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length}
-              </span>
-            </div>
-          </div>
-
-          {/* Search Box & Dropdown Filters Bar */}
-          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
-              <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
-              <input
-                type="text"
-                placeholder="Cari nomor tiket (#RPT-...), merchant, item, atau email..."
-                value={reportsSearchQuery}
-                onChange={(e) => setReportsSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.65rem 0.85rem 0.65rem 2.35rem',
-                  borderRadius: '0.75rem',
-                  border: `1px solid ${theme.border}`,
-                  backgroundColor: theme.surface,
-                  color: theme.textPrimary,
-                  fontSize: '0.78rem',
-                  fontFamily: 'inherit',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-
-            {/* Status Dropdown (Standardized DesktopCustomSelect) */}
-            <div style={{ minWidth: '220px', flexShrink: 0 }}>
-              <DesktopCustomSelect
-                value={reportsFilter}
-                onChange={(val) => setReportsFilter(val as any)}
-                options={reportStatusOptions}
-                icon={<ShieldAlert size={14} />}
-                placeholder="Filter Status Laporan"
-                highlight={reportsFilter !== 'all'}
-              />
-            </div>
-
-            {/* Target Dropdown (Standardized DesktopCustomSelect) */}
-            <div style={{ minWidth: '180px', flexShrink: 0 }}>
-              <DesktopCustomSelect
-                value={reportsTargetFilter}
-                onChange={(val) => setReportsTargetFilter(val as any)}
-                options={reportTargetOptions}
-                icon={<Layers size={14} />}
-                placeholder="Filter Target"
-                highlight={reportsTargetFilter !== 'all'}
-              />
-            </div>
-          </div>
-
-          {/* Filtered Reports Feed */}
-          {reports
-            .filter(r => {
-              if (reportsFilter !== 'all') {
-                if (reportsFilter === 'investigating') {
-                  if (r.status !== 'investigating' && r.status !== 'in_review') return false;
-                } else if (reportsFilter === 're_review') {
-                  if (r.status !== 're_review') return false;
-                } else if (reportsFilter === 'banned') {
-                  if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
-                } else if (reportsFilter === 'action_taken') {
-                  if (r.status !== 'action_taken' || r.action_taken === 'catalog_banned' || r.status === 'banned') return false;
-                } else if (r.status !== reportsFilter) {
-                  return false;
-                }
-              }
-              if (reportsTargetFilter !== 'all') {
-                const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
-                if (reportsTargetFilter === 'catalog' && !isCatalog) return false;
-                if (reportsTargetFilter === 'item' && isCatalog) return false;
-              }
-              if (reportsSearchQuery.trim()) {
-                const q = reportsSearchQuery.toLowerCase();
-                const num = (r.report_number || '').toLowerCase();
-                const store = (r.store_title || r.store_slug || '').toLowerCase();
-                const item = (r.item_name || '').toLowerCase();
-                const reason = (r.reason_label || r.reason_category || '').toLowerCase();
-                const email = (r.reporter_email || '').toLowerCase();
-                if (!num.includes(q) && !store.includes(q) && !item.includes(q) && !reason.includes(q) && !email.includes(q)) {
-                  return false;
-                }
-              }
-              return true;
-            })
-            .length === 0 ? (
-            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <ShieldCheck size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
-              <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Laporan Ditemukan</h4>
-              <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>
-                {reportsSearchQuery ? 'Tidak ada laporan yang sesuai dengan kriteria pencarian.' : 'Seluruh merchant dan item mematuhi aturan kepatuhan platform.'}
-              </p>
-            </div>
-          ) : (
-            reports
-              .filter(r => {
-                if (reportsFilter !== 'all') {
-                  if (reportsFilter === 'investigating') {
-                    if (r.status !== 'investigating' && r.status !== 'in_review') return false;
-                  } else if (reportsFilter === 'banned') {
-                    if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
-                  } else if (reportsFilter === 'action_taken') {
-                    if (r.status !== 'action_taken' || r.action_taken === 'catalog_banned' || r.status === 'banned') return false;
-                  } else if (r.status !== reportsFilter) {
-                    return false;
-                  }
-                }
-                if (reportsTargetFilter !== 'all') {
-                  const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
-                  if (reportsTargetFilter === 'catalog' && !isCatalog) return false;
-                  if (reportsTargetFilter === 'item' && isCatalog) return false;
-                }
-                if (reportsSearchQuery.trim()) {
-                  const q = reportsSearchQuery.toLowerCase();
-                  const num = (r.report_number || '').toLowerCase();
-                  const store = (r.store_title || r.store_slug || '').toLowerCase();
-                  const item = (r.item_name || '').toLowerCase();
-                  const reason = (r.reason_label || r.reason_category || '').toLowerCase();
-                  const email = (r.reporter_email || '').toLowerCase();
-                  if (!num.includes(q) && !store.includes(q) && !item.includes(q) && !reason.includes(q) && !email.includes(q)) {
-                    return false;
-                  }
-                }
-                return true;
-              })
-              .map(r => {
-                const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
-                const statusBadgeMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
-                  pending: { label: 'Menunggu Review', bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', border: 'rgba(245, 158, 11, 0.35)' },
-                  re_review: { label: 'Perlu Ditinjau Ulang', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' },
-                  investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
-                  in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
-                  action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },
-                  banned: { label: '🚫 Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
-                  dismissed: { label: 'Laporan Ditolak', bg: isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(100, 116, 139, 0.1)', text: isDark ? '#94a3b8' : '#64748b', border: 'rgba(148, 163, 184, 0.25)' },
-                  resolved: { label: 'Selesai', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' }
-                };
-                const currentBadge = (r.status === 'banned' || r.action_taken === 'catalog_banned')
-                  ? statusBadgeMap.banned
-                  : (statusBadgeMap[r.status] || statusBadgeMap.pending);
-
-                const hasAction = r.action_taken && r.action_taken !== 'none';
-                const isRestored = hasAction && (r.action_taken.includes('restored') || r.action_taken.includes('reactivated'));
-                const actionLabel = r.action_taken === 'item_banned'
-                  ? 'Item Dibanned Permanen'
-                  : r.action_taken === 'item_needs_fix'
-                  ? 'Perlu Perbaikan'
-                  : (r.action_taken === 'item_locked' || r.action_taken === 'item_hidden')
-                  ? 'Item Dikunci'
-                  : r.action_taken === 'catalog_suspended' 
-                  ? 'Katalog Dibekukan' 
-                  : r.action_taken === 'catalog_banned'
-                  ? 'Katalog Dibanned Permanen'
-                  : r.action_taken === 'warning_issued' 
-                  ? 'Diberi Peringatan' 
-                  : r.action_taken === 'item_restored'
-                  ? 'Item Dipulihkan'
-                  : (r.action_taken || '');
-
-                const isItemBanned = r.status === 'banned' || r.action_taken === 'catalog_banned' || r.action_taken === 'item_banned';
-
-                return (
-                  <div
-                    key={r.id}
-                    style={{
-                      padding: '0.9rem 1.1rem',
-                      borderRadius: '0.95rem',
-                      backgroundColor: theme.surface,
-                      border: isItemBanned
-                        ? '1px solid rgba(239, 68, 68, 0.55)'
-                        : (r.status === 're_review'
-                            ? '1px solid rgba(16, 185, 129, 0.65)'
-                            : (r.status === 'pending' 
-                                ? '1px solid rgba(245, 158, 11, 0.4)' 
-                                : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`))),
-                      boxShadow: isItemBanned 
-                        ? '0 4px 14px rgba(239, 68, 68, 0.12)' 
-                        : (r.status === 're_review' ? '0 4px 14px rgba(16, 185, 129, 0.12)' : theme.cardShadow),
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.65rem',
-                      transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
-                    }}
-                  >
-                    {/* Header Row: Ticket # + Target Type Pill + Date & Status Badge */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                        <span style={{
-                          fontFamily: 'monospace',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          color: theme.textPrimary,
-                          backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '0.4rem',
-                          border: `1px solid ${theme.border}`
-                        }}>
-                          {r.report_number || `#RPT-${r.id}`}
-                        </span>
-
-                        <span style={{
-                          fontSize: '0.64rem',
-                          fontWeight: 800,
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '0.4rem',
-                          backgroundColor: isCatalog ? 'rgba(168, 85, 247, 0.12)' : 'rgba(14, 165, 233, 0.12)',
-                          color: isCatalog ? (isDark ? '#c084fc' : '#9333ea') : (isDark ? '#38bdf8' : '#0284c7'),
-                          border: `1px solid ${isCatalog ? 'rgba(168, 85, 247, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`
-                        }}>
-                          {isCatalog ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
-                        </span>
-
-                        {!isCatalog && (
-                          <span style={{
-                            fontSize: '0.64rem',
-                            fontWeight: 700,
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: '0.4rem',
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                            color: theme.textSecondary,
-                            border: `1px solid ${theme.border}`
-                          }}>
-                            {formatCatalogType(r.item_type || r.fauna?.product_type)}
-                          </span>
-                        )}
-
-                        <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                          • {r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : 'Baru'}
-                        </span>
-                      </div>
-
+                    {moderationModalReport.target_type === 'item' && (
                       <span style={{
-                        padding: '0.2rem 0.6rem',
-                        borderRadius: '999px',
                         fontSize: '0.68rem',
                         fontWeight: 800,
-                        backgroundColor: currentBadge.bg,
-                        color: currentBadge.text,
-                        border: `1px solid ${currentBadge.border}`,
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: '0.45rem',
+                        backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`,
+                        letterSpacing: '0.02em',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.3rem'
                       }}>
-                        {currentBadge.label}
+                        <Tag size={12} />
+                        {formatCatalogType(moderationModalReport.item_type || moderationModalReport.fauna?.product_type || moderationModalReport.product_type)}
                       </span>
-                    </div>
-
-                    {/* Middle Row: Entity Target & Violation Tags */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '180px' }}>
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.55rem',
-                          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          {isCatalog ? <Store size={16} color="var(--primary)" /> : <Package size={16} color="var(--primary)" />}
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.25 }}>
-                            {isCatalog 
-                              ? (r.store_title || `Katalog /${r.store_slug}`) 
-                              : (r.item_name || 'Item')}
-                          </h4>
-                          <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
-                            {isCatalog ? `/${r.store_slug || '-'}` : (r.store_title ? `${r.store_title} (/${r.store_slug || '-'})` : `/${r.store_slug || '-'}`)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Chips / Pills: Violation Reason & Active Action */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <span style={{
-                          padding: '0.22rem 0.55rem',
-                          borderRadius: '0.45rem',
-                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                          border: '1px solid rgba(239, 68, 68, 0.25)',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          color: '#ef4444',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem'
-                        }}>
-                          <ShieldAlert size={12} color="#ef4444" />
-                          <span>{r.reason_label || r.reason_category || 'Pelanggaran Aturan'}</span>
-                        </span>
-
-                        {hasAction && (
-                          <span style={{
-                            padding: '0.22rem 0.55rem',
-                            borderRadius: '0.45rem',
-                            backgroundColor: isRestored 
-                              ? 'rgba(16, 185, 129, 0.12)' 
-                              : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(244, 63, 94, 0.12)'),
-                            border: `1px solid ${isRestored 
-                              ? 'rgba(16, 185, 129, 0.3)' 
-                              : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.45)' : 'rgba(244, 63, 94, 0.3)')}`,
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            color: isRestored 
-                              ? (isDark ? '#34d399' : '#059669') 
-                              : (r.action_taken === 'catalog_banned' ? '#ef4444' : '#f43f5e'),
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.3rem'
-                          }}>
-                            <span>{r.action_taken === 'catalog_banned' ? '🚫' : '⚡'} {actionLabel}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {r.status === 're_review' && (
-                      <div style={{
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.45rem'
-                      }}>
-                        <RefreshCw size={13} color="#10b981" />
-                        <span style={{ fontSize: '0.72rem', color: isDark ? '#34d399' : '#059669', fontWeight: 600 }}>
-                          Pemilik merchant telah mengajukan perbaikan item/katalog dan siap ditinjau ulang.
-                        </span>
-                      </div>
                     )}
-
-                    {/* Footer Row: Clean Action Buttons */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      alignItems: 'center',
-                      paddingTop: '0.5rem',
-                      borderTop: `1px solid ${theme.border}`,
-                      gap: '0.45rem'
+                    <span style={{
+                      fontFamily: 'monospace',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      color: theme.textSecondary,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`
                     }}>
-                      {r.store_slug && (
-                        <a
-                          href={`/${r.store_slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '0.55rem',
-                            backgroundColor: isDark ? '#334155' : '#f1f5f9',
-                            border: `1px solid ${theme.border}`,
-                            color: theme.textPrimary,
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            textDecoration: 'none',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            transition: 'opacity 0.15s ease'
-                          }}
-                        >
-                          <ExternalLink size={12} />
-                          <span>Inspeksi</span>
-                        </a>
-                      )}
-
-                      <button
-                        onClick={() => handleOpenModerationPage(r)}
-                        style={{
-                          padding: '0.35rem 0.75rem',
-                          borderRadius: '0.55rem',
-                          backgroundColor: '#f43f5e',
-                          border: '1px solid #f43f5e',
-                          color: '#ffffff',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          boxShadow: '0 2px 8px rgba(244, 63, 94, 0.25)',
-                          transition: 'transform 0.15s ease, box-shadow 0.15s ease'
-                        }}
-                      >
-                        <Sliders size={12} />
-                        <span>Kelola Tindakan</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-          )}
-
-          {/* Desktop Enterprise Data Table Pagination Bar */}
-          {reportsPagination && reportsPagination.total > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.85rem 1rem',
-                backgroundColor: theme.surface,
-                borderRadius: '0.9rem',
-                border: `1px solid ${theme.border}`,
-                marginTop: '0.75rem',
-                boxShadow: theme.cardShadow,
-                flexWrap: 'wrap',
-                gap: '0.75rem'
-              }}
-            >
-              {/* Left: Summary & Per-Page Selector */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.76rem', color: theme.textSecondary }}>
-                  Menampilkan <strong>{Math.min((reportsPagination.page - 1) * reportsPagination.limit + 1, reportsPagination.total)}</strong> – <strong>{Math.min(reportsPagination.page * reportsPagination.limit, reportsPagination.total)}</strong> dari <strong>{reportsPagination.total}</strong> laporan
-                </span>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>Baris:</span>
-                  <select
-                    value={reportsPagination.limit}
-                    onChange={(e) => {
-                      const newLimit = Number(e.target.value);
-                      fetchReportsList(1, reportsFilter, reportsTargetFilter, reportsSearchQuery, newLimit);
-                    }}
-                    style={{
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '0.45rem',
-                      border: `1px solid ${theme.border}`,
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
-                      color: theme.textPrimary,
-                      fontSize: '0.74rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      outline: 'none'
-                    }}
-                  >
-                    {[10, 20, 50, 100].map(sz => (
-                      <option key={sz} value={sz}>{sz}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Right: Numbered Page Navigation & Quick Jump */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                {/* First Page */}
-                <button
-                  type="button"
-                  title="Halaman Pertama"
-                  disabled={reportsPagination.page <= 1}
-                  onClick={() => fetchReportsList(1, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '0.5rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: theme.surface,
-                    color: reportsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
-                    cursor: reportsPagination.page <= 1 ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: reportsPagination.page <= 1 ? 0.4 : 1
-                  }}
-                >
-                  <ChevronsLeft size={15} />
-                </button>
-
-                {/* Previous Page */}
-                <button
-                  type="button"
-                  title="Halaman Sebelumnya"
-                  disabled={reportsPagination.page <= 1}
-                  onClick={() => fetchReportsList(reportsPagination.page - 1, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '0.5rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: theme.surface,
-                    color: reportsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
-                    cursor: reportsPagination.page <= 1 ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: reportsPagination.page <= 1 ? 0.4 : 1
-                  }}
-                >
-                  <ChevronLeft size={15} />
-                </button>
-
-                {/* Numbered Page Buttons */}
-                {(() => {
-                  const totalP = reportsPagination.total_pages || 1;
-                  const curP = reportsPagination.page;
-                  const btns: (number | string)[] = [];
-                  if (totalP <= 7) {
-                    for (let i = 1; i <= totalP; i++) btns.push(i);
-                  } else {
-                    btns.push(1);
-                    if (curP > 3) btns.push('...');
-                    const start = Math.max(2, curP - 1);
-                    const end = Math.min(totalP - 1, curP + 1);
-                    for (let i = start; i <= end; i++) btns.push(i);
-                    if (curP < totalP - 2) btns.push('...');
-                    btns.push(totalP);
-                  }
-
-                  return btns.map((b, idx) => {
-                    if (b === '...') {
-                      return (
-                        <span key={`dots-${idx}`} style={{ padding: '0 0.25rem', fontSize: '0.74rem', color: theme.textMuted }}>
-                          ...
-                        </span>
-                      );
-                    }
-                    const isCur = b === curP;
-                    return (
-                      <button
-                        key={`page-${b}`}
-                        type="button"
-                        onClick={() => fetchReportsList(Number(b), reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
-                        style={{
-                          minWidth: '32px',
-                          height: '32px',
-                          padding: '0 0.5rem',
-                          borderRadius: '0.5rem',
-                          border: isCur ? '1px solid #f43f5e' : `1px solid ${theme.border}`,
-                          backgroundColor: isCur ? '#f43f5e' : theme.surface,
-                          color: isCur ? '#ffffff' : theme.textPrimary,
-                          fontSize: '0.75rem',
-                          fontWeight: isCur ? 800 : 600,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {b}
-                      </button>
-                    );
-                  });
-                })()}
-
-                {/* Next Page */}
-                <button
-                  type="button"
-                  title="Halaman Selanjutnya"
-                  disabled={reportsPagination.page >= reportsPagination.total_pages}
-                  onClick={() => fetchReportsList(reportsPagination.page + 1, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '0.5rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: theme.surface,
-                    color: reportsPagination.page >= reportsPagination.total_pages ? theme.textMuted : theme.textPrimary,
-                    cursor: reportsPagination.page >= reportsPagination.total_pages ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: reportsPagination.page >= reportsPagination.total_pages ? 0.4 : 1
-                  }}
-                >
-                  <ChevronRight size={15} />
-                </button>
-
-                {/* Last Page */}
-                <button
-                  type="button"
-                  title="Halaman Terakhir"
-                  disabled={reportsPagination.page >= reportsPagination.total_pages}
-                  onClick={() => fetchReportsList(reportsPagination.total_pages, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '0.5rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: theme.surface,
-                    color: reportsPagination.page >= reportsPagination.total_pages ? theme.textMuted : theme.textPrimary,
-                    cursor: reportsPagination.page >= reportsPagination.total_pages ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: reportsPagination.page >= reportsPagination.total_pages ? 0.4 : 1
-                  }}
-                >
-                  <ChevronsRight size={15} />
-                </button>
-
-                {/* Quick Jump Input */}
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const p = parseInt(reportsJumpPage, 10);
-                    if (!isNaN(p) && p >= 1 && p <= (reportsPagination.total_pages || 1)) {
-                      fetchReportsList(p, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit);
-                      setReportsJumpPage('');
-                    }
-                  }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.4rem' }}
-                >
-                  <input
-                    type="number"
-                    min={1}
-                    max={reportsPagination.total_pages || 1}
-                    placeholder="Hal"
-                    value={reportsJumpPage}
-                    onChange={(e) => setReportsJumpPage(e.target.value)}
-                    style={{
-                      width: '48px',
-                      height: '32px',
-                      padding: '0 0.35rem',
-                      borderRadius: '0.45rem',
-                      border: `1px solid ${theme.border}`,
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
-                      color: theme.textPrimary,
-                      fontSize: '0.74rem',
-                      textAlign: 'center',
-                      outline: 'none'
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!reportsJumpPage}
-                    style={{
-                      height: '32px',
-                      padding: '0 0.65rem',
-                      borderRadius: '0.45rem',
-                      border: `1px solid ${theme.border}`,
-                      backgroundColor: theme.surface,
-                      color: !reportsJumpPage ? theme.textMuted : theme.textPrimary,
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: !reportsJumpPage ? 'not-allowed' : 'pointer',
-                      opacity: !reportsJumpPage ? 0.5 : 1
-                    }}
-                  >
-                    Lompat
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-          </div>
-        )
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. MODULE 4: HELPDESK & TIKET BANTUAN                                     */}
-      {/* ========================================================================= */}
-      {activeView === 'support' && canAccessSupport && (
-        selectedTicket ? (
-          /* ----------------------------------------------------------------------- */
-          /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
-          /* ----------------------------------------------------------------------- */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingBottom: '140px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
-            {/* Agent Collision Warning Banner (Fase 5) */}
-            {activePresences.filter((p: any) => p.user_id !== currentUser?.id).length > 0 && (
-              <div style={{
-                padding: '0.75rem 1rem',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.6rem',
-                color: '#ef4444',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                boxShadow: '0 2px 10px rgba(239, 68, 68, 0.15)'
-              }}>
-                <AlertTriangle size={17} style={{ flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <span>
-                    👀 <strong>{activePresences.filter((p: any) => p.user_id !== currentUser?.id).map((p: any) => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
-                    {activePresences.filter((p: any) => p.user_id !== currentUser?.id).some((p: any) => p.is_typing) ? ' dan sedang mengetik balasan...' : '.'}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* 1. Ticket Meta & Status Controller Header Card */}
-            <div style={{
-              padding: '1rem 1.15rem',
-              borderRadius: '1.2rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.85rem'
-            }}>
-              {/* Back to Ticket List Button (Desktop & Tablet) */}
-              <div>
-                <button
-                  type="button"
-                  onClick={handleCloseTicketChat}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.35rem 0.75rem',
-                    borderRadius: '0.55rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc',
-                    color: theme.textSecondary,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : '#f1f5f9';
-                    e.currentTarget.style.color = theme.textPrimary;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc';
-                    e.currentTarget.style.color = theme.textSecondary;
-                  }}
-                >
-                  <ArrowLeft size={14} />
-                  <span>Kembali ke Daftar Tiket</span>
-                </button>
-              </div>
-
-              {/* Subject, Ticket Number & Date */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'rgba(6, 182, 212, 0.1)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(6, 182, 212, 0.25)', marginBottom: '0.25rem' }}>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#06b6d4', letterSpacing: '0.02em', textTransform: 'uppercase', fontFamily: 'monospace' }}>
-                      {selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`}
+                      {moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`}
                     </span>
                   </div>
-                  <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em', lineHeight: 1.35 }}>
-                    {selectedTicket.subject || 'Tiket Pertanyaan Pengguna'}
-                  </h3>
-                </div>
-                <span style={{ fontSize: '0.66rem', color: theme.textMuted, whiteSpace: 'nowrap', paddingTop: '0.15rem', fontWeight: 600 }}>
-                  {formatSupportDateTime(selectedTicket.created_at)}
-                </span>
-              </div>
 
-              {/* Merchant Identity & Meta Chips */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
-                {/* Store Profile Identity Chip */}
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.22rem 0.6rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: 'rgba(56, 189, 248, 0.12)',
-                  color: isDark ? '#38bdf8' : '#0284c7',
-                  border: '1px solid rgba(56, 189, 248, 0.3)',
-                  fontSize: '0.68rem',
-                  fontWeight: 800
-                }}>
-                  <Store size={12} />
-                  <span>{getStoreDisplayName(selectedTicket)}</span>
-                  <span style={{
-                    fontSize: '0.55rem',
-                    padding: '0.06rem 0.35rem',
-                    borderRadius: '4px',
-                    background: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
-                      ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
-                      : getStorePlanBadge(selectedTicket) === 'PRO' 
-                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
-                        : (isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(100, 116, 139, 0.15)'),
-                    color: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' || getStorePlanBadge(selectedTicket) === 'PRO' ? '#ffffff' : (isDark ? '#94a3b8' : '#475569'),
-                    fontWeight: 800,
-                    letterSpacing: '0.03em',
-                    boxShadow: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
-                      ? '0 1px 3px rgba(124, 58, 237, 0.3)' 
-                      : getStorePlanBadge(selectedTicket) === 'PRO' 
-                        ? '0 1px 3px rgba(217, 119, 6, 0.35)' 
-                        : 'none'
-                  }}>
-                    {getStorePlanBadge(selectedTicket)}
-                  </span>
-                </div>
-
-                {/* Requester / Account Identity Chip */}
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.22rem 0.55rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
-                  color: theme.textSecondary,
-                  border: `1px solid ${theme.border}`,
-                  fontSize: '0.67rem',
-                  fontWeight: 600
-                }}>
-                  <User size={11} style={{ color: theme.textMuted }} />
-                  <span style={{ color: theme.textPrimary, fontWeight: 700 }}>{getUserRequesterName(selectedTicket)}</span>
-                  {(selectedTicket.user?.email || selectedTicket.user_email) && (
-                    <span style={{ opacity: 0.8, fontSize: '0.62rem' }}>
-                      ({selectedTicket.user?.email || selectedTicket.user_email})
-                    </span>
-                  )}
-                </div>
-
-                <span style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 700,
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: theme.cardAlt,
-                  color: theme.textSecondary,
-                  border: `1px solid ${theme.border}`
-                }}>
-                  {
-                    selectedTicket.category === 'billing' ? 'Keuangan & Langganan' :
-                    selectedTicket.category === 'technical' ? 'Kendala Teknis & Bug' :
-                    selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog & Item' :
-                    selectedTicket.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
-                  }
-                </span>
-
-                <span style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 800,
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(6, 182, 212, 0.12)',
-                  color: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? '#ef4444' : '#06b6d4',
-                  border: `1px solid ${selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(6, 182, 212, 0.25)'}`
-                }}>
-                  Urgensi: {String(selectedTicket.priority || 'medium').toUpperCase()}
-                </span>
-
-                {/* Status Badge Chip (Clean, compact & opens standard bottom sheet) */}
-                {(() => {
-                  const statusMeta = getTicketStatusMeta(selectedTicket.status);
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => setShowFooterStatusMenu(true)}
+                  {moderationModalReport.store_slug && (
+                    <a
+                      href={`/${moderationModalReport.store_slug}`}
+                      target="_blank"
+                      rel="noreferrer"
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.35rem',
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: statusMeta.bg,
-                        color: statusMeta.color,
-                        border: `1px solid ${statusMeta.border}`,
-                        fontSize: '0.65rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
+                        padding: '0.35rem 0.75rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(2, 132, 199, 0.2)'}`,
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                        flexShrink: 0
                       }}
-                      title="Klik untuk ubah status pengerjaan tiket"
                     >
-                      <span style={{
-                        width: '7px',
-                        height: '7px',
-                        borderRadius: '50%',
-                        backgroundColor: statusMeta.color,
-                        display: 'inline-block',
-                        boxShadow: `0 0 6px ${statusMeta.color}88`
-                      }} />
-                      <span>{statusMeta.label}</span>
-                    </button>
-                  );
-                })()}
-              </div>
-
-              {/* CSAT Rating Card if Rated (Fase 2) */}
-              {selectedTicket.rating && (
-                <div style={{
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                  border: '1px solid rgba(245, 158, 11, 0.25)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.25rem'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Star size={13} fill="#f59e0b" color="#f59e0b" /> Ulasan Kepuasan Merchant (CSAT)
-                    </span>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 900, color: '#f59e0b' }}>
-                      {selectedTicket.rating} / 5 Bintang
-                    </span>
-                  </div>
-                  {selectedTicket.rating_comment && (
-                    <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary, fontStyle: 'italic', lineHeight: 1.4 }}>
-                      "{selectedTicket.rating_comment}"
-                    </p>
+                      <ExternalLink size={14} />
+                      <span>Inspeksi Publik</span>
+                    </a>
                   )}
                 </div>
-              )}
 
-              {/* SLA Status Card (Fase 3) */}
-              {selectedTicket.sla_due_at && (
+                {/* Entity Title */}
+                <div>
+                  <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', fontWeight: 800, color: theme.textMuted, letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    Entitas Terlapor
+                  </div>
+                  <div style={{
+                    fontSize: '1.05rem',
+                    fontWeight: 800,
+                    color: theme.textPrimary,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.45rem',
+                    lineHeight: 1.35
+                  }}>
+                    {moderationModalReport.target_type === 'item' ? (
+                      <>
+                        <Package size={18} style={{ color: '#0ea5e9', flexShrink: 0, marginTop: '2px' }} />
+                        <span>{moderationModalReport.item_name || 'Item Tanpa Nama'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Store size={18} style={{ color: '#a855f7', flexShrink: 0, marginTop: '2px' }} />
+                        <span>{moderationModalReport.store_title || moderationModalReport.store_slug || 'Profil Katalog'}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Details Grid */}
                 <div style={{
-                  padding: '0.55rem 0.75rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: selectedTicket.sla_breached ? 'rgba(239, 68, 68, 0.08)' : (selectedTicket.first_response_at ? 'rgba(16, 185, 129, 0.08)' : 'rgba(56, 189, 248, 0.08)'),
-                  border: `1px solid ${selectedTicket.sla_breached ? 'rgba(239, 68, 68, 0.25)' : (selectedTicket.first_response_at ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.25)')}`,
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: '0.65rem',
+                  padding: '0.85rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                  border: `1px solid ${theme.border}`
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Profil Bisnis / Usaha</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, wordBreak: 'break-word' }}>
+                      {moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}
+                    </span>
+                  </div>
+                  {moderationModalReport.target_type === 'item' && (
+                    <div>
+                      <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Jenis / Tipe Katalog</span>
+                      <span style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(14, 165, 233, 0.1)',
+                        padding: '0.12rem 0.5rem',
+                        borderRadius: '0.4rem',
+                        border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        width: 'fit-content'
+                      }}>
+                        <Tag size={11} />
+                        {formatCatalogType(moderationModalReport.item_type || moderationModalReport.fauna?.product_type || moderationModalReport.product_type)}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Kategori Pelanggaran</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f43f5e', wordBreak: 'break-word', lineHeight: 1.3 }}>
+                      {moderationModalReport.reason_label || moderationModalReport.reason_category || 'Lainnya'}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Status Peninjauan</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, textTransform: 'capitalize' }}>
+                      {moderationModalReport.status || 'Pending'}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Email Pelapor</span>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 600, color: theme.textSecondary, wordBreak: 'break-all' }}>
+                      {moderationModalReport.reporter_email || '-'}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Alamat IP Pelapor</span>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 600, color: theme.textSecondary }}>
+                      {moderationModalReport.reporter_ip || '-'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Evidence Quote */}
+                {moderationModalReport.description && (
+                  <div style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(244, 63, 94, 0.08)' : 'rgba(244, 63, 94, 0.04)',
+                    border: `1px solid ${isDark ? 'rgba(244, 63, 94, 0.25)' : 'rgba(244, 63, 94, 0.15)'}`
+                  }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f43f5e', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <AlertCircle size={14} />
+                      <span>Kutipan Barang Bukti & Keluhan Pelapor:</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: theme.textPrimary, lineHeight: 1.55, fontStyle: 'italic' }}>
+                      "{moderationModalReport.description}"
+                    </p>
+                  </div>
+                )}
+
+                {/* Multi-Reporter Active Evidence Timeline */}
+                {reportActiveEvidence && reportActiveEvidence.length > 0 && (
+                  <div style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.05)',
+                    border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <AlertTriangle size={14} />
+                        <span>🔥 {reportActiveEvidence.length} Laporan Lain untuk Entitas Ini</span>
+                      </div>
+                      <span style={{ fontSize: '0.64rem', padding: '0.1rem 0.4rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', fontWeight: 800 }}>
+                        KASUS JAMAK
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.4 }}>
+                      Pengguna lain juga melaporkan entitas ini. Menindak kasus ini akan otomatis memperbarui seluruh laporan terkait.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.2rem' }}>
+                      {reportActiveEvidence.map((ae: any, idx: number) => (
+                        <div key={ae.id || idx} style={{
+                          padding: '0.65rem',
+                          borderRadius: '0.6rem',
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.8)',
+                          border: `1px solid ${theme.border}`,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: theme.textPrimary }}>
+                              {ae.report_number || `#RPT-${ae.id}`}
+                            </span>
+                            <span style={{ color: theme.textMuted }}>
+                              {ae.created_at ? new Date(ae.created_at).toLocaleString('id-ID') : '-'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#f43f5e' }}>
+                            {ae.reason_label || ae.reason_category}
+                          </div>
+                          {ae.description && (
+                            <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontStyle: 'italic', lineHeight: 1.35 }}>
+                              "{ae.description}"
+                            </div>
+                          )}
+                          <div style={{ fontSize: '0.65rem', color: theme.textMuted }}>
+                            Pelapor: {ae.reporter_email || ae.reporter_ip || 'Anonim'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Prior Review History Ledger (Audit Context) */}
+                {reportPriorHistory && reportPriorHistory.length > 0 && (
+                  <div style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(14, 165, 233, 0.08)' : 'rgba(14, 165, 233, 0.04)',
+                    border: `1px solid ${isDark ? 'rgba(14, 165, 233, 0.25)' : 'rgba(14, 165, 233, 0.18)'}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.55rem'
+                  }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Clock size={14} />
+                      <span>📜 Rekam Jejak Peninjauan Terdahulu ({reportPriorHistory.length})</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                      Entitas ini pernah dilaporkan dan diselesaikan sebelumnya:
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      {reportPriorHistory.map((ph: any, pidx: number) => (
+                        <div key={ph.id || pidx} style={{
+                          padding: '0.55rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : '#ffffff',
+                          border: `1px solid ${theme.border}`,
+                          fontSize: '0.7rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.2rem'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 700, color: theme.textPrimary }}>
+                              {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{ph.status}</strong>
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: theme.textMuted }}>
+                              {ph.reviewed_at ? new Date(ph.reviewed_at).toLocaleDateString('id-ID') : '-'}
+                            </span>
+                          </div>
+                          {ph.action_taken && ph.action_taken !== 'none' && (
+                            <div style={{ fontSize: '0.68rem', color: '#f43f5e', fontWeight: 700 }}>
+                              Sanksi Diterapkan: {ph.action_taken}
+                            </div>
+                          )}
+                          {ph.admin_notes && (
+                            <div style={{ fontSize: '0.68rem', color: theme.textSecondary, fontStyle: 'italic' }}>
+                              Catatan Admin: "{ph.admin_notes}"
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Update Status Laporan */}
+              <div style={{
+                backgroundColor: theme.surface,
+                borderRadius: '1rem',
+                border: `1px solid ${theme.border}`,
+                padding: '1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem',
+                boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.04)'
+              }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Clock size={16} style={{ color: '#f59e0b' }} />
+                    <span>Status Peninjauan Laporan</span>
+                  </h4>
+                  <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: theme.textMuted }}>
+                    Tentukan status progres investigasi laporan kepatuhan ini.
+                  </p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.55rem' }}>
+                  {[
+                    { value: 'investigating', label: 'Investigasi Aktif', color: '#f59e0b', desc: 'Audit sedang berjalan & verifikasi bukti' },
+                    { value: 'action_taken', label: 'Sanksi Ditindak', color: '#f43f5e', desc: 'Sanksi sementara/teguran dijatuhkan' },
+                    { value: 'banned', label: 'Banned Permanen', color: '#ef4444', desc: 'Blokir permanen seluruh akses merchant/item' },
+                    { value: 'resolved', label: 'Diselesaikan', color: '#10b981', desc: 'Ditutup/dipulihkan tanpa sanksi lanjutan' },
+                    { value: 'dismissed', label: 'Ditolak (Dismiss)', color: '#64748b', desc: 'Laporan tidak valid atau palsu' }
+                  ].map(opt => {
+                    const isSelected = moderationStatus === opt.value;
+                    const isItem = moderationModalReport?.target_type === 'item';
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setModerationStatus(opt.value);
+                          if (opt.value === 'banned') {
+                            if (isItem) {
+                              setModerationAction('item_banned');
+                            } else {
+                              setModerationAction('catalog_banned');
+                            }
+                          } else if (opt.value === 'action_taken') {
+                            if (isItem && (moderationAction === 'none' || moderationAction === 'item_banned' || moderationAction === 'item_restored')) {
+                              setModerationAction('item_locked');
+                            } else if (!isItem && (moderationAction === 'none' || moderationAction === 'catalog_banned' || moderationAction === 'catalog_reactivated')) {
+                              setModerationAction('catalog_suspended');
+                            }
+                          } else if (opt.value === 'resolved') {
+                            if (isItem && (moderationAction === 'item_locked' || moderationAction === 'item_needs_fix' || moderationAction === 'item_banned')) {
+                              setModerationAction('item_restored');
+                            } else if (!isItem && (moderationAction === 'catalog_suspended' || moderationAction === 'catalog_banned')) {
+                              setModerationAction('catalog_reactivated');
+                            }
+                          } else if (opt.value === 'dismissed' || opt.value === 'investigating') {
+                            if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned') {
+                              setModerationAction('none');
+                            }
+                          }
+                        }}
+                        style={{
+                          padding: '0.85rem',
+                          borderRadius: '0.75rem',
+                          border: isSelected ? `2px solid ${opt.color}` : `1px solid ${theme.border}`,
+                          backgroundColor: isSelected ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)') : 'transparent',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: isSelected ? opt.color : theme.textPrimary }}>
+                            {opt.label}
+                          </span>
+                          {isSelected && (
+                            <CheckCircle2 size={16} style={{ color: opt.color }} />
+                          )}
+                        </div>
+                        <span style={{ fontSize: '0.68rem', color: theme.textMuted, lineHeight: 1.35 }}>
+                          {opt.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Section 3: Tindakan Penegakan Sistem (Real-time Enforcement) */}
+              <div style={{
+                backgroundColor: theme.surface,
+                borderRadius: '1rem',
+                border: `1px solid ${theme.border}`,
+                padding: '1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem',
+                boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.04)'
+              }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <ShieldAlert size={16} style={{ color: '#f43f5e' }} />
+                    <span>Tindakan Penegakan Sistem (Real-time Enforcement)</span>
+                  </h4>
+                  <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: theme.textMuted }}>
+                    Sistem akan secara instan mengubah status database katalog/item dan mencatat audit trail.
+                  </p>
+                </div>
+
+                {/* Dropdown Modal Trigger */}
+                {(() => {
+                  const getModerationActionConfig = (action: string) => {
+                    switch (action) {
+                      case 'warning_issued':
+                        return {
+                          label: 'Terbitkan Peringatan Resmi',
+                          desc: 'Notifikasi peringatan kepatuhan dikirim ke pengelola katalog',
+                          icon: AlertTriangle,
+                          color: '#f59e0b',
+                          badge: 'PERINGATAN',
+                          badgeColor: '#f59e0b',
+                          info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pengelola katalog. Status profil katalog dan item tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
+                        };
+                      case 'item_needs_fix':
+                        return {
+                          label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
+                          desc: 'Disembunyikan, pengelola diizinkan edit data untuk diajukan ulang',
+                          icon: AlertTriangle,
+                          color: '#f59e0b',
+                          badge: 'PERLU EDIT',
+                          badgeColor: '#f59e0b',
+                          info: 'Item disembunyikan dari etalase publik (IsActive=False, ModerationStatus=needs_fix). Pengelola diberikan hak mengoreksi atribut item (foto, deskripsi, harga, spesifikasi) dan dapat mengajukan peninjauan ulang secara tertib.'
+                        };
+                      case 'item_locked':
+                      case 'item_hidden':
+                        return {
+                          label: 'Nonaktifkan & Kunci: Pelanggaran Keras',
+                          desc: 'Disembunyikan & kunci edit (read-only), hanya klarifikasi banding atau hapus',
+                          icon: XCircle,
+                          color: '#ef4444',
+                          badge: 'TERKUNCI',
+                          badgeColor: '#ef4444',
+                          info: 'Item dinonaktifkan dan dikunci permanen (ModerationStatus=locked) karena terindikasi komoditas terlarang/berbahaya. Pengelola dilarang mengedit item untuk mencegah peredaran materi terlarang. Hanya tersedia hak banding resmi atau hapus item.'
+                        };
+                      case 'item_banned':
+                        return {
+                          label: 'Blokir & Hapus Item (Banned Permanen)',
+                          desc: 'Hapus permanen dari inventaris katalog & pulihkan kuota pengelola seketika',
+                          icon: ShieldAlert,
+                          color: '#ef4444',
+                          badge: 'BANNED ITEM',
+                          badgeColor: '#ef4444',
+                          info: 'Item diblokir dan dihapus seketika dari inventaris profil katalog. Beban kuota item dan storage katalog langsung dipulihkan (0 byte terhitung). Dokumen & berkas digital diarsipkan 90 hari di vault forensik kepatuhan (PP 71/2019) dan tidak dapat diajukan banding.'
+                        };
+                      case 'item_restored':
+                        return {
+                          label: 'Pulihkan / Aktifkan Item',
+                          desc: 'Item dipulihkan dan dapat kembali diakses publik',
+                          icon: CheckCircle2,
+                          color: '#10b981',
+                          badge: 'AKTIF',
+                          badgeColor: '#10b981',
+                          info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta ditampilkan secara publik seperti biasa.'
+                        };
+                      case 'catalog_suspended':
+                        return {
+                          label: 'Bekukan / Suspend Profil Katalog',
+                          desc: 'Seluruh etalase profil katalog dibekukan dari akses publik',
+                          icon: Lock,
+                          color: '#dc2626',
+                          badge: 'SUSPEND',
+                          badgeColor: '#dc2626',
+                          info: 'Seketika mengubah status dormansi profil katalog menjadi Suspended. Seluruh etalase katalog dan itemnya dinonaktifkan sementara dari akses publik secara real-time.'
+                        };
+                      case 'catalog_banned':
+                        return {
+                          label: 'Blokir / Banned Permanen Profil Katalog',
+                          desc: 'Tutup akses publik profil katalog dan akun pemilik secara permanen',
+                          icon: ShieldAlert,
+                          color: '#b91c1c',
+                          badge: 'BANNED',
+                          badgeColor: '#b91c1c',
+                          info: 'Seketika mengubah status dormansi profil katalog menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
+                        };
+                      case 'catalog_reactivated':
+                        return {
+                          label: 'Pulihkan / Aktifkan Profil Katalog',
+                          desc: 'Cabut sanksi penangguhan dan buka etalase profil katalog',
+                          icon: Store,
+                          color: '#10b981',
+                          badge: 'PULIHKAN',
+                          badgeColor: '#10b981',
+                          info: 'Seketika memulihkan status dormansi profil katalog menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase profil katalog ke publik.'
+                        };
+                      case 'none':
+                      default:
+                        return {
+                          label: 'Tanpa Sanksi Otomatis',
+                          desc: 'Hanya mencatat investigasi tanpa mengubah status',
+                          icon: FileText,
+                          color: theme.textSecondary,
+                          badge: 'CATATAN',
+                          badgeColor: '#64748b',
+                          info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik profil katalog atau item.'
+                        };
+                    }
+                  };
+
+                  const activeCfg = getModerationActionConfig(moderationAction);
+                  const ActiveIcon = activeCfg.icon;
+                  const isItem = moderationModalReport.target_type === 'item';
+
+                  return (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const actionOptions: Array<{
+                            value: string;
+                            label: string;
+                            desc: string;
+                            info: string;
+                          }> = [
+                              {
+                                value: 'none',
+                                label: 'Tanpa Sanksi Otomatis',
+                                desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis pada profil katalog maupun item',
+                                info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik profil katalog atau item.'
+                              },
+                              {
+                                value: 'warning_issued',
+                                label: 'Terbitkan Peringatan Resmi',
+                                desc: 'Kirim surat notifikasi peringatan resmi kepatuhan ke pengelola katalog',
+                                info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pengelola katalog. Status profil katalog dan item tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
+                              },
+                              ...(isItem ? [
+                                {
+                                  value: 'item_needs_fix',
+                                  label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
+                                  desc: 'Sembunyikan dari publik namun pengelola diizinkan mengedit foto/deskripsi/spesifikasi untuk diajukan ulang',
+                                  info: 'Item disembunyikan dari etalase publik (IsActive=False, ModerationStatus=needs_fix). Pengelola diberikan hak mengoreksi atribut item (foto, deskripsi, harga, spesifikasi) dan dapat mengajukan peninjauan ulang secara tertib.'
+                                },
+                                {
+                                  value: 'item_locked',
+                                  label: 'Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras',
+                                  desc: 'Sembunyikan dari publik dan kunci fitur edit (read-only) karena indikasi pelanggaran kebijakan keras/fatal. Hanya banding atau hapus',
+                                  info: 'Item dinonaktifkan dan dikunci permanen (ModerationStatus=locked) karena terindikasi komoditas terlarang/berbahaya. Pengelola dilarang mengedit item untuk mencegah peredaran materi terlarang. Hanya tersedia hak banding resmi atau hapus item.'
+                                },
+                                {
+                                  value: 'item_banned',
+                                  label: 'Blokir atau Hapus Item (Banned Permanen)',
+                                  desc: 'Hapus permanen dari inventaris katalog & pulihkan kuota pengelola seketika. Bukti forensik disimpan 90 hari tanpa hak banding',
+                                  info: 'Item diblokir dan dihapus seketika dari inventaris profil katalog. Beban kuota item dan storage katalog langsung dipulihkan (0 byte terhitung). Dokumen & berkas digital diarsipkan 90 hari di vault forensik kepatuhan (PP 71/2019) dan tidak dapat diajukan banding.'
+                                },
+                                {
+                                  value: 'item_restored',
+                                  label: 'Pulihkan / Aktifkan Item',
+                                  desc: 'Memulihkan item agar dapat kembali dilihat dan diakses publik secara normal',
+                                  info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta ditampilkan secara publik seperti biasa.'
+                                }
+                              ] : []),
+                              {
+                                value: 'catalog_suspended',
+                                label: 'Bekukan / Suspend Profil Katalog',
+                                desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time',
+                                info: 'Seketika mengubah status dormansi profil katalog menjadi Suspended. Seluruh etalase katalog dan itemnya dinonaktifkan sementara dari akses publik secara real-time.'
+                              },
+                              {
+                                value: 'catalog_banned',
+                                label: 'Blokir / Banned Permanen Profil Katalog',
+                                desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding',
+                                info: 'Seketika mengubah status dormansi profil katalog menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
+                              },
+                              {
+                                value: 'catalog_reactivated',
+                                label: 'Pulihkan / Aktifkan Profil Katalog',
+                                desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog',
+                                info: 'Seketika memulihkan status dormansi profil katalog menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase profil katalog ke publik.'
+                              }
+                            ];
+
+                          setCrudDropdownPicker({
+                            title: 'Tindakan Penegakan Sistem',
+                            subtitle: 'Pilih sanksi atau tindakan kepatuhan yang akan dieksekusi secara real-time',
+                            icon: ShieldAlert,
+                            selectedValue: moderationAction,
+                            options: actionOptions,
+                            onSelect: (val) => {
+                              setModerationAction(val);
+                              if (val === 'item_banned' || val === 'catalog_banned') {
+                                setModerationStatus('banned');
+                              } else if (val === 'item_locked' || val === 'item_needs_fix' || val === 'catalog_suspended' || val === 'warning_issued') {
+                                if (moderationStatus !== 'banned') {
+                                  setModerationStatus('action_taken');
+                                }
+                              } else if (val === 'item_restored' || val === 'catalog_reactivated') {
+                                setModerationStatus('resolved');
+                              }
+                            }
+                          });
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 0.95rem',
+                          borderRadius: '0.75rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: theme.inputBg,
+                          color: theme.textPrimary,
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.65rem',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'border-color 0.18s ease, box-shadow 0.18s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.55rem',
+                            backgroundColor: `${activeCfg.badgeColor}18`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: activeCfg.color,
+                            flexShrink: 0
+                          }}>
+                            <ActiveIcon size={16} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                            <span style={{
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              color: theme.textPrimary,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {activeCfg.label}
+                            </span>
+                            <span style={{
+                              fontSize: '0.68rem',
+                              color: theme.textMuted,
+                              fontWeight: 500,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {activeCfg.desc}
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronDown size={17} color={theme.textMuted} style={{ flexShrink: 0 }} />
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                <div style={{
+                  padding: '0.7rem 0.95rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.05)',
+                  border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.15)'}`,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  color: selectedTicket.sla_breached ? '#ef4444' : (selectedTicket.first_response_at ? '#10b981' : (isDark ? '#38bdf8' : '#0284c7'))
+                  gap: '0.55rem'
                 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Clock size={12} /> Target Respon Pertama:
+                  <Info size={16} style={{ color: isDark ? '#38bdf8' : '#0284c7', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                    Eksekusi sanksi bersifat seketika (*instant*). Pemilik merchant akan melihat status item/katalog terbarui di portal mereka.
                   </span>
-                  <span>
-                    {selectedTicket.sla_breached ? '⚠️ Melewati SLA' : (selectedTicket.first_response_at ? '✓ Terpenuhi Tepat Waktu' : 'Sedang Berjalan')}
+                </div>
+              </div>
+
+              {/* Section 4: Catatan Kepatuhan & Audit (Admin Notes) */}
+              <div style={{
+                backgroundColor: theme.surface,
+                borderRadius: '1rem',
+                border: `1px solid ${theme.border}`,
+                padding: '1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem',
+                boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.04)'
+              }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <FileText size={16} style={{ color: '#0ea5e9' }} />
+                    <span>Catatan Kepatuhan & Audit (Admin Notes)</span>
+                  </h4>
+                  <p style={{ margin: '0.2rem 0 0', fontSize: '0.74rem', color: theme.textMuted }}>
+                    Dokumentasikan temuan investigasi, nomor tiket referensi, atau alasan keputusan untuk audit internal.
+                  </p>
+                </div>
+
+                <textarea
+                  value={moderationNotes}
+                  onChange={e => setModerationNotes(e.target.value)}
+                  rows={4}
+                  placeholder="Tuliskan temuan audit, riwayat kontak penjual, alasan sanksi atau dasar penolakan laporan..."
+                  style={{
+                    width: '100%',
+                    padding: '0.8rem 1rem',
+                    borderRadius: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.inputBg,
+                    color: theme.textPrimary,
+                    fontSize: '0.82rem',
+                    outline: 'none',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit',
+                    lineHeight: 1.55
+                  }}
+                />
+
+                {moderationModalReport.reviewed_by && (
+                  <div style={{ fontSize: '0.72rem', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <User size={13} />
+                    <span>Terakhir ditinjau oleh Admin ID: <strong>{moderationModalReport.reviewed_by}</strong></span>
+                    {moderationModalReport.reviewed_at && (
+                      <span>pada {new Date(moderationModalReport.reviewed_at).toLocaleDateString('id-ID')}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Section 5: Action Buttons */}
+              <div style={{
+                display: 'flex',
+                gap: '0.85rem',
+                paddingTop: '0.5rem'
+              }}>
+                <button
+                  type="button"
+                  onClick={handleCloseModerationPage}
+                  style={{
+                    flex: 1,
+                    padding: '0.8rem 1.25rem',
+                    borderRadius: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: 'transparent',
+                    color: theme.textSecondary,
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textAlign: 'center'
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopyReportWarning(moderationModalReport)}
+                  style={{
+                    padding: '0.8rem 1.25rem',
+                    borderRadius: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.surface,
+                    color: theme.textSecondary,
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Copy size={15} />
+                  <span>Salin Format Peringatan</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingModeration}
+                  onClick={() => {
+                    if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned' || moderationAction === 'account_banned' || moderationStatus === 'banned') {
+                      setBannedConfirmModalReport(moderationModalReport);
+                      setBannedConfirmAcknowledged(false);
+                      setShowModerationConfirmModal(true);
+                    } else {
+                      handleUpdateReportStatus(
+                        moderationModalReport.id,
+                        moderationStatus,
+                        moderationAction,
+                        moderationNotes,
+                        true
+                      );
+                    }
+                  }}
+                  style={{
+                    flex: 2,
+                    padding: '0.8rem 1.25rem',
+                    borderRadius: '0.75rem',
+                    border: 'none',
+                    backgroundColor: '#f43f5e',
+                    color: '#ffffff',
+                    fontSize: '0.84rem',
+                    fontWeight: 800,
+                    cursor: isSubmittingModeration ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    opacity: isSubmittingModeration ? 0.7 : 1,
+                    boxShadow: '0 4px 16px rgba(244, 63, 94, 0.35)'
+                  }}
+                >
+                  {isSubmittingModeration ? (
+                    <RefreshCw size={16} className="animate-spin" />
+                  ) : (
+                    <ShieldCheck size={16} />
+                  )}
+                  <span>Terapkan Tindakan</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ========================================================================= */
+            /* 3B. ANTREAN & DAFTAR LAPORAN PELANGGARAN                                  */
+            /* ========================================================================= */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+              {/* Quick Metrics Bar */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.55rem' }}>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Menunggu Review</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f59e0b' }}>
+                    {reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length}
                   </span>
+                </div>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Investigasi Aktif</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#38bdf8' }}>
+                    {reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length}
+                  </span>
+                </div>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Sanksi Ditindak</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f43f5e' }}>
+                    {reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length}
+                  </span>
+                </div>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: '#ef4444', fontWeight: 700 }}>Banned Permanen</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ef4444' }}>
+                    {reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Search Box & Dropdown Filters Bar */}
+              <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+                  <input
+                    type="text"
+                    placeholder="Cari nomor tiket (#RPT-...), merchant, item, atau email..."
+                    value={reportsSearchQuery}
+                    onChange={(e) => setReportsSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem 0.65rem 2.35rem',
+                      borderRadius: '0.75rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: theme.surface,
+                      color: theme.textPrimary,
+                      fontSize: '0.78rem',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Status Dropdown (Standardized DesktopCustomSelect) */}
+                <div style={{ minWidth: '220px', flexShrink: 0 }}>
+                  <DesktopCustomSelect
+                    value={reportsFilter}
+                    onChange={(val) => setReportsFilter(val as any)}
+                    options={reportStatusOptions}
+                    icon={<ShieldAlert size={14} />}
+                    placeholder="Filter Status Laporan"
+                    highlight={reportsFilter !== 'all'}
+                  />
+                </div>
+
+                {/* Target Dropdown (Standardized DesktopCustomSelect) */}
+                <div style={{ minWidth: '180px', flexShrink: 0 }}>
+                  <DesktopCustomSelect
+                    value={reportsTargetFilter}
+                    onChange={(val) => setReportsTargetFilter(val as any)}
+                    options={reportTargetOptions}
+                    icon={<Layers size={14} />}
+                    placeholder="Filter Target"
+                    highlight={reportsTargetFilter !== 'all'}
+                  />
+                </div>
+              </div>
+
+              {/* Filtered Reports Feed */}
+              {reports
+                .filter(r => {
+                  if (reportsFilter !== 'all') {
+                    if (reportsFilter === 'investigating') {
+                      if (r.status !== 'investigating' && r.status !== 'in_review') return false;
+                    } else if (reportsFilter === 're_review') {
+                      if (r.status !== 're_review') return false;
+                    } else if (reportsFilter === 'banned') {
+                      if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
+                    } else if (reportsFilter === 'action_taken') {
+                      if (r.status !== 'action_taken' || r.action_taken === 'catalog_banned' || r.status === 'banned') return false;
+                    } else if (r.status !== reportsFilter) {
+                      return false;
+                    }
+                  }
+                  if (reportsTargetFilter !== 'all') {
+                    const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
+                    if (reportsTargetFilter === 'catalog' && !isCatalog) return false;
+                    if (reportsTargetFilter === 'item' && isCatalog) return false;
+                  }
+                  if (reportsSearchQuery.trim()) {
+                    const q = reportsSearchQuery.toLowerCase();
+                    const num = (r.report_number || '').toLowerCase();
+                    const store = (r.store_title || r.store_slug || '').toLowerCase();
+                    const item = (r.item_name || '').toLowerCase();
+                    const reason = (r.reason_label || r.reason_category || '').toLowerCase();
+                    const email = (r.reporter_email || '').toLowerCase();
+                    if (!num.includes(q) && !store.includes(q) && !item.includes(q) && !reason.includes(q) && !email.includes(q)) {
+                      return false;
+                    }
+                  }
+                  return true;
+                })
+                .length === 0 ? (
+                <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                  <ShieldCheck size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
+                  <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Laporan Ditemukan</h4>
+                  <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>
+                    {reportsSearchQuery ? 'Tidak ada laporan yang sesuai dengan kriteria pencarian.' : 'Seluruh merchant dan item mematuhi aturan kepatuhan platform.'}
+                  </p>
+                </div>
+              ) : (
+                reports
+                  .filter(r => {
+                    if (reportsFilter !== 'all') {
+                      if (reportsFilter === 'investigating') {
+                        if (r.status !== 'investigating' && r.status !== 'in_review') return false;
+                      } else if (reportsFilter === 'banned') {
+                        if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
+                      } else if (reportsFilter === 'action_taken') {
+                        if (r.status !== 'action_taken' || r.action_taken === 'catalog_banned' || r.status === 'banned') return false;
+                      } else if (r.status !== reportsFilter) {
+                        return false;
+                      }
+                    }
+                    if (reportsTargetFilter !== 'all') {
+                      const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
+                      if (reportsTargetFilter === 'catalog' && !isCatalog) return false;
+                      if (reportsTargetFilter === 'item' && isCatalog) return false;
+                    }
+                    if (reportsSearchQuery.trim()) {
+                      const q = reportsSearchQuery.toLowerCase();
+                      const num = (r.report_number || '').toLowerCase();
+                      const store = (r.store_title || r.store_slug || '').toLowerCase();
+                      const item = (r.item_name || '').toLowerCase();
+                      const reason = (r.reason_label || r.reason_category || '').toLowerCase();
+                      const email = (r.reporter_email || '').toLowerCase();
+                      if (!num.includes(q) && !store.includes(q) && !item.includes(q) && !reason.includes(q) && !email.includes(q)) {
+                        return false;
+                      }
+                    }
+                    return true;
+                  })
+                  .map(r => {
+                    const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
+                    const statusBadgeMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
+                      pending: { label: 'Menunggu Review', bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', border: 'rgba(245, 158, 11, 0.35)' },
+                      re_review: { label: 'Perlu Ditinjau Ulang', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' },
+                      investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
+                      in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
+                      action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },
+                      banned: { label: '🚫 Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
+                      dismissed: { label: 'Laporan Ditolak', bg: isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(100, 116, 139, 0.1)', text: isDark ? '#94a3b8' : '#64748b', border: 'rgba(148, 163, 184, 0.25)' },
+                      resolved: { label: 'Selesai', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' }
+                    };
+                    const currentBadge = (r.status === 'banned' || r.action_taken === 'catalog_banned')
+                      ? statusBadgeMap.banned
+                      : (statusBadgeMap[r.status] || statusBadgeMap.pending);
+
+                    const hasAction = r.action_taken && r.action_taken !== 'none';
+                    const isRestored = hasAction && (r.action_taken.includes('restored') || r.action_taken.includes('reactivated'));
+                    const actionLabel = r.action_taken === 'item_banned'
+                      ? 'Item Dibanned Permanen'
+                      : r.action_taken === 'item_needs_fix'
+                        ? 'Perlu Perbaikan'
+                        : (r.action_taken === 'item_locked' || r.action_taken === 'item_hidden')
+                          ? 'Item Dikunci'
+                          : r.action_taken === 'catalog_suspended'
+                            ? 'Katalog Dibekukan'
+                            : r.action_taken === 'catalog_banned'
+                              ? 'Katalog Dibanned Permanen'
+                              : r.action_taken === 'warning_issued'
+                                ? 'Diberi Peringatan'
+                                : r.action_taken === 'item_restored'
+                                  ? 'Item Dipulihkan'
+                                  : (r.action_taken || '');
+
+                    const isItemBanned = r.status === 'banned' || r.action_taken === 'catalog_banned' || r.action_taken === 'item_banned';
+
+                    return (
+                      <div
+                        key={r.id}
+                        style={{
+                          padding: '0.9rem 1.1rem',
+                          borderRadius: '0.95rem',
+                          backgroundColor: theme.surface,
+                          border: isItemBanned
+                            ? '1px solid rgba(239, 68, 68, 0.55)'
+                            : (r.status === 're_review'
+                              ? '1px solid rgba(16, 185, 129, 0.65)'
+                              : (r.status === 'pending'
+                                ? '1px solid rgba(245, 158, 11, 0.4)'
+                                : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`))),
+                          boxShadow: isItemBanned
+                            ? '0 4px 14px rgba(239, 68, 68, 0.12)'
+                            : (r.status === 're_review' ? '0 4px 14px rgba(16, 185, 129, 0.12)' : theme.cardShadow),
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.65rem',
+                          transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
+                        }}
+                      >
+                        {/* Header Row: Ticket # + Target Type Pill + Date & Status Badge */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              color: theme.textPrimary,
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '0.4rem',
+                              border: `1px solid ${theme.border}`
+                            }}>
+                              {r.report_number || `#RPT-${r.id}`}
+                            </span>
+
+                            <span style={{
+                              fontSize: '0.64rem',
+                              fontWeight: 800,
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: isCatalog ? 'rgba(168, 85, 247, 0.12)' : 'rgba(14, 165, 233, 0.12)',
+                              color: isCatalog ? (isDark ? '#c084fc' : '#9333ea') : (isDark ? '#38bdf8' : '#0284c7'),
+                              border: `1px solid ${isCatalog ? 'rgba(168, 85, 247, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`
+                            }}>
+                              {isCatalog ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
+                            </span>
+
+                            {!isCatalog && (
+                              <span style={{
+                                fontSize: '0.64rem',
+                                fontWeight: 700,
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                                color: theme.textSecondary,
+                                border: `1px solid ${theme.border}`
+                              }}>
+                                {formatCatalogType(r.item_type || r.fauna?.product_type)}
+                              </span>
+                            )}
+
+                            <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                              • {r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : 'Baru'}
+                            </span>
+                          </div>
+
+                          <span style={{
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '999px',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            backgroundColor: currentBadge.bg,
+                            color: currentBadge.text,
+                            border: `1px solid ${currentBadge.border}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}>
+                            {currentBadge.label}
+                          </span>
+                        </div>
+
+                        {/* Middle Row: Entity Target & Violation Tags */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '180px' }}>
+                            <div style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '0.55rem',
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              {isCatalog ? <Store size={16} color="var(--primary)" /> : <Package size={16} color="var(--primary)" />}
+                            </div>
+                            <div>
+                              <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.25 }}>
+                                {isCatalog
+                                  ? (r.store_title || `Katalog /${r.store_slug}`)
+                                  : (r.item_name || 'Item')}
+                              </h4>
+                              <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                                {isCatalog ? `/${r.store_slug || '-'}` : (r.store_title ? `${r.store_title} (/${r.store_slug || '-'})` : `/${r.store_slug || '-'}`)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Chips / Pills: Violation Reason & Active Action */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              padding: '0.22rem 0.55rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              color: '#ef4444',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}>
+                              <ShieldAlert size={12} color="#ef4444" />
+                              <span>{r.reason_label || r.reason_category || 'Pelanggaran Aturan'}</span>
+                            </span>
+
+                            {hasAction && (
+                              <span style={{
+                                padding: '0.22rem 0.55rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: isRestored
+                                  ? 'rgba(16, 185, 129, 0.12)'
+                                  : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(244, 63, 94, 0.12)'),
+                                border: `1px solid ${isRestored
+                                  ? 'rgba(16, 185, 129, 0.3)'
+                                  : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.45)' : 'rgba(244, 63, 94, 0.3)')}`,
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                color: isRestored
+                                  ? (isDark ? '#34d399' : '#059669')
+                                  : (r.action_taken === 'catalog_banned' ? '#ef4444' : '#f43f5e'),
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}>
+                                <span>{r.action_taken === 'catalog_banned' ? '🚫' : '⚡'} {actionLabel}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {r.status === 're_review' && (
+                          <div style={{
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem'
+                          }}>
+                            <RefreshCw size={13} color="#10b981" />
+                            <span style={{ fontSize: '0.72rem', color: isDark ? '#34d399' : '#059669', fontWeight: 600 }}>
+                              Pemilik merchant telah mengajukan perbaikan item/katalog dan siap ditinjau ulang.
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Footer Row: Clean Action Buttons */}
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          alignItems: 'center',
+                          paddingTop: '0.5rem',
+                          borderTop: `1px solid ${theme.border}`,
+                          gap: '0.45rem'
+                        }}>
+                          {r.store_slug && (
+                            <a
+                              href={`/${r.store_slug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '0.55rem',
+                                backgroundColor: isDark ? '#334155' : '#f1f5f9',
+                                border: `1px solid ${theme.border}`,
+                                color: theme.textPrimary,
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                transition: 'opacity 0.15s ease'
+                              }}
+                            >
+                              <ExternalLink size={12} />
+                              <span>Inspeksi</span>
+                            </a>
+                          )}
+
+                          <button
+                            onClick={() => handleOpenModerationPage(r)}
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: '#f43f5e',
+                              border: '1px solid #f43f5e',
+                              color: '#ffffff',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              boxShadow: '0 2px 8px rgba(244, 63, 94, 0.25)',
+                              transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                            }}
+                          >
+                            <Sliders size={12} />
+                            <span>Kelola Tindakan</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+
+              {/* Desktop Enterprise Data Table Pagination Bar */}
+              {reportsPagination && reportsPagination.total > 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.85rem 1rem',
+                    backgroundColor: theme.surface,
+                    borderRadius: '0.9rem',
+                    border: `1px solid ${theme.border}`,
+                    marginTop: '0.75rem',
+                    boxShadow: theme.cardShadow,
+                    flexWrap: 'wrap',
+                    gap: '0.75rem'
+                  }}
+                >
+                  {/* Left: Summary & Per-Page Selector */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.76rem', color: theme.textSecondary }}>
+                      Menampilkan <strong>{Math.min((reportsPagination.page - 1) * reportsPagination.limit + 1, reportsPagination.total)}</strong> – <strong>{Math.min(reportsPagination.page * reportsPagination.limit, reportsPagination.total)}</strong> dari <strong>{reportsPagination.total}</strong> laporan
+                    </span>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>Baris:</span>
+                      <select
+                        value={reportsPagination.limit}
+                        onChange={(e) => {
+                          const newLimit = Number(e.target.value);
+                          fetchReportsList(1, reportsFilter, reportsTargetFilter, reportsSearchQuery, newLimit);
+                        }}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '0.45rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                          color: theme.textPrimary,
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          outline: 'none'
+                        }}
+                      >
+                        {[10, 20, 50, 100].map(sz => (
+                          <option key={sz} value={sz}>{sz}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Right: Numbered Page Navigation & Quick Jump */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {/* First Page */}
+                    <button
+                      type="button"
+                      title="Halaman Pertama"
+                      disabled={reportsPagination.page <= 1}
+                      onClick={() => fetchReportsList(1, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '0.5rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: theme.surface,
+                        color: reportsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
+                        cursor: reportsPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: reportsPagination.page <= 1 ? 0.4 : 1
+                      }}
+                    >
+                      <ChevronsLeft size={15} />
+                    </button>
+
+                    {/* Previous Page */}
+                    <button
+                      type="button"
+                      title="Halaman Sebelumnya"
+                      disabled={reportsPagination.page <= 1}
+                      onClick={() => fetchReportsList(reportsPagination.page - 1, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '0.5rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: theme.surface,
+                        color: reportsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
+                        cursor: reportsPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: reportsPagination.page <= 1 ? 0.4 : 1
+                      }}
+                    >
+                      <ChevronLeft size={15} />
+                    </button>
+
+                    {/* Numbered Page Buttons */}
+                    {(() => {
+                      const totalP = reportsPagination.total_pages || 1;
+                      const curP = reportsPagination.page;
+                      const btns: (number | string)[] = [];
+                      if (totalP <= 7) {
+                        for (let i = 1; i <= totalP; i++) btns.push(i);
+                      } else {
+                        btns.push(1);
+                        if (curP > 3) btns.push('...');
+                        const start = Math.max(2, curP - 1);
+                        const end = Math.min(totalP - 1, curP + 1);
+                        for (let i = start; i <= end; i++) btns.push(i);
+                        if (curP < totalP - 2) btns.push('...');
+                        btns.push(totalP);
+                      }
+
+                      return btns.map((b, idx) => {
+                        if (b === '...') {
+                          return (
+                            <span key={`dots-${idx}`} style={{ padding: '0 0.25rem', fontSize: '0.74rem', color: theme.textMuted }}>
+                              ...
+                            </span>
+                          );
+                        }
+                        const isCur = b === curP;
+                        return (
+                          <button
+                            key={`page-${b}`}
+                            type="button"
+                            onClick={() => fetchReportsList(Number(b), reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
+                            style={{
+                              minWidth: '32px',
+                              height: '32px',
+                              padding: '0 0.5rem',
+                              borderRadius: '0.5rem',
+                              border: isCur ? '1px solid #f43f5e' : `1px solid ${theme.border}`,
+                              backgroundColor: isCur ? '#f43f5e' : theme.surface,
+                              color: isCur ? '#ffffff' : theme.textPrimary,
+                              fontSize: '0.75rem',
+                              fontWeight: isCur ? 800 : 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {b}
+                          </button>
+                        );
+                      });
+                    })()}
+
+                    {/* Next Page */}
+                    <button
+                      type="button"
+                      title="Halaman Selanjutnya"
+                      disabled={reportsPagination.page >= reportsPagination.total_pages}
+                      onClick={() => fetchReportsList(reportsPagination.page + 1, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '0.5rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: theme.surface,
+                        color: reportsPagination.page >= reportsPagination.total_pages ? theme.textMuted : theme.textPrimary,
+                        cursor: reportsPagination.page >= reportsPagination.total_pages ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: reportsPagination.page >= reportsPagination.total_pages ? 0.4 : 1
+                      }}
+                    >
+                      <ChevronRight size={15} />
+                    </button>
+
+                    {/* Last Page */}
+                    <button
+                      type="button"
+                      title="Halaman Terakhir"
+                      disabled={reportsPagination.page >= reportsPagination.total_pages}
+                      onClick={() => fetchReportsList(reportsPagination.total_pages, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit)}
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '0.5rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: theme.surface,
+                        color: reportsPagination.page >= reportsPagination.total_pages ? theme.textMuted : theme.textPrimary,
+                        cursor: reportsPagination.page >= reportsPagination.total_pages ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: reportsPagination.page >= reportsPagination.total_pages ? 0.4 : 1
+                      }}
+                    >
+                      <ChevronsRight size={15} />
+                    </button>
+
+                    {/* Quick Jump Input */}
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const p = parseInt(reportsJumpPage, 10);
+                        if (!isNaN(p) && p >= 1 && p <= (reportsPagination.total_pages || 1)) {
+                          fetchReportsList(p, reportsFilter, reportsTargetFilter, reportsSearchQuery, reportsPagination.limit);
+                          setReportsJumpPage('');
+                        }
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.4rem' }}
+                    >
+                      <input
+                        type="number"
+                        min={1}
+                        max={reportsPagination.total_pages || 1}
+                        placeholder="Hal"
+                        value={reportsJumpPage}
+                        onChange={(e) => setReportsJumpPage(e.target.value)}
+                        style={{
+                          width: '48px',
+                          height: '32px',
+                          padding: '0 0.35rem',
+                          borderRadius: '0.45rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                          color: theme.textPrimary,
+                          fontSize: '0.74rem',
+                          textAlign: 'center',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={!reportsJumpPage}
+                        style={{
+                          height: '32px',
+                          padding: '0 0.65rem',
+                          borderRadius: '0.45rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: theme.surface,
+                          color: !reportsJumpPage ? theme.textMuted : theme.textPrimary,
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          cursor: !reportsJumpPage ? 'not-allowed' : 'pointer',
+                          opacity: !reportsJumpPage ? 0.5 : 1
+                        }}
+                      >
+                        Lompat
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        )}
+
+        {/* ========================================================================= */}
+        {/* 4. MODULE 4: HELPDESK & TIKET BANTUAN                                     */}
+        {/* ========================================================================= */}
+        {activeView === 'support' && canAccessSupport && (
+          selectedTicket ? (
+            /* ----------------------------------------------------------------------- */
+            /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
+            /* ----------------------------------------------------------------------- */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingBottom: '140px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+              {/* Agent Collision Warning Banner (Fase 5) */}
+              {activePresences.filter((p: any) => p.user_id !== currentUser?.id).length > 0 && (
+                <div style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  color: '#ef4444',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  boxShadow: '0 2px 10px rgba(239, 68, 68, 0.15)'
+                }}>
+                  <AlertTriangle size={17} style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <span>
+                      👀 <strong>{activePresences.filter((p: any) => p.user_id !== currentUser?.id).map((p: any) => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
+                      {activePresences.filter((p: any) => p.user_id !== currentUser?.id).some((p: any) => p.is_typing) ? ' dan sedang mengetik balasan...' : '.'}
+                    </span>
+                  </div>
                 </div>
               )}
 
-              {/* Two-Stage Lifecycle Grace Period & Locked Banners */}
-              {selectedTicket.status === 'resolved' && (
-                <div style={{
-                  marginTop: '0.65rem',
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
-                  border: '1px solid rgba(16, 185, 129, 0.35)',
-                  color: isDark ? '#34d399' : '#047857',
-                  fontSize: '0.74rem',
-                  lineHeight: 1.45,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.35rem'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
-                    <CheckCircle2 size={14} color="#10b981" />
-                    <span>Tiket Terselesaikan (Masa Sanggah 7 Hari)</span>
+              {/* 1. Ticket Meta & Status Controller Header Card */}
+              <div style={{
+                padding: '1rem 1.15rem',
+                borderRadius: '1.2rem',
+                backgroundColor: theme.surface,
+                border: `1px solid ${theme.border}`,
+                boxShadow: theme.cardShadow,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem'
+              }}>
+                {/* Back to Ticket List Button (Desktop & Tablet) */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleCloseTicketChat}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '0.55rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc',
+                      color: theme.textSecondary,
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.1)' : '#f1f5f9';
+                      e.currentTarget.style.color = theme.textPrimary;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc';
+                      e.currentTarget.style.color = theme.textSecondary;
+                    }}
+                  >
+                    <ArrowLeft size={14} />
+                    <span>Kembali ke Daftar Tiket</span>
+                  </button>
+                </div>
+
+                {/* Subject, Ticket Number & Date */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'rgba(6, 182, 212, 0.1)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(6, 182, 212, 0.25)', marginBottom: '0.25rem' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#06b6d4', letterSpacing: '0.02em', textTransform: 'uppercase', fontFamily: 'monospace' }}>
+                        {selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`}
+                      </span>
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em', lineHeight: 1.35 }}>
+                      {selectedTicket.subject || 'Tiket Pertanyaan Pengguna'}
+                    </h3>
                   </div>
-                  <p style={{ margin: 0, fontSize: '0.7rem' }}>
-                    Tiket akan otomatis ditutup permanen (Read-Only) jika tidak ada balasan lebih lanjut dari merchant.
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.15rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'closed')}
-                      style={{
-                        padding: '0.35rem 0.65rem',
-                        borderRadius: '0.45rem',
-                        backgroundColor: isDark ? 'rgba(100, 116, 139, 0.2)' : 'rgba(100, 116, 139, 0.1)',
-                        border: `1px solid ${isDark ? 'rgba(100, 116, 139, 0.4)' : 'rgba(100, 116, 139, 0.25)'}`,
-                        color: isDark ? '#cbd5e1' : '#334155',
-                        fontSize: '0.68rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem'
-                      }}
-                    >
-                      <Lock size={12} />
-                      <span>Kunci &amp; Tutup Sekarang</span>
-                    </button>
+                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, whiteSpace: 'nowrap', paddingTop: '0.15rem', fontWeight: 600 }}>
+                    {formatSupportDateTime(selectedTicket.created_at)}
+                  </span>
+                </div>
+
+                {/* Merchant Identity & Meta Chips */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                  {/* Store Profile Identity Chip */}
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.22rem 0.6rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    fontSize: '0.68rem',
+                    fontWeight: 800
+                  }}>
+                    <Store size={12} />
+                    <span>{getStoreDisplayName(selectedTicket)}</span>
+                    <span style={{
+                      fontSize: '0.55rem',
+                      padding: '0.06rem 0.35rem',
+                      borderRadius: '4px',
+                      background: getStorePlanBadge(selectedTicket) === 'ENTERPRISE'
+                        ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)'
+                        : getStorePlanBadge(selectedTicket) === 'PRO'
+                          ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                          : (isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(100, 116, 139, 0.15)'),
+                      color: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' || getStorePlanBadge(selectedTicket) === 'PRO' ? '#ffffff' : (isDark ? '#94a3b8' : '#475569'),
+                      fontWeight: 800,
+                      letterSpacing: '0.03em',
+                      boxShadow: getStorePlanBadge(selectedTicket) === 'ENTERPRISE'
+                        ? '0 1px 3px rgba(124, 58, 237, 0.3)'
+                        : getStorePlanBadge(selectedTicket) === 'PRO'
+                          ? '0 1px 3px rgba(217, 119, 6, 0.35)'
+                          : 'none'
+                    }}>
+                      {getStorePlanBadge(selectedTicket)}
+                    </span>
+                  </div>
+
+                  {/* Requester / Account Identity Chip */}
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.22rem 0.55rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                    color: theme.textSecondary,
+                    border: `1px solid ${theme.border}`,
+                    fontSize: '0.67rem',
+                    fontWeight: 600
+                  }}>
+                    <User size={11} style={{ color: theme.textMuted }} />
+                    <span style={{ color: theme.textPrimary, fontWeight: 700 }}>{getUserRequesterName(selectedTicket)}</span>
+                    {(selectedTicket.user?.email || selectedTicket.user_email) && (
+                      <span style={{ opacity: 0.8, fontSize: '0.62rem' }}>
+                        ({selectedTicket.user?.email || selectedTicket.user_email})
+                      </span>
+                    )}
+                  </div>
+
+                  <span style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: theme.cardAlt,
+                    color: theme.textSecondary,
+                    border: `1px solid ${theme.border}`
+                  }}>
+                    {
+                      selectedTicket.category === 'billing' ? 'Keuangan & Langganan' :
+                        selectedTicket.category === 'technical' ? 'Kendala Teknis & Bug' :
+                          selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog & Item' :
+                            selectedTicket.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
+                    }
+                  </span>
+
+                  <span style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(6, 182, 212, 0.12)',
+                    color: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? '#ef4444' : '#06b6d4',
+                    border: `1px solid ${selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(6, 182, 212, 0.25)'}`
+                  }}>
+                    Urgensi: {String(selectedTicket.priority || 'medium').toUpperCase()}
+                  </span>
+
+                  {/* Status Badge Chip (Clean, compact & opens standard bottom sheet) */}
+                  {(() => {
+                    const statusMeta = getTicketStatusMeta(selectedTicket.status);
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setShowFooterStatusMenu(true)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: statusMeta.bg,
+                          color: statusMeta.color,
+                          border: `1px solid ${statusMeta.border}`,
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Klik untuk ubah status pengerjaan tiket"
+                      >
+                        <span style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          backgroundColor: statusMeta.color,
+                          display: 'inline-block',
+                          boxShadow: `0 0 6px ${statusMeta.color}88`
+                        }} />
+                        <span>{statusMeta.label}</span>
+                      </button>
+                    );
+                  })()}
+                </div>
+
+                {/* CSAT Rating Card if Rated (Fase 2) */}
+                {selectedTicket.rating && (
+                  <div style={{
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Star size={13} fill="#f59e0b" color="#f59e0b" /> Ulasan Kepuasan Merchant (CSAT)
+                      </span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 900, color: '#f59e0b' }}>
+                        {selectedTicket.rating} / 5 Bintang
+                      </span>
+                    </div>
+                    {selectedTicket.rating_comment && (
+                      <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary, fontStyle: 'italic', lineHeight: 1.4 }}>
+                        "{selectedTicket.rating_comment}"
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* SLA Status Card (Fase 3) */}
+                {selectedTicket.sla_due_at && (
+                  <div style={{
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: selectedTicket.sla_breached ? 'rgba(239, 68, 68, 0.08)' : (selectedTicket.first_response_at ? 'rgba(16, 185, 129, 0.08)' : 'rgba(56, 189, 248, 0.08)'),
+                    border: `1px solid ${selectedTicket.sla_breached ? 'rgba(239, 68, 68, 0.25)' : (selectedTicket.first_response_at ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.25)')}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    color: selectedTicket.sla_breached ? '#ef4444' : (selectedTicket.first_response_at ? '#10b981' : (isDark ? '#38bdf8' : '#0284c7'))
+                  }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Clock size={12} /> Target Respon Pertama:
+                    </span>
+                    <span>
+                      {selectedTicket.sla_breached ? '⚠️ Melewati SLA' : (selectedTicket.first_response_at ? '✓ Terpenuhi Tepat Waktu' : 'Sedang Berjalan')}
+                    </span>
+                  </div>
+                )}
+
+                {/* Two-Stage Lifecycle Grace Period & Locked Banners */}
+                {selectedTicket.status === 'resolved' && (
+                  <div style={{
+                    marginTop: '0.65rem',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    color: isDark ? '#34d399' : '#047857',
+                    fontSize: '0.74rem',
+                    lineHeight: 1.45,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.35rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
+                      <CheckCircle2 size={14} color="#10b981" />
+                      <span>Tiket Terselesaikan (Masa Sanggah 7 Hari)</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.7rem' }}>
+                      Tiket akan otomatis ditutup permanen (Read-Only) jika tidak ada balasan lebih lanjut dari merchant.
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.15rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'closed')}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          backgroundColor: isDark ? 'rgba(100, 116, 139, 0.2)' : 'rgba(100, 116, 139, 0.1)',
+                          border: `1px solid ${isDark ? 'rgba(100, 116, 139, 0.4)' : 'rgba(100, 116, 139, 0.25)'}`,
+                          color: isDark ? '#cbd5e1' : '#334155',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <Lock size={12} />
+                        <span>Kunci &amp; Tutup Sekarang</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'in_progress')}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          backgroundColor: 'transparent',
+                          border: `1px solid ${theme.border}`,
+                          color: theme.textSecondary,
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <RefreshCw size={12} />
+                        <span>Buka Kembali</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedTicket.status === 'closed' && (
+                  <div style={{
+                    marginTop: '0.65rem',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(100, 116, 139, 0.15)' : 'rgba(100, 116, 139, 0.08)',
+                    border: '1px solid rgba(100, 116, 139, 0.35)',
+                    color: isDark ? '#94a3b8' : '#475569',
+                    fontSize: '0.74rem',
+                    lineHeight: 1.45,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
+                      <Lock size={14} />
+                      <span>Arsip Permanen (Read-Only)</span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'in_progress')}
                       style={{
-                        padding: '0.35rem 0.65rem',
+                        padding: '0.25rem 0.6rem',
                         borderRadius: '0.45rem',
-                        backgroundColor: 'transparent',
-                        border: `1px solid ${theme.border}`,
-                        color: theme.textSecondary,
+                        backgroundColor: isDark ? 'rgba(6, 182, 212, 0.15)' : 'rgba(6, 182, 212, 0.1)',
+                        border: '1px solid rgba(6, 182, 212, 0.3)',
+                        color: '#06b6d4',
                         fontSize: '0.68rem',
                         fontWeight: 700,
                         cursor: 'pointer',
+                        whiteSpace: 'nowrap',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.35rem'
+                        gap: '0.3rem'
                       }}
                     >
                       <RefreshCw size={12} />
                       <span>Buka Kembali</span>
                     </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {selectedTicket.status === 'closed' && (
-                <div style={{
-                  marginTop: '0.65rem',
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(100, 116, 139, 0.15)' : 'rgba(100, 116, 139, 0.08)',
-                  border: '1px solid rgba(100, 116, 139, 0.35)',
-                  color: isDark ? '#94a3b8' : '#475569',
-                  fontSize: '0.74rem',
-                  lineHeight: 1.45,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.5rem'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
-                    <Lock size={14} />
-                    <span>Arsip Permanen (Read-Only)</span>
+              {/* 2. Messages Thread Stream */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {/* Interactive Message Bubbles Feed */}
+                {ticketDetailsLoading ? (
+                  <div style={{ padding: '2.5rem', textAlign: 'center', color: theme.textSecondary, fontSize: '0.8rem' }}>
+                    <RefreshCw size={22} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#06b6d4' }} />
+                    Memuat riwayat percakapan tiket...
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'in_progress')}
-                    style={{
-                      padding: '0.25rem 0.6rem',
-                      borderRadius: '0.45rem',
-                      backgroundColor: isDark ? 'rgba(6, 182, 212, 0.15)' : 'rgba(6, 182, 212, 0.1)',
-                      border: '1px solid rgba(6, 182, 212, 0.3)',
-                      color: '#06b6d4',
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.3rem'
-                    }}
-                  >
-                    <RefreshCw size={12} />
-                    <span>Buka Kembali</span>
-                  </button>
-                </div>
-              )}
-            </div>
+                ) : (!selectedTicket.messages || selectedTicket.messages.length === 0) ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: theme.textMuted, fontSize: '0.8rem' }}>
+                    Belum ada pesan dalam tiket ini.
+                  </div>
+                ) : (
+                  (() => {
+                    const firstUnreadIdx = selectedTicket.messages.findIndex((msg: any) => msg.sender_type === 'user' && !msg.read_at);
+                    return selectedTicket.messages.map((msg: any, idx: number) => {
+                      const isAgent = msg.sender_type === 'agent' || msg.is_admin;
+                      const isInternal = msg.is_internal_note;
+                      const isSystemBot = msg.sender_type === 'system';
+                      const isInitialInquiry = idx === 0 && !isAgent && !isInternal && !isSystemBot;
+                      const merchantName = getMerchantDisplayName(selectedTicket, msg.sender);
+                      const showUnreadDivider = firstUnreadIdx > 0 && idx === firstUnreadIdx;
 
-            {/* 2. Messages Thread Stream */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {/* Interactive Message Bubbles Feed */}
-              {ticketDetailsLoading ? (
-                <div style={{ padding: '2.5rem', textAlign: 'center', color: theme.textSecondary, fontSize: '0.8rem' }}>
-                  <RefreshCw size={22} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#06b6d4' }} />
-                  Memuat riwayat percakapan tiket...
-                </div>
-              ) : (!selectedTicket.messages || selectedTicket.messages.length === 0) ? (
-                <div style={{ padding: '2rem', textAlign: 'center', color: theme.textMuted, fontSize: '0.8rem' }}>
-                  Belum ada pesan dalam tiket ini.
-                </div>
-              ) : (
-                (() => {
-                  const firstUnreadIdx = selectedTicket.messages.findIndex((msg: any) => msg.sender_type === 'user' && !msg.read_at);
-                  return selectedTicket.messages.map((msg: any, idx: number) => {
-                    const isAgent = msg.sender_type === 'agent' || msg.is_admin;
-                    const isInternal = msg.is_internal_note;
-                    const isSystemBot = msg.sender_type === 'system';
-                    const isInitialInquiry = idx === 0 && !isAgent && !isInternal && !isSystemBot;
-                    const merchantName = getMerchantDisplayName(selectedTicket, msg.sender);
-                    const showUnreadDivider = firstUnreadIdx > 0 && idx === firstUnreadIdx;
+                      return (
+                        <React.Fragment key={msg.id || idx}>
+                          {showUnreadDivider && (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.65rem',
+                                margin: '0.65rem 0',
+                                width: '100%'
+                              }}
+                            >
+                              <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(6, 182, 212, 0.4)' }} />
+                              <span style={{
+                                fontSize: '0.64rem',
+                                fontWeight: 800,
+                                color: isDark ? '#38bdf8' : '#0284c7',
+                                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                                padding: '0.15rem 0.55rem',
+                                borderRadius: '999px',
+                                border: '1px solid rgba(6, 182, 212, 0.35)',
+                                letterSpacing: '0.02em',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}>
+                                <span style={{ display: 'inline-block', width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#06b6d4' }} />
+                                Pesan Baru Belum Terbaca
+                              </span>
+                              <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(6, 182, 212, 0.4)' }} />
+                            </div>
+                          )}
 
-                    return (
-                      <React.Fragment key={msg.id || idx}>
-                        {showUnreadDivider && (
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.65rem',
-                              margin: '0.65rem 0',
-                              width: '100%'
-                            }}
-                          >
-                            <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(6, 182, 212, 0.4)' }} />
-                            <span style={{
-                              fontSize: '0.64rem',
-                              fontWeight: 800,
-                              color: isDark ? '#38bdf8' : '#0284c7',
-                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
-                              padding: '0.15rem 0.55rem',
-                              borderRadius: '999px',
-                              border: '1px solid rgba(6, 182, 212, 0.35)',
-                              letterSpacing: '0.02em',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}>
-                              <span style={{ display: 'inline-block', width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#06b6d4' }} />
-                              Pesan Baru Belum Terbaca
-                            </span>
-                            <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(6, 182, 212, 0.4)' }} />
-                          </div>
-                        )}
-
-                        {isSystemBot ? (
-                          <div
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              gap: '0.2rem',
-                              width: '100%',
-                              maxWidth: '100%',
-                              boxSizing: 'border-box',
-                              margin: '0.35rem 0'
-                            }}
-                          >
-                            <div style={{
-                              maxWidth: '96%',
-                              width: '100%',
-                              boxSizing: 'border-box',
-                              overflowWrap: 'anywhere',
-                              wordBreak: 'break-word',
-                              padding: '0.85rem 1rem',
-                              borderRadius: '1rem',
-                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.06)',
-                              border: isDark ? '1px solid rgba(56, 189, 248, 0.28)' : '1px solid rgba(2, 132, 199, 0.2)',
-                              color: theme.textPrimary,
-                              boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(2, 132, 199, 0.04)'
-                            }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                  <Bot size={14} color={isDark ? '#38bdf8' : '#0284c7'} />
-                                  <strong style={{ fontSize: '0.74rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 800 }}>
-                                    Sistem Otomatis Catavor
-                                  </strong>
+                          {isSystemBot ? (
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '0.2rem',
+                                width: '100%',
+                                maxWidth: '100%',
+                                boxSizing: 'border-box',
+                                margin: '0.35rem 0'
+                              }}
+                            >
+                              <div style={{
+                                maxWidth: '96%',
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                overflowWrap: 'anywhere',
+                                wordBreak: 'break-word',
+                                padding: '0.85rem 1rem',
+                                borderRadius: '1rem',
+                                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.06)',
+                                border: isDark ? '1px solid rgba(56, 189, 248, 0.28)' : '1px solid rgba(2, 132, 199, 0.2)',
+                                color: theme.textPrimary,
+                                boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(2, 132, 199, 0.04)'
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    <Bot size={14} color={isDark ? '#38bdf8' : '#0284c7'} />
+                                    <strong style={{ fontSize: '0.74rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 800 }}>
+                                      Sistem Otomatis Catavor
+                                    </strong>
+                                  </div>
+                                  <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
+                                    {formatSupportDateTime(msg.created_at)}
+                                  </span>
                                 </div>
-                                <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
+                                <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                  {msg.message}
+                                </p>
+                              </div>
+                            </div>
+                          ) : isInternal ? (
+                            <div
+                              style={{
+                                padding: '0.85rem 1rem',
+                                borderRadius: '1rem',
+                                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                                border: isDark ? '1px dashed rgba(245, 158, 11, 0.45)' : '1px dashed rgba(245, 158, 11, 0.5)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.35rem',
+                                maxWidth: '100%',
+                                boxSizing: 'border-box',
+                                overflowWrap: 'anywhere',
+                                wordBreak: 'break-word'
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  <Lock size={12} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
+                                </span>
+                                <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600 }}>
                                   {formatSupportDateTime(msg.created_at)}
                                 </span>
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontWeight: 600 }}>
+                                Oleh: {msg.sender?.name || 'Staf Admin'}
                               </div>
                               <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
                                 {msg.message}
                               </p>
                             </div>
-                          </div>
-                        ) : isInternal ? (
-                          <div
-                            style={{
-                              padding: '0.85rem 1rem',
-                              borderRadius: '1rem',
-                              backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                              border: isDark ? '1px dashed rgba(245, 158, 11, 0.45)' : '1px dashed rgba(245, 158, 11, 0.5)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.35rem',
-                              maxWidth: '100%',
-                              boxSizing: 'border-box',
-                              overflowWrap: 'anywhere',
-                              wordBreak: 'break-word'
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                <Lock size={12} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
-                              </span>
-                              <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600 }}>
-                                {formatSupportDateTime(msg.created_at)}
-                              </span>
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontWeight: 600 }}>
-                              Oleh: {msg.sender?.name || 'Staf Admin'}
-                            </div>
-                            <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                              {msg.message}
-                            </p>
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: isAgent ? 'flex-end' : 'flex-start',
-                              gap: '0.2rem',
-                              maxWidth: '100%',
-                              boxSizing: 'border-box'
-                            }}
-                          >
-                            <div style={{
-                              maxWidth: isInitialInquiry ? '100%' : '90%',
-                              width: isInitialInquiry ? '100%' : 'auto',
-                              minWidth: (msg.attachments && msg.attachments.length > 0) ? '250px' : undefined,
-                              boxSizing: 'border-box',
-                              overflowWrap: 'anywhere',
-                              wordBreak: 'break-word',
-                              padding: '0.95rem 1.1rem',
-                              borderRadius: isInitialInquiry 
-                                ? '1.15rem' 
-                                : isAgent 
-                                  ? '1.1rem 1.1rem 0.25rem 1.1rem' 
-                                  : '1.1rem 1.1rem 1.1rem 0.25rem',
-                              backgroundColor: isInitialInquiry
-                                ? (isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.05)')
-                                : isAgent 
-                                  ? (isDark ? 'rgba(6, 182, 212, 0.18)' : 'rgba(2, 132, 199, 0.12)')
-                                  : theme.surface,
-                              color: theme.textPrimary,
-                              border: isInitialInquiry
-                                ? (isDark ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
-                                : isAgent 
-                                  ? (isDark ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
-                                  : `1px solid ${theme.border}`,
-                              boxShadow: isInitialInquiry ? (isDark ? '0 4px 16px rgba(0,0,0,0.3)' : '0 4px 16px rgba(2, 132, 199, 0.08)') : theme.cardShadow
-                            }}>
-                              {/* Bubble Sender Label & Time */}
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.38rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-                                  {isAgent ? (
-                                    <ShieldCheck size={13} color="#06b6d4" />
-                                  ) : (
-                                    <Store size={13} color={isDark ? '#38bdf8' : '#0284c7'} />
-                                  )}
-                                  <strong style={{ fontSize: '0.74rem', color: isAgent ? '#06b6d4' : (isDark ? '#38bdf8' : '#0284c7'), fontWeight: 800 }}>
-                                    {isAgent ? (msg.sender?.name || 'Catavor Support (Staf)') : getStoreDisplayName(selectedTicket)}
-                                  </strong>
-                                  {!isAgent && (
-                                    <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600 }}>
-                                      ({getUserRequesterName(selectedTicket, msg.sender)})
-                                    </span>
-                                  )}
-                                </div>
-                                <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
-                                  {formatSupportDateTime(msg.created_at)}
-                                </span>
-                              </div>
-
-                              {/* Message Text (Only rendered if message text exists) */}
-                              {msg.message ? (
-                                <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                                  {msg.message}
-                                </p>
-                              ) : null}
-
-                              {/* Attached Files & Documents */}
-                              {msg.attachments && msg.attachments.length > 0 && (
-                                <div style={{ 
-                                  marginTop: msg.message ? '0.65rem' : '0.2rem', 
-                                  paddingTop: msg.message ? '0.5rem' : '0', 
-                                  borderTop: msg.message ? `1px solid ${theme.border}` : 'none' 
-                                }}>
-                                  <div style={{ fontSize: '0.67rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                    <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran Berkas:
+                          ) : (
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: isAgent ? 'flex-end' : 'flex-start',
+                                gap: '0.2rem',
+                                maxWidth: '100%',
+                                boxSizing: 'border-box'
+                              }}
+                            >
+                              <div style={{
+                                maxWidth: isInitialInquiry ? '100%' : '90%',
+                                width: isInitialInquiry ? '100%' : 'auto',
+                                minWidth: (msg.attachments && msg.attachments.length > 0) ? '250px' : undefined,
+                                boxSizing: 'border-box',
+                                overflowWrap: 'anywhere',
+                                wordBreak: 'break-word',
+                                padding: '0.95rem 1.1rem',
+                                borderRadius: isInitialInquiry
+                                  ? '1.15rem'
+                                  : isAgent
+                                    ? '1.1rem 1.1rem 0.25rem 1.1rem'
+                                    : '1.1rem 1.1rem 1.1rem 0.25rem',
+                                backgroundColor: isInitialInquiry
+                                  ? (isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.05)')
+                                  : isAgent
+                                    ? (isDark ? 'rgba(6, 182, 212, 0.18)' : 'rgba(2, 132, 199, 0.12)')
+                                    : theme.surface,
+                                color: theme.textPrimary,
+                                border: isInitialInquiry
+                                  ? (isDark ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
+                                  : isAgent
+                                    ? (isDark ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
+                                    : `1px solid ${theme.border}`,
+                                boxShadow: isInitialInquiry ? (isDark ? '0 4px 16px rgba(0,0,0,0.3)' : '0 4px 16px rgba(2, 132, 199, 0.08)') : theme.cardShadow
+                              }}>
+                                {/* Bubble Sender Label & Time */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.38rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                                    {isAgent ? (
+                                      <ShieldCheck size={13} color="#06b6d4" />
+                                    ) : (
+                                      <Store size={13} color={isDark ? '#38bdf8' : '#0284c7'} />
+                                    )}
+                                    <strong style={{ fontSize: '0.74rem', color: isAgent ? '#06b6d4' : (isDark ? '#38bdf8' : '#0284c7'), fontWeight: 800 }}>
+                                      {isAgent ? (msg.sender?.name || 'Catavor Support (Staf)') : getStoreDisplayName(selectedTicket)}
+                                    </strong>
+                                    {!isAgent && (
+                                      <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600 }}>
+                                        ({getUserRequesterName(selectedTicket, msg.sender)})
+                                      </span>
+                                    )}
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                                    {msg.attachments.map((att: any, aIdx: number) => {
-                                      const isPDF = (att.file_type || '').includes('pdf') || 
-                                        (att.file_name || '').toLowerCase().endsWith('.pdf') || 
-                                        (att.file_url || '').toLowerCase().endsWith('.pdf');
-                                      const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
-                                        /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
-                                        /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+                                  <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
+                                    {formatSupportDateTime(msg.created_at)}
+                                  </span>
+                                </div>
 
-                                      return (
-                                        <div
-                                          key={aIdx}
-                                          role="button"
-                                          tabIndex={0}
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '0.55rem',
-                                            padding: '0.65rem 0.75rem',
-                                            borderRadius: '0.8rem',
-                                            backgroundColor: isDark 
-                                              ? (isAgent ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.05)')
-                                              : (isAgent ? '#ffffff' : '#f8fafc'),
-                                            border: isDark
-                                              ? (isAgent ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(255, 255, 255, 0.12)')
-                                              : (isAgent ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid #e2e8f0'),
-                                            boxShadow: isDark
-                                              ? '0 2px 10px rgba(0, 0, 0, 0.3)'
-                                              : (isAgent ? '0 2px 10px rgba(2, 132, 199, 0.08)' : '0 2px 8px rgba(15, 23, 42, 0.05)'),
-                                            color: isDark ? '#ffffff' : '#0f172a',
-                                            minWidth: '220px',
-                                            maxWidth: '380px',
-                                            width: '100%',
-                                            boxSizing: 'border-box',
-                                            transition: 'all 0.15s ease'
-                                          }}
-                                        >
-                                          {/* Tier 1: File Header Info */}
+                                {/* Message Text (Only rendered if message text exists) */}
+                                {msg.message ? (
+                                  <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                    {msg.message}
+                                  </p>
+                                ) : null}
+
+                                {/* Attached Files & Documents */}
+                                {msg.attachments && msg.attachments.length > 0 && (
+                                  <div style={{
+                                    marginTop: msg.message ? '0.65rem' : '0.2rem',
+                                    paddingTop: msg.message ? '0.5rem' : '0',
+                                    borderTop: msg.message ? `1px solid ${theme.border}` : 'none'
+                                  }}>
+                                    <div style={{ fontSize: '0.67rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                      <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran Berkas:
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                                      {msg.attachments.map((att: any, aIdx: number) => {
+                                        const isPDF = (att.file_type || '').includes('pdf') ||
+                                          (att.file_name || '').toLowerCase().endsWith('.pdf') ||
+                                          (att.file_url || '').toLowerCase().endsWith('.pdf');
+                                        const isImage = (att.file_type && att.file_type.startsWith('image/')) ||
+                                          /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') ||
+                                          /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
+
+                                        return (
                                           <div
-                                            onClick={() => openDocumentPreview(att)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', width: '100%' }}
-                                            title="Klik untuk pratinjau berkas di aplikasi"
-                                          >
-                                            <div style={{
-                                              width: '36px',
-                                              height: '36px',
-                                              borderRadius: '0.5rem',
-                                              backgroundColor: isPDF 
-                                                ? (isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2')
-                                                : (isDark ? 'rgba(14, 165, 233, 0.18)' : '#e0f2fe'),
-                                              border: isPDF
-                                                ? (isDark ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid #fca5a5')
-                                                : (isDark ? '1px solid rgba(14, 165, 233, 0.4)' : '1px solid #bae6fd'),
+                                            key={aIdx}
+                                            role="button"
+                                            tabIndex={0}
+                                            style={{
                                               display: 'flex',
-                                              alignItems: 'center',
-                                              justifyContent: 'center',
-                                              flexShrink: 0
+                                              flexDirection: 'column',
+                                              gap: '0.55rem',
+                                              padding: '0.65rem 0.75rem',
+                                              borderRadius: '0.8rem',
+                                              backgroundColor: isDark
+                                                ? (isAgent ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.05)')
+                                                : (isAgent ? '#ffffff' : '#f8fafc'),
+                                              border: isDark
+                                                ? (isAgent ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(255, 255, 255, 0.12)')
+                                                : (isAgent ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid #e2e8f0'),
+                                              boxShadow: isDark
+                                                ? '0 2px 10px rgba(0, 0, 0, 0.3)'
+                                                : (isAgent ? '0 2px 10px rgba(2, 132, 199, 0.08)' : '0 2px 8px rgba(15, 23, 42, 0.05)'),
+                                              color: isDark ? '#ffffff' : '#0f172a',
+                                              minWidth: '220px',
+                                              maxWidth: '380px',
+                                              width: '100%',
+                                              boxSizing: 'border-box',
+                                              transition: 'all 0.15s ease'
+                                            }}
+                                          >
+                                            {/* Tier 1: File Header Info */}
+                                            <div
+                                              onClick={() => openDocumentPreview(att)}
+                                              style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', width: '100%' }}
+                                              title="Klik untuk pratinjau berkas di aplikasi"
+                                            >
+                                              <div style={{
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '0.5rem',
+                                                backgroundColor: isPDF
+                                                  ? (isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2')
+                                                  : (isDark ? 'rgba(14, 165, 233, 0.18)' : '#e0f2fe'),
+                                                border: isPDF
+                                                  ? (isDark ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid #fca5a5')
+                                                  : (isDark ? '1px solid rgba(14, 165, 233, 0.4)' : '1px solid #bae6fd'),
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0
+                                              }}>
+                                                {isPDF ? (
+                                                  <FileText size={18} color={isDark ? '#f87171' : '#dc2626'} />
+                                                ) : (
+                                                  <ImageIcon size={18} color={isDark ? '#38bdf8' : '#0284c7'} />
+                                                )}
+                                              </div>
+                                              <div style={{ minWidth: 0, flex: 1 }}>
+                                                <div style={{
+                                                  fontWeight: 700,
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis',
+                                                  whiteSpace: 'nowrap',
+                                                  fontSize: '0.78rem',
+                                                  color: isDark ? '#ffffff' : '#0f172a',
+                                                  lineHeight: 1.3
+                                                }}>
+                                                  {att.file_name || (isPDF ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran')}
+                                                </div>
+                                                <div style={{
+                                                  fontSize: '0.65rem',
+                                                  color: isDark ? '#94a3b8' : '#64748b',
+                                                  marginTop: '0.12rem',
+                                                  fontWeight: 600,
+                                                  whiteSpace: 'nowrap',
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis'
+                                                }}>
+                                                  {isPDF ? 'Dokumen PDF' : isImage ? 'Lampiran Gambar' : 'Berkas Lampiran'} {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            {/* Tier 2: Action Buttons Row */}
+                                            <div style={{
+                                              display: 'grid',
+                                              gridTemplateColumns: '1fr 1fr',
+                                              gap: '0.45rem',
+                                              paddingTop: '0.5rem',
+                                              borderTop: isDark
+                                                ? (isAgent ? '1px solid rgba(6, 182, 212, 0.25)' : '1px solid rgba(255, 255, 255, 0.1)')
+                                                : (isAgent ? '1px solid rgba(2, 132, 199, 0.15)' : '1px solid #e2e8f0'),
+                                              width: '100%',
+                                              boxSizing: 'border-box'
                                             }}>
-                                              {isPDF ? (
-                                                <FileText size={18} color={isDark ? '#f87171' : '#dc2626'} />
-                                              ) : (
-                                                <ImageIcon size={18} color={isDark ? '#38bdf8' : '#0284c7'} />
-                                              )}
-                                            </div>
-                                            <div style={{ minWidth: 0, flex: 1 }}>
-                                              <div style={{
-                                                fontWeight: 700,
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                                fontSize: '0.78rem',
-                                                color: isDark ? '#ffffff' : '#0f172a',
-                                                lineHeight: 1.3
-                                              }}>
-                                                {att.file_name || (isPDF ? 'Dokumen.pdf' : isImage ? 'Lampiran_Gambar.jpg' : 'Berkas_Lampiran')}
-                                              </div>
-                                              <div style={{
-                                                fontSize: '0.65rem',
-                                                color: isDark ? '#94a3b8' : '#64748b',
-                                                marginTop: '0.12rem',
-                                                fontWeight: 600,
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis'
-                                              }}>
-                                                {isPDF ? 'Dokumen PDF' : isImage ? 'Lampiran Gambar' : 'Berkas Lampiran'} {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
-                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
+                                                style={{
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  gap: '0.3rem',
+                                                  padding: '0.38rem 0.5rem',
+                                                  borderRadius: '0.45rem',
+                                                  backgroundColor: isDark ? '#0ea5e9' : '#0284c7',
+                                                  color: '#ffffff',
+                                                  border: 'none',
+                                                  fontSize: '0.72rem',
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer',
+                                                  boxShadow: isDark ? '0 2px 10px rgba(14, 165, 233, 0.35)' : '0 2px 8px rgba(2, 132, 199, 0.25)'
+                                                }}
+                                                title="Lihat Pratinjau Berkas"
+                                              >
+                                                <Eye size={12} strokeWidth={2.2} /> Preview
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => handleDownloadDocument(att, e)}
+                                                style={{
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  gap: '0.3rem',
+                                                  padding: '0.38rem 0.5rem',
+                                                  borderRadius: '0.45rem',
+                                                  backgroundColor: isDark
+                                                    ? 'rgba(255, 255, 255, 0.08)'
+                                                    : (isAgent ? 'rgba(2, 132, 199, 0.06)' : '#ffffff'),
+                                                  color: isDark
+                                                    ? '#f8fafc'
+                                                    : (isAgent ? '#0369a1' : '#334155'),
+                                                  border: isDark
+                                                    ? '1px solid rgba(255, 255, 255, 0.2)'
+                                                    : (isAgent ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid #cbd5e1'),
+                                                  fontSize: '0.72rem',
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer'
+                                                }}
+                                                title="Unduh Berkas ke Perangkat"
+                                              >
+                                                <Download size={12} strokeWidth={2.2} /> Unduh
+                                              </button>
                                             </div>
                                           </div>
-
-                                          {/* Tier 2: Action Buttons Row */}
-                                          <div style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: '1fr 1fr',
-                                            gap: '0.45rem',
-                                            paddingTop: '0.5rem',
-                                            borderTop: isDark
-                                              ? (isAgent ? '1px solid rgba(6, 182, 212, 0.25)' : '1px solid rgba(255, 255, 255, 0.1)')
-                                              : (isAgent ? '1px solid rgba(2, 132, 199, 0.15)' : '1px solid #e2e8f0'),
-                                            width: '100%',
-                                            boxSizing: 'border-box'
-                                          }}>
-                                            <button
-                                              type="button"
-                                              onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
-                                              style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '0.3rem',
-                                                padding: '0.38rem 0.5rem',
-                                                borderRadius: '0.45rem',
-                                                backgroundColor: isDark ? '#0ea5e9' : '#0284c7',
-                                                color: '#ffffff',
-                                                border: 'none',
-                                                fontSize: '0.72rem',
-                                                fontWeight: 700,
-                                                cursor: 'pointer',
-                                                boxShadow: isDark ? '0 2px 10px rgba(14, 165, 233, 0.35)' : '0 2px 8px rgba(2, 132, 199, 0.25)'
-                                              }}
-                                              title="Lihat Pratinjau Berkas"
-                                            >
-                                              <Eye size={12} strokeWidth={2.2} /> Preview
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={(e) => handleDownloadDocument(att, e)}
-                                              style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '0.3rem',
-                                                padding: '0.38rem 0.5rem',
-                                                borderRadius: '0.45rem',
-                                                backgroundColor: isDark 
-                                                  ? 'rgba(255, 255, 255, 0.08)' 
-                                                  : (isAgent ? 'rgba(2, 132, 199, 0.06)' : '#ffffff'),
-                                                color: isDark 
-                                                  ? '#f8fafc' 
-                                                  : (isAgent ? '#0369a1' : '#334155'),
-                                                border: isDark 
-                                                  ? '1px solid rgba(255, 255, 255, 0.2)' 
-                                                  : (isAgent ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid #cbd5e1'),
-                                                fontSize: '0.72rem',
-                                                fontWeight: 700,
-                                                cursor: 'pointer'
-                                              }}
-                                              title="Unduh Berkas ke Perangkat"
-                                            >
-                                              <Download size={12} strokeWidth={2.2} /> Unduh
-                                            </button>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
+                                        );
+                                      })}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </React.Fragment>
-                    );
-                  });
-                })()
-              )}
-              {/* Anchor for Auto-Scroll to bottom */}
-              <div ref={messagesEndRef} />
-            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    });
+                  })()
+                )}
+                {/* Anchor for Auto-Scroll to bottom */}
+                <div ref={messagesEndRef} />
+              </div>
 
-            {/* 3. Sleek Executive Bottom Reply Composer (Flush to Bottom) */}
-            {selectedTicket.status === 'closed' ? (
-              <div style={{
-                position: 'fixed',
-                bottom: 0,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                maxWidth: '1440px',
-                width: '100%',
-                padding: '0.85rem 1.25rem calc(0.85rem + env(safe-area-inset-bottom, 0px)) 1.25rem',
-                backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
-                backdropFilter: 'blur(24px)',
-                WebkitBackdropFilter: 'blur(24px)',
-                borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
-                borderLeft: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
-                borderRight: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
-                zIndex: 9990,
-                boxShadow: isDark ? '0 -8px 30px rgba(0,0,0,0.5)' : '0 -6px 20px rgba(0,0,0,0.06)',
-                textAlign: 'center',
-                boxSizing: 'border-box'
-              }}>
+              {/* 3. Sleek Executive Bottom Reply Composer (Flush to Bottom) */}
+              {selectedTicket.status === 'closed' ? (
                 <div style={{
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: theme.cardAlt,
-                  color: theme.textMuted,
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  border: `1px solid ${theme.border}`
+                  position: 'fixed',
+                  bottom: 0,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  maxWidth: '1440px',
+                  width: '100%',
+                  padding: '0.85rem 1.25rem calc(0.85rem + env(safe-area-inset-bottom, 0px)) 1.25rem',
+                  backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
+                  backdropFilter: 'blur(24px)',
+                  WebkitBackdropFilter: 'blur(24px)',
+                  borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                  borderLeft: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                  borderRight: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                  zIndex: 9990,
+                  boxShadow: isDark ? '0 -8px 30px rgba(0,0,0,0.5)' : '0 -6px 20px rgba(0,0,0,0.06)',
+                  textAlign: 'center',
+                  boxSizing: 'border-box'
                 }}>
-                  <Lock size={14} />
-                  <span>Tiket telah ditutup permanen (Read-Only). Balasan dinonaktifkan.</span>
+                  <div style={{
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: theme.cardAlt,
+                    color: theme.textMuted,
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    border: `1px solid ${theme.border}`
+                  }}>
+                    <Lock size={14} />
+                    <span>Tiket telah ditutup permanen (Read-Only). Balasan dinonaktifkan.</span>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div style={{
-                position: 'fixed',
-                bottom: 0,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                maxWidth: '1440px',
-                width: '100%',
-                padding: '0.65rem 1.25rem calc(0.65rem + env(safe-area-inset-bottom, 0px)) 1.25rem',
-                backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
-                backdropFilter: 'blur(24px)',
-                WebkitBackdropFilter: 'blur(24px)',
-                borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
-                borderLeft: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
-                borderRight: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
-                zIndex: 9990,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.55rem',
-                boxShadow: isDark ? '0 -8px 30px rgba(0,0,0,0.5)' : '0 -6px 20px rgba(0,0,0,0.06)',
-                boxSizing: 'border-box'
-              }}>
-                {/* Segmented Mode Control (Full Width 2-Tabs) */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0.3rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
-                borderRadius: '0.65rem',
-                padding: '3px',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setIsInternalNote(false)}
-                  style={{
-                    padding: '0.45rem 0.5rem',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.74rem',
-                    fontWeight: !isInternalNote ? 800 : 600,
-                    backgroundColor: !isInternalNote ? (isDark ? '#1e293b' : '#ffffff') : 'transparent',
-                    color: !isInternalNote ? (isDark ? '#38bdf8' : '#0284c7') : theme.textSecondary,
-                    boxShadow: !isInternalNote ? (isDark ? '0 2px 6px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.06)') : 'none',
-                    border: !isInternalNote ? `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0,0,0,0.06)'}` : '1px solid transparent',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <span>Balas Merchant</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsInternalNote(true)}
-                  style={{
-                    padding: '0.45rem 0.5rem',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.74rem',
-                    fontWeight: isInternalNote ? 800 : 600,
-                    backgroundColor: isInternalNote ? (isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.15)') : 'transparent',
-                    color: isInternalNote ? (isDark ? '#fbbf24' : '#b45309') : theme.textSecondary,
-                    boxShadow: isInternalNote ? '0 2px 6px rgba(245, 158, 11, 0.15)' : 'none',
-                    border: isInternalNote ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Lock size={12} />
-                  <span>Catatan Internal</span>
-                </button>
-              </div>
+              ) : (
+                <div style={{
+                  position: 'fixed',
+                  bottom: 0,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  maxWidth: '1440px',
+                  width: '100%',
+                  padding: '0.65rem 1.25rem calc(0.65rem + env(safe-area-inset-bottom, 0px)) 1.25rem',
+                  backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
+                  backdropFilter: 'blur(24px)',
+                  WebkitBackdropFilter: 'blur(24px)',
+                  borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                  borderLeft: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                  borderRight: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                  zIndex: 9990,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.55rem',
+                  boxShadow: isDark ? '0 -8px 30px rgba(0,0,0,0.5)' : '0 -6px 20px rgba(0,0,0,0.06)',
+                  boxSizing: 'border-box'
+                }}>
+                  {/* Segmented Mode Control (Full Width 2-Tabs) */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '0.3rem',
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+                    borderRadius: '0.65rem',
+                    padding: '3px',
+                    border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsInternalNote(false)}
+                      style={{
+                        padding: '0.45rem 0.5rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.74rem',
+                        fontWeight: !isInternalNote ? 800 : 600,
+                        backgroundColor: !isInternalNote ? (isDark ? '#1e293b' : '#ffffff') : 'transparent',
+                        color: !isInternalNote ? (isDark ? '#38bdf8' : '#0284c7') : theme.textSecondary,
+                        boxShadow: !isInternalNote ? (isDark ? '0 2px 6px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.06)') : 'none',
+                        border: !isInternalNote ? `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0,0,0,0.06)'}` : '1px solid transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.35rem',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span>Balas Merchant</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsInternalNote(true)}
+                      style={{
+                        padding: '0.45rem 0.5rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.74rem',
+                        fontWeight: isInternalNote ? 800 : 600,
+                        backgroundColor: isInternalNote ? (isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.15)') : 'transparent',
+                        color: isInternalNote ? (isDark ? '#fbbf24' : '#b45309') : theme.textSecondary,
+                        boxShadow: isInternalNote ? '0 2px 6px rgba(245, 158, 11, 0.15)' : 'none',
+                        border: isInternalNote ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.35rem',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Lock size={12} />
+                      <span>Catatan Internal</span>
+                    </button>
+                  </div>
 
-              {/* Attachment Previews */}
-              {ticketReplyAttachments.length > 0 && (
-                <div style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', padding: '0.2rem 0', alignItems: 'center' }}>
-                  {ticketReplyAttachments.map((att, idx) => (
-                    <div key={idx} style={{
-                      position: 'relative',
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '0.5rem',
-                      overflow: 'hidden',
-                      border: `1px solid ${theme.borderStrong}`,
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: (att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? 'rgba(239,68,68,0.1)' : 'transparent'
-                    }}>
-                      {(att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? (
-                        <div
-                          onClick={() => openDocumentPreview(att)}
-                          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}
-                          title="Klik untuk melihat pratinjau dokumen PDF"
-                        >
-                          <FileText size={20} color="#ef4444" />
-                        </div>
-                      ) : (
-                        <img
-                          src={att.blob_url || att.file_url}
-                          alt="Attachment"
-                          onClick={() => openDocumentPreview(att)}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
-                          title="Klik untuk melihat pratinjau gambar"
-                        />
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setTicketReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
-                        style={{
-                          position: 'absolute',
-                          top: 2,
-                          right: 2,
-                          width: '16px',
-                          height: '16px',
-                          borderRadius: '50%',
-                          backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: '0.6rem',
+                  {/* Attachment Previews */}
+                  {ticketReplyAttachments.length > 0 && (
+                    <div style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', padding: '0.2rem 0', alignItems: 'center' }}>
+                      {ticketReplyAttachments.map((att, idx) => (
+                        <div key={idx} style={{
+                          position: 'relative',
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '0.5rem',
+                          overflow: 'hidden',
+                          border: `1px solid ${theme.borderStrong}`,
+                          flexShrink: 0,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          cursor: 'pointer',
-                          padding: 0
-                        }}
-                      >
-                        ✕
-                      </button>
+                          backgroundColor: (att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? 'rgba(239,68,68,0.1)' : 'transparent'
+                        }}>
+                          {(att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? (
+                            <div
+                              onClick={() => openDocumentPreview(att)}
+                              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}
+                              title="Klik untuk melihat pratinjau dokumen PDF"
+                            >
+                              <FileText size={20} color="#ef4444" />
+                            </div>
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+                              <SafeImage
+                                src={att.blob_url || att.file_url}
+                                alt={att.file_name || "Lampiran"}
+                                emptyLabel="Belum ada gambar"
+                                errorLabel="Gambar rusak"
+                                compact={true}
+                                objectFit="cover"
+                                isDark={isDark}
+                                onPreview={() => openDocumentPreview(att)}
+                                title="Klik untuk melihat pratinjau gambar"
+                              />
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setTicketReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
+                            style={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              width: '16px',
+                              height: '16px',
+                              borderRadius: '50%',
+                              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: '0.6rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              padding: 0
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                      <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
+                        {ticketReplyAttachments.length} lampiran foto
+                      </span>
                     </div>
-                  ))}
-                  <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
-                    {ticketReplyAttachments.length} lampiran foto
-                  </span>
-                </div>
-              )}
+                  )}
 
-              {/* Quick Action Toolbar Strip: Status Capsule Pill on Left, Template Capsule Pill on Right */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.15rem 0.1rem 0.35rem',
-                gap: '0.45rem',
-                width: '100%',
-                boxSizing: 'border-box'
-              }}>
-                {/* Left: Premium Interactive Ticket Status Pill */}
-                {(() => {
-                  const statusMeta = getTicketStatusMeta(selectedTicket.status);
-                  return (
+                  {/* Quick Action Toolbar Strip: Status Capsule Pill on Left, Template Capsule Pill on Right */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.15rem 0.1rem 0.35rem',
+                    gap: '0.45rem',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}>
+                    {/* Left: Premium Interactive Ticket Status Pill */}
+                    {(() => {
+                      const statusMeta = getTicketStatusMeta(selectedTicket.status);
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setShowFooterStatusMenu(true)}
+                          style={{
+                            height: '32px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0 0.65rem',
+                            borderRadius: '999px',
+                            backgroundColor: statusMeta.bg,
+                            color: statusMeta.color,
+                            border: `1.5px solid ${statusMeta.border}`,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
+                            transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                            minWidth: 0,
+                            flexShrink: 1
+                          }}
+                          title="Ubah Status Pengerjaan Tiket"
+                        >
+                          <span style={{
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            backgroundColor: statusMeta.color,
+                            display: 'inline-block',
+                            boxShadow: `0 0 6px ${statusMeta.color}88`,
+                            flexShrink: 0
+                          }} />
+                          <span style={{
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            Status: <span style={{ textDecoration: 'underline', textUnderlineOffset: '2px' }}>{statusMeta.shortLabel}</span>
+                          </span>
+                          <ChevronDown size={12} strokeWidth={2.5} style={{ opacity: 0.8, flexShrink: 0 }} />
+                        </button>
+                      );
+                    })()}
+
+                    {/* Right: Premium Quick Reply Canned Response Templates Pill */}
                     <button
                       type="button"
-                      onClick={() => setShowFooterStatusMenu(true)}
+                      onClick={() => {
+                        fetchCannedTemplates();
+                        setShowTemplateModal(true);
+                      }}
                       style={{
                         height: '32px',
                         display: 'inline-flex',
@@ -7957,432 +8016,384 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         gap: '0.35rem',
                         padding: '0 0.65rem',
                         borderRadius: '999px',
-                        backgroundColor: statusMeta.bg,
-                        color: statusMeta.color,
-                        border: `1.5px solid ${statusMeta.border}`,
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        border: `1.5px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.22)'}`,
                         fontSize: '0.72rem',
                         fontWeight: 700,
                         cursor: 'pointer',
-                        boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
+                        boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.05)',
                         transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                        minWidth: 0,
-                        flexShrink: 1
-                      }}
-                      title="Ubah Status Pengerjaan Tiket"
-                    >
-                      <span style={{
-                        width: '7px',
-                        height: '7px',
-                        borderRadius: '50%',
-                        backgroundColor: statusMeta.color,
-                        display: 'inline-block',
-                        boxShadow: `0 0 6px ${statusMeta.color}88`,
                         flexShrink: 0
-                      }} />
-                      <span style={{
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}>
-                        Status: <span style={{ textDecoration: 'underline', textUnderlineOffset: '2px' }}>{statusMeta.shortLabel}</span>
-                      </span>
-                      <ChevronDown size={12} strokeWidth={2.5} style={{ opacity: 0.8, flexShrink: 0 }} />
+                      }}
+                      title="Gunakan Template Balasan Cepat (Canned Responses)"
+                    >
+                      <Zap size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                      <span style={{ whiteSpace: 'nowrap' }}>Template Balasan</span>
                     </button>
-                  );
-                })()}
+                  </div>
 
-                {/* Right: Premium Quick Reply Canned Response Templates Pill */}
+                  {/* Input Bar Row */}
+                  {!canReplySupport ? (
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: theme.cardAlt,
+                      border: `1px solid ${theme.border}`,
+                      color: theme.textMuted,
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      justifyContent: 'center'
+                    }}>
+                      <Lock size={15} />
+                      <span>Mode Hanya Baca: Akun Anda memiliki izin melihat riwayat (support:tickets:read), namun tidak memiliki wewenang membalas tiket (support:tickets:reply).</span>
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      backgroundColor: isInternalNote
+                        ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)')
+                        : (isDark ? '#1e293b' : '#ffffff'),
+                      borderRadius: '0.85rem',
+                      padding: '0.35rem 0.45rem 0.35rem 0.65rem',
+                      border: isInternalNote
+                        ? `1.5px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`
+                        : `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1'}`,
+                      boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.04)'
+                    }}>
+                      <input
+                        type="file"
+                        id="admin-ticket-reply-file"
+                        multiple
+                        accept="image/png, image/jpeg, image/webp, application/pdf, .pdf"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handleUploadTicketAttachment(e.target.files)}
+                      />
+
+                      {/* Paperclip Button */}
+                      <button
+                        type="button"
+                        disabled={isUploadingTicketAttachment || ticketReplyAttachments.length >= 5}
+                        onClick={() => document.getElementById('admin-ticket-reply-file')?.click()}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          color: isDark ? '#94a3b8' : '#64748b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          padding: 0
+                        }}
+                        title="Lampirkan File / Berkas (Foto atau PDF)"
+                      >
+                        {isUploadingTicketAttachment ? <RefreshCw size={15} className="animate-spin" /> : <Paperclip size={18} />}
+                      </button>
+
+                      {/* Textarea */}
+                      <textarea
+                        ref={mobileTicketTextareaRef}
+                        rows={1}
+                        placeholder={isInternalNote ? "Tulis catatan rahasia internal tim CS..." : "Ketik balasan untuk merchant..."}
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        style={{
+                          flex: 1,
+                          minHeight: '36px',
+                          maxHeight: '120px',
+                          height: 'auto',
+                          padding: '0.45rem 0.35rem',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          color: theme.textPrimary,
+                          fontSize: '0.84rem',
+                          lineHeight: 1.45,
+                          resize: 'none',
+                          overflowY: 'auto',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+
+                      {/* Send Button */}
+                      <button
+                        type="button"
+                        disabled={(!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading}
+                        onClick={() => handleAdminReply(false)}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          backgroundColor: isInternalNote ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
+                          color: isInternalNote ? '#000000' : '#ffffff',
+                          border: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          opacity: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 0.35 : 1,
+                          boxShadow: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 'none' : '0 2px 8px rgba(0,0,0,0.2)',
+                          transition: 'all 0.15s ease',
+                          padding: 0
+                        }}
+                        title={isInternalNote ? "Simpan Catatan Internal" : "Kirim Balasan"}
+                      >
+                        {actionLoading ? <RefreshCw size={15} className="animate-spin" /> : <Send size={16} />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ----------------------------------------------------------------------- */
+            /* 4B. SUPPORT TICKET QUEUE LIST                                            */
+            /* ----------------------------------------------------------------------- */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+              {/* Quick Metrics Bar for Support Tickets */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Total Tiket</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: theme.textPrimary }}>
+                    {totalTicketsCount}
+                  </span>
+                </div>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: '#ef4444', fontWeight: 700 }}>Perlu Respon</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ef4444' }}>
+                    {actionRequiredTicketsCount}
+                  </span>
+                </div>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Diproses</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f59e0b' }}>
+                    {inProgressTicketsCount}
+                  </span>
+                </div>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Tunggu Merchant</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isDark ? '#c084fc' : '#9333ea' }}>
+                    {waitingUserTicketsCount}
+                  </span>
+                </div>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Tiket Urgent</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ef4444' }}>
+                    {urgentTicketsCount}
+                  </span>
+                </div>
+                <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Terselesaikan</span>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#10b981' }}>
+                    {resolvedTicketsCount}
+                  </span>
+                </div>
+              </div>
+
+              {/* 1. Instant Search Bar */}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  className={`search-input ${isDark ? 'dark-input' : 'light-input'}`}
+                  value={ticketSearchQuery}
+                  onChange={(e) => setTicketSearchQuery(e.target.value)}
+                  placeholder="Cari No Tiket (#TCK), Merchant, Subjek, Email..."
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 2.2rem 0.65rem 2.5rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                    border: `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
+                    color: isDark ? '#f8fafc' : '#0f172a',
+                    fontSize: '0.82rem',
+                    fontWeight: 500,
+                    outline: 'none',
+                    boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.04)',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {ticketSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setTicketSearchQuery('')}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      padding: '0.2rem'
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* 2. Unified Filter Toolbar (Desktop Native with Strictly Count > 0) */}
+              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Status Tiket Dropdown (Desktop Native) */}
+                <DesktopCustomSelect
+                  value={activeTriageFilter}
+                  onChange={handleTriageFilterChange}
+                  icon={<Filter size={12} />}
+                  highlight={activeTriageFilter !== 'all'}
+                  options={supportTriageStatusOptions.map(opt => ({
+                    value: opt.value,
+                    label: opt.label,
+                    count: opt.count
+                  }))}
+                  placeholder="Semua Status Tiket"
+                  style={{ width: 'auto', minWidth: '175px' }}
+                  triggerStyle={{
+                    height: '34px',
+                    padding: '0 0.65rem',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    backgroundColor: activeTriageFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
+                    borderColor: activeTriageFilter !== 'all' ? 'var(--primary)' : theme.border,
+                    color: activeTriageFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
+                  }}
+                  dropdownStyle={{ minWidth: '200px' }}
+                />
+
+                {/* Time-Windowing Selector Bar for Selesai / Resolved Tab */}
+                {ticketsFilter === 'resolved' && (
+                  <div style={{ display: 'inline-flex', gap: '0.25rem', alignItems: 'center', padding: '0.15rem 0.35rem', backgroundColor: theme.cardAlt, borderRadius: '0.55rem', border: `1px solid ${theme.border}` }}>
+                    {[
+                      { id: '30d', label: '30 Hari' },
+                      { id: '90d', label: '90 Hari' },
+                      { id: 'all', label: 'Semua Riwayat' }
+                    ].map(tr => (
+                      <button
+                        key={tr.id}
+                        type="button"
+                        onClick={() => setResolvedTimeRangeFilter(tr.id as any)}
+                        style={{
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '0.4rem',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          backgroundColor: resolvedTimeRangeFilter === tr.id ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)') : 'transparent',
+                          color: resolvedTimeRangeFilter === tr.id ? (isDark ? '#34d399' : '#059669') : theme.textMuted,
+                          border: 'none',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.12s ease'
+                        }}
+                      >
+                        {tr.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Category Dropdown (Desktop Native - Always Visible & Strictly Count > 0) */}
+                <DesktopCustomSelect
+                  value={ticketCategoryFilter}
+                  onChange={(val) => setTicketCategoryFilter(val)}
+                  icon={<Tag size={12} />}
+                  highlight={ticketCategoryFilter !== 'all'}
+                  options={desktopTicketCategoryOptions}
+                  placeholder="Semua Kategori"
+                  style={{ width: 'auto', minWidth: '160px' }}
+                  triggerStyle={{
+                    height: '34px',
+                    padding: '0 0.65rem',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    backgroundColor: ticketCategoryFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
+                    borderColor: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.border,
+                    color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
+                  }}
+                  dropdownStyle={{ minWidth: '190px' }}
+                />
+
+                {/* Priority Dropdown (Desktop Native - Always Visible & Strictly Count > 0) */}
+                <DesktopCustomSelect
+                  value={ticketPriorityFilter}
+                  onChange={(val) => setTicketPriorityFilter(val)}
+                  icon={<AlertCircle size={12} />}
+                  highlight={ticketPriorityFilter !== 'all'}
+                  options={desktopTicketPriorityOptions}
+                  placeholder="Semua Prioritas"
+                  style={{ width: 'auto', minWidth: '160px' }}
+                  triggerStyle={{
+                    height: '34px',
+                    padding: '0 0.65rem',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    backgroundColor: ticketPriorityFilter !== 'all' ? (isDark ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.1)') : theme.surface,
+                    borderColor: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.border,
+                    color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textPrimary
+                  }}
+                  dropdownStyle={{ minWidth: '190px' }}
+                />
+
+                {/* SLA Filter Toggle (Desktop Native) */}
                 <button
                   type="button"
-                  onClick={() => {
-                    fetchCannedTemplates();
-                    setShowTemplateModal(true);
-                  }}
+                  onClick={() => setTicketSlaFilter(prev => prev === 'breached' ? 'all' : 'breached')}
                   style={{
-                    height: '32px',
+                    height: '34px',
+                    padding: '0 0.75rem',
+                    borderRadius: '0.65rem',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    backgroundColor: ticketSlaFilter === 'breached' ? (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)') : theme.surface,
+                    color: ticketSlaFilter === 'breached' ? '#ef4444' : theme.textSecondary,
+                    border: `1px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : theme.border}`,
+                    cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.35rem',
-                    padding: '0 0.65rem',
-                    borderRadius: '999px',
-                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
-                    color: isDark ? '#38bdf8' : '#0284c7',
-                    border: `1.5px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.22)'}`,
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.05)',
-                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                    flexShrink: 0
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease'
                   }}
-                  title="Gunakan Template Balasan Cepat (Canned Responses)"
+                  title="Filter tiket dengan batas waktu respon SLA terlewat"
                 >
-                  <Zap size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-                  <span style={{ whiteSpace: 'nowrap' }}>Template Balasan</span>
+                  <Clock size={13} />
+                  <span>SLA Lewat</span>
+                  {(ticketsMetrics.sla_breached ?? 0) > 0 && (
+                    <span style={{
+                      fontSize: '0.62rem',
+                      padding: '0.05rem 0.35rem',
+                      borderRadius: '999px',
+                      backgroundColor: ticketSlaFilter === 'breached' ? '#ef4444' : (isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)'),
+                      color: ticketSlaFilter === 'breached' ? '#ffffff' : '#ef4444',
+                      fontWeight: 800
+                    }}>
+                      {ticketsMetrics.sla_breached}
+                    </span>
+                  )}
                 </button>
-              </div>
 
-              {/* Input Bar Row */}
-              {!canReplySupport ? (
-                <div style={{
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textMuted,
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  justifyContent: 'center'
-                }}>
-                  <Lock size={15} />
-                  <span>Mode Hanya Baca: Akun Anda memiliki izin melihat riwayat (support:tickets:read), namun tidak memiliki wewenang membalas tiket (support:tickets:reply).</span>
-                </div>
-              ) : (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  backgroundColor: isInternalNote 
-                    ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)')
-                    : (isDark ? '#1e293b' : '#ffffff'),
-                  borderRadius: '0.85rem',
-                  padding: '0.35rem 0.45rem 0.35rem 0.65rem',
-                  border: isInternalNote 
-                    ? `1.5px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`
-                    : `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1'}`,
-                  boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.04)'
-                }}>
-                  <input
-                    type="file"
-                    id="admin-ticket-reply-file"
-                    multiple
-                    accept="image/png, image/jpeg, image/webp, application/pdf, .pdf"
-                    style={{ display: 'none' }}
-                    onChange={(e) => handleUploadTicketAttachment(e.target.files)}
-                  />
-
-                  {/* Paperclip Button */}
+                {/* Active Filter Indicator & Reset Button */}
+                {(ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || Boolean(ticketSearchQuery)) && (
                   <button
                     type="button"
-                    disabled={isUploadingTicketAttachment || ticketReplyAttachments.length >= 5}
-                    onClick={() => document.getElementById('admin-ticket-reply-file')?.click()}
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '0.55rem',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      color: isDark ? '#94a3b8' : '#64748b',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      padding: 0
+                    onClick={() => {
+                      handleTriageFilterChange('all');
+                      setTicketCategoryFilter('all');
+                      setTicketPriorityFilter('all');
+                      setTicketSlaFilter('all');
+                      setTicketSearchQuery('');
                     }}
-                    title="Lampirkan File / Berkas (Foto atau PDF)"
-                  >
-                    {isUploadingTicketAttachment ? <RefreshCw size={15} className="animate-spin" /> : <Paperclip size={18} />}
-                  </button>
-
-                  {/* Textarea */}
-                  <textarea
-                    ref={mobileTicketTextareaRef}
-                    rows={1}
-                    placeholder={isInternalNote ? "Tulis catatan rahasia internal tim CS..." : "Ketik balasan untuk merchant..."}
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    style={{
-                      flex: 1,
-                      minHeight: '36px',
-                      maxHeight: '120px',
-                      height: 'auto',
-                      padding: '0.45rem 0.35rem',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      color: theme.textPrimary,
-                      fontSize: '0.84rem',
-                      lineHeight: 1.45,
-                      resize: 'none',
-                      overflowY: 'auto',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-
-                  {/* Send Button */}
-                  <button
-                    type="button"
-                    disabled={(!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading}
-                    onClick={() => handleAdminReply(false)}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      backgroundColor: isInternalNote ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
-                      color: isInternalNote ? '#000000' : '#ffffff',
-                      border: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      opacity: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 0.35 : 1,
-                      boxShadow: (!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading ? 'none' : '0 2px 8px rgba(0,0,0,0.2)',
-                      transition: 'all 0.15s ease',
-                      padding: 0
-                    }}
-                    title={isInternalNote ? "Simpan Catatan Internal" : "Kirim Balasan"}
-                  >
-                    {actionLoading ? <RefreshCw size={15} className="animate-spin" /> : <Send size={16} />}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      ) : (
-          /* ----------------------------------------------------------------------- */
-          /* 4B. SUPPORT TICKET QUEUE LIST                                            */
-          /* ----------------------------------------------------------------------- */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
-            {/* Quick Metrics Bar for Support Tickets */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
-              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Total Tiket</span>
-                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: theme.textPrimary }}>
-                  {totalTicketsCount}
-                </span>
-              </div>
-              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <span style={{ fontSize: '0.66rem', color: '#ef4444', fontWeight: 700 }}>Perlu Respon</span>
-                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ef4444' }}>
-                  {actionRequiredTicketsCount}
-                </span>
-              </div>
-              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Diproses</span>
-                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f59e0b' }}>
-                  {inProgressTicketsCount}
-                </span>
-              </div>
-              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Tunggu Merchant</span>
-                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isDark ? '#c084fc' : '#9333ea' }}>
-                  {waitingUserTicketsCount}
-                </span>
-              </div>
-              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Tiket Urgent</span>
-                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ef4444' }}>
-                  {urgentTicketsCount}
-                </span>
-              </div>
-              <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Terselesaikan</span>
-                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#10b981' }}>
-                  {resolvedTicketsCount}
-                </span>
-              </div>
-            </div>
-
-            {/* 1. Instant Search Bar */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
-              <input
-                type="text"
-                className={`search-input ${isDark ? 'dark-input' : 'light-input'}`}
-                value={ticketSearchQuery}
-                onChange={(e) => setTicketSearchQuery(e.target.value)}
-                placeholder="Cari No Tiket (#TCK), Merchant, Subjek, Email..."
-                style={{
-                  width: '100%',
-                  padding: '0.65rem 2.2rem 0.65rem 2.5rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                  border: `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
-                  color: isDark ? '#f8fafc' : '#0f172a',
-                  fontSize: '0.82rem',
-                  fontWeight: 500,
-                  outline: 'none',
-                  boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.04)',
-                  boxSizing: 'border-box'
-                }}
-              />
-              {ticketSearchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setTicketSearchQuery('')}
-                  style={{
-                    position: 'absolute',
-                    right: '0.75rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    color: isDark ? '#94a3b8' : '#64748b',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    padding: '0.2rem'
-                  }}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* 2. Unified Filter Toolbar (Desktop Native with Strictly Count > 0) */}
-            <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              {/* Status Tiket Dropdown (Desktop Native) */}
-              <DesktopCustomSelect
-                value={activeTriageFilter}
-                onChange={handleTriageFilterChange}
-                icon={<Filter size={12} />}
-                highlight={activeTriageFilter !== 'all'}
-                options={supportTriageStatusOptions.map(opt => ({
-                  value: opt.value,
-                  label: opt.label,
-                  count: opt.count
-                }))}
-                placeholder="Semua Status Tiket"
-                style={{ width: 'auto', minWidth: '175px' }}
-                triggerStyle={{
-                  height: '34px',
-                  padding: '0 0.65rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  backgroundColor: activeTriageFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
-                  borderColor: activeTriageFilter !== 'all' ? 'var(--primary)' : theme.border,
-                  color: activeTriageFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
-                }}
-                dropdownStyle={{ minWidth: '200px' }}
-              />
-
-              {/* Time-Windowing Selector Bar for Selesai / Resolved Tab */}
-              {ticketsFilter === 'resolved' && (
-                <div style={{ display: 'inline-flex', gap: '0.25rem', alignItems: 'center', padding: '0.15rem 0.35rem', backgroundColor: theme.cardAlt, borderRadius: '0.55rem', border: `1px solid ${theme.border}` }}>
-                  {[
-                    { id: '30d', label: '30 Hari' },
-                    { id: '90d', label: '90 Hari' },
-                    { id: 'all', label: 'Semua Riwayat' }
-                  ].map(tr => (
-                    <button
-                      key={tr.id}
-                      type="button"
-                      onClick={() => setResolvedTimeRangeFilter(tr.id as any)}
-                      style={{
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '0.4rem',
-                        fontSize: '0.68rem',
-                        fontWeight: 700,
-                        backgroundColor: resolvedTimeRangeFilter === tr.id ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)') : 'transparent',
-                        color: resolvedTimeRangeFilter === tr.id ? (isDark ? '#34d399' : '#059669') : theme.textMuted,
-                        border: 'none',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.12s ease'
-                      }}
-                    >
-                      {tr.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Category Dropdown (Desktop Native - Always Visible & Strictly Count > 0) */}
-              <DesktopCustomSelect
-                value={ticketCategoryFilter}
-                onChange={(val) => setTicketCategoryFilter(val)}
-                icon={<Tag size={12} />}
-                highlight={ticketCategoryFilter !== 'all'}
-                options={desktopTicketCategoryOptions}
-                placeholder="Semua Kategori"
-                style={{ width: 'auto', minWidth: '160px' }}
-                triggerStyle={{
-                  height: '34px',
-                  padding: '0 0.65rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  backgroundColor: ticketCategoryFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
-                  borderColor: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.border,
-                  color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
-                }}
-                dropdownStyle={{ minWidth: '190px' }}
-              />
-
-              {/* Priority Dropdown (Desktop Native - Always Visible & Strictly Count > 0) */}
-              <DesktopCustomSelect
-                value={ticketPriorityFilter}
-                onChange={(val) => setTicketPriorityFilter(val)}
-                icon={<AlertCircle size={12} />}
-                highlight={ticketPriorityFilter !== 'all'}
-                options={desktopTicketPriorityOptions}
-                placeholder="Semua Prioritas"
-                style={{ width: 'auto', minWidth: '160px' }}
-                triggerStyle={{
-                  height: '34px',
-                  padding: '0 0.65rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  backgroundColor: ticketPriorityFilter !== 'all' ? (isDark ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.1)') : theme.surface,
-                  borderColor: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.border,
-                  color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textPrimary
-                }}
-                dropdownStyle={{ minWidth: '190px' }}
-              />
-
-              {/* SLA Filter Toggle (Desktop Native) */}
-              <button
-                type="button"
-                onClick={() => setTicketSlaFilter(prev => prev === 'breached' ? 'all' : 'breached')}
-                style={{
-                  height: '34px',
-                  padding: '0 0.75rem',
-                  borderRadius: '0.65rem',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  backgroundColor: ticketSlaFilter === 'breached' ? (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)') : theme.surface,
-                  color: ticketSlaFilter === 'breached' ? '#ef4444' : theme.textSecondary,
-                  border: `1px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : theme.border}`,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  whiteSpace: 'nowrap',
-                  transition: 'all 0.15s ease'
-                }}
-                title="Filter tiket dengan batas waktu respon SLA terlewat"
-              >
-                <Clock size={13} />
-                <span>SLA Lewat</span>
-                {(ticketsMetrics.sla_breached ?? 0) > 0 && (
-                  <span style={{
-                    fontSize: '0.62rem',
-                    padding: '0.05rem 0.35rem',
-                    borderRadius: '999px',
-                    backgroundColor: ticketSlaFilter === 'breached' ? '#ef4444' : (isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)'),
-                    color: ticketSlaFilter === 'breached' ? '#ffffff' : '#ef4444',
-                    fontWeight: 800
-                  }}>
-                    {ticketsMetrics.sla_breached}
-                  </span>
-                )}
-              </button>
-
-              {/* Active Filter Indicator & Reset Button */}
-              {(ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || Boolean(ticketSearchQuery)) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleTriageFilterChange('all');
-                    setTicketCategoryFilter('all');
-                    setTicketPriorityFilter('all');
-                    setTicketSlaFilter('all');
-                    setTicketSearchQuery('');
-                  }}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -8406,733 +8417,698 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 )}
               </div>
 
-            {/* 5. Tickets Feed (Server-Side Filtered & Paginated with Load More) */}
-            {ticketsLoading && tickets.length === 0 ? (
-              <div style={{ padding: '3rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-                <RefreshCw size={26} className="animate-spin" color="var(--primary)" style={{ margin: '0 auto 0.65rem' }} />
-                <p style={{ margin: 0, color: theme.textSecondary, fontSize: '0.78rem', fontWeight: 600 }}>
-                  Memuat antrean tiket bantuan...
-                </p>
-              </div>
-            ) : tickets.length === 0 ? (
-              <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-                <Inbox size={36} color="#06b6d4" style={{ margin: '0 auto 0.65rem' }} />
-                <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>
-                  {ticketSearchQuery || ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all'
-                    ? 'Tidak Ada Tiket yang Cocok'
-                    : 'Semua Tiket Terselesaikan'}
-                </h4>
-                <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>
-                  {ticketSearchQuery || ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all'
-                    ? 'Coba sesuaikan kata kunci pencarian atau bersihkan filter di atas.'
-                    : 'Tidak ada antrean tiket aktif saat ini.'}
-                </p>
-              </div>
-            ) : (
-              <>
-                {sortedTickets.map(t => {
-                  const statusBg = 
-                    t.status === 'open' ? 'rgba(6, 182, 212, 0.15)' :
-                    t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' :
-                    t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.15)' :
-                    t.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)';
-                  const statusColor =
-                    t.status === 'open' ? '#06b6d4' :
-                    t.status === 'in_progress' ? (isDark ? '#fbbf24' : '#d97706') :
-                    t.status === 'waiting_user' ? (isDark ? '#c084fc' : '#9333ea') :
-                    t.status === 'resolved' ? (isDark ? '#34d399' : '#059669') : '#94a3b8';
-                  const statusBorder =
-                    t.status === 'open' ? 'rgba(6, 182, 212, 0.35)' :
-                    t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.35)' :
-                    t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.35)' :
-                    t.status === 'resolved' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(100, 116, 139, 0.35)';
-                  const statusLabel =
-                    t.status === 'open' ? 'Open (Baru)' :
-                    t.status === 'in_progress' ? 'Sedang Diproses' :
-                    t.status === 'waiting_user' ? 'Menunggu Merchant' :
-                    t.status === 'resolved' ? 'Terselesaikan' :
-                    t.status === 'closed' ? 'Ditutup' : String(t.status || 'OPEN').toUpperCase();
+              {/* 5. Tickets Feed (Server-Side Filtered & Paginated with Load More) */}
+              {ticketsLoading && tickets.length === 0 ? (
+                <div style={{ padding: '3rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                  <RefreshCw size={26} className="animate-spin" color="var(--primary)" style={{ margin: '0 auto 0.65rem' }} />
+                  <p style={{ margin: 0, color: theme.textSecondary, fontSize: '0.78rem', fontWeight: 600 }}>
+                    Memuat antrean tiket bantuan...
+                  </p>
+                </div>
+              ) : tickets.length === 0 ? (
+                <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                  <Inbox size={36} color="#06b6d4" style={{ margin: '0 auto 0.65rem' }} />
+                  <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>
+                    {ticketSearchQuery || ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all'
+                      ? 'Tidak Ada Tiket yang Cocok'
+                      : 'Semua Tiket Terselesaikan'}
+                  </h4>
+                  <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>
+                    {ticketSearchQuery || ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all'
+                      ? 'Coba sesuaikan kata kunci pencarian atau bersihkan filter di atas.'
+                      : 'Tidak ada antrean tiket aktif saat ini.'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {sortedTickets.map(t => {
+                    const statusBg =
+                      t.status === 'open' ? 'rgba(6, 182, 212, 0.15)' :
+                        t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' :
+                          t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.15)' :
+                            t.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)';
+                    const statusColor =
+                      t.status === 'open' ? '#06b6d4' :
+                        t.status === 'in_progress' ? (isDark ? '#fbbf24' : '#d97706') :
+                          t.status === 'waiting_user' ? (isDark ? '#c084fc' : '#9333ea') :
+                            t.status === 'resolved' ? (isDark ? '#34d399' : '#059669') : '#94a3b8';
+                    const statusBorder =
+                      t.status === 'open' ? 'rgba(6, 182, 212, 0.35)' :
+                        t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.35)' :
+                          t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.35)' :
+                            t.status === 'resolved' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(100, 116, 139, 0.35)';
+                    const statusLabel =
+                      t.status === 'open' ? 'Open (Baru)' :
+                        t.status === 'in_progress' ? 'Sedang Diproses' :
+                          t.status === 'waiting_user' ? 'Menunggu Merchant' :
+                            t.status === 'resolved' ? 'Terselesaikan' :
+                              t.status === 'closed' ? 'Ditutup' : String(t.status || 'OPEN').toUpperCase();
 
-                  const storePlan = String(t.store?.plan || '').toLowerCase();
-                  const storeDisplayName = t.store?.store_title || t.store?.name || t.store_name || t.user?.name || 'Merchant';
-                  const messageCount = Array.isArray(t.messages) ? t.messages.length : (t.message_count || 0);
-                  const msgs = Array.isArray(t.messages) ? t.messages : [];
-                  const lastMsg = t.last_msg || (msgs.length > 0 ? msgs[msgs.length - 1] : null);
-                  const isUnread = Boolean(t.has_unread || (t.unread_count && t.unread_count > 0));
-                  const unreadCount = t.unread_count || 0;
-                  const lastSenderName = lastMsg ? (lastMsg.sender_type === 'agent' ? 'CS Support' : getFirstName(getMerchantDisplayName(t, lastMsg.sender))) : '';
+                    const storePlan = String(t.store?.plan || '').toLowerCase();
+                    const storeDisplayName = t.store?.store_title || t.store?.name || t.store_name || t.user?.name || 'Merchant';
+                    const messageCount = Array.isArray(t.messages) ? t.messages.length : (t.message_count || 0);
+                    const msgs = Array.isArray(t.messages) ? t.messages : [];
+                    const lastMsg = t.last_msg || (msgs.length > 0 ? msgs[msgs.length - 1] : null);
+                    const isUnread = Boolean(t.has_unread || (t.unread_count && t.unread_count > 0));
+                    const unreadCount = t.unread_count || 0;
+                    const lastSenderName = lastMsg ? (lastMsg.sender_type === 'agent' ? 'CS Support' : getFirstName(getMerchantDisplayName(t, lastMsg.sender))) : '';
 
-                  return (
-                    <div
-                      key={t.id}
-                      onClick={() => handleOpenTicketChat(t)}
-                      style={{
-                        padding: '1rem',
-                        borderRadius: '1.15rem',
-                        backgroundColor: isUnread ? (isDark ? 'rgba(6, 182, 212, 0.08)' : 'rgba(6, 182, 212, 0.04)') : theme.surface,
-                        border: isUnread
-                          ? '1px solid rgba(6, 182, 212, 0.65)'
-                          : (t.status === 'open' || t.status === 'waiting_agent') 
-                            ? '1px solid rgba(6, 182, 212, 0.45)' 
-                            : (t.priority === 'urgent' ? '1px solid rgba(239, 68, 68, 0.4)' : `1px solid ${theme.border}`),
-                        boxShadow: isUnread ? '0 4px 18px rgba(6, 182, 212, 0.16)' : theme.cardShadow,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.65rem',
-                        cursor: 'pointer',
-                        transition: 'transform 0.12s ease, box-shadow 0.12s ease',
-                        position: 'relative'
-                      }}
-                    >
-                      {/* Card Header: Ticket Number & Unread Dot on Left | Status Pill on Right (Single Row, Never Wraps) */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
-                          {/* Unread Glow Dot Indicator */}
-                          {isUnread && (
-                            <span 
-                              title={unreadCount > 0 ? `${unreadCount} Pesan Baru` : 'Pesan Baru'}
-                              style={{ 
-                                display: 'inline-block', 
-                                width: '7px', 
-                                height: '7px', 
-                                borderRadius: '50%', 
-                                backgroundColor: '#06b6d4',
-                                boxShadow: '0 0 8px rgba(6, 182, 212, 0.7)',
-                                flexShrink: 0
-                              }} 
-                            />
-                          )}
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => handleOpenTicketChat(t)}
+                        style={{
+                          padding: '1rem',
+                          borderRadius: '1.15rem',
+                          backgroundColor: isUnread ? (isDark ? 'rgba(6, 182, 212, 0.08)' : 'rgba(6, 182, 212, 0.04)') : theme.surface,
+                          border: isUnread
+                            ? '1px solid rgba(6, 182, 212, 0.65)'
+                            : (t.status === 'open' || t.status === 'waiting_agent')
+                              ? '1px solid rgba(6, 182, 212, 0.45)'
+                              : (t.priority === 'urgent' ? '1px solid rgba(239, 68, 68, 0.4)' : `1px solid ${theme.border}`),
+                          boxShadow: isUnread ? '0 4px 18px rgba(6, 182, 212, 0.16)' : theme.cardShadow,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.65rem',
+                          cursor: 'pointer',
+                          transition: 'transform 0.12s ease, box-shadow 0.12s ease',
+                          position: 'relative'
+                        }}
+                      >
+                        {/* Card Header: Ticket Number & Unread Dot on Left | Status Pill on Right (Single Row, Never Wraps) */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                            {/* Unread Glow Dot Indicator */}
+                            {isUnread && (
+                              <span
+                                title={unreadCount > 0 ? `${unreadCount} Pesan Baru` : 'Pesan Baru'}
+                                style={{
+                                  display: 'inline-block',
+                                  width: '7px',
+                                  height: '7px',
+                                  borderRadius: '50%',
+                                  backgroundColor: '#06b6d4',
+                                  boxShadow: '0 0 8px rgba(6, 182, 212, 0.7)',
+                                  flexShrink: 0
+                                }}
+                              />
+                            )}
 
-                          {/* Ticket Number */}
-                          <div style={{ 
-                            display: 'inline-flex', 
-                            alignItems: 'center', 
-                            backgroundColor: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.08)', 
-                            padding: '0.15rem 0.42rem', 
-                            borderRadius: '0.35rem', 
-                            border: '1px solid rgba(6, 182, 212, 0.22)',
-                            flexShrink: 0
-                          }}>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', fontFamily: 'monospace', whiteSpace: 'nowrap', letterSpacing: '0.01em' }}>
-                              {t.ticket_number || `#TCK-${t.id}`}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Status Pill with live indicator dot (Pinned Top-Right, No wrap) */}
-                        <span style={{
-                          padding: '0.2rem 0.55rem',
-                          borderRadius: '999px',
-                          fontSize: '0.64rem',
-                          fontWeight: 800,
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                          backgroundColor: statusBg,
-                          color: statusColor,
-                          border: `1px solid ${statusBorder}`,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem'
-                        }}>
-                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: statusColor, flexShrink: 0 }} />
-                          {statusLabel}
-                        </span>
-                      </div>
-
-                      {/* Card Subject & Clean Metadata Row */}
-                      <div>
-                        <h4 style={{ 
-                          margin: '0 0 0.3rem 0', 
-                          fontSize: '0.92rem', 
-                          fontWeight: isUnread ? 900 : 700, 
-                          color: isUnread ? (isDark ? '#38bdf8' : '#0284c7') : theme.textPrimary, 
-                          letterSpacing: '-0.01em', 
-                          lineHeight: 1.35 
-                        }}>
-                          {t.subject || 'Pertanyaan Layanan Merchant'}
-                        </h4>
-
-                        {/* Streamlined Meta Info (Category, Priority, SLA, CSAT, Time) */}
-                        <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.45rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.66rem' }}>
-                          <span style={{ 
-                            fontWeight: 700, 
-                            padding: '0.12rem 0.38rem', 
-                            borderRadius: '4px', 
-                            backgroundColor: theme.cardAlt, 
-                            color: theme.textSecondary, 
-                            border: `1px solid ${theme.border}`,
-                            fontSize: '0.62rem'
-                          }}>
-                            {
-                              t.category === 'billing' ? 'Keuangan & Langganan' :
-                              t.category === 'technical' ? 'Kendala Teknis & Bug' :
-                              t.category === 'catalog_help' ? 'Bantuan Katalog' :
-                              t.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
-                            }
-                          </span>
-
-                          {t.priority && (
-                            <span style={{
-                              fontSize: '0.62rem',
-                              fontWeight: 800,
-                              padding: '0.12rem 0.38rem',
-                              borderRadius: '4px',
-                              backgroundColor: (t.priority === 'urgent' || t.priority === 'high') ? (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)') : theme.cardAlt,
-                              color: (t.priority === 'urgent' || t.priority === 'high') ? '#ef4444' : theme.textSecondary,
-                              border: `1px solid ${(t.priority === 'urgent' || t.priority === 'high') ? 'rgba(239, 68, 68, 0.35)' : theme.border}`,
-                              textTransform: 'uppercase'
-                            }}>
-                              {t.priority}
-                            </span>
-                          )}
-
-                          {/* SLA Breached or Active Countdown Badge with Premium Lucide SVG Icon */}
-                          {t.sla_breached ? (
-                            <span style={{ 
-                              fontSize: '0.62rem', 
-                              fontWeight: 800, 
-                              padding: '0.12rem 0.42rem', 
-                              borderRadius: '4px', 
-                              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.12)', 
-                              color: '#ef4444', 
-                              border: '1px solid rgba(239, 68, 68, 0.35)',
-                              whiteSpace: 'nowrap',
+                            {/* Ticket Number */}
+                            <div style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.25rem'
+                              backgroundColor: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.08)',
+                              padding: '0.15rem 0.42rem',
+                              borderRadius: '0.35rem',
+                              border: '1px solid rgba(6, 182, 212, 0.22)',
+                              flexShrink: 0
                             }}>
-                              <AlertTriangle size={11} strokeWidth={2.4} />
-                              <span>SLA Lewat</span>
-                            </span>
-                          ) : (t.status === 'open' && t.sla_due_at) ? (
-                            (() => {
-                              const diffMin = Math.round((new Date(t.sla_due_at).getTime() - Date.now()) / (1000 * 60));
-                              if (diffMin <= 0) {
-                                return (
-                                  <span style={{ 
-                                    fontSize: '0.62rem', 
-                                    fontWeight: 800, 
-                                    padding: '0.12rem 0.42rem', 
-                                    borderRadius: '4px', 
-                                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.12)', 
-                                    color: '#ef4444', 
-                                    border: '1px solid rgba(239, 68, 68, 0.35)',
-                                    whiteSpace: 'nowrap',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.25rem'
-                                  }}>
-                                    <AlertTriangle size={11} strokeWidth={2.4} />
-                                    <span>SLA Lewat</span>
-                                  </span>
-                                );
-                              }
-                              const hours = Math.floor(diffMin / 60);
-                              const mins = diffMin % 60;
-                              const isClose = diffMin < 30;
-                              return (
-                                <span style={{
-                                  fontSize: '0.62rem',
-                                  fontWeight: 800,
-                                  padding: '0.12rem 0.42rem',
-                                  borderRadius: '4px',
-                                  backgroundColor: isClose ? (isDark ? 'rgba(245, 158, 11, 0.18)' : 'rgba(245, 158, 11, 0.12)') : (isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.12)'),
-                                  color: isClose ? '#f59e0b' : '#10b981',
-                                  border: `1px solid ${isClose ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem',
-                                  whiteSpace: 'nowrap'
-                                }}>
-                                  <Clock size={11} strokeWidth={2.2} />
-                                  <span>SLA: {hours > 0 ? `${hours}j ` : ''}{mins}m</span>
-                                </span>
-                              );
-                            })()
-                          ) : null}
+                              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', fontFamily: 'monospace', whiteSpace: 'nowrap', letterSpacing: '0.01em' }}>
+                                {t.ticket_number || `#TCK-${t.id}`}
+                              </span>
+                            </div>
+                          </div>
 
-                          {/* CSAT Rating if present */}
-                          {t.rating && (
-                            <span style={{ 
-                              fontSize: '0.62rem', 
-                              fontWeight: 800, 
-                              color: '#f59e0b', 
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              gap: '0.15rem' 
-                            }}>
-                              <Star size={10} fill="#f59e0b" color="#f59e0b" />
-                              <span>{t.rating}/5</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Snippet message */}
-                        {lastMsg ? (
-                          <p style={{
-                            margin: 0,
-                            fontSize: '0.76rem',
-                            color: isUnread ? theme.textPrimary : theme.textSecondary,
-                            fontWeight: isUnread ? 600 : 400,
-                            lineHeight: 1.45,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical'
-                          }}>
-                            <strong style={{ color: lastMsg.sender_type === 'user' ? '#06b6d4' : 'var(--primary)' }}>
-                              {lastSenderName}:
-                            </strong>{' '}
-                            {lastMsg.message || (lastMsg.attachments?.length ? `[${lastMsg.attachments.length} Lampiran Bukti]` : '')}
-                          </p>
-                        ) : (t.messages && t.messages.length > 0 && (
-                          <p style={{
-                            margin: 0,
-                            fontSize: '0.76rem',
-                            color: theme.textSecondary,
-                            lineHeight: 1.45,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical'
-                          }}>
-                            {t.messages[0]?.message}
-                          </p>
-                        ))}
-                      </div>
-
-                      {/* Card Footer: Merchant Identity & Plan Badge on Left | Time & Messages Count on Right */}
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        paddingTop: '0.55rem',
-                        borderTop: `1px solid ${theme.border}`,
-                        marginTop: '0.15rem'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1, marginRight: '0.5rem' }}>
-                          <Store size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          {/* Status Pill with live indicator dot (Pinned Top-Right, No wrap) */}
                           <span style={{
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            color: theme.textPrimary,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {storeDisplayName}
-                          </span>
-
-                          {/* Store Tier Badge (Contextually placed next to Store Name) */}
-                          {storePlan === 'enterprise' && (
-                            <span style={{
-                              fontSize: '0.56rem',
-                              fontWeight: 800,
-                              padding: '0.08rem 0.38rem',
-                              borderRadius: '4px',
-                              background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
-                              color: '#ffffff',
-                              letterSpacing: '0.03em',
-                              boxShadow: '0 1px 3px rgba(124, 58, 237, 0.3)',
-                              flexShrink: 0
-                            }}>
-                              ENTERPRISE
-                            </span>
-                          )}
-                          {storePlan === 'pro' && (
-                            <span style={{
-                              fontSize: '0.56rem',
-                              fontWeight: 800,
-                              padding: '0.08rem 0.38rem',
-                              borderRadius: '4px',
-                              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                              color: '#ffffff',
-                              letterSpacing: '0.04em',
-                              boxShadow: '0 1px 3px rgba(217, 119, 6, 0.35)',
-                              flexShrink: 0
-                            }}>
-                              PRO
-                            </span>
-                          )}
-                          {(!storePlan || storePlan === 'free' || storePlan === 'starter') && (
-                            <span style={{
-                              fontSize: '0.56rem',
-                              fontWeight: 700,
-                              padding: '0.08rem 0.38rem',
-                              borderRadius: '4px',
-                              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(100, 116, 139, 0.12)',
-                              color: isDark ? '#94a3b8' : '#475569',
-                              border: `1px solid ${theme.border}`,
-                              letterSpacing: '0.03em',
-                              flexShrink: 0
-                            }}>
-                              FREE
-                            </span>
-                          )}
-                        </div>
-
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          flexShrink: 0
-                        }}>
-                          {/* Timestamp with Clock Icon */}
-                          <span style={{
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '999px',
                             fontSize: '0.64rem',
-                            color: isUnread ? (isDark ? '#38bdf8' : '#0284c7') : theme.textMuted,
-                            fontWeight: isUnread ? 700 : 500,
+                            fontWeight: 800,
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            backgroundColor: statusBg,
+                            color: statusColor,
+                            border: `1px solid ${statusBorder}`,
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.22rem',
-                            whiteSpace: 'nowrap'
+                            gap: '0.3rem'
                           }}>
-                            <Clock size={11} strokeWidth={2} style={{ opacity: 0.85 }} />
-                            {formatSupportDateTime(t.last_message_at || t.created_at)}
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: statusColor, flexShrink: 0 }} />
+                            {statusLabel}
                           </span>
+                        </div>
+
+                        {/* Card Subject & Clean Metadata Row */}
+                        <div>
+                          <h4 style={{
+                            margin: '0 0 0.3rem 0',
+                            fontSize: '0.92rem',
+                            fontWeight: isUnread ? 900 : 700,
+                            color: isUnread ? (isDark ? '#38bdf8' : '#0284c7') : theme.textPrimary,
+                            letterSpacing: '-0.01em',
+                            lineHeight: 1.35
+                          }}>
+                            {t.subject || 'Pertanyaan Layanan Merchant'}
+                          </h4>
+
+                          {/* Streamlined Meta Info (Category, Priority, SLA, CSAT, Time) */}
+                          <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.45rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.66rem' }}>
+                            <span style={{
+                              fontWeight: 700,
+                              padding: '0.12rem 0.38rem',
+                              borderRadius: '4px',
+                              backgroundColor: theme.cardAlt,
+                              color: theme.textSecondary,
+                              border: `1px solid ${theme.border}`,
+                              fontSize: '0.62rem'
+                            }}>
+                              {
+                                t.category === 'billing' ? 'Keuangan & Langganan' :
+                                  t.category === 'technical' ? 'Kendala Teknis & Bug' :
+                                    t.category === 'catalog_help' ? 'Bantuan Katalog' :
+                                      t.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
+                              }
+                            </span>
+
+                            {t.priority && (
+                              <span style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 800,
+                                padding: '0.12rem 0.38rem',
+                                borderRadius: '4px',
+                                backgroundColor: (t.priority === 'urgent' || t.priority === 'high') ? (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)') : theme.cardAlt,
+                                color: (t.priority === 'urgent' || t.priority === 'high') ? '#ef4444' : theme.textSecondary,
+                                border: `1px solid ${(t.priority === 'urgent' || t.priority === 'high') ? 'rgba(239, 68, 68, 0.35)' : theme.border}`,
+                                textTransform: 'uppercase'
+                              }}>
+                                {t.priority}
+                              </span>
+                            )}
+
+                            {/* SLA Breached or Active Countdown Badge with Premium Lucide SVG Icon */}
+                            {t.sla_breached ? (
+                              <span style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 800,
+                                padding: '0.12rem 0.42rem',
+                                borderRadius: '4px',
+                                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.12)',
+                                color: '#ef4444',
+                                border: '1px solid rgba(239, 68, 68, 0.35)',
+                                whiteSpace: 'nowrap',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}>
+                                <AlertTriangle size={11} strokeWidth={2.4} />
+                                <span>SLA Lewat</span>
+                              </span>
+                            ) : (t.status === 'open' && t.sla_due_at) ? (
+                              (() => {
+                                const diffMin = Math.round((new Date(t.sla_due_at).getTime() - Date.now()) / (1000 * 60));
+                                if (diffMin <= 0) {
+                                  return (
+                                    <span style={{
+                                      fontSize: '0.62rem',
+                                      fontWeight: 800,
+                                      padding: '0.12rem 0.42rem',
+                                      borderRadius: '4px',
+                                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.12)',
+                                      color: '#ef4444',
+                                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                                      whiteSpace: 'nowrap',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.25rem'
+                                    }}>
+                                      <AlertTriangle size={11} strokeWidth={2.4} />
+                                      <span>SLA Lewat</span>
+                                    </span>
+                                  );
+                                }
+                                const hours = Math.floor(diffMin / 60);
+                                const mins = diffMin % 60;
+                                const isClose = diffMin < 30;
+                                return (
+                                  <span style={{
+                                    fontSize: '0.62rem',
+                                    fontWeight: 800,
+                                    padding: '0.12rem 0.42rem',
+                                    borderRadius: '4px',
+                                    backgroundColor: isClose ? (isDark ? 'rgba(245, 158, 11, 0.18)' : 'rgba(245, 158, 11, 0.12)') : (isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.12)'),
+                                    color: isClose ? '#f59e0b' : '#10b981',
+                                    border: `1px solid ${isClose ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    <Clock size={11} strokeWidth={2.2} />
+                                    <span>SLA: {hours > 0 ? `${hours}j ` : ''}{mins}m</span>
+                                  </span>
+                                );
+                              })()
+                            ) : null}
+
+                            {/* CSAT Rating if present */}
+                            {t.rating && (
+                              <span style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 800,
+                                color: '#f59e0b',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.15rem'
+                              }}>
+                                <Star size={10} fill="#f59e0b" color="#f59e0b" />
+                                <span>{t.rating}/5</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Snippet message */}
+                          {lastMsg ? (
+                            <p style={{
+                              margin: 0,
+                              fontSize: '0.76rem',
+                              color: isUnread ? theme.textPrimary : theme.textSecondary,
+                              fontWeight: isUnread ? 600 : 400,
+                              lineHeight: 1.45,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical'
+                            }}>
+                              <strong style={{ color: lastMsg.sender_type === 'user' ? '#06b6d4' : 'var(--primary)' }}>
+                                {lastSenderName}:
+                              </strong>{' '}
+                              {lastMsg.message || (lastMsg.attachments?.length ? `[${lastMsg.attachments.length} Lampiran Bukti]` : '')}
+                            </p>
+                          ) : (t.messages && t.messages.length > 0 && (
+                            <p style={{
+                              margin: 0,
+                              fontSize: '0.76rem',
+                              color: theme.textSecondary,
+                              lineHeight: 1.45,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical'
+                            }}>
+                              {t.messages[0]?.message}
+                            </p>
+                          ))}
+                        </div>
+
+                        {/* Card Footer: Merchant Identity & Plan Badge on Left | Time & Messages Count on Right */}
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingTop: '0.55rem',
+                          borderTop: `1px solid ${theme.border}`,
+                          marginTop: '0.15rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1, marginRight: '0.5rem' }}>
+                            <Store size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                            <span style={{
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              color: theme.textPrimary,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {storeDisplayName}
+                            </span>
+
+                            {/* Store Tier Badge (Contextually placed next to Store Name) */}
+                            {storePlan === 'enterprise' && (
+                              <span style={{
+                                fontSize: '0.56rem',
+                                fontWeight: 800,
+                                padding: '0.08rem 0.38rem',
+                                borderRadius: '4px',
+                                background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                                color: '#ffffff',
+                                letterSpacing: '0.03em',
+                                boxShadow: '0 1px 3px rgba(124, 58, 237, 0.3)',
+                                flexShrink: 0
+                              }}>
+                                ENTERPRISE
+                              </span>
+                            )}
+                            {storePlan === 'pro' && (
+                              <span style={{
+                                fontSize: '0.56rem',
+                                fontWeight: 800,
+                                padding: '0.08rem 0.38rem',
+                                borderRadius: '4px',
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                color: '#ffffff',
+                                letterSpacing: '0.04em',
+                                boxShadow: '0 1px 3px rgba(217, 119, 6, 0.35)',
+                                flexShrink: 0
+                              }}>
+                                PRO
+                              </span>
+                            )}
+                            {(!storePlan || storePlan === 'free' || storePlan === 'starter') && (
+                              <span style={{
+                                fontSize: '0.56rem',
+                                fontWeight: 700,
+                                padding: '0.08rem 0.38rem',
+                                borderRadius: '4px',
+                                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(100, 116, 139, 0.12)',
+                                color: isDark ? '#94a3b8' : '#475569',
+                                border: `1px solid ${theme.border}`,
+                                letterSpacing: '0.03em',
+                                flexShrink: 0
+                              }}>
+                                FREE
+                              </span>
+                            )}
+                          </div>
 
                           <div style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.08)',
-                            border: '1px solid rgba(6, 182, 212, 0.25)',
-                            color: '#06b6d4',
-                            fontSize: '0.68rem',
-                            fontWeight: 800
+                            gap: '0.5rem',
+                            flexShrink: 0
                           }}>
-                            <MessageSquare size={11} />
-                            <span>{messageCount} Pesan</span>
-                            <ChevronRight size={11} />
+                            {/* Timestamp with Clock Icon */}
+                            <span style={{
+                              fontSize: '0.64rem',
+                              color: isUnread ? (isDark ? '#38bdf8' : '#0284c7') : theme.textMuted,
+                              fontWeight: isUnread ? 700 : 500,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.22rem',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              <Clock size={11} strokeWidth={2} style={{ opacity: 0.85 }} />
+                              {formatSupportDateTime(t.last_message_at || t.created_at)}
+                            </span>
+
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.08)',
+                              border: '1px solid rgba(6, 182, 212, 0.25)',
+                              color: '#06b6d4',
+                              fontSize: '0.68rem',
+                              fontWeight: 800
+                            }}>
+                              <MessageSquare size={11} />
+                              <span>{messageCount} Pesan</span>
+                              <ChevronRight size={11} />
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
 
-                {/* Enterprise Comprehensive Data Table Pagination Bar */}
-                {ticketsPagination.total_items > 0 && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      flexWrap: 'wrap',
-                      gap: '0.75rem',
-                      padding: '0.85rem 1.15rem',
-                      borderRadius: '0.95rem',
-                      backgroundColor: theme.surface,
-                      border: `1px solid ${theme.border}`,
-                      boxShadow: theme.cardShadow,
-                      marginTop: '0.45rem',
-                      marginBottom: '1.25rem'
-                    }}
-                  >
-                    {/* Left: Rows Per Page Selector & Record Count Summary */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Tampilkan:</span>
-                        <select
-                          value={ticketsPagination.limit}
-                          onChange={(e) => {
-                            const newLimit = parseInt(e.target.value, 10);
-                            fetchTickets(1, false, newLimit);
-                          }}
-                          style={{
-                            padding: '0.28rem 0.55rem',
-                            borderRadius: '0.45rem',
-                            border: `1px solid ${theme.border}`,
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
-                            color: theme.textPrimary,
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            outline: 'none'
-                          }}
-                        >
-                          <option value={10}>10</option>
-                          <option value={20}>20</option>
-                          <option value={50}>50</option>
-                          <option value={100}>100</option>
-                        </select>
-                        <span style={{ fontSize: '0.74rem', color: theme.textMuted }}>tiket/hal</span>
+                  {/* Enterprise Comprehensive Data Table Pagination Bar */}
+                  {ticketsPagination.total_items > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '0.75rem',
+                        padding: '0.85rem 1.15rem',
+                        borderRadius: '0.95rem',
+                        backgroundColor: theme.surface,
+                        border: `1px solid ${theme.border}`,
+                        boxShadow: theme.cardShadow,
+                        marginTop: '0.45rem',
+                        marginBottom: '1.25rem'
+                      }}
+                    >
+                      {/* Left: Rows Per Page Selector & Record Count Summary */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Tampilkan:</span>
+                          <select
+                            value={ticketsPagination.limit}
+                            onChange={(e) => {
+                              const newLimit = parseInt(e.target.value, 10);
+                              fetchTickets(1, false, newLimit);
+                            }}
+                            style={{
+                              padding: '0.28rem 0.55rem',
+                              borderRadius: '0.45rem',
+                              border: `1px solid ${theme.border}`,
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                              color: theme.textPrimary,
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              outline: 'none'
+                            }}
+                          >
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                          </select>
+                          <span style={{ fontSize: '0.74rem', color: theme.textMuted }}>tiket/hal</span>
+                        </div>
+
+                        <div style={{ width: '1px', height: '18px', backgroundColor: theme.border }} />
+
+                        <span style={{ fontSize: '0.74rem', color: theme.textSecondary, fontWeight: 600 }}>
+                          Menampilkan{' '}
+                          <strong style={{ color: theme.textPrimary }}>
+                            {ticketsPagination.total_items === 0 ? 0 : (ticketsPagination.page - 1) * ticketsPagination.limit + 1}
+                          </strong>
+                          {' '}&ndash;{' '}
+                          <strong style={{ color: theme.textPrimary }}>
+                            {Math.min(ticketsPagination.page * ticketsPagination.limit, ticketsPagination.total_items)}
+                          </strong>
+                          {' '}dari{' '}
+                          <strong style={{ color: theme.textPrimary }}>{ticketsPagination.total_items}</strong> tiket
+                        </span>
                       </div>
 
-                      <div style={{ width: '1px', height: '18px', backgroundColor: theme.border }} />
-
-                      <span style={{ fontSize: '0.74rem', color: theme.textSecondary, fontWeight: 600 }}>
-                        Menampilkan{' '}
-                        <strong style={{ color: theme.textPrimary }}>
-                          {ticketsPagination.total_items === 0 ? 0 : (ticketsPagination.page - 1) * ticketsPagination.limit + 1}
-                        </strong>
-                        {' '}&ndash;{' '}
-                        <strong style={{ color: theme.textPrimary }}>
-                          {Math.min(ticketsPagination.page * ticketsPagination.limit, ticketsPagination.total_items)}
-                        </strong>
-                        {' '}dari{' '}
-                        <strong style={{ color: theme.textPrimary }}>{ticketsPagination.total_items}</strong> tiket
-                      </span>
-                    </div>
-
-                    {/* Right: Page Navigation Buttons with Numbers and Quick Jump */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      {/* First Page */}
-                      <button
-                        type="button"
-                        title="Halaman Pertama"
-                        disabled={ticketsPagination.page <= 1}
-                        onClick={() => fetchTickets(1, false, ticketsPagination.limit)}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.5rem',
-                          border: `1px solid ${theme.border}`,
-                          backgroundColor: theme.surface,
-                          color: ticketsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
-                          cursor: ticketsPagination.page <= 1 ? 'not-allowed' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          opacity: ticketsPagination.page <= 1 ? 0.4 : 1
-                        }}
-                      >
-                        <ChevronsLeft size={15} />
-                      </button>
-
-                      {/* Prev Page */}
-                      <button
-                        type="button"
-                        title="Halaman Sebelumnya"
-                        disabled={ticketsPagination.page <= 1}
-                        onClick={() => fetchTickets(ticketsPagination.page - 1, false, ticketsPagination.limit)}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.5rem',
-                          border: `1px solid ${theme.border}`,
-                          backgroundColor: theme.surface,
-                          color: ticketsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
-                          cursor: ticketsPagination.page <= 1 ? 'not-allowed' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          opacity: ticketsPagination.page <= 1 ? 0.4 : 1
-                        }}
-                      >
-                        <ChevronLeft size={15} />
-                      </button>
-
-                      {/* Numbered Page Buttons with Ellipsis */}
-                      {(() => {
-                        const totalP = Math.max(1, ticketsPagination.total_pages || 1);
-                        const curP = ticketsPagination.page;
-                        const pages: (number | string)[] = [];
-
-                        if (totalP <= 7) {
-                          for (let i = 1; i <= totalP; i++) pages.push(i);
-                        } else {
-                          pages.push(1);
-                          if (curP > 3) pages.push('...');
-                          const start = Math.max(2, curP - 1);
-                          const end = Math.min(totalP - 1, curP + 1);
-                          for (let i = start; i <= end; i++) pages.push(i);
-                          if (curP < totalP - 2) pages.push('...');
-                          pages.push(totalP);
-                        }
-
-                        return pages.map((p, idx) => {
-                          if (p === '...') {
-                            return (
-                              <span key={`dots-${idx}`} style={{ padding: '0 0.25rem', color: theme.textMuted, fontSize: '0.78rem' }}>
-                                &hellip;
-                              </span>
-                            );
-                          }
-                          const pageNum = p as number;
-                          const isAct = pageNum === curP;
-                          return (
-                            <button
-                              key={`p-${pageNum}`}
-                              type="button"
-                              onClick={() => fetchTickets(pageNum, false, ticketsPagination.limit)}
-                              style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '0.5rem',
-                                border: isAct ? '1.5px solid var(--primary)' : `1px solid ${theme.border}`,
-                                backgroundColor: isAct ? 'var(--primary)' : theme.surface,
-                                color: isAct ? '#ffffff' : theme.textPrimary,
-                                fontSize: '0.76rem',
-                                fontWeight: isAct ? 800 : 600,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'all 0.15s ease'
-                              }}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        });
-                      })()}
-
-                      {/* Next Page */}
-                      <button
-                        type="button"
-                        title="Halaman Selanjutnya"
-                        disabled={ticketsPagination.page >= ticketsPagination.total_pages}
-                        onClick={() => fetchTickets(ticketsPagination.page + 1, false, ticketsPagination.limit)}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.5rem',
-                          border: `1px solid ${theme.border}`,
-                          backgroundColor: theme.surface,
-                          color: ticketsPagination.page >= ticketsPagination.total_pages ? theme.textMuted : theme.textPrimary,
-                          cursor: ticketsPagination.page >= ticketsPagination.total_pages ? 'not-allowed' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          opacity: ticketsPagination.page >= ticketsPagination.total_pages ? 0.4 : 1
-                        }}
-                      >
-                        <ChevronRight size={15} />
-                      </button>
-
-                      {/* Last Page */}
-                      <button
-                        type="button"
-                        title="Halaman Terakhir"
-                        disabled={ticketsPagination.page >= ticketsPagination.total_pages}
-                        onClick={() => fetchTickets(ticketsPagination.total_pages, false, ticketsPagination.limit)}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.5rem',
-                          border: `1px solid ${theme.border}`,
-                          backgroundColor: theme.surface,
-                          color: ticketsPagination.page >= ticketsPagination.total_pages ? theme.textMuted : theme.textPrimary,
-                          cursor: ticketsPagination.page >= ticketsPagination.total_pages ? 'not-allowed' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          opacity: ticketsPagination.page >= ticketsPagination.total_pages ? 0.4 : 1
-                        }}
-                      >
-                        <ChevronsRight size={15} />
-                      </button>
-
-                      {/* Quick Jump Input */}
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          const p = parseInt(ticketsJumpPage, 10);
-                          if (!isNaN(p) && p >= 1 && p <= (ticketsPagination.total_pages || 1)) {
-                            fetchTickets(p, false, ticketsPagination.limit);
-                            setTicketsJumpPage('');
-                          }
-                        }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.4rem' }}
-                      >
-                        <input
-                          type="number"
-                          min={1}
-                          max={ticketsPagination.total_pages || 1}
-                          placeholder="Hal"
-                          value={ticketsJumpPage}
-                          onChange={(e) => setTicketsJumpPage(e.target.value)}
-                          style={{
-                            width: '48px',
-                            height: '32px',
-                            padding: '0 0.35rem',
-                            borderRadius: '0.45rem',
-                            border: `1px solid ${theme.border}`,
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
-                            color: theme.textPrimary,
-                            fontSize: '0.74rem',
-                            textAlign: 'center',
-                            outline: 'none'
-                          }}
-                        />
+                      {/* Right: Page Navigation Buttons with Numbers and Quick Jump */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        {/* First Page */}
                         <button
-                          type="submit"
-                          disabled={!ticketsJumpPage}
+                          type="button"
+                          title="Halaman Pertama"
+                          disabled={ticketsPagination.page <= 1}
+                          onClick={() => fetchTickets(1, false, ticketsPagination.limit)}
                           style={{
+                            width: '32px',
                             height: '32px',
-                            padding: '0 0.65rem',
-                            borderRadius: '0.45rem',
+                            borderRadius: '0.5rem',
                             border: `1px solid ${theme.border}`,
                             backgroundColor: theme.surface,
-                            color: !ticketsJumpPage ? theme.textMuted : theme.textPrimary,
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            cursor: !ticketsJumpPage ? 'not-allowed' : 'pointer',
-                            opacity: !ticketsJumpPage ? 0.5 : 1
+                            color: ticketsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
+                            cursor: ticketsPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: ticketsPagination.page <= 1 ? 0.4 : 1
                           }}
                         >
-                          Lompat
+                          <ChevronsLeft size={15} />
                         </button>
-                      </form>
+
+                        {/* Prev Page */}
+                        <button
+                          type="button"
+                          title="Halaman Sebelumnya"
+                          disabled={ticketsPagination.page <= 1}
+                          onClick={() => fetchTickets(ticketsPagination.page - 1, false, ticketsPagination.limit)}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.5rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: theme.surface,
+                            color: ticketsPagination.page <= 1 ? theme.textMuted : theme.textPrimary,
+                            cursor: ticketsPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: ticketsPagination.page <= 1 ? 0.4 : 1
+                          }}
+                        >
+                          <ChevronLeft size={15} />
+                        </button>
+
+                        {/* Numbered Page Buttons with Ellipsis */}
+                        {(() => {
+                          const totalP = Math.max(1, ticketsPagination.total_pages || 1);
+                          const curP = ticketsPagination.page;
+                          const pages: (number | string)[] = [];
+
+                          if (totalP <= 7) {
+                            for (let i = 1; i <= totalP; i++) pages.push(i);
+                          } else {
+                            pages.push(1);
+                            if (curP > 3) pages.push('...');
+                            const start = Math.max(2, curP - 1);
+                            const end = Math.min(totalP - 1, curP + 1);
+                            for (let i = start; i <= end; i++) pages.push(i);
+                            if (curP < totalP - 2) pages.push('...');
+                            pages.push(totalP);
+                          }
+
+                          return pages.map((p, idx) => {
+                            if (p === '...') {
+                              return (
+                                <span key={`dots-${idx}`} style={{ padding: '0 0.25rem', color: theme.textMuted, fontSize: '0.78rem' }}>
+                                  &hellip;
+                                </span>
+                              );
+                            }
+                            const pageNum = p as number;
+                            const isAct = pageNum === curP;
+                            return (
+                              <button
+                                key={`p-${pageNum}`}
+                                type="button"
+                                onClick={() => fetchTickets(pageNum, false, ticketsPagination.limit)}
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '0.5rem',
+                                  border: isAct ? '1.5px solid var(--primary)' : `1px solid ${theme.border}`,
+                                  backgroundColor: isAct ? 'var(--primary)' : theme.surface,
+                                  color: isAct ? '#ffffff' : theme.textPrimary,
+                                  fontSize: '0.76rem',
+                                  fontWeight: isAct ? 800 : 600,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          });
+                        })()}
+
+                        {/* Next Page */}
+                        <button
+                          type="button"
+                          title="Halaman Selanjutnya"
+                          disabled={ticketsPagination.page >= ticketsPagination.total_pages}
+                          onClick={() => fetchTickets(ticketsPagination.page + 1, false, ticketsPagination.limit)}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.5rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: theme.surface,
+                            color: ticketsPagination.page >= ticketsPagination.total_pages ? theme.textMuted : theme.textPrimary,
+                            cursor: ticketsPagination.page >= ticketsPagination.total_pages ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: ticketsPagination.page >= ticketsPagination.total_pages ? 0.4 : 1
+                          }}
+                        >
+                          <ChevronRight size={15} />
+                        </button>
+
+                        {/* Last Page */}
+                        <button
+                          type="button"
+                          title="Halaman Terakhir"
+                          disabled={ticketsPagination.page >= ticketsPagination.total_pages}
+                          onClick={() => fetchTickets(ticketsPagination.total_pages, false, ticketsPagination.limit)}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.5rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: theme.surface,
+                            color: ticketsPagination.page >= ticketsPagination.total_pages ? theme.textMuted : theme.textPrimary,
+                            cursor: ticketsPagination.page >= ticketsPagination.total_pages ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: ticketsPagination.page >= ticketsPagination.total_pages ? 0.4 : 1
+                          }}
+                        >
+                          <ChevronsRight size={15} />
+                        </button>
+
+                        {/* Quick Jump Input */}
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const p = parseInt(ticketsJumpPage, 10);
+                            if (!isNaN(p) && p >= 1 && p <= (ticketsPagination.total_pages || 1)) {
+                              fetchTickets(p, false, ticketsPagination.limit);
+                              setTicketsJumpPage('');
+                            }
+                          }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.4rem' }}
+                        >
+                          <input
+                            type="number"
+                            min={1}
+                            max={ticketsPagination.total_pages || 1}
+                            placeholder="Hal"
+                            value={ticketsJumpPage}
+                            onChange={(e) => setTicketsJumpPage(e.target.value)}
+                            style={{
+                              width: '48px',
+                              height: '32px',
+                              padding: '0 0.35rem',
+                              borderRadius: '0.45rem',
+                              border: `1px solid ${theme.border}`,
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                              color: theme.textPrimary,
+                              fontSize: '0.74rem',
+                              textAlign: 'center',
+                              outline: 'none'
+                            }}
+                          />
+                          <button
+                            type="submit"
+                            disabled={!ticketsJumpPage}
+                            style={{
+                              height: '32px',
+                              padding: '0 0.65rem',
+                              borderRadius: '0.45rem',
+                              border: `1px solid ${theme.border}`,
+                              backgroundColor: theme.surface,
+                              color: !ticketsJumpPage ? theme.textMuted : theme.textPrimary,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              cursor: !ticketsJumpPage ? 'not-allowed' : 'pointer',
+                              opacity: !ticketsJumpPage ? 0.5 : 1
+                            }}
+                          >
+                            Lompat
+                          </button>
+                        </form>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. MODULE 5: KEUANGAN & ORDER LANGGANAN                                   */}
-      {/* ========================================================================= */}
-      {activeView === 'finance' && canAccessFinance && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-          {/* Sub-tab Switcher: Orders vs Payment System Configuration */}
-          <div style={{ display: 'flex', gap: '0.5rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.65rem' }}>
-            <button
-              type="button"
-              onClick={() => setFinanceSubTab('orders')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.5rem 0.95rem',
-                borderRadius: '0.55rem',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                backgroundColor: financeSubTab === 'orders' ? '#10b981' : theme.surface,
-                color: financeSubTab === 'orders' ? '#ffffff' : theme.textSecondary,
-                border: `1px solid ${financeSubTab === 'orders' ? '#10b981' : theme.border}`,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <CreditCard size={15} />
-              <span>Daftar Pesanan &amp; Verifikasi</span>
-              {pendingOrdersCount > 0 && (
-                <span style={{
-                  backgroundColor: financeSubTab === 'orders' ? '#ffffff' : '#f59e0b',
-                  color: financeSubTab === 'orders' ? '#10b981' : '#ffffff',
-                  fontSize: '0.68rem',
-                  fontWeight: 800,
-                  padding: '0.1rem 0.45rem',
-                  borderRadius: '999px',
-                }}>
-                  {pendingOrdersCount}
-                </span>
+                  )}
+                </>
               )}
-            </button>
+            </div>
+          )
+        )}
 
-            {canManagePaymentSettings && (
+        {/* ========================================================================= */}
+        {/* 4. MODULE 5: KEUANGAN & ORDER LANGGANAN                                   */}
+        {/* ========================================================================= */}
+        {activeView === 'finance' && canAccessFinance && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+            {/* Sub-tab Switcher: Orders vs Payment System Configuration */}
+            <div style={{ display: 'flex', gap: '0.5rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.65rem' }}>
               <button
                 type="button"
-                onClick={() => setFinanceSubTab('settings')}
+                onClick={() => setFinanceSubTab('orders')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -9141,1575 +9117,1639 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   borderRadius: '0.55rem',
                   fontSize: '0.82rem',
                   fontWeight: 700,
-                  backgroundColor: financeSubTab === 'settings' ? '#10b981' : theme.surface,
-                  color: financeSubTab === 'settings' ? '#ffffff' : theme.textSecondary,
-                  border: `1px solid ${financeSubTab === 'settings' ? '#10b981' : theme.border}`,
+                  backgroundColor: financeSubTab === 'orders' ? '#10b981' : theme.surface,
+                  color: financeSubTab === 'orders' ? '#ffffff' : theme.textSecondary,
+                  border: `1px solid ${financeSubTab === 'orders' ? '#10b981' : theme.border}`,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                 }}
               >
-                <SlidersHorizontal size={15} />
-                <span>Konfigurasi Sistem Pembayaran</span>
+                <CreditCard size={15} />
+                <span>Daftar Pesanan &amp; Verifikasi</span>
+                {pendingOrdersCount > 0 && (
+                  <span style={{
+                    backgroundColor: financeSubTab === 'orders' ? '#ffffff' : '#f59e0b',
+                    color: financeSubTab === 'orders' ? '#10b981' : '#ffffff',
+                    fontSize: '0.68rem',
+                    fontWeight: 800,
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '999px',
+                  }}>
+                    {pendingOrdersCount}
+                  </span>
+                )}
               </button>
-            )}
-          </div>
 
-          {financeSubTab === 'orders' && (
-            <>
-              {/* Filter Chips */}
-              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
-                {(['all', 'pending', 'active', 'rejected'] as const).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setOrdersFilter(f)}
-                    style={{
-                      padding: '0.35rem 0.75rem',
-                      borderRadius: '999px',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      backgroundColor: ordersFilter === f ? '#10b981' : theme.chipInactiveBg,
-                      color: ordersFilter === f ? '#ffffff' : theme.chipInactiveText,
-                      border: `1px solid ${ordersFilter === f ? '#10b981' : theme.border}`,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {f === 'all' ? 'Semua' : f === 'pending' ? 'Pending' : f === 'active' ? 'Aktif' : 'Ditolak'}
-                  </button>
-                ))}
-              </div>
-
-          {/* Orders Feed */}
-          {orders
-            .filter(o => ordersFilter === 'all' || o.status === ordersFilter)
-            .length === 0 ? (
-            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <CreditCard size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
-              <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Pesanan Paket</h4>
-              <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>Semua transaksi paket langganan telah terverifikasi.</p>
-            </div>
-          ) : (
-            orders
-              .filter(o => ordersFilter === 'all' || o.status === ordersFilter)
-              .map(o => (
-                <div
-                  key={o.id}
-                  style={{
-                    padding: '1.05rem',
-                    borderRadius: '1.15rem',
-                    backgroundColor: theme.surface,
-                    border: o.status === 'pending' ? '1px solid rgba(250, 204, 21, 0.5)' : `1px solid ${theme.border}`,
-                    boxShadow: theme.cardShadow,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{
-                      padding: '0.15rem 0.55rem',
-                      borderRadius: '999px',
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
-                      backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                      color: isDark ? '#34d399' : '#059669',
-                      border: '1px solid rgba(16, 185, 129, 0.3)'
-                    }}>
-                      {o.plan_name || 'PRO STARTER'}
-                    </span>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: o.status === 'active' ? (isDark ? '#34d399' : '#059669') : o.status === 'pending' ? (isDark ? '#facc15' : '#d97706') : '#f87171' }}>
-                      {o.status ? o.status.toUpperCase() : 'PENDING'}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
-                        {o.store_name || `Store #${o.store_id || ''}`}
-                      </h4>
-                      <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
-                        Metode: {o.payment_method ? o.payment_method.toUpperCase() : 'TRANSFER BANK'}
-                      </span>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '1rem', fontWeight: 900, color: isDark ? '#34d399' : '#059669', display: 'block' }}>
-                        Rp {(o.amount || o.price || 99000).toLocaleString('id-ID')}
-                      </span>
-                      <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                        {o.created_at ? new Date(o.created_at).toLocaleDateString('id-ID') : 'Baru'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {o.payment_proof_url && (
-                    <button
-                      onClick={() => setSelectedProofOrder(o)}
-                      style={{
-                        padding: '0.45rem',
-                        borderRadius: '0.6rem',
-                        backgroundColor: theme.cardAlt,
-                        border: `1px solid ${theme.border}`,
-                        color: isDark ? '#38bdf8' : '#0284c7',
-                        fontSize: '0.74rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem'
-                      }}
-                    >
-                      <Eye size={13} />
-                      <span>Lihat Bukti Pembayaran</span>
-                    </button>
-                  )}
-
-                  {o.status === 'pending' && canManageFinance && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
-                      <button
-                        onClick={() => handleUpdateOrderStatus(o.id, 'rejected')}
-                        style={{
-                          padding: '0.5rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                          color: '#f87171',
-                          fontSize: '0.74rem',
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Tolak
-                      </button>
-                      <button
-                        onClick={() => handleUpdateOrderStatus(o.id, 'active')}
-                        style={{
-                          padding: '0.5rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: '#10b981',
-                          color: '#ffffff',
-                          border: 'none',
-                          fontSize: '0.74rem',
-                          fontWeight: 800,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Aktifkan Paket
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-          )}
-            </>
-          )}
-
-          {/* Payment System Configuration Tab */}
-          {financeSubTab === 'settings' && canManagePaymentSettings && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {/* Header Info Banner */}
-              <div style={{
-                padding: '1.25rem 1.5rem',
-                backgroundColor: theme.surface,
-                borderRadius: '1rem',
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '1rem'
-              }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <SlidersHorizontal size={20} color="#10b981" />
-                    <span>Konfigurasi Sistem Pembayaran Platform</span>
-                  </h3>
-                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: theme.textSecondary, lineHeight: 1.5 }}>
-                    Tentukan mode checkout aktif (Payment Gateway Aulaa, QRIS Merchant manual, atau Pemeliharaan) serta kelola sub-kanal pembayaran, nomor rekening, dan kredensial API secara terpusat.
-                  </p>
-                </div>
+              {canManagePaymentSettings && (
                 <button
                   type="button"
-                  onClick={handleSavePaymentSettings}
-                  disabled={savingSettings}
+                  onClick={() => setFinanceSubTab('settings')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.45rem',
-                    padding: '0.65rem 1.25rem',
-                    backgroundColor: '#10b981',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '0.65rem',
+                    padding: '0.5rem 0.95rem',
+                    borderRadius: '0.55rem',
                     fontSize: '0.82rem',
-                    fontWeight: 800,
-                    cursor: savingSettings ? 'not-allowed' : 'pointer',
-                    opacity: savingSettings ? 0.7 : 1,
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0
+                    fontWeight: 700,
+                    backgroundColor: financeSubTab === 'settings' ? '#10b981' : theme.surface,
+                    color: financeSubTab === 'settings' ? '#ffffff' : theme.textSecondary,
+                    border: `1px solid ${financeSubTab === 'settings' ? '#10b981' : theme.border}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
                   }}
                 >
-                  {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                  <span>{savingSettings ? 'Menyimpan...' : 'Simpan Konfigurasi'}</span>
+                  <SlidersHorizontal size={15} />
+                  <span>Konfigurasi Sistem Pembayaran</span>
                 </button>
-              </div>
+              )}
+            </div>
 
-              {/* 1. Mode Switcher Tabs (3 Primary Options) */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <label style={{ fontSize: '0.84rem', fontWeight: 800, color: theme.textPrimary }}>
-                    Pilih Mode Sistem Pembayaran Aktif:
-                  </label>
-                  <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
-                    Tab yang dipilih otomatis menjadi mode aktif di platform dan menampilkan konfigurasi khususnya di bawah.
-                  </span>
+            {financeSubTab === 'orders' && (
+              <>
+                {/* Filter Chips */}
+                <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+                  {(['all', 'pending', 'active', 'rejected'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setOrdersFilter(f)}
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        borderRadius: '999px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        backgroundColor: ordersFilter === f ? '#10b981' : theme.chipInactiveBg,
+                        color: ordersFilter === f ? '#ffffff' : theme.chipInactiveText,
+                        border: `1px solid ${ordersFilter === f ? '#10b981' : theme.border}`,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {f === 'all' ? 'Semua' : f === 'pending' ? 'Pending' : f === 'active' ? 'Aktif' : 'Ditolak'}
+                    </button>
+                  ))}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem' }}>
-                  {/* Tab 1: Aulaa Gateway */}
-                  {(() => {
-                    const isSelected = (googleSettings.payment_system_mode || 'gateway_aulaa') === 'gateway_aulaa';
-                    return (
+
+                {/* Orders Feed */}
+                {orders
+                  .filter(o => ordersFilter === 'all' || o.status === ordersFilter)
+                  .length === 0 ? (
+                  <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                    <CreditCard size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
+                    <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Pesanan Paket</h4>
+                    <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>Semua transaksi paket langganan telah terverifikasi.</p>
+                  </div>
+                ) : (
+                  orders
+                    .filter(o => ordersFilter === 'all' || o.status === ordersFilter)
+                    .map(o => (
                       <div
-                        onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: 'gateway_aulaa' }))}
+                        key={o.id}
                         style={{
-                          padding: '1.15rem',
-                          borderRadius: '0.85rem',
-                          backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.08)' : theme.surface,
-                          border: `2px solid ${isSelected ? '#10b981' : theme.border}`,
-                          cursor: 'pointer',
+                          padding: '1.05rem',
+                          borderRadius: '1.15rem',
+                          backgroundColor: theme.surface,
+                          border: o.status === 'pending' ? '1px solid rgba(250, 204, 21, 0.5)' : `1px solid ${theme.border}`,
+                          boxShadow: theme.cardShadow,
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '0.65rem',
-                          transition: 'all 0.2s ease',
-                          boxShadow: isSelected ? '0 0 0 1px #10b981' : undefined
+                          gap: '0.75rem'
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '0.5rem',
-                            backgroundColor: isSelected ? '#10b981' : theme.cardAlt,
-                            color: isSelected ? '#ffffff' : theme.textPrimary,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{
+                            padding: '0.15rem 0.55rem',
+                            borderRadius: '999px',
+                            fontSize: '0.65rem',
+                            fontWeight: 800,
+                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                            color: isDark ? '#34d399' : '#059669',
+                            border: '1px solid rgba(16, 185, 129, 0.3)'
                           }}>
-                            <Zap size={18} />
-                          </div>
-                          {isSelected ? (
-                            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '0.2rem 0.55rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <CheckCircle2 size={11} /> MODE AKTIF
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
-                              Klik untuk aktifkan
-                            </span>
-                          )}
+                            {o.plan_name || 'PRO STARTER'}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: o.status === 'active' ? (isDark ? '#34d399' : '#059669') : o.status === 'pending' ? (isDark ? '#facc15' : '#d97706') : '#f87171' }}>
+                            {o.status ? o.status.toUpperCase() : 'PENDING'}
+                          </span>
                         </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
-                            Aulaa Payment Gateway
-                          </h4>
-                          <p style={{ margin: '0.25rem 0 0', fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                            Otomatis terhubung ke Aulaa.co. Mendukung QRIS Instan, Virtual Account, E-Wallet, dan Kartu Kredit dengan webhook real-time.
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })()}
 
-                  {/* Tab 2: Manual QRIS & Transfer */}
-                  {(() => {
-                    const isSelected = googleSettings.payment_system_mode === 'manual_qris';
-                    return (
-                      <div
-                        onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: 'manual_qris' }))}
-                        style={{
-                          padding: '1.15rem',
-                          borderRadius: '0.85rem',
-                          backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.08)' : theme.surface,
-                          border: `2px solid ${isSelected ? '#0284c7' : theme.border}`,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.65rem',
-                          transition: 'all 0.2s ease',
-                          boxShadow: isSelected ? '0 0 0 1px #0284c7' : undefined
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '0.5rem',
-                            backgroundColor: isSelected ? '#0284c7' : theme.cardAlt,
-                            color: isSelected ? '#ffffff' : theme.textPrimary,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}>
-                            <QrCode size={18} />
-                          </div>
-                          {isSelected ? (
-                            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#0284c7', backgroundColor: 'rgba(56, 189, 248, 0.15)', padding: '0.2rem 0.55rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <CheckCircle2 size={11} /> MODE AKTIF
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
-                              Klik untuk aktifkan
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
-                            QRIS Merchant &amp; Transfer Manual
-                          </h4>
-                          <p style={{ margin: '0.25rem 0 0', fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                            Scan QRIS ShopeePay/BCA mandiri atau transfer bank dengan alokasi otomatis kode nominal unik 3-digit untuk validasi admin.
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Tab 3: Maintenance Mode */}
-                  {(() => {
-                    const isSelected = googleSettings.payment_system_mode === 'maintenance';
-                    return (
-                      <div
-                        onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: 'maintenance' }))}
-                        style={{
-                          padding: '1.15rem',
-                          borderRadius: '0.85rem',
-                          backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.08)' : theme.surface,
-                          border: `2px solid ${isSelected ? '#ef4444' : theme.border}`,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.65rem',
-                          transition: 'all 0.2s ease',
-                          boxShadow: isSelected ? '0 0 0 1px #ef4444' : undefined
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '0.5rem',
-                            backgroundColor: isSelected ? '#ef4444' : theme.cardAlt,
-                            color: isSelected ? '#ffffff' : theme.textPrimary,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}>
-                            <ShieldAlert size={18} />
-                          </div>
-                          {isSelected ? (
-                            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.15)', padding: '0.2rem 0.55rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <CheckCircle2 size={11} /> MODE AKTIF
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
-                              Klik untuk aktifkan
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
-                            Mode Pemeliharaan (Tutup Sementara)
-                          </h4>
-                          <p style={{ margin: '0.25rem 0 0', fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                            Menutup sementara seluruh transaksi checkout paket berbayar di platform dan menampilkan pengumuman pemeliharaan.
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* 2. Focused Configuration Panel (Only Shows Settings for Selected Tab) */}
-              {(() => {
-                const activeMode = googleSettings.payment_system_mode || 'gateway_aulaa';
-
-                // PANEL 1: AULAA PAYMENT GATEWAY
-                if (activeMode === 'gateway_aulaa') {
-                  return (
-                    <div style={{
-                      padding: '1.5rem',
-                      backgroundColor: theme.surface,
-                      borderRadius: '1rem',
-                      border: `1px solid ${theme.border}`,
-                      boxShadow: theme.cardShadow,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '1.25rem'
-                    }}>
-                      {/* Active Status Banner */}
-                      <div style={{
-                        padding: '0.9rem 1.15rem',
-                        borderRadius: '0.75rem',
-                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                        border: '1px solid rgba(16, 185, 129, 0.25)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '1rem'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <Zap size={20} color="#10b981" />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
-                            <strong style={{ fontSize: '0.88rem', color: theme.textPrimary, display: 'block' }}>
-                              Konfigurasi Gateway Aulaa.co (Mode Aktif)
-                            </strong>
-                            <span style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
-                              Transaksi pendaftaran dan upgrade merchant dialihkan ke sesi checkout aman Aulaa secara instan dan otomatis.
+                            <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                              {o.store_name || `Store #${o.store_id || ''}`}
+                            </h4>
+                            <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                              Metode: {o.payment_method ? o.payment_method.toUpperCase() : 'TRANSFER BANK'}
+                            </span>
+                          </div>
+
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontSize: '1rem', fontWeight: 900, color: isDark ? '#34d399' : '#059669', display: 'block' }}>
+                              Rp {(o.amount || o.price || 99000).toLocaleString('id-ID')}
+                            </span>
+                            <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                              {o.created_at ? new Date(o.created_at).toLocaleDateString('id-ID') : 'Baru'}
                             </span>
                           </div>
                         </div>
-                        <a 
-                          href="https://aulaa.co/docs" 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          style={{ 
-                            fontSize: '0.74rem', 
-                            color: '#10b981', 
-                            textDecoration: 'none', 
-                            fontWeight: 700,
-                            padding: '0.35rem 0.75rem',
-                            borderRadius: '0.45rem',
-                            border: '1px solid rgba(16, 185, 129, 0.3)',
-                            backgroundColor: 'rgba(16, 185, 129, 0.05)',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            whiteSpace: 'nowrap'
+
+                        {o.payment_proof_url ? (
+                          <button
+                            onClick={() => setSelectedProofOrder(o)}
+                            style={{
+                              padding: '0.45rem',
+                              borderRadius: '0.6rem',
+                              backgroundColor: theme.cardAlt,
+                              border: `1px solid ${theme.border}`,
+                              color: isDark ? '#38bdf8' : '#0284c7',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem'
+                            }}
+                          >
+                            <Eye size={13} />
+                            <span>Lihat Bukti Pembayaran</span>
+                          </button>
+                        ) : (
+                          <div
+                            style={{
+                              padding: '0.4rem 0.65rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+                              border: `1px dashed ${theme.border}`,
+                              color: theme.textMuted,
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem'
+                            }}
+                          >
+                            <ImageOff size={13} strokeWidth={1.75} />
+                            <span>Bukti transfer belum diunggah</span>
+                          </div>
+                        )}
+
+                        {o.status === 'pending' && canManageFinance && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
+                            <button
+                              onClick={() => handleUpdateOrderStatus(o.id, 'rejected')}
+                              style={{
+                                padding: '0.5rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                color: '#f87171',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Tolak
+                            </button>
+                            <button
+                              onClick={() => handleUpdateOrderStatus(o.id, 'active')}
+                              style={{
+                                padding: '0.5rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: '#10b981',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontSize: '0.74rem',
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Aktifkan Paket
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                )}
+              </>
+            )}
+
+            {/* Payment System Configuration Tab */}
+            {financeSubTab === 'settings' && canManagePaymentSettings && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* Header Info Banner */}
+                <div style={{
+                  padding: '1.25rem 1.5rem',
+                  backgroundColor: theme.surface,
+                  borderRadius: '1rem',
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: theme.cardShadow,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem'
+                }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <SlidersHorizontal size={20} color="#10b981" />
+                      <span>Konfigurasi Sistem Pembayaran Platform</span>
+                    </h3>
+                    <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: theme.textSecondary, lineHeight: 1.5 }}>
+                      Tentukan mode checkout aktif (Payment Gateway Aulaa, QRIS Merchant manual, atau Pemeliharaan) serta kelola sub-kanal pembayaran, nomor rekening, dan kredensial API secara terpusat.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSavePaymentSettings}
+                    disabled={savingSettings}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.65rem 1.25rem',
+                      backgroundColor: '#10b981',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '0.65rem',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      cursor: savingSettings ? 'not-allowed' : 'pointer',
+                      opacity: savingSettings ? 0.7 : 1,
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
+                  >
+                    {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                    <span>{savingSettings ? 'Menyimpan...' : 'Simpan Konfigurasi'}</span>
+                  </button>
+                </div>
+
+                {/* 1. Mode Switcher Tabs (3 Primary Options) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label style={{ fontSize: '0.84rem', fontWeight: 800, color: theme.textPrimary }}>
+                      Pilih Mode Sistem Pembayaran Aktif:
+                    </label>
+                    <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                      Tab yang dipilih otomatis menjadi mode aktif di platform dan menampilkan konfigurasi khususnya di bawah.
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem' }}>
+                    {/* Tab 1: Aulaa Gateway */}
+                    {(() => {
+                      const isSelected = (googleSettings.payment_system_mode || 'gateway_aulaa') === 'gateway_aulaa';
+                      return (
+                        <div
+                          onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: 'gateway_aulaa' }))}
+                          style={{
+                            padding: '1.15rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.08)' : theme.surface,
+                            border: `2px solid ${isSelected ? '#10b981' : theme.border}`,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.65rem',
+                            transition: 'all 0.2s ease',
+                            boxShadow: isSelected ? '0 0 0 1px #10b981' : undefined
                           }}
                         >
-                          <ExternalLink size={12} /> Dokumentasi API
-                        </a>
-                      </div>
-
-                      {/* 2-Column Content */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem', alignItems: 'start' }}>
-                        {/* Sub-channel Toggles */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                          <div>
-                            <label style={{ fontSize: '0.82rem', fontWeight: 800, color: theme.textPrimary, display: 'block' }}>
-                              Sub-Kanal Pembayaran yang Ditampilkan di Checkout:
-                            </label>
-                            <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
-                              Centang metode pembayaran yang ingin Anda aktifkan untuk dilihat oleh calon pengguna.
-                            </span>
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                            {[
-                              { key: 'payment_aulaa_channel_qris', label: 'QRIS Instan', desc: 'GoPay, OVO, ShopeePay, BCA', icon: QrCode, color: '#10b981' },
-                              { key: 'payment_aulaa_channel_va', label: 'Virtual Account', desc: 'BCA, Mandiri, BRI, BNI', icon: CreditCard, color: '#38bdf8' },
-                              { key: 'payment_aulaa_channel_ewallet', label: 'Dompet Digital', desc: 'DANA, LinkAja, AstraPay', icon: Zap, color: '#f59e0b' },
-                              { key: 'payment_aulaa_channel_cc', label: 'Kartu Kredit / Debit', desc: 'Visa, Mastercard, JCB', icon: CreditCard, color: '#c084fc' },
-                            ].map(ch => {
-                              const isEnabled = googleSettings[ch.key] !== '0';
-                              const ChIcon = ch.icon;
-                              return (
-                                <div
-                                  key={ch.key}
-                                  onClick={() => setGoogleSettings(prev => ({ ...prev, [ch.key]: isEnabled ? '0' : '1' }))}
-                                  style={{
-                                    padding: '0.75rem 0.95rem',
-                                    borderRadius: '0.65rem',
-                                    backgroundColor: isEnabled ? 'rgba(16, 185, 129, 0.08)' : theme.cardAlt,
-                                    border: `1px solid ${isEnabled ? '#10b981' : theme.border}`,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    transition: 'all 0.15s ease'
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                                    <ChIcon size={18} color={ch.color} />
-                                    <div>
-                                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: theme.textPrimary }}>{ch.label}</div>
-                                      <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>{ch.desc}</div>
-                                    </div>
-                                  </div>
-                                  <input
-                                    type="checkbox"
-                                    checked={isEnabled}
-                                    onChange={() => {}}
-                                    style={{ accentColor: '#10b981', cursor: 'pointer', width: '17px', height: '17px' }}
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* API Credentials & Webhook Listener */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-                          <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary }}>
-                                Aulaa API Key:
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() => setShowAulaaSecrets(!showAulaaSecrets)}
-                                style={{ background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                              >
-                                {showAulaaSecrets ? <EyeOff size={13} /> : <Eye size={13} />}
-                                <span>{showAulaaSecrets ? 'Sembunyikan' : 'Tampilkan'}</span>
-                              </button>
-                            </div>
-                            <input
-                              type={showAulaaSecrets ? 'text' : 'password'}
-                              value={googleSettings.aulaa_api_key || ''}
-                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_api_key: e.target.value }))}
-                              placeholder="Contoh: aulk_live_xxxxxxxxxxxxxxxx"
-                              style={{
-                                width: '100%',
-                                padding: '0.65rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: theme.textPrimary,
-                                fontSize: '0.82rem',
-                                fontFamily: 'monospace'
-                              }}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                              Aulaa Webhook Secret (HMAC-SHA256):
-                            </label>
-                            <input
-                              type={showAulaaSecrets ? 'text' : 'password'}
-                              value={googleSettings.aulaa_webhook_secret || ''}
-                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_webhook_secret: e.target.value }))}
-                              placeholder="Contoh: whsec_xxxxxxxxxxxxxxxxxxxxxxxx"
-                              style={{
-                                width: '100%',
-                                padding: '0.65rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: theme.textPrimary,
-                                fontSize: '0.82rem',
-                                fontFamily: 'monospace'
-                              }}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                              Base URL API:
-                            </label>
-                            <input
-                              type="text"
-                              value={googleSettings.aulaa_base_url || 'https://api.aulaa.co/v1'}
-                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_base_url: e.target.value }))}
-                              placeholder="https://api.aulaa.co/v1"
-                              style={{
-                                width: '100%',
-                                padding: '0.65rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: theme.textPrimary,
-                                fontSize: '0.82rem',
-                                fontFamily: 'monospace'
-                              }}
-                            />
-                          </div>
-
-                          {/* Webhook Endpoint Banner */}
-                          <div style={{
-                            padding: '0.85rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                            border: '1px solid rgba(16, 185, 129, 0.25)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.45rem'
-                          }}>
-                            <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#10b981' }}>
-                              Webhook Listener URL Platform Catavor:
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                              <code style={{
-                                flex: 1,
-                                fontSize: '0.74rem',
-                                padding: '0.35rem 0.55rem',
-                                backgroundColor: theme.surface,
-                                borderRadius: '0.35rem',
-                                border: `1px solid ${theme.border}`,
-                                color: theme.textPrimary,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }}>
-                                {typeof window !== 'undefined' ? `${window.location.origin}/api/payments/webhook/aulaa` : '/api/payments/webhook/aulaa'}
-                              </code>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (typeof window !== 'undefined') {
-                                    navigator.clipboard.writeText(`${window.location.origin}/api/payments/webhook/aulaa`);
-                                    setCopiedWebhookUrl(true);
-                                    setTimeout(() => setCopiedWebhookUrl(false), 2500);
-                                    showToast('URL webhook berhasil disalin!', 'success');
-                                  }
-                                }}
-                                style={{
-                                  padding: '0.35rem 0.65rem',
-                                  borderRadius: '0.4rem',
-                                  backgroundColor: copiedWebhookUrl ? '#10b981' : theme.surface,
-                                  color: copiedWebhookUrl ? '#ffffff' : theme.textPrimary,
-                                  border: `1px solid ${theme.border}`,
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem'
-                                }}
-                              >
-                                {copiedWebhookUrl ? <CheckCheck size={13} /> : <Copy size={13} />}
-                                <span>{copiedWebhookUrl ? 'Tersalin' : 'Salin'}</span>
-                              </button>
-                            </div>
-                            <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
-                              Salin URL ini ke Pengaturan Webhook di dashboard pengembang Aulaa.co Anda.
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // PANEL 2: MANUAL QRIS & BANK TRANSFER
-                if (activeMode === 'manual_qris') {
-                  return (
-                    <div style={{
-                      padding: '1.5rem',
-                      backgroundColor: theme.surface,
-                      borderRadius: '1rem',
-                      border: `1px solid ${theme.border}`,
-                      boxShadow: theme.cardShadow,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '1.25rem'
-                    }}>
-                      {/* Active Status Banner */}
-                      <div style={{
-                        padding: '0.9rem 1.15rem',
-                        borderRadius: '0.75rem',
-                        backgroundColor: 'rgba(56, 189, 248, 0.08)',
-                        border: '1px solid rgba(56, 189, 248, 0.25)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.65rem'
-                      }}>
-                        <QrCode size={20} color="#0284c7" />
-                        <div>
-                          <strong style={{ fontSize: '0.88rem', color: theme.textPrimary, display: 'block' }}>
-                            Konfigurasi QRIS &amp; Rekening Manual (Mode Aktif)
-                          </strong>
-                          <span style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
-                            Pengguna membayar via scan QRIS merchant atau transfer bank langsung dengan alokasi otomatis kode unik nominal 3-digit.
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* 2-Column Content */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem', alignItems: 'start' }}>
-                        {/* Left: QRIS Merchant Settings */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                              Nama Merchant QRIS:
-                            </label>
-                            <input
-                              type="text"
-                              value={googleSettings.payment_qris_manual_merchant || 'Catavor Official Store'}
-                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_merchant: e.target.value }))}
-                              placeholder="Contoh: Catavor Official Store"
-                              style={{
-                                width: '100%',
-                                padding: '0.65rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: theme.textPrimary,
-                                fontSize: '0.82rem'
-                              }}
-                            />
-                          </div>
-
-                          {/* QRIS Image Upload & Preview */}
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                              Gambar / Kode QRIS Merchant:
-                            </label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                              <div style={{
-                                width: '84px',
-                                height: '84px',
-                                borderRadius: '0.6rem',
-                                border: `1px solid ${theme.border}`,
-                                backgroundColor: '#ffffff',
-                                padding: '4px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                overflow: 'hidden',
-                                flexShrink: 0
-                              }}>
-                                <img
-                                  src={googleSettings.payment_qris_manual_image || '/img/qris_demo.svg'}
-                                  alt="QRIS Merchant"
-                                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                />
-                              </div>
-                              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                                <input
-                                  type="text"
-                                  value={googleSettings.payment_qris_manual_image || ''}
-                                  onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: e.target.value }))}
-                                  placeholder="/img/qris_demo.svg"
-                                  style={{
-                                    width: '100%',
-                                    padding: '0.5rem 0.75rem',
-                                    borderRadius: '0.45rem',
-                                    backgroundColor: theme.cardAlt,
-                                    border: `1px solid ${theme.border}`,
-                                    color: theme.textPrimary,
-                                    fontSize: '0.78rem'
-                                  }}
-                                />
-                                <label style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.35rem',
-                                  padding: '0.45rem 0.85rem',
-                                  borderRadius: '0.45rem',
-                                  backgroundColor: theme.surface,
-                                  border: `1px solid ${theme.border}`,
-                                  color: theme.textPrimary,
-                                  fontSize: '0.74rem',
-                                  fontWeight: 700,
-                                  cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
-                                  width: 'fit-content'
-                                }}>
-                                  <Upload size={14} color="#0284c7" />
-                                  <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File QRIS'}</span>
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    disabled={isUploadingQRISImage}
-                                    onChange={(e) => {
-                                      const f = e.target.files?.[0];
-                                      if (f) handleUploadQRISImage(f);
-                                    }}
-                                    style={{ display: 'none' }}
-                                  />
-                                </label>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Right: Bank Details & Unique Code Notice */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-                            <div>
-                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                                Nama Bank:
-                              </label>
-                              <input
-                                type="text"
-                                value={googleSettings.payment_bank_name || 'Bank Central Asia (BCA)'}
-                                onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_name: e.target.value }))}
-                                placeholder="Bank Central Asia (BCA)"
-                                style={{
-                                  width: '100%',
-                                  padding: '0.65rem 0.85rem',
-                                  borderRadius: '0.55rem',
-                                  backgroundColor: theme.cardAlt,
-                                  border: `1px solid ${theme.border}`,
-                                  color: theme.textPrimary,
-                                  fontSize: '0.82rem'
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                                Nomor Rekening:
-                              </label>
-                              <input
-                                type="text"
-                                value={googleSettings.payment_bank_account || '8830-1928-3920'}
-                                onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_account: e.target.value }))}
-                                placeholder="8830-1928-3920"
-                                style={{
-                                  width: '100%',
-                                  padding: '0.65rem 0.85rem',
-                                  borderRadius: '0.55rem',
-                                  backgroundColor: theme.cardAlt,
-                                  border: `1px solid ${theme.border}`,
-                                  color: theme.textPrimary,
-                                  fontSize: '0.82rem'
-                                }}
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                              Atas Nama Pemilik Rekening:
-                            </label>
-                            <input
-                              type="text"
-                              value={googleSettings.payment_bank_holder || 'PT Catavor Media Digital'}
-                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_holder: e.target.value }))}
-                              placeholder="PT Catavor Media Digital"
-                              style={{
-                                width: '100%',
-                                padding: '0.65rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: theme.textPrimary,
-                                fontSize: '0.82rem'
-                              }}
-                            />
-                          </div>
-
-                          {/* Info Box: Unique 3-digit Code Allocation */}
-                          <div style={{
-                            padding: '0.85rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: 'rgba(56, 189, 248, 0.08)',
-                            border: '1px solid rgba(56, 189, 248, 0.25)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.35rem'
-                          }}>
-                            <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0284c7' }}>
-                              Sistem Kode Unik 3-Digit Otomatis:
-                            </div>
-                            <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                              Setiap transaksi manual akan secara otomatis dialokasikan 3 angka unik acak (100–999) pada digit nominal transfer. Hal ini menjamin mutasi rekening dapat dicocokkan secara tepat ke invoice pengguna tanpa tertukar.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // PANEL 3: MAINTENANCE MODE
-                if (activeMode === 'maintenance') {
-                  return (
-                    <div style={{
-                      padding: '1.5rem',
-                      backgroundColor: theme.surface,
-                      borderRadius: '1rem',
-                      border: `1px solid ${theme.border}`,
-                      boxShadow: theme.cardShadow,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '1.25rem'
-                    }}>
-                      {/* Active Status Banner */}
-                      <div style={{
-                        padding: '0.9rem 1.15rem',
-                        borderRadius: '0.75rem',
-                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.65rem'
-                      }}>
-                        <ShieldAlert size={20} color="#ef4444" />
-                        <div>
-                          <strong style={{ fontSize: '0.88rem', color: '#ef4444', display: 'block' }}>
-                            PERINGATAN: Mode Pemeliharaan Sedang Dipilih Sebagai Mode Aktif
-                          </strong>
-                          <span style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
-                            Seluruh formulir pembayaran dan pendaftaran berbayar saat ini ditutup sementara. Pengunjung akan melihat pengumuman di bawah ini.
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* 2-Column Content */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
-                        {/* Left: Input Form */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                              Judul Pengumuman Pemeliharaan:
-                            </label>
-                            <input
-                              type="text"
-                              value={googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan'}
-                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_maintenance_title: e.target.value }))}
-                              placeholder="Contoh: Sistem Pembayaran Dalam Pemeliharaan"
-                              style={{
-                                width: '100%',
-                                padding: '0.65rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: theme.textPrimary,
-                                fontSize: '0.82rem'
-                              }}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                              Isi Pesan Peringatan Pemeliharaan:
-                            </label>
-                            <textarea
-                              rows={4}
-                              value={googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.'}
-                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_maintenance_message: e.target.value }))}
-                              placeholder="Tuliskan alasan atau instruksi alternatif bagi pengunjung..."
-                              style={{
-                                width: '100%',
-                                padding: '0.65rem 0.85rem',
-                                borderRadius: '0.55rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: theme.textPrimary,
-                                fontSize: '0.8rem',
-                                lineHeight: 1.45,
-                                resize: 'vertical'
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Right: Live Preview Card */}
-                        <div>
-                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
-                            Pratinjau Tampilan Pengunjung (Live Preview):
-                          </label>
-                          <div style={{
-                            padding: '1.25rem',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.06)',
-                            border: '1.5px solid rgba(239, 68, 68, 0.3)',
-                            textAlign: 'center',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.75rem'
-                          }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{
-                              width: '48px',
-                              height: '48px',
-                              borderRadius: '50%',
-                              backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                              color: '#ef4444',
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '0.5rem',
+                              backgroundColor: isSelected ? '#10b981' : theme.cardAlt,
+                              color: isSelected ? '#ffffff' : theme.textPrimary,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center'
                             }}>
-                              <ShieldAlert size={24} />
+                              <Zap size={18} />
                             </div>
+                            {isSelected ? (
+                              <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '0.2rem 0.55rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <CheckCircle2 size={11} /> MODE AKTIF
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                                Klik untuk aktifkan
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
+                              Aulaa Payment Gateway
+                            </h4>
+                            <p style={{ margin: '0.25rem 0 0', fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                              Otomatis terhubung ke Aulaa.co. Mendukung QRIS Instan, Virtual Account, E-Wallet, dan Kartu Kredit dengan webhook real-time.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Tab 2: Manual QRIS & Transfer */}
+                    {(() => {
+                      const isSelected = googleSettings.payment_system_mode === 'manual_qris';
+                      return (
+                        <div
+                          onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: 'manual_qris' }))}
+                          style={{
+                            padding: '1.15rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.08)' : theme.surface,
+                            border: `2px solid ${isSelected ? '#0284c7' : theme.border}`,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.65rem',
+                            transition: 'all 0.2s ease',
+                            boxShadow: isSelected ? '0 0 0 1px #0284c7' : undefined
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '0.5rem',
+                              backgroundColor: isSelected ? '#0284c7' : theme.cardAlt,
+                              color: isSelected ? '#ffffff' : theme.textPrimary,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <QrCode size={18} />
+                            </div>
+                            {isSelected ? (
+                              <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#0284c7', backgroundColor: 'rgba(56, 189, 248, 0.15)', padding: '0.2rem 0.55rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <CheckCircle2 size={11} /> MODE AKTIF
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                                Klik untuk aktifkan
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
+                              QRIS Merchant &amp; Transfer Manual
+                            </h4>
+                            <p style={{ margin: '0.25rem 0 0', fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                              Scan QRIS ShopeePay/BCA mandiri atau transfer bank dengan alokasi otomatis kode nominal unik 3-digit untuk validasi admin.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Tab 3: Maintenance Mode */}
+                    {(() => {
+                      const isSelected = googleSettings.payment_system_mode === 'maintenance';
+                      return (
+                        <div
+                          onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: 'maintenance' }))}
+                          style={{
+                            padding: '1.15rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.08)' : theme.surface,
+                            border: `2px solid ${isSelected ? '#ef4444' : theme.border}`,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.65rem',
+                            transition: 'all 0.2s ease',
+                            boxShadow: isSelected ? '0 0 0 1px #ef4444' : undefined
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '0.5rem',
+                              backgroundColor: isSelected ? '#ef4444' : theme.cardAlt,
+                              color: isSelected ? '#ffffff' : theme.textPrimary,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <ShieldAlert size={18} />
+                            </div>
+                            {isSelected ? (
+                              <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.15)', padding: '0.2rem 0.55rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <CheckCircle2 size={11} /> MODE AKTIF
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                                Klik untuk aktifkan
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
+                              Mode Pemeliharaan (Tutup Sementara)
+                            </h4>
+                            <p style={{ margin: '0.25rem 0 0', fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                              Menutup sementara seluruh transaksi checkout paket berbayar di platform dan menampilkan pengumuman pemeliharaan.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* 2. Focused Configuration Panel (Only Shows Settings for Selected Tab) */}
+                {(() => {
+                  const activeMode = googleSettings.payment_system_mode || 'gateway_aulaa';
+
+                  // PANEL 1: AULAA PAYMENT GATEWAY
+                  if (activeMode === 'gateway_aulaa') {
+                    return (
+                      <div style={{
+                        padding: '1.5rem',
+                        backgroundColor: theme.surface,
+                        borderRadius: '1rem',
+                        border: `1px solid ${theme.border}`,
+                        boxShadow: theme.cardShadow,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.25rem'
+                      }}>
+                        {/* Active Status Banner */}
+                        <div style={{
+                          padding: '0.9rem 1.15rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '1rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            <Zap size={20} color="#10b981" />
                             <div>
-                              <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
-                                {googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan'}
-                              </h4>
-                              <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                                {googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.'}
-                              </p>
+                              <strong style={{ fontSize: '0.88rem', color: theme.textPrimary, display: 'block' }}>
+                                Konfigurasi Gateway Aulaa.co (Mode Aktif)
+                              </strong>
+                              <span style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
+                                Transaksi pendaftaran dan upgrade merchant dialihkan ke sesi checkout aman Aulaa secara instan dan otomatis.
+                              </span>
                             </div>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.12)', padding: '0.2rem 0.55rem', borderRadius: '0.35rem' }}>
-                              Checkout Dinonaktifkan Sementara
-                            </span>
+                          </div>
+                          <a
+                            href="https://aulaa.co/docs"
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              fontSize: '0.74rem',
+                              color: '#10b981',
+                              textDecoration: 'none',
+                              fontWeight: 700,
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '0.45rem',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <ExternalLink size={12} /> Dokumentasi API
+                          </a>
+                        </div>
+
+                        {/* 2-Column Content */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem', alignItems: 'start' }}>
+                          {/* Sub-channel Toggles */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.82rem', fontWeight: 800, color: theme.textPrimary, display: 'block' }}>
+                                Sub-Kanal Pembayaran yang Ditampilkan di Checkout:
+                              </label>
+                              <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                                Centang metode pembayaran yang ingin Anda aktifkan untuk dilihat oleh calon pengguna.
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                              {[
+                                { key: 'payment_aulaa_channel_qris', label: 'QRIS Instan', desc: 'GoPay, OVO, ShopeePay, BCA', icon: QrCode, color: '#10b981' },
+                                { key: 'payment_aulaa_channel_va', label: 'Virtual Account', desc: 'BCA, Mandiri, BRI, BNI', icon: CreditCard, color: '#38bdf8' },
+                                { key: 'payment_aulaa_channel_ewallet', label: 'Dompet Digital', desc: 'DANA, LinkAja, AstraPay', icon: Zap, color: '#f59e0b' },
+                                { key: 'payment_aulaa_channel_cc', label: 'Kartu Kredit / Debit', desc: 'Visa, Mastercard, JCB', icon: CreditCard, color: '#c084fc' },
+                              ].map(ch => {
+                                const isEnabled = googleSettings[ch.key] !== '0';
+                                const ChIcon = ch.icon;
+                                return (
+                                  <div
+                                    key={ch.key}
+                                    onClick={() => setGoogleSettings(prev => ({ ...prev, [ch.key]: isEnabled ? '0' : '1' }))}
+                                    style={{
+                                      padding: '0.75rem 0.95rem',
+                                      borderRadius: '0.65rem',
+                                      backgroundColor: isEnabled ? 'rgba(16, 185, 129, 0.08)' : theme.cardAlt,
+                                      border: `1px solid ${isEnabled ? '#10b981' : theme.border}`,
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                      <ChIcon size={18} color={ch.color} />
+                                      <div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: theme.textPrimary }}>{ch.label}</div>
+                                        <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>{ch.desc}</div>
+                                      </div>
+                                    </div>
+                                    <input
+                                      type="checkbox"
+                                      checked={isEnabled}
+                                      onChange={() => { }}
+                                      style={{ accentColor: '#10b981', cursor: 'pointer', width: '17px', height: '17px' }}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* API Credentials & Webhook Listener */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+                            <div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary }}>
+                                  Aulaa API Key:
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAulaaSecrets(!showAulaaSecrets)}
+                                  style={{ background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                >
+                                  {showAulaaSecrets ? <EyeOff size={13} /> : <Eye size={13} />}
+                                  <span>{showAulaaSecrets ? 'Sembunyikan' : 'Tampilkan'}</span>
+                                </button>
+                              </div>
+                              <input
+                                type={showAulaaSecrets ? 'text' : 'password'}
+                                value={googleSettings.aulaa_api_key || ''}
+                                onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_api_key: e.target.value }))}
+                                placeholder="Contoh: aulk_live_xxxxxxxxxxxxxxxx"
+                                style={{
+                                  width: '100%',
+                                  padding: '0.65rem 0.85rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textPrimary,
+                                  fontSize: '0.82rem',
+                                  fontFamily: 'monospace'
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                                Aulaa Webhook Secret (HMAC-SHA256):
+                              </label>
+                              <input
+                                type={showAulaaSecrets ? 'text' : 'password'}
+                                value={googleSettings.aulaa_webhook_secret || ''}
+                                onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_webhook_secret: e.target.value }))}
+                                placeholder="Contoh: whsec_xxxxxxxxxxxxxxxxxxxxxxxx"
+                                style={{
+                                  width: '100%',
+                                  padding: '0.65rem 0.85rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textPrimary,
+                                  fontSize: '0.82rem',
+                                  fontFamily: 'monospace'
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                                Base URL API:
+                              </label>
+                              <input
+                                type="text"
+                                value={googleSettings.aulaa_base_url || 'https://api.aulaa.co/v1'}
+                                onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_base_url: e.target.value }))}
+                                placeholder="https://api.aulaa.co/v1"
+                                style={{
+                                  width: '100%',
+                                  padding: '0.65rem 0.85rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textPrimary,
+                                  fontSize: '0.82rem',
+                                  fontFamily: 'monospace'
+                                }}
+                              />
+                            </div>
+
+                            {/* Webhook Endpoint Banner */}
+                            <div style={{
+                              padding: '0.85rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                              border: '1px solid rgba(16, 185, 129, 0.25)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.45rem'
+                            }}>
+                              <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#10b981' }}>
+                                Webhook Listener URL Platform Catavor:
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                <code style={{
+                                  flex: 1,
+                                  fontSize: '0.74rem',
+                                  padding: '0.35rem 0.55rem',
+                                  backgroundColor: theme.surface,
+                                  borderRadius: '0.35rem',
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textPrimary,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {typeof window !== 'undefined' ? `${window.location.origin}/api/payments/webhook/aulaa` : '/api/payments/webhook/aulaa'}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (typeof window !== 'undefined') {
+                                      navigator.clipboard.writeText(`${window.location.origin}/api/payments/webhook/aulaa`);
+                                      setCopiedWebhookUrl(true);
+                                      setTimeout(() => setCopiedWebhookUrl(false), 2500);
+                                      showToast('URL webhook berhasil disalin!', 'success');
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '0.35rem 0.65rem',
+                                    borderRadius: '0.4rem',
+                                    backgroundColor: copiedWebhookUrl ? '#10b981' : theme.surface,
+                                    color: copiedWebhookUrl ? '#ffffff' : theme.textPrimary,
+                                    border: `1px solid ${theme.border}`,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem'
+                                  }}
+                                >
+                                  {copiedWebhookUrl ? <CheckCheck size={13} /> : <Copy size={13} />}
+                                  <span>{copiedWebhookUrl ? 'Tersalin' : 'Salin'}</span>
+                                </button>
+                              </div>
+                              <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
+                                Salin URL ini ke Pengaturan Webhook di dashboard pengembang Aulaa.co Anda.
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                }
+                    );
+                  }
 
-                return null;
-              })()}
-            </div>
-          )}
-        </div>
-      )}
+                  // PANEL 2: MANUAL QRIS & BANK TRANSFER
+                  if (activeMode === 'manual_qris') {
+                    return (
+                      <div style={{
+                        padding: '1.5rem',
+                        backgroundColor: theme.surface,
+                        borderRadius: '1rem',
+                        border: `1px solid ${theme.border}`,
+                        boxShadow: theme.cardShadow,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.25rem'
+                      }}>
+                        {/* Active Status Banner */}
+                        <div style={{
+                          padding: '0.9rem 1.15rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                          border: '1px solid rgba(56, 189, 248, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.65rem'
+                        }}>
+                          <QrCode size={20} color="#0284c7" />
+                          <div>
+                            <strong style={{ fontSize: '0.88rem', color: theme.textPrimary, display: 'block' }}>
+                              Konfigurasi QRIS &amp; Rekening Manual (Mode Aktif)
+                            </strong>
+                            <span style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
+                              Pengguna membayar via scan QRIS merchant atau transfer bank langsung dengan alokasi otomatis kode unik nominal 3-digit.
+                            </span>
+                          </div>
+                        </div>
 
-      {/* ========================================================================= */}
-      {/* 4. MODULE 6: MONETISASI & INTEGRASI GOOGLE (ADSENSE & ANALYTICS)          */}
-      {/* ========================================================================= */}
-      {activeView === 'monetization' && canAccessMonetization && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Sub-Tabs: Google AdSense / Google Analytics */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '0.4rem',
-            backgroundColor: theme.cardAlt,
-            padding: '0.25rem',
-            borderRadius: '0.85rem',
-            border: `1px solid ${theme.border}`
-          }}>
-            <button
-              onClick={() => setMonetizationTab('adsense')}
-              style={{
-                padding: '0.65rem 0.5rem',
-                borderRadius: '0.65rem',
-                backgroundColor: monetizationTab === 'adsense' ? '#eab308' : 'transparent',
-                color: monetizationTab === 'adsense' ? '#000000' : theme.textSecondary,
-                border: 'none',
-                fontSize: '0.78rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <DollarSign size={14} />
-              <span>Google AdSense</span>
-            </button>
+                        {/* 2-Column Content */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem', alignItems: 'start' }}>
+                          {/* Left: QRIS Merchant Settings */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                                Nama Merchant QRIS:
+                              </label>
+                              <input
+                                type="text"
+                                value={googleSettings.payment_qris_manual_merchant || 'Catavor Official Store'}
+                                onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_merchant: e.target.value }))}
+                                placeholder="Contoh: Catavor Official Store"
+                                style={{
+                                  width: '100%',
+                                  padding: '0.65rem 0.85rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textPrimary,
+                                  fontSize: '0.82rem'
+                                }}
+                              />
+                            </div>
 
-            <button
-              onClick={() => setMonetizationTab('analytics')}
-              style={{
-                padding: '0.65rem 0.5rem',
-                borderRadius: '0.65rem',
-                backgroundColor: monetizationTab === 'analytics' ? '#38bdf8' : 'transparent',
-                color: monetizationTab === 'analytics' ? '#000000' : theme.textSecondary,
-                border: 'none',
-                fontSize: '0.78rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <BarChart3 size={14} />
-              <span>Google Analytics</span>
-            </button>
+                            {/* QRIS Image Upload & Preview */}
+                            <div>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                                Gambar / Kode QRIS Merchant:
+                              </label>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                                <div style={{
+                                  width: '84px',
+                                  height: '84px',
+                                  borderRadius: '0.6rem',
+                                  border: `1px solid ${theme.border}`,
+                                  backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                                  padding: '3px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  overflow: 'hidden',
+                                  flexShrink: 0
+                                }}>
+                                  <SafeImage
+                                    src={googleSettings.payment_qris_manual_image}
+                                    alt="QRIS Platform Catavor"
+                                    emptyLabel="Belum Diunggah"
+                                    emptySubLabel="Berkas QRIS kosong"
+                                    errorLabel="QRIS Rusak"
+                                    errorSubLabel="Tidak terbaca"
+                                    showLabel={false}
+                                    compact={false}
+                                    objectFit="contain"
+                                    isDark={isDark}
+                                    title={googleSettings.payment_qris_manual_image ? "Pratinjau Gambar QRIS" : "QRIS belum diunggah"}
+                                  />
+                                </div>
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                                  <input
+                                    type="text"
+                                    value={googleSettings.payment_qris_manual_image || ''}
+                                    onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: e.target.value }))}
+                                    placeholder="/img/qris_demo.svg"
+                                    style={{
+                                      width: '100%',
+                                      padding: '0.5rem 0.75rem',
+                                      borderRadius: '0.45rem',
+                                      backgroundColor: theme.cardAlt,
+                                      border: `1px solid ${theme.border}`,
+                                      color: theme.textPrimary,
+                                      fontSize: '0.78rem'
+                                    }}
+                                  />
+                                  <label style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    padding: '0.45rem 0.85rem',
+                                    borderRadius: '0.45rem',
+                                    backgroundColor: theme.surface,
+                                    border: `1px solid ${theme.border}`,
+                                    color: theme.textPrimary,
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
+                                    width: 'fit-content'
+                                  }}>
+                                    <Upload size={14} color="#0284c7" />
+                                    <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File QRIS'}</span>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      disabled={isUploadingQRISImage}
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleUploadQRISImage(f);
+                                      }}
+                                      style={{ display: 'none' }}
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Bank Details & Unique Code Notice */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                              <div>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                                  Nama Bank:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={googleSettings.payment_bank_name || 'Bank Central Asia (BCA)'}
+                                  onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_name: e.target.value }))}
+                                  placeholder="Bank Central Asia (BCA)"
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.65rem 0.85rem',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: theme.cardAlt,
+                                    border: `1px solid ${theme.border}`,
+                                    color: theme.textPrimary,
+                                    fontSize: '0.82rem'
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                                  Nomor Rekening:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={googleSettings.payment_bank_account || '8830-1928-3920'}
+                                  onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_account: e.target.value }))}
+                                  placeholder="8830-1928-3920"
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.65rem 0.85rem',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: theme.cardAlt,
+                                    border: `1px solid ${theme.border}`,
+                                    color: theme.textPrimary,
+                                    fontSize: '0.82rem'
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                                Atas Nama Pemilik Rekening:
+                              </label>
+                              <input
+                                type="text"
+                                value={googleSettings.payment_bank_holder || 'PT Catavor Media Digital'}
+                                onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_holder: e.target.value }))}
+                                placeholder="PT Catavor Media Digital"
+                                style={{
+                                  width: '100%',
+                                  padding: '0.65rem 0.85rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textPrimary,
+                                  fontSize: '0.82rem'
+                                }}
+                              />
+                            </div>
+
+                            {/* Info Box: Unique 3-digit Code Allocation */}
+                            <div style={{
+                              padding: '0.85rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                              border: '1px solid rgba(56, 189, 248, 0.25)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.35rem'
+                            }}>
+                              <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0284c7' }}>
+                                Sistem Kode Unik 3-Digit Otomatis:
+                              </div>
+                              <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                                Setiap transaksi manual akan secara otomatis dialokasikan 3 angka unik acak (100–999) pada digit nominal transfer. Hal ini menjamin mutasi rekening dapat dicocokkan secara tepat ke invoice pengguna tanpa tertukar.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // PANEL 3: MAINTENANCE MODE
+                  if (activeMode === 'maintenance') {
+                    return (
+                      <div style={{
+                        padding: '1.5rem',
+                        backgroundColor: theme.surface,
+                        borderRadius: '1rem',
+                        border: `1px solid ${theme.border}`,
+                        boxShadow: theme.cardShadow,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.25rem'
+                      }}>
+                        {/* Active Status Banner */}
+                        <div style={{
+                          padding: '0.9rem 1.15rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.65rem'
+                        }}>
+                          <ShieldAlert size={20} color="#ef4444" />
+                          <div>
+                            <strong style={{ fontSize: '0.88rem', color: '#ef4444', display: 'block' }}>
+                              PERINGATAN: Mode Pemeliharaan Sedang Dipilih Sebagai Mode Aktif
+                            </strong>
+                            <span style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
+                              Seluruh formulir pembayaran dan pendaftaran berbayar saat ini ditutup sementara. Pengunjung akan melihat pengumuman di bawah ini.
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 2-Column Content */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
+                          {/* Left: Input Form */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                                Judul Pengumuman Pemeliharaan:
+                              </label>
+                              <input
+                                type="text"
+                                value={googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan'}
+                                onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_maintenance_title: e.target.value }))}
+                                placeholder="Contoh: Sistem Pembayaran Dalam Pemeliharaan"
+                                style={{
+                                  width: '100%',
+                                  padding: '0.65rem 0.85rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textPrimary,
+                                  fontSize: '0.82rem'
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                                Isi Pesan Peringatan Pemeliharaan:
+                              </label>
+                              <textarea
+                                rows={4}
+                                value={googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.'}
+                                onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_maintenance_message: e.target.value }))}
+                                placeholder="Tuliskan alasan atau instruksi alternatif bagi pengunjung..."
+                                style={{
+                                  width: '100%',
+                                  padding: '0.65rem 0.85rem',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textPrimary,
+                                  fontSize: '0.8rem',
+                                  lineHeight: 1.45,
+                                  resize: 'vertical'
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Right: Live Preview Card */}
+                          <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                              Pratinjau Tampilan Pengunjung (Live Preview):
+                            </label>
+                            <div style={{
+                              padding: '1.25rem',
+                              borderRadius: '0.85rem',
+                              backgroundColor: 'rgba(239, 68, 68, 0.06)',
+                              border: '1.5px solid rgba(239, 68, 68, 0.3)',
+                              textAlign: 'center',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '0.75rem'
+                            }}>
+                              <div style={{
+                                width: '48px',
+                                height: '48px',
+                                borderRadius: '50%',
+                                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                color: '#ef4444',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}>
+                                <ShieldAlert size={24} />
+                              </div>
+                              <div>
+                                <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                                  {googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan'}
+                                </h4>
+                                <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                                  {googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.'}
+                                </p>
+                              </div>
+                              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.12)', padding: '0.2rem 0.55rem', borderRadius: '0.35rem' }}>
+                                Checkout Dinonaktifkan Sementara
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })()}
+              </div>
+            )}
           </div>
+        )}
 
-          {/* TAB 1: GOOGLE ADSENSE SETTINGS */}
-          {monetizationTab === 'adsense' && (
-            <form onSubmit={handleSaveGoogleSettings} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-              {/* Notice Policy */}
-              <div style={{
-                padding: '0.85rem 1rem',
-                borderRadius: '0.95rem',
-                backgroundColor: isDark ? 'rgba(234, 179, 8, 0.08)' : 'rgba(234, 179, 8, 0.06)',
-                border: '1px solid rgba(234, 179, 8, 0.25)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.35rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <DollarSign size={15} color="#eab308" />
-                  <strong style={{ fontSize: '0.8rem', color: isDark ? '#fde047' : '#ca8a04' }}>
-                    Google AdSense Monetization (Plan B):
-                  </strong>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                  Iklan hanya akan disuntikkan pada katalog toko <strong>Versi Gratis (Free)</strong>. Toko yang berlangganan <strong>Paket Pro</strong> dijamin 100% bebas iklan.
-                </p>
-              </div>
-
-              {/* Master Status & Mode */}
-              <div style={{
-                padding: '1rem',
-                borderRadius: '1.05rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.85rem'
-              }}>
-                {/* Master Switch */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: theme.textPrimary }}>
-                      Status Iklan Platform
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
-                      Aktifkan penayangan Google AdSense di platform
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setGoogleSettings(prev => ({ ...prev, ads_enabled: prev.ads_enabled === '1' ? '0' : '1' }))}
-                    style={{
-                      width: '44px',
-                      height: '24px',
-                      borderRadius: '999px',
-                      backgroundColor: googleSettings.ads_enabled === '1' ? '#10b981' : (isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1'),
-                      padding: '2px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      position: 'relative',
-                      transition: 'all 0.2s ease',
-                      flexShrink: 0
-                    }}
-                  >
-                    <div style={{
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      backgroundColor: '#ffffff',
-                      position: 'absolute',
-                      top: '2px',
-                      left: googleSettings.ads_enabled === '1' ? '22px' : '2px',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                    }} />
-                  </button>
-                </div>
-
-                {/* Publisher ID Input */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
-                    Google AdSense Publisher ID (Client ID)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="ca-pub-XXXXXXXXXXXXXXXX"
-                    value={googleSettings.ads_client_id}
-                    onChange={e => setGoogleSettings(prev => ({ ...prev, ads_client_id: e.target.value.trim() }))}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.75rem',
-                      borderRadius: '0.7rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.8rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <span style={{ fontSize: '0.65rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>
-                    Salin Publisher ID dari Dashboard Akun Google AdSense Anda.
-                  </span>
-                </div>
-
-                {/* Auto Ads & Test Mode Switches */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
-                  {/* Auto Ads */}
-                  <div style={{
-                    padding: '0.75rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.45rem'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textPrimary }}>Auto Ads</span>
-                      <input
-                        type="checkbox"
-                        checked={googleSettings.ads_auto_enabled === '1'}
-                        onChange={e => setGoogleSettings(prev => ({ ...prev, ads_auto_enabled: e.target.checked ? '1' : '0' }))}
-                        style={{ accentColor: '#eab308', cursor: 'pointer' }}
-                      />
-                    </div>
-                    <span style={{ fontSize: '0.65rem', color: theme.textSecondary }}>Iklan otomatis AI Google</span>
-                  </div>
-
-                  {/* Test Mode */}
-                  <div style={{
-                    padding: '0.75rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.45rem'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textPrimary }}>Mode Sandbox</span>
-                      <input
-                        type="checkbox"
-                        checked={googleSettings.ads_test_mode === '1'}
-                        onChange={e => setGoogleSettings(prev => ({ ...prev, ads_test_mode: e.target.checked ? '1' : '0' }))}
-                        style={{ accentColor: '#38bdf8', cursor: 'pointer' }}
-                      />
-                    </div>
-                    <span style={{ fontSize: '0.65rem', color: theme.textSecondary }}>Pratinjau tanpa klik palsu</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Ad Placement Slots Configuration */}
-              <div style={{
-                padding: '1rem',
-                borderRadius: '1.05rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.85rem'
-              }}>
-                <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Unit Penempatan Iklan Khusus (Slot IDs)
-                </h4>
-
-                {/* Slot 1: Header Banner */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    1. Header Banner Slot ID (Di Bawah Search Bar Toko)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: 1234567890 (Opsional jika Auto Ads aktif)"
-                    value={googleSettings.ads_slot_header}
-                    onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_header: e.target.value.trim() }))}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.7rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.76rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-
-                {/* Slot 2: In-Feed Product Catalog */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    2. In-Feed Catalog Slot ID (Di Sela-Sela Produk)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: 2345678901 (Opsional jika Auto Ads aktif)"
-                    value={googleSettings.ads_slot_infeed}
-                    onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_infeed: e.target.value.trim() }))}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.7rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.76rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-
-                {/* Slot 3: Product Detail View */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    3. Product Detail Slot ID (Di Bawah Spesifikasi Produk)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: 3456789012 (Opsional jika Auto Ads aktif)"
-                    value={googleSettings.ads_slot_product_detail}
-                    onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_product_detail: e.target.value.trim() }))}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.7rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.76rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-
-                {/* Slot 4: Bottom Banner */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
-                    4. Sticky Footer Slot ID (Banner Melayang Bawah Layar)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: 4567890123 (Opsional jika Auto Ads aktif)"
-                    value={googleSettings.ads_slot_bottom}
-                    onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_bottom: e.target.value.trim() }))}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.7rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.76rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* ads.txt Manager */}
-              <div style={{
-                padding: '1rem',
-                borderRadius: '1.05rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.65rem'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Code size={15} color="#10b981" />
-                    <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                      File ads.txt Domain Publik
-                    </h4>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyAdsTxt}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: copiedAdsTxt ? '#10b981' : theme.textSecondary,
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem'
-                    }}
-                  >
-                    {copiedAdsTxt ? <CheckCheck size={12} /> : <Copy size={12} />}
-                    <span>{copiedAdsTxt ? 'Tersalin' : 'Salin'}</span>
-                  </button>
-                </div>
-
-                <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary }}>
-                  File ini disajikan otomatis oleh server di <a href="/ads.txt" target="_blank" rel="noreferrer" style={{ color: '#38bdf8', textDecoration: 'none', fontWeight: 700 }}>catavor.com/ads.txt</a> untuk verifikasi robot Google.
-                </p>
-
-                <textarea
-                  rows={2}
-                  value={googleSettings.ads_txt_content}
-                  onChange={e => setGoogleSettings(prev => ({ ...prev, ads_txt_content: e.target.value }))}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
-                    color: isDark ? '#34d399' : '#059669',
-                    fontFamily: 'monospace',
-                    fontSize: '0.74rem',
-                    boxSizing: 'border-box',
-                    resize: 'none'
-                  }}
-                />
-              </div>
-
-              {/* Submit Save Button */}
-              <button
-                type="submit"
-                disabled={savingSettings}
-                style={{
-                  padding: '0.85rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: '#eab308',
-                  color: '#000000',
-                  border: 'none',
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  boxShadow: '0 4px 15px rgba(234, 179, 8, 0.3)'
-                }}
-              >
-                <Check size={16} />
-                <span>{savingSettings ? 'Menyimpan Pengaturan...' : 'Simpan Konfigurasi AdSense'}</span>
-              </button>
-            </form>
-          )}
-
-          {/* TAB 2: GOOGLE ANALYTICS 4 (GA4) */}
-          {monetizationTab === 'analytics' && (
-            <form onSubmit={handleSaveGoogleSettings} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-              <div style={{
-                padding: '0.85rem 1rem',
-                borderRadius: '0.95rem',
-                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(56, 189, 248, 0.06)',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.35rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <BarChart3 size={15} color="#38bdf8" />
-                  <strong style={{ fontSize: '0.8rem', color: isDark ? '#7dd3fc' : '#0284c7' }}>
-                    Google Analytics 4 (GA4 Dinamis):
-                  </strong>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                  Pelacakan analitik lalu lintas pengunjung platform secara instan tanpa perlu melakukan hardcode atau rebuild kodingan.
-                </p>
-              </div>
-
-              <div style={{
-                padding: '1rem',
-                borderRadius: '1.05rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.85rem'
-              }}>
-                {/* Master Switch GA4 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: theme.textPrimary }}>
-                      Status Pelacakan GA4
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
-                      Aktifkan injeksi script `gtag.js` di katalog publik
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setGoogleSettings(prev => ({ ...prev, ga_enabled: prev.ga_enabled === '1' ? '0' : '1' }))}
-                    style={{
-                      width: '44px',
-                      height: '24px',
-                      borderRadius: '999px',
-                      backgroundColor: googleSettings.ga_enabled === '1' ? '#38bdf8' : (isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1'),
-                      padding: '2px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      position: 'relative',
-                      transition: 'all 0.2s ease',
-                      flexShrink: 0
-                    }}
-                  >
-                    <div style={{
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      backgroundColor: '#ffffff',
-                      position: 'absolute',
-                      top: '2px',
-                      left: googleSettings.ga_enabled === '1' ? '22px' : '2px',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                    }} />
-                  </button>
-                </div>
-
-                {/* Measurement ID */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
-                    Google Analytics Measurement ID
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="G-XXXXXXXXXX"
-                    value={googleSettings.ga_measurement_id}
-                    onChange={e => setGoogleSettings(prev => ({ ...prev, ga_measurement_id: e.target.value.trim().toUpperCase() }))}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.75rem',
-                      borderRadius: '0.7rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.8rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <span style={{ fontSize: '0.65rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>
-                    Contoh format: G-4K89Z1X234 (Dapat ditemukan di Google Analytics Admin &gt; Data Streams).
-                  </span>
-                </div>
-
-                {/* Events Information */}
-                <div style={{ padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: theme.cardAlt, border: `1px solid ${theme.border}`, fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: 800, color: theme.textPrimary, marginBottom: '0.2rem' }}>
-                    Event Otomatis yang Terkirim:
-                  </div>
-                  <div>&bull; `page_view` saat pengunjung berpindah halaman merchant.</div>
-                  <div>&bull; `view_item` saat detail item katalog dilihat.</div>
-                </div>
-              </div>
-
-              {/* Submit Save Button */}
-              <button
-                type="submit"
-                disabled={savingSettings}
-                style={{
-                  padding: '0.85rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: '#38bdf8',
-                  color: '#000000',
-                  border: 'none',
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  boxShadow: '0 4px 15px rgba(56, 189, 248, 0.3)'
-                }}
-              >
-                <Check size={16} />
-                <span>{savingSettings ? 'Menyimpan...' : 'Simpan Pengaturan Google Analytics'}</span>
-              </button>
-            </form>
-          )}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. MODULE 7: SIARAN BROADCAST                                             */}
-      {/* ========================================================================= */}
-      {activeView === 'broadcast' && canAccessBroadcast && (
-        broadcastSubView === 'create' ? (
-          /* ===================================================================== */
-          /* 4A. DEDICATED FULL SUB-PAGE: BUAT SIARAN PENGUMUMAN BARU             */
-          /* ===================================================================== */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.25s ease-out', maxWidth: '1280px', margin: '0 auto', width: '100%', paddingBottom: '2.5rem' }}>
-            {/* Header / Intro Card */}
+        {/* ========================================================================= */}
+        {/* 4. MODULE 6: MONETISASI & INTEGRASI GOOGLE (ADSENSE & ANALYTICS)          */}
+        {/* ========================================================================= */}
+        {activeView === 'monetization' && canAccessMonetization && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Sub-Tabs: Google AdSense / Google Analytics */}
             <div style={{
-              padding: '1rem 1.25rem',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '0.4rem',
+              backgroundColor: theme.cardAlt,
+              padding: '0.25rem',
+              borderRadius: '0.85rem',
+              border: `1px solid ${theme.border}`
+            }}>
+              <button
+                onClick={() => setMonetizationTab('adsense')}
+                style={{
+                  padding: '0.65rem 0.5rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: monetizationTab === 'adsense' ? '#eab308' : 'transparent',
+                  color: monetizationTab === 'adsense' ? '#000000' : theme.textSecondary,
+                  border: 'none',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <DollarSign size={14} />
+                <span>Google AdSense</span>
+              </button>
+
+              <button
+                onClick={() => setMonetizationTab('analytics')}
+                style={{
+                  padding: '0.65rem 0.5rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: monetizationTab === 'analytics' ? '#38bdf8' : 'transparent',
+                  color: monetizationTab === 'analytics' ? '#000000' : theme.textSecondary,
+                  border: 'none',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <BarChart3 size={14} />
+                <span>Google Analytics</span>
+              </button>
+            </div>
+
+            {/* TAB 1: GOOGLE ADSENSE SETTINGS */}
+            {monetizationTab === 'adsense' && (
+              <form onSubmit={handleSaveGoogleSettings} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+                {/* Notice Policy */}
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.95rem',
+                  backgroundColor: isDark ? 'rgba(234, 179, 8, 0.08)' : 'rgba(234, 179, 8, 0.06)',
+                  border: '1px solid rgba(234, 179, 8, 0.25)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.35rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <DollarSign size={15} color="#eab308" />
+                    <strong style={{ fontSize: '0.8rem', color: isDark ? '#fde047' : '#ca8a04' }}>
+                      Google AdSense Monetization (Plan B):
+                    </strong>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                    Iklan hanya akan disuntikkan pada katalog toko <strong>Versi Gratis (Free)</strong>. Toko yang berlangganan <strong>Paket Pro</strong> dijamin 100% bebas iklan.
+                  </p>
+                </div>
+
+                {/* Master Status & Mode */}
+                <div style={{
+                  padding: '1rem',
+                  borderRadius: '1.05rem',
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: theme.cardShadow,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.85rem'
+                }}>
+                  {/* Master Switch */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 800, color: theme.textPrimary }}>
+                        Status Iklan Platform
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
+                        Aktifkan penayangan Google AdSense di platform
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setGoogleSettings(prev => ({ ...prev, ads_enabled: prev.ads_enabled === '1' ? '0' : '1' }))}
+                      style={{
+                        width: '44px',
+                        height: '24px',
+                        borderRadius: '999px',
+                        backgroundColor: googleSettings.ads_enabled === '1' ? '#10b981' : (isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1'),
+                        padding: '2px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        transition: 'all 0.2s ease',
+                        flexShrink: 0
+                      }}
+                    >
+                      <div style={{
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        backgroundColor: '#ffffff',
+                        position: 'absolute',
+                        top: '2px',
+                        left: googleSettings.ads_enabled === '1' ? '22px' : '2px',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }} />
+                    </button>
+                  </div>
+
+                  {/* Publisher ID Input */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
+                      Google AdSense Publisher ID (Client ID)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="ca-pub-XXXXXXXXXXXXXXXX"
+                      value={googleSettings.ads_client_id}
+                      onChange={e => setGoogleSettings(prev => ({ ...prev, ads_client_id: e.target.value.trim() }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.75rem',
+                        borderRadius: '0.7rem',
+                        backgroundColor: theme.inputBg,
+                        border: `1px solid ${theme.inputBorder}`,
+                        color: theme.textPrimary,
+                        fontSize: '0.8rem',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.65rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>
+                      Salin Publisher ID dari Dashboard Akun Google AdSense Anda.
+                    </span>
+                  </div>
+
+                  {/* Auto Ads & Test Mode Switches */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
+                    {/* Auto Ads */}
+                    <div style={{
+                      padding: '0.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: theme.cardAlt,
+                      border: `1px solid ${theme.border}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textPrimary }}>Auto Ads</span>
+                        <input
+                          type="checkbox"
+                          checked={googleSettings.ads_auto_enabled === '1'}
+                          onChange={e => setGoogleSettings(prev => ({ ...prev, ads_auto_enabled: e.target.checked ? '1' : '0' }))}
+                          style={{ accentColor: '#eab308', cursor: 'pointer' }}
+                        />
+                      </div>
+                      <span style={{ fontSize: '0.65rem', color: theme.textSecondary }}>Iklan otomatis AI Google</span>
+                    </div>
+
+                    {/* Test Mode */}
+                    <div style={{
+                      padding: '0.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: theme.cardAlt,
+                      border: `1px solid ${theme.border}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textPrimary }}>Mode Sandbox</span>
+                        <input
+                          type="checkbox"
+                          checked={googleSettings.ads_test_mode === '1'}
+                          onChange={e => setGoogleSettings(prev => ({ ...prev, ads_test_mode: e.target.checked ? '1' : '0' }))}
+                          style={{ accentColor: '#38bdf8', cursor: 'pointer' }}
+                        />
+                      </div>
+                      <span style={{ fontSize: '0.65rem', color: theme.textSecondary }}>Pratinjau tanpa klik palsu</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ad Placement Slots Configuration */}
+                <div style={{
+                  padding: '1rem',
+                  borderRadius: '1.05rem',
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: theme.cardShadow,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.85rem'
+                }}>
+                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                    Unit Penempatan Iklan Khusus (Slot IDs)
+                  </h4>
+
+                  {/* Slot 1: Header Banner */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
+                      1. Header Banner Slot ID (Di Bawah Search Bar Toko)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 1234567890 (Opsional jika Auto Ads aktif)"
+                      value={googleSettings.ads_slot_header}
+                      onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_header: e.target.value.trim() }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.7rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: theme.inputBg,
+                        border: `1px solid ${theme.inputBorder}`,
+                        color: theme.textPrimary,
+                        fontSize: '0.76rem',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  {/* Slot 2: In-Feed Product Catalog */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
+                      2. In-Feed Catalog Slot ID (Di Sela-Sela Produk)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 2345678901 (Opsional jika Auto Ads aktif)"
+                      value={googleSettings.ads_slot_infeed}
+                      onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_infeed: e.target.value.trim() }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.7rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: theme.inputBg,
+                        border: `1px solid ${theme.inputBorder}`,
+                        color: theme.textPrimary,
+                        fontSize: '0.76rem',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  {/* Slot 3: Product Detail View */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
+                      3. Product Detail Slot ID (Di Bawah Spesifikasi Produk)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 3456789012 (Opsional jika Auto Ads aktif)"
+                      value={googleSettings.ads_slot_product_detail}
+                      onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_product_detail: e.target.value.trim() }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.7rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: theme.inputBg,
+                        border: `1px solid ${theme.inputBorder}`,
+                        color: theme.textPrimary,
+                        fontSize: '0.76rem',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  {/* Slot 4: Bottom Banner */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.2rem' }}>
+                      4. Sticky Footer Slot ID (Banner Melayang Bawah Layar)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 4567890123 (Opsional jika Auto Ads aktif)"
+                      value={googleSettings.ads_slot_bottom}
+                      onChange={e => setGoogleSettings(prev => ({ ...prev, ads_slot_bottom: e.target.value.trim() }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.7rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: theme.inputBg,
+                        border: `1px solid ${theme.inputBorder}`,
+                        color: theme.textPrimary,
+                        fontSize: '0.76rem',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* ads.txt Manager */}
+                <div style={{
+                  padding: '1rem',
+                  borderRadius: '1.05rem',
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: theme.cardShadow,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.65rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Code size={15} color="#10b981" />
+                      <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                        File ads.txt Domain Publik
+                      </h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyAdsTxt}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: copiedAdsTxt ? '#10b981' : theme.textSecondary,
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
+                    >
+                      {copiedAdsTxt ? <CheckCheck size={12} /> : <Copy size={12} />}
+                      <span>{copiedAdsTxt ? 'Tersalin' : 'Salin'}</span>
+                    </button>
+                  </div>
+
+                  <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary }}>
+                    File ini disajikan otomatis oleh server di <a href="/ads.txt" target="_blank" rel="noreferrer" style={{ color: '#38bdf8', textDecoration: 'none', fontWeight: 700 }}>catavor.com/ads.txt</a> untuk verifikasi robot Google.
+                  </p>
+
+                  <textarea
+                    rows={2}
+                    value={googleSettings.ads_txt_content}
+                    onChange={e => setGoogleSettings(prev => ({ ...prev, ads_txt_content: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: theme.cardAlt,
+                      border: `1px solid ${theme.border}`,
+                      color: isDark ? '#34d399' : '#059669',
+                      fontFamily: 'monospace',
+                      fontSize: '0.74rem',
+                      boxSizing: 'border-box',
+                      resize: 'none'
+                    }}
+                  />
+                </div>
+
+                {/* Submit Save Button */}
+                <button
+                  type="submit"
+                  disabled={savingSettings}
+                  style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: '#eab308',
+                    color: '#000000',
+                    border: 'none',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    boxShadow: '0 4px 15px rgba(234, 179, 8, 0.3)'
+                  }}
+                >
+                  <Check size={16} />
+                  <span>{savingSettings ? 'Menyimpan Pengaturan...' : 'Simpan Konfigurasi AdSense'}</span>
+                </button>
+              </form>
+            )}
+
+            {/* TAB 2: GOOGLE ANALYTICS 4 (GA4) */}
+            {monetizationTab === 'analytics' && (
+              <form onSubmit={handleSaveGoogleSettings} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.95rem',
+                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(56, 189, 248, 0.06)',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.35rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <BarChart3 size={15} color="#38bdf8" />
+                    <strong style={{ fontSize: '0.8rem', color: isDark ? '#7dd3fc' : '#0284c7' }}>
+                      Google Analytics 4 (GA4 Dinamis):
+                    </strong>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                    Pelacakan analitik lalu lintas pengunjung platform secara instan tanpa perlu melakukan hardcode atau rebuild kodingan.
+                  </p>
+                </div>
+
+                <div style={{
+                  padding: '1rem',
+                  borderRadius: '1.05rem',
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: theme.cardShadow,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.85rem'
+                }}>
+                  {/* Master Switch GA4 */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 800, color: theme.textPrimary }}>
+                        Status Pelacakan GA4
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
+                        Aktifkan injeksi script `gtag.js` di katalog publik
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setGoogleSettings(prev => ({ ...prev, ga_enabled: prev.ga_enabled === '1' ? '0' : '1' }))}
+                      style={{
+                        width: '44px',
+                        height: '24px',
+                        borderRadius: '999px',
+                        backgroundColor: googleSettings.ga_enabled === '1' ? '#38bdf8' : (isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1'),
+                        padding: '2px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        transition: 'all 0.2s ease',
+                        flexShrink: 0
+                      }}
+                    >
+                      <div style={{
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        backgroundColor: '#ffffff',
+                        position: 'absolute',
+                        top: '2px',
+                        left: googleSettings.ga_enabled === '1' ? '22px' : '2px',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }} />
+                    </button>
+                  </div>
+
+                  {/* Measurement ID */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.3rem' }}>
+                      Google Analytics Measurement ID
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="G-XXXXXXXXXX"
+                      value={googleSettings.ga_measurement_id}
+                      onChange={e => setGoogleSettings(prev => ({ ...prev, ga_measurement_id: e.target.value.trim().toUpperCase() }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.75rem',
+                        borderRadius: '0.7rem',
+                        backgroundColor: theme.inputBg,
+                        border: `1px solid ${theme.inputBorder}`,
+                        color: theme.textPrimary,
+                        fontSize: '0.8rem',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.65rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>
+                      Contoh format: G-4K89Z1X234 (Dapat ditemukan di Google Analytics Admin &gt; Data Streams).
+                    </span>
+                  </div>
+
+                  {/* Events Information */}
+                  <div style={{ padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: theme.cardAlt, border: `1px solid ${theme.border}`, fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.5 }}>
+                    <div style={{ fontWeight: 800, color: theme.textPrimary, marginBottom: '0.2rem' }}>
+                      Event Otomatis yang Terkirim:
+                    </div>
+                    <div>&bull; `page_view` saat pengunjung berpindah halaman merchant.</div>
+                    <div>&bull; `view_item` saat detail item katalog dilihat.</div>
+                  </div>
+                </div>
+
+                {/* Submit Save Button */}
+                <button
+                  type="submit"
+                  disabled={savingSettings}
+                  style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: '#38bdf8',
+                    color: '#000000',
+                    border: 'none',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    boxShadow: '0 4px 15px rgba(56, 189, 248, 0.3)'
+                  }}
+                >
+                  <Check size={16} />
+                  <span>{savingSettings ? 'Menyimpan...' : 'Simpan Pengaturan Google Analytics'}</span>
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 4. MODULE 7: SIARAN BROADCAST                                             */}
+        {/* ========================================================================= */}
+        {activeView === 'broadcast' && canAccessBroadcast && (
+          broadcastSubView === 'create' ? (
+            /* ===================================================================== */
+            /* 4A. DEDICATED FULL SUB-PAGE: BUAT SIARAN PENGUMUMAN BARU             */
+            /* ===================================================================== */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.25s ease-out', maxWidth: '1280px', margin: '0 auto', width: '100%', paddingBottom: '2.5rem' }}>
+              {/* Header / Intro Card */}
+              <div style={{
+                padding: '1rem 1.25rem',
+                borderRadiu
+...[truncated for diff preview]
               borderRadius: '1.1rem',
-              background: isDark 
-                ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)' 
-                : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
+              background: isDark
+              ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)'
+              : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
               border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.2)'}`,
               boxShadow: theme.cardShadow,
               display: 'flex',
@@ -10766,18 +10806,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
 
             {/* Broadcast Creation Form */}
-            <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr)',
+            gap: '1.25rem',
+            alignItems: 'start'
+          }}>
+            {/* LEFT COLUMN: Target & Klasifikasi */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* SECTION 1: TARGET PENERIMA SIARAN */}
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr)',
-                gap: '1.25rem',
-                alignItems: 'start'
-              }}>
-                {/* LEFT COLUMN: Target & Klasifikasi */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {/* SECTION 1: TARGET PENERIMA SIARAN */}
-                  <div style={{
-                    padding: '1.1rem',
+                padding: '1.1rem',
                 borderRadius: '1.15rem',
                 backgroundColor: theme.surface,
                 border: `1px solid ${theme.border}`,
@@ -11731,1238 +11771,1238 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
           </div>
 
-            {/* IN-FLOW DESKTOP ACTION BAR */}
-            <div style={{
-              padding: '1rem 1.25rem',
-              borderRadius: '1.15rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#f59e0b',
-                  flexShrink: 0
-                }}>
-                  <Info size={16} />
-                </div>
-                <span style={{ fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
-                  Siaran akan segera disebarkan ke lonceng dan banner audiens target yang dipilih.
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={handleCloseCreateBroadcast}
-                  style={{
-                    padding: '0.65rem 1.25rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
-                    border: `1px solid ${theme.border}`,
-                    color: theme.textSecondary,
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  Batal
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={sendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()}
-                  style={{
-                    padding: '0.65rem 1.45rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: '#f59e0b',
-                    color: '#000000',
-                    border: 'none',
-                    fontSize: '0.82rem',
-                    fontWeight: 800,
-                    cursor: (sendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()) ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {sendingBroadcast ? (
-                    <>
-                      <RefreshCw size={16} className="animate-spin" />
-                      <span>Memproses...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={16} />
-                      <span>Publikasikan Siaran</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-        ) : broadcastSubView === 'detail' ? (
-          isFetchingBroadcastDetail ? (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '3.5rem 1.5rem',
-              borderRadius: '1.15rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              gap: '0.85rem'
-            }}>
-              <Loader2 size={32} className="animate-spin" color={isDark ? '#38bdf8' : '#0284c7'} />
-              <span style={{ fontSize: '0.84rem', color: theme.textSecondary, fontWeight: 700 }}>
-                Memuat rincian siaran...
-              </span>
-            </div>
-          ) : selectedBroadcastDetail ? (
-            /* ===================================================================== */
-            /* 4B. DEDICATED FULL SUB-PAGE: RINCIAN & DETAIL SIARAN PLATFORM         */
-            /* ===================================================================== */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.25s ease-out', maxWidth: '1280px', margin: '0 auto', width: '100%', paddingBottom: '2.5rem' }}>
-              {/* Header / Intro Card */}
+          {/* IN-FLOW DESKTOP ACTION BAR */}
+          <div style={{
+            padding: '1rem 1.25rem',
+            borderRadius: '1.15rem',
+            backgroundColor: theme.surface,
+            border: `1px solid ${theme.border}`,
+            boxShadow: theme.cardShadow,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
               <div style={{
-                padding: '1rem 1.25rem',
-                borderRadius: '1.1rem',
-                background: isDark 
-                  ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)' 
-                  : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
-                border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.2)'}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '0.85rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
-                  <div style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '0.85rem',
-                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                    border: '1px solid rgba(245, 158, 11, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#f59e0b',
-                    flexShrink: 0
-                  }}>
-                    <Megaphone size={22} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
-                      Rincian Siaran Platform
-                    </h4>
-                    <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
-                      Detail lengkap konten, segmentasi target, dan analitik keterbacaan siaran
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleCloseBroadcastDetail}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    padding: '0.55rem 0.95rem',
-                    borderRadius: '0.75rem',
-                    backgroundColor: theme.surface,
-                    border: `1px solid ${theme.border}`,
-                    color: theme.textSecondary,
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <ArrowLeft size={15} />
-                  <span>Kembali ke Riwayat</span>
-                </button>
-              </div>
-
-              {/* Main Content Article Panel */}
-              <div style={{
-                padding: '1.5rem',
-                borderRadius: '1.15rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.25rem'
-              }}>
-                {/* Category, Target, Status & Read Stats Row */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', borderBottom: `1px solid ${theme.border}`, paddingBottom: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span style={{
-                      fontSize: '0.7rem',
-                      padding: '0.2rem 0.65rem',
-                      borderRadius: '0.45rem',
-                      fontWeight: 800,
-                      backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                      color: isDark ? '#fbbf24' : '#d97706',
-                      textTransform: 'uppercase'
-                    }}>
-                      {selectedBroadcastDetail.category || 'PENGUMUMAN'}
-                    </span>
-
-                    <span style={{
-                      fontSize: '0.7rem',
-                      padding: '0.2rem 0.65rem',
-                      borderRadius: '0.45rem',
-                      fontWeight: 800,
-                      backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                      color: isDark ? '#a5b4fc' : '#4f46e5'
-                    }}>
-                      TARGET: {selectedBroadcastDetail.target_type === 'all' 
-                        ? 'SEMUA MERCHANT (GLOBAL)' 
-                        : selectedBroadcastDetail.target_type === 'plan' 
-                          ? `PAKET ${(selectedBroadcastDetail.target_plan_code || 'PRO').toUpperCase()}` 
-                          : (selectedBroadcastDetail.target_name || 'PENERIMA SPESIFIK')}
-                    </span>
-
-                    <span style={{
-                      fontSize: '0.7rem',
-                      padding: '0.2rem 0.65rem',
-                      borderRadius: '0.45rem',
-                      fontWeight: 800,
-                      backgroundColor: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) 
-                        ? 'rgba(148, 163, 184, 0.15)' 
-                        : 'rgba(16, 185, 129, 0.15)',
-                      color: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) 
-                        ? '#94a3b8' 
-                        : '#10b981'
-                    }}>
-                      {(selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) ? '● Kedaluwarsa' : '● Sedang Tayang'}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#3b82f6', fontWeight: 800 }}>
-                    <Eye size={16} />
-                    <span>{selectedBroadcastDetail.read_count || 0} Merchant Telah Membaca</span>
-                  </div>
-                </div>
-
-                {/* Title */}
-                <h3 style={{
-                  margin: 0,
-                  fontSize: '1.25rem',
-                  fontWeight: 800,
-                  color: theme.textPrimary,
-                  lineHeight: 1.4
-                }}>
-                  {selectedBroadcastDetail.title}
-                </h3>
-
-                {/* Metadata Info Bar */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                  gap: '0.75rem',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                  border: `1px solid ${theme.border}`
-                }}>
-                  <div>
-                    <div style={{ fontSize: '0.64rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
-                      Waktu Terbit
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.15rem' }}>
-                      {selectedBroadcastDetail.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : '-'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: '0.64rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
-                      Batas Kedaluwarsa
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.15rem' }}>
-                      {selectedBroadcastDetail.expires_at ? new Date(selectedBroadcastDetail.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : 'Permanen / Tanpa Batas'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Specific Recipients List if applicable */}
-                {(() => {
-                  let recipients: any[] = [];
-                  if (selectedBroadcastDetail.target_recipients) {
-                    try {
-                      recipients = JSON.parse(selectedBroadcastDetail.target_recipients);
-                    } catch (e) {
-                      recipients = [];
-                    }
-                  }
-                  if (recipients.length > 0) {
-                    return (
-                      <div style={{
-                        padding: '0.85rem 1rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
-                        border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)'}`,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.55rem'
-                      }}>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                          <Users size={15} color="#3b82f6" />
-                          <span>Daftar Penerima Spesifik ({recipients.length}):</span>
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-                          {recipients.map((rec: any, rIdx: number) => (
-                            <span
-                              key={rIdx}
-                              style={{
-                                fontSize: '0.72rem',
-                                padding: '0.25rem 0.65rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: rec.type === 'store' ? (isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)') : (isDark ? 'rgba(236, 72, 153, 0.2)' : 'rgba(236, 72, 153, 0.1)'),
-                                color: rec.type === 'store' ? (isDark ? '#93c5fd' : '#1d4ed8') : (isDark ? '#f472b6' : '#be185d'),
-                                fontWeight: 700,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem'
-                              }}
-                            >
-                              {rec.type === 'store' ? <Store size={13} style={{ flexShrink: 0 }} /> : <User size={13} style={{ flexShrink: 0 }} />}
-                              <span>{rec.name}</span>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-
-                {/* Message Summary Box */}
-                <div style={{
-                  padding: '1rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                  border: `1px solid ${theme.border}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.45rem'
-                }}>
-                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
-                    Ringkasan Notifikasi Masuk:
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: theme.textPrimary, lineHeight: 1.6 }}>
-                    {selectedBroadcastDetail.message}
-                  </div>
-                </div>
-
-                {/* Detail Article Content (Rich) - Matched to Merchant Notification View */}
-                {(selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message) && (
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.55rem'
-                  }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <FileText size={17} />
-                      <span>Isi Rincian Pengumuman &amp; Artikel Siaran:</span>
-                    </div>
-                    <div style={{
-                      fontSize: '0.88rem',
-                      color: theme.textPrimary,
-                      lineHeight: 1.75,
-                      padding: '1.35rem',
-                      borderRadius: '0.95rem',
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                      border: `1px solid ${theme.border}`,
-                      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)'
-                    }}>
-                      <FormattedText text={selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Action CTA Button Preview based on active action_type */}
-                {(() => {
-                  const actionType = selectedBroadcastDetail.action_type;
-                  if (!actionType || actionType === 'none' || (!selectedBroadcastDetail.action_enabled && !selectedBroadcastDetail.detail_content && !selectedBroadcastDetail.action_url)) {
-                    return null;
-                  }
-
-                  // If action is purely 'detail', the rich content is already presented in the detail box above
-                  if (actionType === 'detail') {
-                    return (
-                      <div style={{
-                        padding: '0.95rem 1.15rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)',
-                        border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.18)'}`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem'
-                      }}>
-                        <FileText size={18} color="#f59e0b" style={{ flexShrink: 0 }} />
-                        <div>
-                          <div style={{ fontSize: '0.76rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706' }}>
-                            Aksi Sentuh Notifikasi: Buka Rincian Artikel
-                          </div>
-                          <div style={{ fontSize: '0.74rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
-                            Saat notifikasi disentuh oleh merchant, aplikasi akan membuka popup modal rincian artikel lengkap seperti di atas.
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  if (actionType === 'navigate') {
-                    const getMenuLabel = (tab: string) => {
-                      switch (tab) {
-                        case 'settings': return 'Pengaturan Profil & Tampilan Merchant (settings)';
-                        case 'items': return 'Manajemen Inventaris & Item (items)';
-                        case 'subscription': return 'Paket Langganan & Billing (subscription)';
-                        case 'help': return 'Pusat Bantuan & Tiket (help)';
-                        case 'share': return 'Bagikan Katalog & QR Merchant (share)';
-                        case 'analytics': return 'Dashboard Analitik Merchant (analytics)';
-                        default: return tab ? `Menu ${tab}` : 'Pengaturan Merchant';
-                      }
-                    };
-
-                    return (
-                      <div style={{
-                        padding: '1rem 1.15rem',
-                        borderRadius: '0.95rem',
-                        backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
-                        border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.28)' : 'rgba(59, 130, 246, 0.2)'}`,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.55rem'
-                      }}>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#93c5fd' : '#2563eb', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                          Aksi Navigasi Internal (Tampil di Merchant):
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '0.75rem 1rem',
-                          borderRadius: '0.75rem',
-                          backgroundColor: '#3b82f6',
-                          color: '#ffffff',
-                          fontWeight: 800,
-                          fontSize: '0.84rem',
-                          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
-                        }}>
-                          <span>{selectedBroadcastDetail.action_label || 'Buka Menu Terkait →'}</span>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, opacity: 0.9, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <Layers size={13} />
-                            <span>Navigasi Menu</span>
-                          </span>
-                        </div>
-                        <span style={{ fontSize: '0.74rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
-                          Menu Tujuan: <strong style={{ color: theme.textPrimary }}>{getMenuLabel(selectedBroadcastDetail.link_sub_tab || 'settings')}</strong>
-                        </span>
-                      </div>
-                    );
-                  }
-
-                  if (actionType === 'external_link') {
-                    return (
-                      <div style={{
-                        padding: '1rem 1.15rem',
-                        borderRadius: '0.95rem',
-                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.05)',
-                        border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)'}`,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.55rem'
-                      }}>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#6ee7b7' : '#059669', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                          Aksi Tautan Eksternal (Tampil di Merchant):
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '0.75rem 1rem',
-                          borderRadius: '0.75rem',
-                          backgroundColor: '#10b981',
-                          color: '#ffffff',
-                          fontWeight: 800,
-                          fontSize: '0.84rem',
-                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
-                        }}>
-                          <span>{selectedBroadcastDetail.action_label || 'Buka Tautan Luar →'}</span>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, opacity: 0.9, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <ExternalLink size={13} />
-                            <span>Tautan Luar</span>
-                          </span>
-                        </div>
-                        <span style={{ fontSize: '0.74rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
-                          URL Target: <a href={selectedBroadcastDetail.action_url?.startsWith('http') ? selectedBroadcastDetail.action_url : `https://${selectedBroadcastDetail.action_url || '#'}`} target="_blank" rel="noopener noreferrer" style={{ color: '#10b981', textDecoration: 'underline', fontWeight: 700 }}>{selectedBroadcastDetail.action_url || '-'}</a>
-                        </span>
-                      </div>
-                    );
-                  }
-
-                  return null;
-                })()}
-
-                {/* Bottom Danger Action: Hapus Siaran (Proportional desktop button) */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginTop: '0.5rem',
-                  paddingTop: '1.25rem',
-                  borderTop: `1px solid ${theme.border}`,
-                  flexWrap: 'wrap',
-                  gap: '0.75rem'
-                }}>
-                  <span style={{ fontSize: '0.74rem', color: theme.textMuted }}>
-                    Menghapus siaran akan mencabut pengumuman ini dari riwayat notifikasi penerima.
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteBroadcast(selectedBroadcastDetail.id)}
-                    style={{
-                      padding: '0.65rem 1.35rem',
-                      borderRadius: '0.75rem',
-                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
-                      border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)'}`,
-                      color: '#ef4444',
-                      fontSize: '0.82rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      boxShadow: '0 2px 8px rgba(239, 68, 68, 0.08)',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <Trash2 size={15} />
-                    <span>Hapus Publikasi Siaran Ini</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '3.5rem 1.5rem',
-              borderRadius: '1.15rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              textAlign: 'center',
-              gap: '1rem'
-            }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                width: '32px',
+                height: '32px',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#ef4444'
+                color: '#f59e0b',
+                flexShrink: 0
               }}>
-                <AlertCircle size={24} />
+                <Info size={16} />
               </div>
-              <div>
-                <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Rincian Siaran Tidak Ditemukan
-                </h4>
-                <p style={{ margin: 0, fontSize: '0.78rem', color: theme.textSecondary }}>
-                  Siaran ini mungkin telah dihapus atau URL tidak valid.
-                </p>
-              </div>
+              <span style={{ fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                Siaran akan segera disebarkan ke lonceng dan banner audiens target yang dipilih.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
               <button
-                onClick={handleCloseBroadcastDetail}
+                type="button"
+                onClick={handleCloseCreateBroadcast}
                 style={{
-                  padding: '0.6rem 1.25rem',
+                  padding: '0.65rem 1.25rem',
                   borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                  border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
-                  color: isDark ? '#38bdf8' : '#0284c7',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
+                  border: `1px solid ${theme.border}`,
+                  color: theme.textSecondary,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Batal
+              </button>
+
+              <button
+                type="submit"
+                disabled={sendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()}
+                style={{
+                  padding: '0.65rem 1.45rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: '#f59e0b',
+                  color: '#000000',
+                  border: 'none',
+                  fontSize: '0.82rem',
                   fontWeight: 800,
+                  cursor: (sendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {sendingBroadcast ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} />
+                    <span>Publikasikan Siaran</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+      ) : broadcastSubView === 'detail' ? (
+      isFetchingBroadcastDetail ? (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '3.5rem 1.5rem',
+        borderRadius: '1.15rem',
+        backgroundColor: theme.surface,
+        border: `1px solid ${theme.border}`,
+        gap: '0.85rem'
+      }}>
+        <Loader2 size={32} className="animate-spin" color={isDark ? '#38bdf8' : '#0284c7'} />
+        <span style={{ fontSize: '0.84rem', color: theme.textSecondary, fontWeight: 700 }}>
+          Memuat rincian siaran...
+        </span>
+      </div>
+      ) : selectedBroadcastDetail ? (
+      /* ===================================================================== */
+      /* 4B. DEDICATED FULL SUB-PAGE: RINCIAN & DETAIL SIARAN PLATFORM         */
+      /* ===================================================================== */
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.25s ease-out', maxWidth: '1280px', margin: '0 auto', width: '100%', paddingBottom: '2.5rem' }}>
+        {/* Header / Intro Card */}
+        <div style={{
+          padding: '1rem 1.25rem',
+          borderRadius: '1.1rem',
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)'
+            : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
+          border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.2)'}`,
+          boxShadow: theme.cardShadow,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.85rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '0.85rem',
+              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#f59e0b',
+              flexShrink: 0
+            }}>
+              <Megaphone size={22} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
+                Rincian Siaran Platform
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                Detail lengkap konten, segmentasi target, dan analitik keterbacaan siaran
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCloseBroadcastDetail}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 0.95rem',
+              borderRadius: '0.75rem',
+              backgroundColor: theme.surface,
+              border: `1px solid ${theme.border}`,
+              color: theme.textSecondary,
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <ArrowLeft size={15} />
+            <span>Kembali ke Riwayat</span>
+          </button>
+        </div>
+
+        {/* Main Content Article Panel */}
+        <div style={{
+          padding: '1.5rem',
+          borderRadius: '1.15rem',
+          backgroundColor: theme.surface,
+          border: `1px solid ${theme.border}`,
+          boxShadow: theme.cardShadow,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.25rem'
+        }}>
+          {/* Category, Target, Status & Read Stats Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', borderBottom: `1px solid ${theme.border}`, paddingBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: '0.7rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '0.45rem',
+                fontWeight: 800,
+                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                color: isDark ? '#fbbf24' : '#d97706',
+                textTransform: 'uppercase'
+              }}>
+                {selectedBroadcastDetail.category || 'PENGUMUMAN'}
+              </span>
+
+              <span style={{
+                fontSize: '0.7rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '0.45rem',
+                fontWeight: 800,
+                backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                color: isDark ? '#a5b4fc' : '#4f46e5'
+              }}>
+                TARGET: {selectedBroadcastDetail.target_type === 'all'
+                  ? 'SEMUA MERCHANT (GLOBAL)'
+                  : selectedBroadcastDetail.target_type === 'plan'
+                    ? `PAKET ${(selectedBroadcastDetail.target_plan_code || 'PRO').toUpperCase()}`
+                    : (selectedBroadcastDetail.target_name || 'PENERIMA SPESIFIK')}
+              </span>
+
+              <span style={{
+                fontSize: '0.7rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '0.45rem',
+                fontWeight: 800,
+                backgroundColor: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date())
+                  ? 'rgba(148, 163, 184, 0.15)'
+                  : 'rgba(16, 185, 129, 0.15)',
+                color: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date())
+                  ? '#94a3b8'
+                  : '#10b981'
+              }}>
+                {(selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) ? '● Kedaluwarsa' : '● Sedang Tayang'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#3b82f6', fontWeight: 800 }}>
+              <Eye size={16} />
+              <span>{selectedBroadcastDetail.read_count || 0} Merchant Telah Membaca</span>
+            </div>
+          </div>
+
+          {/* Title */}
+          <h3 style={{
+            margin: 0,
+            fontSize: '1.25rem',
+            fontWeight: 800,
+            color: theme.textPrimary,
+            lineHeight: 1.4
+          }}>
+            {selectedBroadcastDetail.title}
+          </h3>
+
+          {/* Metadata Info Bar */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '0.75rem',
+            padding: '0.85rem 1rem',
+            borderRadius: '0.85rem',
+            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+            border: `1px solid ${theme.border}`
+          }}>
+            <div>
+              <div style={{ fontSize: '0.64rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
+                Waktu Terbit
+              </div>
+              <div style={{ fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.15rem' }}>
+                {selectedBroadcastDetail.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : '-'}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.64rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
+                Batas Kedaluwarsa
+              </div>
+              <div style={{ fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.15rem' }}>
+                {selectedBroadcastDetail.expires_at ? new Date(selectedBroadcastDetail.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : 'Permanen / Tanpa Batas'}
+              </div>
+            </div>
+          </div>
+
+          {/* Specific Recipients List if applicable */}
+          {(() => {
+            let recipients: any[] = [];
+            if (selectedBroadcastDetail.target_recipients) {
+              try {
+                recipients = JSON.parse(selectedBroadcastDetail.target_recipients);
+              } catch (e) {
+                recipients = [];
+              }
+            }
+            if (recipients.length > 0) {
+              return (
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
+                  border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.55rem'
+                }}>
+                  <div style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Users size={15} color="#3b82f6" />
+                    <span>Daftar Penerima Spesifik ({recipients.length}):</span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                    {recipients.map((rec: any, rIdx: number) => (
+                      <span
+                        key={rIdx}
+                        style={{
+                          fontSize: '0.72rem',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: rec.type === 'store' ? (isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)') : (isDark ? 'rgba(236, 72, 153, 0.2)' : 'rgba(236, 72, 153, 0.1)'),
+                          color: rec.type === 'store' ? (isDark ? '#93c5fd' : '#1d4ed8') : (isDark ? '#f472b6' : '#be185d'),
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        {rec.type === 'store' ? <Store size={13} style={{ flexShrink: 0 }} /> : <User size={13} style={{ flexShrink: 0 }} />}
+                        <span>{rec.name}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {/* Message Summary Box */}
+          <div style={{
+            padding: '1rem',
+            borderRadius: '0.85rem',
+            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+            border: `1px solid ${theme.border}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.45rem'
+          }}>
+            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
+              Ringkasan Notifikasi Masuk:
+            </div>
+            <div style={{ fontSize: '0.85rem', color: theme.textPrimary, lineHeight: 1.6 }}>
+              {selectedBroadcastDetail.message}
+            </div>
+          </div>
+
+          {/* Detail Article Content (Rich) - Matched to Merchant Notification View */}
+          {(selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message) && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.55rem'
+            }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <FileText size={17} />
+                <span>Isi Rincian Pengumuman &amp; Artikel Siaran:</span>
+              </div>
+              <div style={{
+                fontSize: '0.88rem',
+                color: theme.textPrimary,
+                lineHeight: 1.75,
+                padding: '1.35rem',
+                borderRadius: '0.95rem',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+                border: `1px solid ${theme.border}`,
+                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)'
+              }}>
+                <FormattedText text={selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message} />
+              </div>
+            </div>
+          )}
+
+          {/* Action CTA Button Preview based on active action_type */}
+          {(() => {
+            const actionType = selectedBroadcastDetail.action_type;
+            if (!actionType || actionType === 'none' || (!selectedBroadcastDetail.action_enabled && !selectedBroadcastDetail.detail_content && !selectedBroadcastDetail.action_url)) {
+              return null;
+            }
+
+            // If action is purely 'detail', the rich content is already presented in the detail box above
+            if (actionType === 'detail') {
+              return (
+                <div style={{
+                  padding: '0.95rem 1.15rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)',
+                  border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.18)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem'
+                }}>
+                  <FileText size={18} color="#f59e0b" style={{ flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: '0.76rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706' }}>
+                      Aksi Sentuh Notifikasi: Buka Rincian Artikel
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
+                      Saat notifikasi disentuh oleh merchant, aplikasi akan membuka popup modal rincian artikel lengkap seperti di atas.
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            if (actionType === 'navigate') {
+              const getMenuLabel = (tab: string) => {
+                switch (tab) {
+                  case 'settings': return 'Pengaturan Profil & Tampilan Merchant (settings)';
+                  case 'items': return 'Manajemen Inventaris & Item (items)';
+                  case 'subscription': return 'Paket Langganan & Billing (subscription)';
+                  case 'help': return 'Pusat Bantuan & Tiket (help)';
+                  case 'share': return 'Bagikan Katalog & QR Merchant (share)';
+                  case 'analytics': return 'Dashboard Analitik Merchant (analytics)';
+                  default: return tab ? `Menu ${tab}` : 'Pengaturan Merchant';
+                }
+              };
+
+              return (
+                <div style={{
+                  padding: '1rem 1.15rem',
+                  borderRadius: '0.95rem',
+                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
+                  border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.28)' : 'rgba(59, 130, 246, 0.2)'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.55rem'
+                }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#93c5fd' : '#2563eb', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                    Aksi Navigasi Internal (Tampil di Merchant):
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: '#3b82f6',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.84rem',
+                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
+                  }}>
+                    <span>{selectedBroadcastDetail.action_label || 'Buka Menu Terkait →'}</span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, opacity: 0.9, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Layers size={13} />
+                      <span>Navigasi Menu</span>
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.74rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
+                    Menu Tujuan: <strong style={{ color: theme.textPrimary }}>{getMenuLabel(selectedBroadcastDetail.link_sub_tab || 'settings')}</strong>
+                  </span>
+                </div>
+              );
+            }
+
+            if (actionType === 'external_link') {
+              return (
+                <div style={{
+                  padding: '1rem 1.15rem',
+                  borderRadius: '0.95rem',
+                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.05)',
+                  border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.55rem'
+                }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#6ee7b7' : '#059669', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                    Aksi Tautan Eksternal (Tampil di Merchant):
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.84rem',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                  }}>
+                    <span>{selectedBroadcastDetail.action_label || 'Buka Tautan Luar →'}</span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, opacity: 0.9, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <ExternalLink size={13} />
+                      <span>Tautan Luar</span>
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.74rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
+                    URL Target: <a href={selectedBroadcastDetail.action_url?.startsWith('http') ? selectedBroadcastDetail.action_url : `https://${selectedBroadcastDetail.action_url || '#'}`} target="_blank" rel="noopener noreferrer" style={{ color: '#10b981', textDecoration: 'underline', fontWeight: 700 }}>{selectedBroadcastDetail.action_url || '-'}</a>
+                  </span>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
+
+          {/* Bottom Danger Action: Hapus Siaran (Proportional desktop button) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: '0.5rem',
+            paddingTop: '1.25rem',
+            borderTop: `1px solid ${theme.border}`,
+            flexWrap: 'wrap',
+            gap: '0.75rem'
+          }}>
+            <span style={{ fontSize: '0.74rem', color: theme.textMuted }}>
+              Menghapus siaran akan mencabut pengumuman ini dari riwayat notifikasi penerima.
+            </span>
+
+            <button
+              type="button"
+              onClick={() => handleDeleteBroadcast(selectedBroadcastDetail.id)}
+              style={{
+                padding: '0.65rem 1.35rem',
+                borderRadius: '0.75rem',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+                border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)'}`,
+                color: '#ef4444',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.08)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Trash2 size={15} />
+              <span>Hapus Publikasi Siaran Ini</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      ) : (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '3.5rem 1.5rem',
+        borderRadius: '1.15rem',
+        backgroundColor: theme.surface,
+        border: `1px solid ${theme.border}`,
+        textAlign: 'center',
+        gap: '1rem'
+      }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          borderRadius: '50%',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#ef4444'
+        }}>
+          <AlertCircle size={24} />
+        </div>
+        <div>
+          <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+            Rincian Siaran Tidak Ditemukan
+          </h4>
+          <p style={{ margin: 0, fontSize: '0.78rem', color: theme.textSecondary }}>
+            Siaran ini mungkin telah dihapus atau URL tidak valid.
+          </p>
+        </div>
+        <button
+          onClick={handleCloseBroadcastDetail}
+          style={{
+            padding: '0.6rem 1.25rem',
+            borderRadius: '0.75rem',
+            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
+            color: isDark ? '#38bdf8' : '#0284c7',
+            fontWeight: 800,
+            fontSize: '0.8rem',
+            cursor: 'pointer'
+          }}
+        >
+          Kembali ke Riwayat Siaran
+        </button>
+      </div>
+      )
+      ) : (
+      /* ===================================================================== */
+      /* 4C. BROADCAST LIST VIEW (CLEAN & DEDICATED)                           */
+      /* ===================================================================== */
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.25s ease-out', maxWidth: '1280px', margin: '0 auto', width: '100%', paddingBottom: '2.5rem' }}>
+        {/* Header / Intro Card with Action */}
+        <div style={{
+          padding: '1rem 1.25rem',
+          borderRadius: '1.1rem',
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)'
+            : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
+          border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.2)'}`,
+          boxShadow: theme.cardShadow,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.85rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '0.85rem',
+              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#f59e0b',
+              flexShrink: 0
+            }}>
+              <Megaphone size={22} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
+                Riwayat &amp; Manajemen Siaran
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                Kelola pengumuman massal, segmentasi target merchant, dan pantau keterbacaan
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenCreateBroadcast}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.6rem 1.15rem',
+              borderRadius: '0.75rem',
+              backgroundColor: '#f59e0b',
+              color: '#000000',
+              fontWeight: 800,
+              fontSize: '0.82rem',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
+              transition: 'all 0.15s ease',
+              flexShrink: 0
+            }}
+          >
+            <Plus size={16} />
+            <span>Buat Siaran Baru</span>
+          </button>
+        </div>
+
+        {/* Quick Metrics Bar */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem' }}>
+          <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#f59e0b' }}>
+              {broadcastMetrics.total_broadcasts || broadcasts.length}
+            </div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
+              Total Riwayat Siaran
+            </div>
+            <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+              Semua pengumuman yang pernah diterbitkan
+            </div>
+          </div>
+
+          <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#10b981' }}>
+              {broadcastMetrics.active_broadcasts}
+            </div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
+              Siaran Aktif Saat Ini
+            </div>
+            <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+              Tayang di lonceng &amp; banner merchant
+            </div>
+          </div>
+
+          <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#6366f1' }}>
+              {broadcastMetrics.targeted_broadcasts ?? broadcasts.filter(b => b.target_type && b.target_type !== 'all').length}
+            </div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
+              Target Khusus
+            </div>
+            <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+              Berdasarkan paket tier atau akun spesifik
+            </div>
+          </div>
+        </div>
+
+        {/* Filter & Search Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.85rem',
+          padding: '0.85rem 1rem',
+          borderRadius: '1rem',
+          backgroundColor: theme.surface,
+          border: `1px solid ${theme.border}`,
+          boxShadow: theme.cardShadow,
+          flexWrap: 'wrap'
+        }}>
+          {/* Status Filter Chips */}
+          <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+            {(['all', 'active', 'expired'] as const).map(st => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => {
+                  setBroadcastStatusFilter(st);
+                  setBroadcastPage(1);
+                }}
+                style={{
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  fontSize: '0.76rem',
+                  fontWeight: broadcastStatusFilter === st ? 800 : 600,
+                  border: `1px solid ${broadcastStatusFilter === st ? '#f59e0b' : theme.border}`,
+                  backgroundColor: broadcastStatusFilter === st ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                  color: broadcastStatusFilter === st ? (isDark ? '#fbbf24' : '#d97706') : theme.textSecondary,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {st === 'all' && `Semua (${broadcastMetrics.total_broadcasts || broadcasts.length})`}
+                {st === 'active' && `Aktif (${broadcastMetrics.active_broadcasts || 0})`}
+                {st === 'expired' && 'Kedaluwarsa'}
+              </button>
+            ))}
+          </div>
+
+          {/* Search & Limit Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: '320px', flex: 1, justifyContent: 'flex-end' }}>
+            {/* Search Box */}
+            <div style={{ position: 'relative', width: '100%', maxWidth: '340px' }}>
+              <Search size={15} color={theme.textMuted} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                placeholder="Cari judul, pesan, atau kategori..."
+                value={broadcastSearchQuery}
+                onChange={e => {
+                  setBroadcastSearchQuery(e.target.value);
+                  setBroadcastPage(1);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.85rem 0.55rem 2.35rem',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${theme.inputBorder}`,
+                  backgroundColor: theme.inputBg,
+                  color: theme.textPrimary,
                   fontSize: '0.8rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              {broadcastSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setBroadcastSearchQuery('')}
+                  style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 0 }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Limit Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+              <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Tampilkan:</span>
+              <select
+                value={broadcastLimit}
+                onChange={e => {
+                  const newLimit = parseInt(e.target.value, 10) || 10;
+                  setBroadcastLimit(newLimit);
+                  setBroadcastPage(1);
+                  fetchBroadcasts(1, newLimit);
+                }}
+                style={{
+                  padding: '0.5rem 0.65rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: theme.inputBg,
+                  border: `1px solid ${theme.inputBorder}`,
+                  color: theme.textPrimary,
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Broadcast Cards List */}
+        {isFetchingBroadcasts ? (
+          <div style={{ padding: '3rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '0.95rem', border: `1px solid ${theme.border}` }}>
+            <Loader2 size={24} className="spin" color="#f59e0b" style={{ margin: '0 auto 0.5rem' }} />
+            <p style={{ margin: 0, fontSize: '0.78rem', color: theme.textSecondary }}>Memuat daftar siaran...</p>
+          </div>
+        ) : broadcasts.length === 0 ? (
+          <div style={{
+            padding: '3rem 1.5rem',
+            textAlign: 'center',
+            backgroundColor: theme.surface,
+            borderRadius: '0.95rem',
+            border: `1px solid ${theme.border}`,
+            boxShadow: theme.cardShadow
+          }}>
+            <Megaphone size={38} color="#f59e0b" style={{ margin: '0 auto 0.75rem', opacity: 0.85 }} />
+            <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+              {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? 'Siaran Tidak Ditemukan' : 'Belum Ada Siaran Notifikasi'}
+            </h4>
+            <p style={{ margin: '0 0 1.15rem 0', fontSize: '0.76rem', color: theme.textSecondary, maxWidth: '280px', marginInline: 'auto' }}>
+              {broadcastSearchQuery || broadcastStatusFilter !== 'all'
+                ? 'Tidak ada siaran yang cocok dengan kata kunci atau filter saat ini.'
+                : 'Kirim pengumuman penting atau notifikasi massal ke semua atau grup merchant tertentu sekarang.'}
+            </p>
+            {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setBroadcastSearchQuery('');
+                  setBroadcastStatusFilter('all');
+                }}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.7rem',
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  color: theme.textPrimary,
+                  fontWeight: 700,
+                  fontSize: '0.76rem',
                   cursor: 'pointer'
                 }}
               >
-                Kembali ke Riwayat Siaran
+                Reset Filter
               </button>
-            </div>
-          )
-        ) : (
-          /* ===================================================================== */
-          /* 4C. BROADCAST LIST VIEW (CLEAN & DEDICATED)                           */
-          /* ===================================================================== */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.25s ease-out', maxWidth: '1280px', margin: '0 auto', width: '100%', paddingBottom: '2.5rem' }}>
-            {/* Header / Intro Card with Action */}
-            <div style={{
-              padding: '1rem 1.25rem',
-              borderRadius: '1.1rem',
-              background: isDark 
-                ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)' 
-                : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
-              border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.2)'}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.85rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
-                <div style={{
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#f59e0b',
-                  flexShrink: 0
-                }}>
-                  <Megaphone size={22} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
-                    Riwayat &amp; Manajemen Siaran
-                  </h4>
-                  <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.35 }}>
-                    Kelola pengumuman massal, segmentasi target merchant, dan pantau keterbacaan
-                  </p>
-                </div>
-              </div>
-
+            ) : (
               <button
                 type="button"
                 onClick={handleOpenCreateBroadcast}
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.6rem 1.15rem',
+                  padding: '0.6rem 1.25rem',
                   borderRadius: '0.75rem',
                   backgroundColor: '#f59e0b',
                   color: '#000000',
                   fontWeight: 800,
-                  fontSize: '0.82rem',
+                  fontSize: '0.8rem',
                   border: 'none',
                   cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
-                  transition: 'all 0.15s ease',
-                  flexShrink: 0
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  boxShadow: '0 2px 10px rgba(245, 158, 11, 0.3)'
                 }}
               >
-                <Plus size={16} />
-                <span>Buat Siaran Baru</span>
+                <Plus size={15} />
+                <span>+ Buat Siaran Baru</span>
               </button>
-            </div>
+            )}
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))',
+            gap: '1rem',
+            alignItems: 'stretch'
+          }}>
+            {broadcasts.map(b => {
+              const isTargetAll = !b.target_type || b.target_type === 'all';
+              const isTargetSpecific = b.target_type === 'single_store' || b.target_type === 'single_user' || b.target_type === 'specific';
+              const isTargetTier = b.target_type === 'tier_free' || b.target_type === 'tier_pro' || b.target_type === 'plan';
 
-            {/* Quick Metrics Bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem' }}>
-              <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#f59e0b' }}>
-                  {broadcastMetrics.total_broadcasts || broadcasts.length}
-                </div>
-                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Total Riwayat Siaran
-                </div>
-                <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
-                  Semua pengumuman yang pernah diterbitkan
-                </div>
-              </div>
+              return (
+                <div
+                  key={b.id}
+                  style={{
+                    padding: '1.15rem',
+                    borderRadius: '1.05rem',
+                    backgroundColor: theme.surface,
+                    border: `1px solid ${theme.border}`,
+                    boxShadow: theme.cardShadow,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <span style={{
+                          fontSize: '0.66rem',
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '0.45rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                          color: isDark ? '#fbbf24' : '#d97706',
+                          fontWeight: 800,
+                          textTransform: 'uppercase'
+                        }}>
+                          {b.category || 'PENGUMUMAN'}
+                        </span>
 
-              <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#10b981' }}>
-                  {broadcastMetrics.active_broadcasts}
-                </div>
-                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Siaran Aktif Saat Ini
-                </div>
-                <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
-                  Tayang di lonceng &amp; banner merchant
-                </div>
-              </div>
+                        <span style={{
+                          fontSize: '0.66rem',
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '0.45rem',
+                          backgroundColor: isTargetAll ? 'rgba(16, 185, 129, 0.12)' : (isTargetTier ? 'rgba(99, 102, 241, 0.12)' : 'rgba(236, 72, 153, 0.12)'),
+                          color: isTargetAll ? '#10b981' : (isTargetTier ? '#6366f1' : '#ec4899'),
+                          fontWeight: 800
+                        }}>
+                          {isTargetAll && 'SEMUA'}
+                          {(b.target_type === 'tier_free' || b.target_plan_code === 'free') && 'FREE TIER'}
+                          {(b.target_type === 'tier_pro' || b.target_plan_code === 'pro') && 'PRO TIER'}
+                          {(b.target_type === 'single_store' || b.target_type === 'single_user' || b.target_type === 'specific') && (b.target_name || 'SPESIFIK')}
+                        </span>
 
-              <div style={{ padding: '1rem', borderRadius: '1rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#6366f1' }}>
-                  {broadcastMetrics.targeted_broadcasts ?? broadcasts.filter(b => b.target_type && b.target_type !== 'all').length}
-                </div>
-                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Target Khusus
-                </div>
-                <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
-                  Berdasarkan paket tier atau akun spesifik
-                </div>
-              </div>
-            </div>
+                        <span style={{
+                          fontSize: '0.66rem',
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '0.45rem',
+                          backgroundColor: (b.expires_at && new Date(b.expires_at) <= new Date()) ? 'rgba(148, 163, 184, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                          color: (b.expires_at && new Date(b.expires_at) <= new Date()) ? '#94a3b8' : '#10b981',
+                          fontWeight: 800
+                        }}>
+                          {(b.expires_at && new Date(b.expires_at) <= new Date()) ? 'Kedaluwarsa' : 'Aktif'}
+                        </span>
+                      </div>
 
-            {/* Filter & Search Bar */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.85rem',
-              padding: '0.85rem 1rem',
-              borderRadius: '1rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              flexWrap: 'wrap'
-            }}>
-              {/* Status Filter Chips */}
-              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
-                {(['all', 'active', 'expired'] as const).map(st => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => {
-                      setBroadcastStatusFilter(st);
-                      setBroadcastPage(1);
-                    }}
-                    style={{
-                      padding: '0.45rem 0.85rem',
-                      borderRadius: '0.65rem',
-                      fontSize: '0.76rem',
-                      fontWeight: broadcastStatusFilter === st ? 800 : 600,
-                      border: `1px solid ${broadcastStatusFilter === st ? '#f59e0b' : theme.border}`,
-                      backgroundColor: broadcastStatusFilter === st ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-                      color: broadcastStatusFilter === st ? (isDark ? '#fbbf24' : '#d97706') : theme.textSecondary,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {st === 'all' && `Semua (${broadcastMetrics.total_broadcasts || broadcasts.length})`}
-                    {st === 'active' && `Aktif (${broadcastMetrics.active_broadcasts || 0})`}
-                    {st === 'expired' && 'Kedaluwarsa'}
-                  </button>
-                ))}
-              </div>
+                      <span style={{ fontSize: '0.68rem', color: theme.textMuted, whiteSpace: 'nowrap' }}>
+                        {formatSupportDateTime(b.created_at)}
+                      </span>
+                    </div>
 
-              {/* Search & Limit Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: '320px', flex: 1, justifyContent: 'flex-end' }}>
-                {/* Search Box */}
-                <div style={{ position: 'relative', width: '100%', maxWidth: '340px' }}>
-                  <Search size={15} color={theme.textMuted} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input
-                    type="text"
-                    placeholder="Cari judul, pesan, atau kategori..."
-                    value={broadcastSearchQuery}
-                    onChange={e => {
-                      setBroadcastSearchQuery(e.target.value);
-                      setBroadcastPage(1);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.85rem 0.55rem 2.35rem',
-                      borderRadius: '0.75rem',
-                      border: `1px solid ${theme.inputBorder}`,
-                      backgroundColor: theme.inputBg,
-                      color: theme.textPrimary,
-                      fontSize: '0.8rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  {broadcastSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setBroadcastSearchQuery('')}
-                      style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 0 }}
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
+                    <h5 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.35 }}>
+                      {b.title}
+                    </h5>
+
+                    <p style={{
+                      margin: 0,
+                      fontSize: '0.78rem',
+                      color: theme.textSecondary,
+                      lineHeight: 1.5,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}>
+                      {b.message}
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.65rem', borderTop: `1px solid ${theme.border}`, marginTop: '0.35rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700 }}>
+                      <Eye size={14} />
+                      <span>{b.read_count || 0} Pembaca</span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenBroadcastDetail(b)}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.6rem',
+                          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                          border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
+                          color: isDark ? '#38bdf8' : '#0284c7',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <FileText size={13} />
+                        <span>Rincian</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBroadcast(b.id)}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '0.6rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          color: '#ef4444',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Trash2 size={13} />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        )}
 
-                {/* Limit Selector */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                  <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Tampilkan:</span>
-                  <select
-                    value={broadcastLimit}
-                    onChange={e => {
-                      const newLimit = parseInt(e.target.value, 10) || 10;
-                      setBroadcastLimit(newLimit);
-                      setBroadcastPage(1);
-                      fetchBroadcasts(1, newLimit);
-                    }}
-                    style={{
-                      padding: '0.5rem 0.65rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.76rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                </div>
-              </div>
-            </div>
+        {/* Enterprise Comprehensive Data Table Pagination Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0.95rem 1.15rem',
+          borderRadius: '1rem',
+          backgroundColor: theme.surface,
+          border: `1px solid ${theme.border}`,
+          boxShadow: theme.cardShadow,
+          flexWrap: 'wrap',
+          gap: '0.85rem'
+        }}>
+          {/* Left: Summary */}
+          <div style={{ fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600 }}>
+            Menampilkan{' '}
+            <strong style={{ color: theme.textPrimary }}>
+              {broadcastTotalItems > 0 ? (broadcastPage - 1) * broadcastLimit + 1 : 0}
+            </strong>{' '}
+            –{' '}
+            <strong style={{ color: theme.textPrimary }}>
+              {Math.min(broadcastPage * broadcastLimit, broadcastTotalItems)}
+            </strong>{' '}
+            dari{' '}
+            <strong style={{ color: theme.textPrimary }}>
+              {broadcastTotalItems}
+            </strong>{' '}
+            siaran
+          </div>
 
-            {/* Broadcast Cards List */}
-            {isFetchingBroadcasts ? (
-              <div style={{ padding: '3rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '0.95rem', border: `1px solid ${theme.border}` }}>
-                <Loader2 size={24} className="spin" color="#f59e0b" style={{ margin: '0 auto 0.5rem' }} />
-                <p style={{ margin: 0, fontSize: '0.78rem', color: theme.textSecondary }}>Memuat daftar siaran...</p>
-              </div>
-            ) : broadcasts.length === 0 ? (
-              <div style={{
-                padding: '3rem 1.5rem',
-                textAlign: 'center',
-                backgroundColor: theme.surface,
-                borderRadius: '0.95rem',
+          {/* Center: Page Navigation Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <button
+              type="button"
+              disabled={broadcastPage <= 1 || isFetchingBroadcasts}
+              onClick={() => fetchBroadcasts(1)}
+              style={{
+                padding: '0.42rem 0.75rem',
+                borderRadius: '0.65rem',
+                backgroundColor: theme.cardAlt,
                 border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow
-              }}>
-                <Megaphone size={38} color="#f59e0b" style={{ margin: '0 auto 0.75rem', opacity: 0.85 }} />
-                <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
-                  {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? 'Siaran Tidak Ditemukan' : 'Belum Ada Siaran Notifikasi'}
-                </h4>
-                <p style={{ margin: '0 0 1.15rem 0', fontSize: '0.76rem', color: theme.textSecondary, maxWidth: '280px', marginInline: 'auto' }}>
-                  {broadcastSearchQuery || broadcastStatusFilter !== 'all'
-                    ? 'Tidak ada siaran yang cocok dengan kata kunci atau filter saat ini.'
-                    : 'Kirim pengumuman penting atau notifikasi massal ke semua atau grup merchant tertentu sekarang.'}
-                </p>
-                {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? (
+                color: broadcastPage <= 1 ? theme.textMuted : theme.textPrimary,
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: broadcastPage <= 1 ? 'not-allowed' : 'pointer'
+              }}
+              title="Halaman Pertama"
+            >
+              « Awal
+            </button>
+
+            <button
+              type="button"
+              disabled={broadcastPage <= 1 || isFetchingBroadcasts}
+              onClick={() => fetchBroadcasts(broadcastPage - 1)}
+              style={{
+                padding: '0.42rem 0.75rem',
+                borderRadius: '0.65rem',
+                backgroundColor: theme.cardAlt,
+                border: `1px solid ${theme.border}`,
+                color: broadcastPage <= 1 ? theme.textMuted : theme.textPrimary,
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: broadcastPage <= 1 ? 'not-allowed' : 'pointer'
+              }}
+              title="Halaman Sebelumnya"
+            >
+              ‹ Prev
+            </button>
+
+            {(() => {
+              const pages: (number | string)[] = [];
+              if (broadcastTotalPages <= 7) {
+                for (let i = 1; i <= broadcastTotalPages; i++) pages.push(i);
+              } else {
+                pages.push(1);
+                if (broadcastPage > 3) pages.push('ellipsis-start');
+                const start = Math.max(2, broadcastPage - 1);
+                const end = Math.min(broadcastTotalPages - 1, broadcastPage + 1);
+                for (let i = start; i <= end; i++) {
+                  if (!pages.includes(i)) pages.push(i);
+                }
+                if (broadcastPage < broadcastTotalPages - 2) pages.push('ellipsis-end');
+                if (!pages.includes(broadcastTotalPages)) pages.push(broadcastTotalPages);
+              }
+
+              return pages.map((p, idx) => {
+                if (typeof p === 'string') {
+                  return (
+                    <span key={`el-${idx}`} style={{ padding: '0 0.25rem', color: theme.textMuted, fontSize: '0.8rem' }}>
+                      …
+                    </span>
+                  );
+                }
+                const isActive = p === broadcastPage;
+                return (
                   <button
+                    key={`page-${p}`}
                     type="button"
-                    onClick={() => {
-                      setBroadcastSearchQuery('');
-                      setBroadcastStatusFilter('all');
-                    }}
+                    onClick={() => fetchBroadcasts(p)}
                     style={{
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.7rem',
-                      backgroundColor: theme.surface,
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textPrimary,
-                      fontWeight: 700,
+                      minWidth: '32px',
+                      height: '32px',
+                      padding: '0 0.5rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: isActive ? '#f59e0b' : theme.cardAlt,
+                      border: `1px solid ${isActive ? '#f59e0b' : theme.border}`,
+                      color: isActive ? '#000000' : theme.textPrimary,
                       fontSize: '0.76rem',
+                      fontWeight: isActive ? 800 : 700,
                       cursor: 'pointer'
                     }}
                   >
-                    Reset Filter
+                    {p}
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateBroadcast}
-                    style={{
-                      padding: '0.6rem 1.25rem',
-                      borderRadius: '0.75rem',
-                      backgroundColor: '#f59e0b',
-                      color: '#000000',
-                      fontWeight: 800,
-                      fontSize: '0.8rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      boxShadow: '0 2px 10px rgba(245, 158, 11, 0.3)'
-                    }}
-                  >
-                    <Plus size={15} />
-                    <span>+ Buat Siaran Baru</span>
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))',
-                gap: '1rem',
-                alignItems: 'stretch'
-              }}>
-                {broadcasts.map(b => {
-                  const isTargetAll = !b.target_type || b.target_type === 'all';
-                  const isTargetSpecific = b.target_type === 'single_store' || b.target_type === 'single_user' || b.target_type === 'specific';
-                  const isTargetTier = b.target_type === 'tier_free' || b.target_type === 'tier_pro' || b.target_type === 'plan';
+                );
+              });
+            })()}
 
-                  return (
-                    <div
-                      key={b.id}
-                      style={{
-                        padding: '1.15rem',
-                        borderRadius: '1.05rem',
-                        backgroundColor: theme.surface,
-                        border: `1px solid ${theme.border}`,
-                        boxShadow: theme.cardShadow,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        gap: '0.75rem',
-                        transition: 'transform 0.15s ease, box-shadow 0.15s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                            <span style={{
-                              fontSize: '0.66rem',
-                              padding: '0.15rem 0.55rem',
-                              borderRadius: '0.45rem',
-                              backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                              color: isDark ? '#fbbf24' : '#d97706',
-                              fontWeight: 800,
-                              textTransform: 'uppercase'
-                            }}>
-                              {b.category || 'PENGUMUMAN'}
-                            </span>
+            <button
+              type="button"
+              disabled={broadcastPage >= broadcastTotalPages || isFetchingBroadcasts}
+              onClick={() => fetchBroadcasts(broadcastPage + 1)}
+              style={{
+                padding: '0.42rem 0.75rem',
+                borderRadius: '0.65rem',
+                backgroundColor: theme.cardAlt,
+                border: `1px solid ${theme.border}`,
+                color: broadcastPage >= broadcastTotalPages ? theme.textMuted : theme.textPrimary,
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: broadcastPage >= broadcastTotalPages ? 'not-allowed' : 'pointer'
+              }}
+              title="Halaman Selanjutnya"
+            >
+              Next ›
+            </button>
 
-                            <span style={{
-                              fontSize: '0.66rem',
-                              padding: '0.15rem 0.55rem',
-                              borderRadius: '0.45rem',
-                              backgroundColor: isTargetAll ? 'rgba(16, 185, 129, 0.12)' : (isTargetTier ? 'rgba(99, 102, 241, 0.12)' : 'rgba(236, 72, 153, 0.12)'),
-                              color: isTargetAll ? '#10b981' : (isTargetTier ? '#6366f1' : '#ec4899'),
-                              fontWeight: 800
-                            }}>
-                              {isTargetAll && 'SEMUA'}
-                              {(b.target_type === 'tier_free' || b.target_plan_code === 'free') && 'FREE TIER'}
-                              {(b.target_type === 'tier_pro' || b.target_plan_code === 'pro') && 'PRO TIER'}
-                              {(b.target_type === 'single_store' || b.target_type === 'single_user' || b.target_type === 'specific') && (b.target_name || 'SPESIFIK')}
-                            </span>
-
-                            <span style={{
-                              fontSize: '0.66rem',
-                              padding: '0.15rem 0.55rem',
-                              borderRadius: '0.45rem',
-                              backgroundColor: (b.expires_at && new Date(b.expires_at) <= new Date()) ? 'rgba(148, 163, 184, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                              color: (b.expires_at && new Date(b.expires_at) <= new Date()) ? '#94a3b8' : '#10b981',
-                              fontWeight: 800
-                            }}>
-                              {(b.expires_at && new Date(b.expires_at) <= new Date()) ? 'Kedaluwarsa' : 'Aktif'}
-                            </span>
-                          </div>
-
-                          <span style={{ fontSize: '0.68rem', color: theme.textMuted, whiteSpace: 'nowrap' }}>
-                            {formatSupportDateTime(b.created_at)}
-                          </span>
-                        </div>
-
-                        <h5 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.35 }}>
-                          {b.title}
-                        </h5>
-
-                        <p style={{
-                          margin: 0,
-                          fontSize: '0.78rem',
-                          color: theme.textSecondary,
-                          lineHeight: 1.5,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden'
-                        }}>
-                          {b.message}
-                        </p>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.65rem', borderTop: `1px solid ${theme.border}`, marginTop: '0.35rem' }}>
-                        <div style={{ fontSize: '0.72rem', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700 }}>
-                          <Eye size={14} />
-                          <span>{b.read_count || 0} Pembaca</span>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenBroadcastDetail(b)}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.6rem',
-                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                              border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
-                              color: isDark ? '#38bdf8' : '#0284c7',
-                              fontSize: '0.74rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <FileText size={13} />
-                            <span>Rincian</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteBroadcast(b.id)}
-                            style={{
-                              padding: '0.35rem 0.65rem',
-                              borderRadius: '0.6rem',
-                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                              border: '1px solid rgba(239, 68, 68, 0.25)',
-                              color: '#ef4444',
-                              fontSize: '0.74rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <Trash2 size={13} />
-                            <span>Hapus</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Enterprise Comprehensive Data Table Pagination Bar */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.95rem 1.15rem',
-              borderRadius: '1rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              flexWrap: 'wrap',
-              gap: '0.85rem'
-            }}>
-              {/* Left: Summary */}
-              <div style={{ fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600 }}>
-                Menampilkan{' '}
-                <strong style={{ color: theme.textPrimary }}>
-                  {broadcastTotalItems > 0 ? (broadcastPage - 1) * broadcastLimit + 1 : 0}
-                </strong>{' '}
-                –{' '}
-                <strong style={{ color: theme.textPrimary }}>
-                  {Math.min(broadcastPage * broadcastLimit, broadcastTotalItems)}
-                </strong>{' '}
-                dari{' '}
-                <strong style={{ color: theme.textPrimary }}>
-                  {broadcastTotalItems}
-                </strong>{' '}
-                siaran
-              </div>
-
-              {/* Center: Page Navigation Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <button
-                  type="button"
-                  disabled={broadcastPage <= 1 || isFetchingBroadcasts}
-                  onClick={() => fetchBroadcasts(1)}
-                  style={{
-                    padding: '0.42rem 0.75rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
-                    color: broadcastPage <= 1 ? theme.textMuted : theme.textPrimary,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    cursor: broadcastPage <= 1 ? 'not-allowed' : 'pointer'
-                  }}
-                  title="Halaman Pertama"
-                >
-                  « Awal
-                </button>
-
-                <button
-                  type="button"
-                  disabled={broadcastPage <= 1 || isFetchingBroadcasts}
-                  onClick={() => fetchBroadcasts(broadcastPage - 1)}
-                  style={{
-                    padding: '0.42rem 0.75rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
-                    color: broadcastPage <= 1 ? theme.textMuted : theme.textPrimary,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    cursor: broadcastPage <= 1 ? 'not-allowed' : 'pointer'
-                  }}
-                  title="Halaman Sebelumnya"
-                >
-                  ‹ Prev
-                </button>
-
-                {(() => {
-                  const pages: (number | string)[] = [];
-                  if (broadcastTotalPages <= 7) {
-                    for (let i = 1; i <= broadcastTotalPages; i++) pages.push(i);
-                  } else {
-                    pages.push(1);
-                    if (broadcastPage > 3) pages.push('ellipsis-start');
-                    const start = Math.max(2, broadcastPage - 1);
-                    const end = Math.min(broadcastTotalPages - 1, broadcastPage + 1);
-                    for (let i = start; i <= end; i++) {
-                      if (!pages.includes(i)) pages.push(i);
-                    }
-                    if (broadcastPage < broadcastTotalPages - 2) pages.push('ellipsis-end');
-                    if (!pages.includes(broadcastTotalPages)) pages.push(broadcastTotalPages);
-                  }
-
-                  return pages.map((p, idx) => {
-                    if (typeof p === 'string') {
-                      return (
-                        <span key={`el-${idx}`} style={{ padding: '0 0.25rem', color: theme.textMuted, fontSize: '0.8rem' }}>
-                          …
-                        </span>
-                      );
-                    }
-                    const isActive = p === broadcastPage;
-                    return (
-                      <button
-                        key={`page-${p}`}
-                        type="button"
-                        onClick={() => fetchBroadcasts(p)}
-                        style={{
-                          minWidth: '32px',
-                          height: '32px',
-                          padding: '0 0.5rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: isActive ? '#f59e0b' : theme.cardAlt,
-                          border: `1px solid ${isActive ? '#f59e0b' : theme.border}`,
-                          color: isActive ? '#000000' : theme.textPrimary,
-                          fontSize: '0.76rem',
-                          fontWeight: isActive ? 800 : 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {p}
-                      </button>
-                    );
-                  });
-                })()}
-
-                <button
-                  type="button"
-                  disabled={broadcastPage >= broadcastTotalPages || isFetchingBroadcasts}
-                  onClick={() => fetchBroadcasts(broadcastPage + 1)}
-                  style={{
-                    padding: '0.42rem 0.75rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
-                    color: broadcastPage >= broadcastTotalPages ? theme.textMuted : theme.textPrimary,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    cursor: broadcastPage >= broadcastTotalPages ? 'not-allowed' : 'pointer'
-                  }}
-                  title="Halaman Selanjutnya"
-                >
-                  Next ›
-                </button>
-
-                <button
-                  type="button"
-                  disabled={broadcastPage >= broadcastTotalPages || isFetchingBroadcasts}
-                  onClick={() => fetchBroadcasts(broadcastTotalPages)}
-                  style={{
-                    padding: '0.42rem 0.75rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
-                    color: broadcastPage >= broadcastTotalPages ? theme.textMuted : theme.textPrimary,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    cursor: broadcastPage >= broadcastTotalPages ? 'not-allowed' : 'pointer'
-                  }}
-                  title="Halaman Terakhir"
-                >
-                  Akhir »
-                </button>
-              </div>
-
-              {/* Right: Quick Jump */}
-              <form
-                onSubmit={e => {
-                  e.preventDefault();
-                  const p = parseInt(broadcastJumpPage, 10);
-                  if (!isNaN(p) && p >= 1 && p <= broadcastTotalPages) {
-                    fetchBroadcasts(p);
-                    setBroadcastJumpPage('');
-                  } else {
-                    showToast(`Halaman harus antara 1 dan ${broadcastTotalPages}`, 'error');
-                  }
-                }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-              >
-                <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Lompat:</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={broadcastTotalPages}
-                  placeholder={String(broadcastPage)}
-                  value={broadcastJumpPage}
-                  onChange={e => setBroadcastJumpPage(e.target.value)}
-                  style={{
-                    width: '46px',
-                    padding: '0.35rem 0.4rem',
-                    borderRadius: '0.55rem',
-                    border: `1px solid ${theme.inputBorder}`,
-                    backgroundColor: theme.inputBg,
-                    color: theme.textPrimary,
-                    fontSize: '0.76rem',
-                    textAlign: 'center',
-                    outline: 'none'
-                  }}
-                />
-                <button
-                  type="submit"
-                  style={{
-                    padding: '0.38rem 0.65rem',
-                    borderRadius: '0.55rem',
-                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                    border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
-                    color: isDark ? '#38bdf8' : '#0284c7',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Buka
-                </button>
-              </form>
-            </div>
+            <button
+              type="button"
+              disabled={broadcastPage >= broadcastTotalPages || isFetchingBroadcasts}
+              onClick={() => fetchBroadcasts(broadcastTotalPages)}
+              style={{
+                padding: '0.42rem 0.75rem',
+                borderRadius: '0.65rem',
+                backgroundColor: theme.cardAlt,
+                border: `1px solid ${theme.border}`,
+                color: broadcastPage >= broadcastTotalPages ? theme.textMuted : theme.textPrimary,
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: broadcastPage >= broadcastTotalPages ? 'not-allowed' : 'pointer'
+              }}
+              title="Halaman Terakhir"
+            >
+              Akhir »
+            </button>
           </div>
-        )
+
+          {/* Right: Quick Jump */}
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              const p = parseInt(broadcastJumpPage, 10);
+              if (!isNaN(p) && p >= 1 && p <= broadcastTotalPages) {
+                fetchBroadcasts(p);
+                setBroadcastJumpPage('');
+              } else {
+                showToast(`Halaman harus antara 1 dan ${broadcastTotalPages}`, 'error');
+              }
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Lompat:</span>
+            <input
+              type="number"
+              min={1}
+              max={broadcastTotalPages}
+              placeholder={String(broadcastPage)}
+              value={broadcastJumpPage}
+              onChange={e => setBroadcastJumpPage(e.target.value)}
+              style={{
+                width: '46px',
+                padding: '0.35rem 0.4rem',
+                borderRadius: '0.55rem',
+                border: `1px solid ${theme.inputBorder}`,
+                backgroundColor: theme.inputBg,
+                color: theme.textPrimary,
+                fontSize: '0.76rem',
+                textAlign: 'center',
+                outline: 'none'
+              }}
+            />
+            <button
+              type="submit"
+              style={{
+                padding: '0.38rem 0.65rem',
+                borderRadius: '0.55rem',
+                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
+                color: isDark ? '#38bdf8' : '#0284c7',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Buka
+            </button>
+          </form>
+        </div>
+      </div>
+      )
       )}
 
       {/* ========================================================================= */}
@@ -15538,142 +15578,142 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   {cannedTemplates.map(tmpl => {
-                      const catColors: Record<string, { bg: string; text: string; label: string }> = {
-                        general: { bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', label: 'Umum' },
-                        billing: { bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', label: 'Keuangan' },
-                        technical: { bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', label: 'Teknis' },
-                        closing: { bg: 'rgba(168, 85, 247, 0.15)', text: isDark ? '#c084fc' : '#9333ea', label: 'Penutupan' },
-                        account: { bg: 'rgba(244, 63, 94, 0.15)', text: isDark ? '#fb7185' : '#e11d48', label: 'Akun' }
-                      };
-                      const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#94a3b8', label: tmpl.category };
+                    const catColors: Record<string, { bg: string; text: string; label: string }> = {
+                      general: { bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', label: 'Umum' },
+                      billing: { bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', label: 'Keuangan' },
+                      technical: { bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', label: 'Teknis' },
+                      closing: { bg: 'rgba(168, 85, 247, 0.15)', text: isDark ? '#c084fc' : '#9333ea', label: 'Penutupan' },
+                      account: { bg: 'rgba(244, 63, 94, 0.15)', text: isDark ? '#fb7185' : '#e11d48', label: 'Akun' }
+                    };
+                    const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#94a3b8', label: tmpl.category };
 
-                      return (
-                        <div
-                          key={tmpl.id}
-                          style={{
-                            backgroundColor: theme.surface,
-                            border: `1px solid ${tmpl.is_active !== false ? theme.border : 'rgba(148, 163, 184, 0.2)'}`,
-                            borderRadius: '0.95rem',
-                            padding: '0.95rem',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.65rem',
-                            opacity: tmpl.is_active !== false ? 1 : 0.65,
-                            boxShadow: theme.cardShadow
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0, flex: 1 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    return (
+                      <div
+                        key={tmpl.id}
+                        style={{
+                          backgroundColor: theme.surface,
+                          border: `1px solid ${tmpl.is_active !== false ? theme.border : 'rgba(148, 163, 184, 0.2)'}`,
+                          borderRadius: '0.95rem',
+                          padding: '0.95rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.65rem',
+                          opacity: tmpl.is_active !== false ? 1 : 0.65,
+                          boxShadow: theme.cardShadow
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              <span style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 800,
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '999px',
+                                backgroundColor: catInfo.bg,
+                                color: catInfo.text
+                              }}>
+                                {catInfo.label}
+                              </span>
+
+                              {tmpl.shortcut && (
                                 <span style={{
                                   fontSize: '0.62rem',
                                   fontWeight: 800,
-                                  padding: '0.1rem 0.45rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: catInfo.bg,
-                                  color: catInfo.text
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '0.35rem',
+                                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                                  color: isDark ? '#38bdf8' : '#0284c7'
                                 }}>
-                                  {catInfo.label}
+                                  /{tmpl.shortcut}
                                 </span>
+                              )}
 
-                                {tmpl.shortcut && (
-                                  <span style={{
-                                    fontSize: '0.62rem',
-                                    fontWeight: 800,
-                                    padding: '0.1rem 0.4rem',
-                                    borderRadius: '0.35rem',
-                                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                                    color: isDark ? '#38bdf8' : '#0284c7'
-                                  }}>
-                                    /{tmpl.shortcut}
-                                  </span>
-                                )}
-
-                                <span style={{
-                                  fontSize: '0.58rem',
-                                  fontWeight: 700,
-                                  padding: '0.08rem 0.35rem',
-                                  borderRadius: '0.3rem',
-                                  backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                                  color: tmpl.is_active !== false ? (isDark ? '#34d399' : '#059669') : '#94a3b8'
-                                }}>
-                                  {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
-                                </span>
-                              </div>
-
-                              <strong style={{ fontSize: '0.86rem', color: theme.textPrimary, fontWeight: 800, marginTop: '0.15rem' }}>
-                                {tmpl.title}
-                              </strong>
+                              <span style={{
+                                fontSize: '0.58rem',
+                                fontWeight: 700,
+                                padding: '0.08rem 0.35rem',
+                                borderRadius: '0.3rem',
+                                backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                color: tmpl.is_active !== false ? (isDark ? '#34d399' : '#059669') : '#94a3b8'
+                              }}>
+                                {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
+                              </span>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleTemplateActive(tmpl)}
-                                style={{
-                                  padding: '0.35rem',
-                                  borderRadius: '0.4rem',
-                                  backgroundColor: theme.cardAlt,
-                                  border: `1px solid ${theme.border}`,
-                                  color: tmpl.is_active !== false ? '#10b981' : '#94a3b8',
-                                  cursor: 'pointer'
-                                }}
-                                title={tmpl.is_active !== false ? 'Nonaktifkan' : 'Aktifkan'}
-                              >
-                                {tmpl.is_active !== false ? <Check size={12} /> : <X size={12} />}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditTemplate(tmpl)}
-                                style={{
-                                  padding: '0.35rem',
-                                  borderRadius: '0.4rem',
-                                  backgroundColor: theme.cardAlt,
-                                  border: `1px solid ${theme.border}`,
-                                  color: isDark ? '#38bdf8' : '#0284c7',
-                                  cursor: 'pointer'
-                                }}
-                                title="Edit Template"
-                              >
-                                <Sliders size={12} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
-                                style={{
-                                  padding: '0.35rem',
-                                  borderRadius: '0.4rem',
-                                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                                  color: '#ef4444',
-                                  cursor: 'pointer'
-                                }}
-                                title="Hapus Template"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
+                            <strong style={{ fontSize: '0.86rem', color: theme.textPrimary, fontWeight: 800, marginTop: '0.15rem' }}>
+                              {tmpl.title}
+                            </strong>
                           </div>
 
-                          {/* Template Content Box */}
-                          <div style={{
-                            padding: '0.65rem 0.75rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: theme.cardAlt,
-                            border: `1px solid ${theme.border}`,
-                            fontSize: '0.78rem',
-                            color: theme.textSecondary,
-                            lineHeight: 1.45,
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            maxHeight: '120px',
-                            overflowY: 'auto'
-                          }}>
-                            {tmpl.content}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleTemplateActive(tmpl)}
+                              style={{
+                                padding: '0.35rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: theme.cardAlt,
+                                border: `1px solid ${theme.border}`,
+                                color: tmpl.is_active !== false ? '#10b981' : '#94a3b8',
+                                cursor: 'pointer'
+                              }}
+                              title={tmpl.is_active !== false ? 'Nonaktifkan' : 'Aktifkan'}
+                            >
+                              {tmpl.is_active !== false ? <Check size={12} /> : <X size={12} />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditTemplate(tmpl)}
+                              style={{
+                                padding: '0.35rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: theme.cardAlt,
+                                border: `1px solid ${theme.border}`,
+                                color: isDark ? '#38bdf8' : '#0284c7',
+                                cursor: 'pointer'
+                              }}
+                              title="Edit Template"
+                            >
+                              <Sliders size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
+                              style={{
+                                padding: '0.35rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#ef4444',
+                                cursor: 'pointer'
+                              }}
+                              title="Hapus Template"
+                            >
+                              <Trash2 size={12} />
+                            </button>
                           </div>
                         </div>
-                      );
-                    })}
+
+                        {/* Template Content Box */}
+                        <div style={{
+                          padding: '0.65rem 0.75rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: theme.cardAlt,
+                          border: `1px solid ${theme.border}`,
+                          fontSize: '0.78rem',
+                          color: theme.textSecondary,
+                          lineHeight: 1.45,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          maxHeight: '120px',
+                          overflowY: 'auto'
+                        }}>
+                          {tmpl.content}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -16129,20 +16169,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                           flexShrink: 0
                         }}>
-                          {googleSettings.rekber_logo_url ? (
-                            <img
-                              src={googleSettings.rekber_logo_url}
-                              alt="Logo Partner"
-                              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
-                              onError={(e) => {
-                                (e.target as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: theme.textMuted }}>
-                              <ShieldCheck size={26} style={{ color: '#10b981' }} />
-                            </div>
-                          )}
+                          <SafeImage
+                            src={googleSettings.rekber_logo_url}
+                            alt="Logo Partner Rekber"
+                            emptyIcon={<ShieldCheck size={26} style={{ color: '#10b981' }} />}
+                            emptyLabel="Logo Belum Diunggah"
+                            emptySubLabel="Pilih berkas PNG/SVG"
+                            errorLabel="Logo Rusak"
+                            errorSubLabel="Tidak terbaca"
+                            showLabel={false}
+                            compact={false}
+                            objectFit="contain"
+                            isDark={isDark}
+                            title={googleSettings.rekber_logo_url ? "Logo Partner Rekber" : "Logo mitra belum diunggah"}
+                          />
                         </div>
 
                         {/* Controls & Inputs */}
@@ -16283,7 +16323,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         { code: '{rekber_website_url}', desc: 'URL Website Rekber', icon: <Globe size={11} /> },
                         { code: '{rekber_website_domain}', desc: 'Domain Rekber', icon: <LinkIcon size={11} /> },
                         { code: '{rekber_wa_number}', desc: 'No. WA Admin Rekber', icon: <PhoneCall size={11} /> },
-                                                { code: '{rekber_wa_section}', desc: 'Klausul Kontak Admin', icon: <ShieldCheck size={11} /> },
+                        { code: '{rekber_wa_section}', desc: 'Klausul Kontak Admin', icon: <ShieldCheck size={11} /> },
                       ].map((item, idx) => (
                         <span
                           key={idx}
@@ -16618,7 +16658,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         let websiteDomain = 'rekbersyariah.com';
                         try {
                           websiteDomain = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname || 'rekbersyariah.com';
-                        } catch {}
+                        } catch { }
                         const waNumber = (googleSettings.rekber_wa_number || '62811220227').trim();
                         const cleanWANum = waNumber.replace(/\D/g, '') || '62811220227';
                         const waLink = `https://wa.me/${cleanWANum}`;
@@ -16742,9 +16782,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
       {/* LUXURY DESKTOP CENTERED MODAL: CRUD FORM DROPDOWN PICKER */}
       {crudDropdownPicker && (
-        <div 
+        <div
           id="desktop-crud-dropdown-overlay"
-          style={{ 
+          style={{
             position: 'fixed',
             top: 0,
             left: 0,
@@ -16761,7 +16801,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           }}
           onClick={() => setCrudDropdownPicker(null)}
         >
-          <div 
+          <div
             id="desktop-crud-dropdown-panel"
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -16880,7 +16920,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         borderRadius: '0.85rem',
                         border: `1.5px solid ${isSelected ? '#f59e0b' : (opt.isAction ? 'var(--primary, #f59e0b)' : theme.border)}`,
                         borderStyle: opt.isAction ? 'dashed' : 'solid',
-                        backgroundColor: isSelected 
+                        backgroundColor: isSelected
                           ? (isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.08)')
                           : (isDark ? 'rgba(255,255,255,0.02)' : '#ffffff'),
                         color: theme.textPrimary,
@@ -16903,8 +16943,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             width: '36px',
                             height: '36px',
                             borderRadius: '0.65rem',
-                            backgroundColor: isSelected 
-                              ? 'rgba(245, 158, 11, 0.2)' 
+                            backgroundColor: isSelected
+                              ? 'rgba(245, 158, 11, 0.2)'
                               : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
                             display: 'flex',
                             alignItems: 'center',
@@ -16973,8 +17013,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               height: '26px',
                               borderRadius: '50%',
                               border: `1px solid ${isInfoExpanded ? (isDark ? 'rgba(56, 189, 248, 0.5)' : 'rgba(2, 132, 199, 0.4)') : (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)')}`,
-                              backgroundColor: isInfoExpanded 
-                                ? (isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.12)') 
+                              backgroundColor: isInfoExpanded
+                                ? (isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.12)')
                                 : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'),
                               color: isInfoExpanded ? (isDark ? '#38bdf8' : '#0284c7') : theme.textMuted,
                               display: 'flex',
@@ -17079,15 +17119,38 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </button>
             </div>
 
-            <div 
-              onClick={() => openAttachmentLightbox([{ file_url: selectedProofOrder.payment_proof_url, file_name: `Bukti_Bayar_Order_${selectedProofOrder.id}.jpg` }])}
-              style={{ width: '100%', maxHeight: '300px', overflow: 'hidden', borderRadius: '0.75rem', backgroundColor: isDark ? '#000' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-              title="Klik untuk perbesar gambar"
+            <div
+              style={{
+                width: '100%',
+                minHeight: '220px',
+                maxHeight: '340px',
+                overflow: 'hidden',
+                borderRadius: '0.75rem',
+                backgroundColor: isDark ? '#090d16' : '#f8fafc',
+                border: `1px solid ${theme.border}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
             >
-              <img
+              <SafeImage
                 src={selectedProofOrder.payment_proof_url}
-                alt="Bukti Transfer"
-                style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain' }}
+                alt={`Bukti Bayar Pesanan #${selectedProofOrder.id}`}
+                emptyLabel="Bukti Transfer Belum Diunggah"
+                emptySubLabel="Pengguna belum mengunggah struk/bukti bayar"
+                errorLabel="Bukti Bayar Rusak / Tidak Terbaca"
+                errorSubLabel="Berkas bukti transfer tidak dapat ditampilkan dari server"
+                objectFit="contain"
+                isDark={isDark}
+                allowRetry={true}
+                showLabel={true}
+                wrapperStyle={{ minHeight: '220px', maxHeight: '340px', padding: '0.5rem' }}
+                onPreview={() => {
+                  if (selectedProofOrder.payment_proof_url) {
+                    openAttachmentLightbox([{ file_url: selectedProofOrder.payment_proof_url, file_name: `Bukti_Bayar_Order_${selectedProofOrder.id}.jpg` }]);
+                  }
+                }}
+                title={selectedProofOrder.payment_proof_url ? "Klik untuk melihat pratinjau penuh" : "Bukti belum diunggah"}
               />
             </div>
 
@@ -17839,10 +17902,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       justifyContent: 'space-between',
                       padding: '0.85rem 1rem',
                       borderRadius: '0.95rem',
-                      backgroundColor: isSelected 
+                      backgroundColor: isSelected
                         ? (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.07)')
                         : (isDark ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc'),
-                      border: isSelected 
+                      border: isSelected
                         ? `1.5px solid ${isDark ? '#38bdf8' : '#0284c7'}`
                         : `1px solid ${theme.border}`,
                       cursor: 'pointer',
@@ -18524,7 +18587,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* MODAL KONFIRMASI AKSI BANNED PERMANEN                                     */}
       {/* ========================================================================= */}
       {showModerationConfirmModal && (
-        <div 
+        <div
           className="animate-fade-in"
           style={{
             position: 'fixed',
@@ -18544,7 +18607,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             }
           }}
         >
-          <div 
+          <div
             style={{
               width: '100%',
               maxWidth: '540px',
@@ -18560,8 +18623,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {/* Modal Header Bar (Professional & Elegant Enterprise Grade) */}
             <div style={{
               padding: '1.15rem 1.5rem',
-              background: isDark 
-                ? 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)' 
+              background: isDark
+                ? 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)'
                 : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
               borderBottom: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(226, 232, 240, 0.9)'}`,
               display: 'flex',
@@ -18575,54 +18638,54 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   width: '42px',
                   height: '42px',
                   borderRadius: '0.85rem',
-                  background: isDark 
-                    ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.15) 100%)' 
+                  background: isDark
+                    ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.15) 100%)'
                     : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
                   border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#ef4444',
-                  boxShadow: isDark 
-                    ? '0 4px 14px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)' 
+                  boxShadow: isDark
+                    ? '0 4px 14px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
                     : '0 4px 12px rgba(239, 68, 68, 0.15)',
                   flexShrink: 0
                 }}>
                   <ShieldAlert size={22} style={{ filter: 'drop-shadow(0 2px 4px rgba(239, 68, 68, 0.3))' }} />
                 </div>
-              {(() => {
-                const isItemConfirm = (bannedConfirmModalReport?.target_type === 'item') || (moderationModalReport?.target_type === 'item') || (moderationAction === 'item_banned');
-                return (
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
-                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.02em', lineHeight: 1.25 }}>
-                        {isItemConfirm ? 'Konfirmasi Banned Item' : 'Konfirmasi Banned Katalog'}
-                      </h3>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '0.12rem 0.5rem',
-                        borderRadius: '999px',
-                        backgroundColor: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.12)',
-                        border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.25)'}`,
-                        color: '#ef4444',
-                        fontSize: '0.65rem',
-                        fontWeight: 800,
-                        letterSpacing: '0.02em',
-                        textTransform: 'uppercase',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-                        Permanen
-                      </span>
+                {(() => {
+                  const isItemConfirm = (bannedConfirmModalReport?.target_type === 'item') || (moderationModalReport?.target_type === 'item') || (moderationAction === 'item_banned');
+                  return (
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.02em', lineHeight: 1.25 }}>
+                          {isItemConfirm ? 'Konfirmasi Banned Item' : 'Konfirmasi Banned Katalog'}
+                        </h3>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '0.12rem 0.5rem',
+                          borderRadius: '999px',
+                          backgroundColor: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.12)',
+                          border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.25)'}`,
+                          color: '#ef4444',
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          letterSpacing: '0.02em',
+                          textTransform: 'uppercase',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                          Permanen
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, fontWeight: 500, lineHeight: 1.3 }}>
+                        {isItemConfirm ? 'Penghapusan seketika & brankas forensik 90 hari (tanpa banding)' : 'Tindakan sanksi fatal, tidak dapat dibatalkan kembali'}
+                      </p>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, fontWeight: 500, lineHeight: 1.3 }}>
-                      {isItemConfirm ? 'Penghapusan seketika & brankas forensik 90 hari (tanpa banding)' : 'Tindakan sanksi fatal, tidak dapat dibatalkan kembali'}
-                    </p>
-                  </div>
-                );
-              })()}
+                  );
+                })()}
               </div>
             </div>
 
@@ -18731,7 +18794,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </div>
 
                   {/* Acknowledgment Checkbox */}
-                  <label 
+                  <label
                     style={{
                       display: 'flex',
                       alignItems: 'flex-start',
@@ -18751,77 +18814,77 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       style={{ marginTop: '3px', accentColor: '#ef4444', cursor: 'pointer' }}
                     />
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, lineHeight: 1.45 }}>
-                      {isItemConfirm 
+                      {isItemConfirm
                         ? 'Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen pada item ini.'
                         : 'Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen katalog ini.'}
                     </span>
                   </label>
 
-              {/* Modal Buttons */}
-              <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.35rem' }}>
-                <button
-                  type="button"
-                  disabled={isSubmittingModeration}
-                  onClick={handleDismissBannedConfirmModal}
-                  style={{
-                    flex: 1,
-                    padding: '0.8rem 1.15rem',
-                    borderRadius: '0.75rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: 'transparent',
-                    color: theme.textSecondary,
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: isSubmittingModeration ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  disabled={!bannedConfirmAcknowledged || isSubmittingModeration}
-                  onClick={() => {
-                    if (!bannedConfirmAcknowledged || isSubmittingModeration) return;
-                    const reportId = moderationModalReport?.id;
-                    handleDismissBannedConfirmModal();
-                    if (reportId) {
-                      handleUpdateReportStatus(
-                        reportId,
-                        moderationStatus,
-                        moderationAction,
-                        moderationNotes,
-                        true
-                      );
-                    }
-                  }}
-                  style={{
-                    flex: 1.2,
-                    padding: '0.8rem 1.15rem',
-                    borderRadius: '0.75rem',
-                    border: 'none',
-                    backgroundColor: bannedConfirmAcknowledged ? '#ef4444' : (isDark ? '#334155' : '#cbd5e1'),
-                    color: bannedConfirmAcknowledged ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
-                    fontSize: '0.82rem',
-                    fontWeight: 800,
-                    cursor: (!bannedConfirmAcknowledged || isSubmittingModeration) ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.45rem',
-                    whiteSpace: 'nowrap',
-                    boxShadow: bannedConfirmAcknowledged ? '0 4px 18px rgba(239, 68, 68, 0.4)' : 'none',
-                    transition: 'all 0.18s ease'
-                  }}
-                >
-                  {isSubmittingModeration ? (
-                    <RefreshCw size={15} className="animate-spin" />
-                  ) : (
-                    <ShieldAlert size={15} />
-                  )}
-                  <span>{isItemConfirm ? 'Ya, Banned & Hapus Item' : 'Ya, Banned Katalog'}</span>
-                </button>
-              </div>
-            </div>
+                  {/* Modal Buttons */}
+                  <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.35rem' }}>
+                    <button
+                      type="button"
+                      disabled={isSubmittingModeration}
+                      onClick={handleDismissBannedConfirmModal}
+                      style={{
+                        flex: 1,
+                        padding: '0.8rem 1.15rem',
+                        borderRadius: '0.75rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: 'transparent',
+                        color: theme.textSecondary,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: isSubmittingModeration ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!bannedConfirmAcknowledged || isSubmittingModeration}
+                      onClick={() => {
+                        if (!bannedConfirmAcknowledged || isSubmittingModeration) return;
+                        const reportId = moderationModalReport?.id;
+                        handleDismissBannedConfirmModal();
+                        if (reportId) {
+                          handleUpdateReportStatus(
+                            reportId,
+                            moderationStatus,
+                            moderationAction,
+                            moderationNotes,
+                            true
+                          );
+                        }
+                      }}
+                      style={{
+                        flex: 1.2,
+                        padding: '0.8rem 1.15rem',
+                        borderRadius: '0.75rem',
+                        border: 'none',
+                        backgroundColor: bannedConfirmAcknowledged ? '#ef4444' : (isDark ? '#334155' : '#cbd5e1'),
+                        color: bannedConfirmAcknowledged ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
+                        fontSize: '0.82rem',
+                        fontWeight: 800,
+                        cursor: (!bannedConfirmAcknowledged || isSubmittingModeration) ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        whiteSpace: 'nowrap',
+                        boxShadow: bannedConfirmAcknowledged ? '0 4px 18px rgba(239, 68, 68, 0.4)' : 'none',
+                        transition: 'all 0.18s ease'
+                      }}
+                    >
+                      {isSubmittingModeration ? (
+                        <RefreshCw size={15} className="animate-spin" />
+                      ) : (
+                        <ShieldAlert size={15} />
+                      )}
+                      <span>{isItemConfirm ? 'Ya, Banned & Hapus Item' : 'Ya, Banned Katalog'}</span>
+                    </button>
+                  </div>
+                </div>
               );
             })()}
           </div>
@@ -18858,8 +18921,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           <ArrowUp size={20} strokeWidth={2.5} />
         </button>
       )}
-      </div>
-    </PlatformAdminShell>
+    </div>
+    </PlatformAdminShell >
   );
 };
-
