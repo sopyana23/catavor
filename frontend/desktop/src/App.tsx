@@ -28399,11 +28399,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   </div>
 
-                  {/* MASTER-DETAIL TICKET LAYOUT */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '370px 1fr', gap: '1.25rem', height: 'calc(100vh - 190px)', minHeight: '620px', maxHeight: 'calc(100vh - 190px)' }}>
+                  {/* MASTER-DETAIL TICKET LAYOUT (Adaptive column width prioritizing Room Chat) */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'clamp(260px, 24%, 300px) 1fr', gap: '1.25rem', height: 'calc(100vh - 190px)', minHeight: '620px', maxHeight: 'calc(100vh - 190px)' }}>
                     
                     {/* LEFT PANEL: TICKET LIST & FILTERS */}
-                    <div className="glass-panel" style={{ padding: '1.15rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.85rem', height: '100%', minHeight: 0, boxSizing: 'border-box', overflow: 'hidden' }}>
+                    <div className="glass-panel" style={{ minWidth: 0, padding: '1rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.85rem', height: '100%', minHeight: 0, boxSizing: 'border-box', overflow: 'hidden' }}>
                       
                       {/* Search & Filter Bar */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', flexShrink: 0 }}>

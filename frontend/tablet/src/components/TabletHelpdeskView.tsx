@@ -87,6 +87,7 @@ export interface TabletHelpdeskViewProps {
   userStores?: any[];
   showToast: (msg: string, type?: 'success' | 'error' | 'info' | string) => void;
   onUpdateUnreadCount?: (count: number) => void;
+  isNavExpanded?: boolean;
 }
 
 export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
@@ -96,7 +97,8 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   currentUser,
   userStores = [],
   showToast,
-  onUpdateUnreadCount
+  onUpdateUnreadCount,
+  isNavExpanded = false
 }) => {
   // Check dormancy / suspended account mode
   const isSuspendedAccount = settings?.dormancy_status === 'suspended' || settings?.is_suspended;
@@ -1023,6 +1025,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
             setTicketDetails(null);
           }}
           emptyDetailMessage="Pilih salah satu tiket dari daftar untuk melihat percakapan atau klik 'Buat Tiket Baru' di bagian atas."
+          isSidebarExpanded={isNavExpanded}
           masterPane={
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '0.85rem', gap: '0.65rem' }}>
               

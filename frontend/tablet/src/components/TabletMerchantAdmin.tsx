@@ -10577,6 +10577,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             userStores={userStores}
             showToast={(msg, type) => showToast(msg, type === 'error' ? 'error' : 'success')}
             onUpdateUnreadCount={(cnt) => setSupportUnreadCount(cnt)}
+            isNavExpanded={isNavExpanded}
           />
         )}
 

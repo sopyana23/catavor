@@ -13,6 +13,7 @@ export interface TabletMasterDetailViewProps {
   emptyDetailMessage?: string;
   selectedId: string | number | null;
   onClearSelection?: () => void;
+  isSidebarExpanded?: boolean;
 }
 
 export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
@@ -25,7 +26,8 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
   detailPane,
   emptyDetailMessage = 'Pilih salah satu item dari daftar di samping untuk melihat rincian lengkap.',
   selectedId,
-  onClearSelection
+  onClearSelection,
+  isSidebarExpanded = false
 }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = React.useState<number>(800);
@@ -50,10 +52,9 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
     return () => ro.disconnect();
   }, []);
 
-  // When container width is below 880px (Tablet Mini 768px-879px or compact viewports),
-  // adapt seamlessly to focused single-pane mode to prevent squeezed columns per Platform Standard 7.A.2
-  const isNarrowTablet = containerWidth < 880;
-  const isSpaciousTablet = containerWidth >= 960;
+  // Two-pane split view is preserved down to 720px (covering large tablets even when 256px sidebar is expanded)
+  const isNarrowTablet = containerWidth < 720;
+  const isSpaciousTablet = containerWidth >= 1050 && !isSidebarExpanded;
 
   const showMaster = !isNarrowTablet || !selectedId;
   const showDetail = !isNarrowTablet || Boolean(selectedId);
@@ -152,28 +153,30 @@ export const TabletMasterDetailView: React.FC<TabletMasterDetailViewProps> = ({
         height: '100%',
         overflow: 'hidden'
       }}>
-        {/* Left Pane: Master List */}
+        {/* Left Pane: Master List (Contracted when space is constrained to maximize Room Chat width) */}
         {showMaster && (
           <div style={{
-            width: isNarrowTablet ? '100%' : isSpaciousTablet ? '38%' : '42%',
-            minWidth: isNarrowTablet ? '100%' : '320px',
-            maxWidth: isNarrowTablet ? '100%' : isSpaciousTablet ? '420px' : '380px',
+            width: isNarrowTablet ? '100%' : isSpaciousTablet ? '290px' : '265px',
+            minWidth: isNarrowTablet ? '100%' : '250px',
+            maxWidth: isNarrowTablet ? '100%' : isSpaciousTablet ? '310px' : '275px',
+            flexShrink: 0,
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
             borderRight: isNarrowTablet ? 'none' : '1px solid var(--border-light)',
             backgroundColor: 'var(--bg-deep)',
             overflow: 'hidden',
-            transition: 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+            transition: 'width 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
             {masterPane}
           </div>
         )}
 
-        {/* Right Pane: Detail View */}
+        {/* Right Pane: Detail View / Room Chat */}
         {showDetail && (
           <div style={{
             flex: 1,
+            minWidth: 0,
             width: isNarrowTablet ? '100%' : 'auto',
             height: '100%',
             overflowY: 'auto',

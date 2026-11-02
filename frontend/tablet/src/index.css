@@ -602,20 +602,32 @@ button, a, input, select, textarea {
   background: linear-gradient(to left, var(--bg-deep) 30%, transparent);
 }
 
-/* Large Container Mode (Container width >= 760px fits all sub-tabs cleanly in grid) */
-@container settingsContainer (min-width: 760px) {
-  .tablet-settings-tabs-track {
+/* Large Container Mode (Container width >= 950px and sidebar collapsed fits all sub-tabs cleanly in grid) */
+@container settingsContainer (min-width: 950px) {
+  .tablet-settings-tab-wrapper:not(.is-sidebar-expanded) .tablet-settings-tabs-track {
     display: grid;
     grid-template-columns: repeat(var(--tab-count, 5), minmax(0, 1fr));
     gap: 0.45rem;
     overflow-x: visible;
   }
-  .tablet-settings-tab-btn {
+  .tablet-settings-tab-wrapper:not(.is-sidebar-expanded) .tablet-settings-tab-btn {
     flex: 1 1 0;
     width: 100%;
-    padding: 0.55rem 0.5rem;
+    padding: 0.55rem 0.65rem;
     font-size: 0.8rem;
   }
+}
+
+.tablet-settings-tab-wrapper.is-sidebar-expanded .tablet-settings-tabs-track {
+  display: flex !important;
+  overflow-x: auto !important;
+  flex-wrap: nowrap !important;
+}
+
+.tablet-settings-tab-wrapper.is-sidebar-expanded .tablet-settings-tab-btn {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  padding: 0.5rem 1rem !important;
 }
 
 /* Fallback & Backward Compatibility for .desktop-settings-tabs-grid */
