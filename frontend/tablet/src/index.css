@@ -299,6 +299,106 @@ button, a, input, select, textarea {
   background: var(--primary);
 }
 
+/* =====================================================================
+   TABLET STICKY TABLE & DUAL-AXIS FREEZE PANES
+   - Sticky header row (<thead> th): stays pinned on vertical scroll
+   - Sticky first column (sticky-col): stays pinned on horizontal scroll
+   - Top-left corner cell (th.sticky-col): pinned on both axes (z-index: 20)
+   - Adaptive elastic height: natural shrink on few rows, max-height cap on large datasets
+   ===================================================================== */
+.tablet-sticky-table-container {
+  position: relative;
+  width: 100%;
+  max-height: min(62vh, 640px);
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 0.85rem;
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-card);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) transparent;
+}
+
+.tablet-sticky-table-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.tablet-sticky-table-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 9999px;
+  margin: 4px;
+}
+
+:root[data-theme="dark"] .tablet-sticky-table-container::-webkit-scrollbar-track,
+[data-theme="dark"] .tablet-sticky-table-container::-webkit-scrollbar-track,
+[data-theme="emerald"] .tablet-sticky-table-container::-webkit-scrollbar-track,
+[data-theme="cyberpunk"] .tablet-sticky-table-container::-webkit-scrollbar-track,
+[data-theme="ocean"] .tablet-sticky-table-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tablet-sticky-table-container::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.4);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.tablet-sticky-table-container::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+.tablet-sticky-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+}
+
+.tablet-sticky-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--bg-deep);
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+
+.tablet-sticky-table th.sticky-col,
+.tablet-sticky-table td.sticky-col {
+  position: sticky;
+  left: 0;
+  border-right: 1px solid var(--border-light);
+  box-shadow: 3px 0 8px rgba(0, 0, 0, 0.04);
+}
+
+.tablet-sticky-table th.sticky-col {
+  z-index: 20;
+  top: 0;
+  background-color: var(--bg-deep);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.tablet-sticky-table td.sticky-col {
+  z-index: 5;
+  background-color: var(--bg-card);
+}
+
+.tablet-sticky-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.tablet-sticky-table tbody tr:hover td {
+  background-color: var(--bg-card-hover, rgba(255, 255, 255, 0.02));
+}
+
+.tablet-sticky-table tbody tr:hover td.sticky-col {
+  background-color: var(--bg-card-hover, rgba(255, 255, 255, 0.02));
+}
+
 /* Tablet Custom Select Menu Pop-In Animation */
 @keyframes tabletSelectPopIn {
   0% {

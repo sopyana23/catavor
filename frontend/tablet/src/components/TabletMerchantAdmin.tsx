@@ -3696,13 +3696,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             display: 'flex',
             flexDirection: 'column',
             gap: '1rem',
-            padding: '1.25rem 1.5rem 3rem 1.5rem',
+            padding: isNarrowScreen || isNavExpanded ? '1rem 0.85rem 3.5rem 0.85rem' : '1.25rem 1.5rem 3.5rem 1.5rem',
             maxWidth: '100%',
             width: '100%',
             margin: '0 auto',
             boxSizing: 'border-box',
             overflowY: 'auto',
-            height: '100%'
+            height: '100%',
+            WebkitOverflowScrolling: 'touch'
           }}>
             {/* Page Header Bar: Title & Desktop-style Action Buttons */}
             <div style={{
@@ -4224,25 +4225,155 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               </div>
             </div>
 
-            {/* Table Container with smooth horizontal scrolling for tablet */}
-            <div style={{
-              width: '100%',
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              borderRadius: '0.85rem',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'var(--bg-card)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-            }}>
-              <table style={{ width: '100%', minWidth: '760px', borderCollapse: 'collapse', textAlign: 'left' }}>
+            {/* Table Container with sticky header & first column freeze panes for tablet */}
+            <div
+              className="tablet-sticky-table-container catavor-table-scrollbar"
+              style={{
+                width: '100%',
+                maxHeight: 'min(62vh, 640px)',
+                overflowY: 'auto',
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                borderRadius: '0.85rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+              }}
+            >
+              <table
+                className="tablet-sticky-table"
+                style={{
+                  width: '100%',
+                  minWidth: '760px',
+                  borderCollapse: 'separate',
+                  borderSpacing: 0,
+                  textAlign: 'left'
+                }}
+              >
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
-                    <th style={{ width: '68px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Foto</th>
-                    <th style={{ padding: '0.85rem 0.85rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Nama Item &amp; Spesifikasi</th>
-                    <th style={{ width: '160px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Kategori &amp; Tipe</th>
-                    <th style={{ width: '130px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Harga</th>
-                    <th style={{ width: '120px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status</th>
-                    <th style={{ width: '180px', padding: '0.85rem 0.85rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aksi</th>
+                  <tr style={{ backgroundColor: 'var(--bg-deep)' }}>
+                    <th
+                      className="sticky-col"
+                      style={{
+                        width: '68px',
+                        minWidth: '68px',
+                        maxWidth: '68px',
+                        padding: '0.85rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        left: 0,
+                        top: 0,
+                        zIndex: 20,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        borderRight: '1px solid var(--border-light)',
+                        boxShadow: '3px 0 8px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      Foto
+                    </th>
+                    <th
+                      style={{
+                        padding: '0.85rem 0.85rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Nama Item &amp; Spesifikasi
+                    </th>
+                    <th
+                      style={{
+                        width: '160px',
+                        minWidth: '150px',
+                        padding: '0.85rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Kategori &amp; Tipe
+                    </th>
+                    <th
+                      style={{
+                        width: '130px',
+                        minWidth: '120px',
+                        padding: '0.85rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Harga
+                    </th>
+                    <th
+                      style={{
+                        width: '120px',
+                        minWidth: '110px',
+                        padding: '0.85rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Status
+                    </th>
+                    <th
+                      style={{
+                        width: '180px',
+                        minWidth: '170px',
+                        padding: '0.85rem 0.85rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Aksi
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -4328,14 +4459,37 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         <tr
                           key={item.id}
                           style={{
-                            borderBottom: '1px solid var(--border-light)',
                             transition: 'background-color 0.15s ease'
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
+                            const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
+                            if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
+                            if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card)';
+                          }}
                         >
-                          {/* Foto */}
-                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                          {/* Foto (Sticky Left First Column) */}
+                          <td
+                            className="sticky-col"
+                            style={{
+                              width: '68px',
+                              minWidth: '68px',
+                              maxWidth: '68px',
+                              padding: '0.75rem 0.75rem',
+                              verticalAlign: 'middle',
+                              position: 'sticky',
+                              left: 0,
+                              zIndex: 5,
+                              backgroundColor: 'var(--bg-card)',
+                              borderBottom: '1px solid var(--border-light)',
+                              borderRight: '1px solid var(--border-light)',
+                              boxShadow: '3px 0 8px rgba(0,0,0,0.04)'
+                            }}
+                          >
                             <div style={{ width: '52px', height: '42px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {item.image_url ? (
                                 <img
@@ -4353,7 +4507,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </td>
 
                           {/* Nama Item & Spesifikasi */}
-                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.88rem' }}>
                               {item.name}
                             </div>
@@ -4383,7 +4537,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </td>
 
                           {/* Kategori & Tipe */}
-                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             <span
                               style={{
                                 fontSize: '0.72rem',
@@ -4409,14 +4563,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </td>
 
                           {/* Harga */}
-                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             <div style={{ fontWeight: 800, color: '#ef4444', fontSize: '0.88rem', whiteSpace: 'nowrap' }}>
                               Rp {Number(item.price || 0).toLocaleString('id-ID')}
                             </div>
                           </td>
 
                           {/* Status */}
-                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             {(item as any).moderation_status === 'hidden' ? (
                               <span
                                 style={{
@@ -4481,7 +4635,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </td>
 
                           {/* Aksi */}
-                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                               <button
                                 type="button"
@@ -4577,9 +4731,31 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               flexWrap: 'wrap',
               gap: '0.75rem'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
                 <div>
                   Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{products.length}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{productTotalRecords}</strong> total item
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Baris:</span>
+                  <TabletCustomSelect
+                    value={String(productPerPage)}
+                    onChange={(val) => {
+                      const n = Number(val);
+                      setProductPerPage(n);
+                      setProductPage(1);
+                      fetchProducts(1, debouncedProductSearch, productStatusFilter, productCategoryFilter, productTypeFilter, productSortFilter, productStockFilter, n);
+                    }}
+                    options={[
+                      { value: '10', label: '10' },
+                      { value: '25', label: '25' },
+                      { value: '50', label: '50' }
+                    ]}
+                    placeholder="10"
+                    variant="compact"
+                    style={{ width: '70px', minWidth: '65px' }}
+                    triggerStyle={{ padding: '0.35rem 0.6rem', fontSize: '0.78rem' }}
+                    ariaLabel="Jumlah Baris per Halaman"
+                  />
                 </div>
                 {loading && (
                   <Loader size={14} className="animate-spin" style={{ color: 'var(--primary)', opacity: 0.8 }} />

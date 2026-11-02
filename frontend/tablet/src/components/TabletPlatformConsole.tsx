@@ -12596,25 +12596,62 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 display: 'flex',
                 flexDirection: 'column'
               }}>
-                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem', minWidth: '860px' }}>
+                <div
+                  className="tablet-sticky-table-container catavor-table-scrollbar"
+                  style={{
+                    maxHeight: 'min(62vh, 640px)',
+                    overflowY: 'auto',
+                    overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    borderRadius: '0.85rem',
+                    border: '1px solid var(--border-light)'
+                  }}
+                >
+                  <table
+                    className="tablet-sticky-table"
+                    style={{
+                      width: '100%',
+                      borderCollapse: 'separate',
+                      borderSpacing: 0,
+                      textAlign: 'left',
+                      fontSize: '0.8rem',
+                      minWidth: '860px'
+                    }}
+                  >
                     <thead>
                       <tr style={{
                         backgroundColor: 'var(--bg-deep)',
-                        borderBottom: '1px solid var(--border-light)',
                         color: 'var(--text-secondary)',
                         fontSize: '0.72rem',
                         fontWeight: 800,
                         textTransform: 'uppercase',
                         letterSpacing: '0.04em'
                       }}>
-                        <th style={{ padding: '0.85rem 1.15rem', width: '160px' }}>Waktu & Tanggal</th>
-                        <th style={{ padding: '0.85rem 1rem', width: '170px' }}>Kode Aksi</th>
-                        <th style={{ padding: '0.85rem 1rem', width: '130px' }}>Kategori</th>
-                        <th style={{ padding: '0.85rem 1rem', minWidth: '200px' }}>Aktor Pelaksana</th>
-                        <th style={{ padding: '0.85rem 1rem', minWidth: '220px' }}>Deskripsi & Target</th>
-                        <th style={{ padding: '0.85rem 1rem', width: '130px' }}>Alamat IP</th>
-                        <th style={{ padding: '0.85rem 1.15rem', width: '100px', textAlign: 'center' }}>Tindakan</th>
+                        <th
+                          className="sticky-col"
+                          style={{
+                            padding: '0.85rem 1.15rem',
+                            width: '160px',
+                            minWidth: '160px',
+                            position: 'sticky',
+                            left: 0,
+                            top: 0,
+                            zIndex: 20,
+                            backgroundColor: 'var(--bg-deep)',
+                            borderBottom: '1px solid var(--border-light)',
+                            borderRight: '1px solid var(--border-light)',
+                            boxShadow: '3px 0 8px rgba(0,0,0,0.04)',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          Waktu & Tanggal
+                        </th>
+                        <th style={{ padding: '0.85rem 1rem', width: '170px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Kode Aksi</th>
+                        <th style={{ padding: '0.85rem 1rem', width: '130px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Kategori</th>
+                        <th style={{ padding: '0.85rem 1rem', minWidth: '200px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Aktor Pelaksana</th>
+                        <th style={{ padding: '0.85rem 1rem', minWidth: '220px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Deskripsi & Target</th>
+                        <th style={{ padding: '0.85rem 1rem', width: '130px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Alamat IP</th>
+                        <th style={{ padding: '0.85rem 1.15rem', width: '100px', textAlign: 'center', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Tindakan</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -12684,9 +12721,18 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <tr
                               key={logId}
                               style={{
-                                borderBottom: '1px solid var(--border-light)',
                                 transition: 'background-color 0.15s ease',
                                 cursor: 'pointer'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
+                                const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
+                                if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                                const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
+                                if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card)';
                               }}
                               onClick={() => {
                                 setSelectedAuditLogId(logId);
@@ -12694,7 +12740,20 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               }}
                             >
                               {/* Waktu & Tanggal */}
-                              <td style={{ padding: '0.85rem 1.15rem', whiteSpace: 'nowrap' }}>
+                              <td
+                                className="sticky-col"
+                                style={{
+                                  padding: '0.85rem 1.15rem',
+                                  whiteSpace: 'nowrap',
+                                  position: 'sticky',
+                                  left: 0,
+                                  zIndex: 5,
+                                  backgroundColor: 'var(--bg-card)',
+                                  borderBottom: '1px solid var(--border-light)',
+                                  borderRight: '1px solid var(--border-light)',
+                                  boxShadow: '3px 0 8px rgba(0,0,0,0.04)'
+                                }}
+                              >
                                 <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.78rem' }}>
                                   {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
                                 </div>
@@ -12704,7 +12763,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </td>
 
                               {/* Kode Aksi */}
-                              <td style={{ padding: '0.85rem 1rem' }}>
+                              <td style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
                                 <span style={{
                                   fontWeight: 800,
                                   color: 'var(--primary)',
@@ -12720,7 +12779,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </td>
 
                               {/* Kategori */}
-                              <td style={{ padding: '0.85rem 1rem' }}>
+                              <td style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
                                 <span style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
@@ -12738,7 +12797,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </td>
 
                               {/* Aktor Pelaksana */}
-                              <td style={{ padding: '0.85rem 1rem' }}>
+                              <td style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                                   <div style={{
                                     width: '28px',
@@ -12776,7 +12835,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </td>
 
                               {/* Deskripsi & Target */}
-                              <td style={{ padding: '0.85rem 1rem' }}>
+                              <td style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
                                 <div style={{ color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.4, fontSize: '0.8rem' }}>
                                   {log.description || log.entity_title || 'Tindakan sistem'}
                                 </div>
@@ -12790,12 +12849,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </td>
 
                               {/* Alamat IP */}
-                              <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                              <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-light)' }}>
                                 {log.ip_address || '127.0.0.1'}
                               </td>
 
                               {/* Aksi: Tombol Inspeksi */}
-                              <td style={{ padding: '0.85rem 1.15rem', textAlign: 'center' }}>
+                              <td style={{ padding: '0.85rem 1.15rem', textAlign: 'center', borderBottom: '1px solid var(--border-light)' }}>
                                 <button
                                   type="button"
                                   onClick={(e) => {
