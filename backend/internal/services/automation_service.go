@@ -135,6 +135,16 @@ func InitAutomationTracker(db *gorm.DB, strg storage.StorageService) *Automation
 					NextRunAt:    now.Add(1 * time.Hour),
 					LastSummary:  "Menghapus notifikasi kedaluwarsa dan riwayat terbaca > 30 hari.",
 				},
+				"storage_sweeper": {
+					Name:         "storage_sweeper",
+					Title:        "Bot Audit Kuota & Pembersih Yatim Piatu",
+					Category:     "system",
+					Status:       "running",
+					IntervalDesc: "Setiap 1 Jam",
+					LastRunAt:    now,
+					NextRunAt:    now.Add(1 * time.Hour),
+					LastSummary:  "Memindai direktori media toko, menghitung kuota aktif produk, dan memusnahkan unggahan yatim piatu (>2 jam).",
+				},
 				"weekly_summary": {
 					Name:         "weekly_summary",
 					Title:        "Bot Ringkasan Mingguan & Intelligence Platform",
@@ -1160,6 +1170,49 @@ func (t *AutomationTracker) TriggerMarketIntelManual(db *gorm.DB) error {
 	}()
 
 	return nil
+}
+
+// TriggerStorageSweeperManual executes storage quota audit and orphan pruning manually.
+func (t *AutomationTracker) TriggerStorageSweeperManual(db *gorm.DB) (int, error) {
+	t.mu.Lock()
+	if t.runningBots["storage_sweeper"] {
+		t.mu.Unlock()
+		return 0, fmt.Errorf("bot audit penyimpanan sedang berjalan")
+	}
+	t.runningBots["storage_sweeper"] = true
+	t.mu.Unlock()
+
+	defer func() {
+		t.mu.Lock()
+		t.runningBots["storage_sweeper"] = false
+		t.mu.Unlock()
+	}()
+
+	targetDB := db
+	if targetDB == nil {
+		targetDB = t.db
+	}
+
+	totalAudited := RunStorageSweep(targetDB)
+	now := time.Now().UTC()
+	summary := fmt.Sprintf("Audit penyimpanan selesai: %d toko diaudit dan disinkronkan.", totalAudited)
+
+	t.RecordWorkerHeartbeat("storage_sweeper", "running", summary, "", int64(totalAudited), now.Add(1*time.Hour))
+	t.RecordLog(AutomationLogEntry{
+		ID:            fmt.Sprintf("log_%d_storage_sweeper", now.UnixNano()),
+		BotName:       "storage_sweeper",
+		BotTitle:      "Bot Audit Kuota & Pembersih Yatim Piatu",
+		Target:        "Penyimpanan File & Kuota Toko",
+		Action:        "manual_execution",
+		TriggerType:   "manual",
+		TriggeredBy:   "Admin / Operator",
+		Status:        "success",
+		AffectedCount: int64(totalAudited),
+		Details:       summary,
+		Timestamp:     now,
+	})
+
+	return totalAudited, nil
 }
 
 

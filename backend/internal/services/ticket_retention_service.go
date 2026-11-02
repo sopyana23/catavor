@@ -56,10 +56,12 @@ func PurgeExpiredClosedTickets(db *gorm.DB, storageDriver storage.StorageService
 		Where("support_messages.ticket_id IN (?)", ticketIDs).
 		Find(&attachments)
 
-	storageRoot := GetStorageRoot()
-	ctx := context.Background()
+	type fileCleanupItem struct {
+		cleanKey string
+		fileSize int
+	}
+	var filesToDelete []fileCleanupItem
 
-	// 2. Physical File Deletion (Storage Erasure)
 	for _, att := range attachments {
 		cleanKey := strings.TrimLeft(filepath.ToSlash(att.StorageKey), "/")
 		if cleanKey == "" && att.FileURL != "" {
@@ -69,46 +71,55 @@ func PurgeExpiredClosedTickets(db *gorm.DB, storageDriver storage.StorageService
 		}
 
 		if cleanKey != "" {
-			// Delete via storage abstraction (Local / S3 / Cloudflare R2 / MinIO)
-			if storageDriver != nil {
-				_ = storageDriver.Delete(ctx, cleanKey)
+			filesToDelete = append(filesToDelete, fileCleanupItem{
+				cleanKey: cleanKey,
+				fileSize: att.FileSize,
+			})
+		}
+	}
+
+	// 2. Database Purge in ACID Atomic Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := db.Transaction(func(tx *gorm.DB) error {
+		var messageIDs []uint
+		if err := tx.Model(&models.SupportMessage{}).
+			Where("ticket_id IN (?)", ticketIDs).
+			Pluck("id", &messageIDs).Error; err != nil {
+			return err
+		}
+
+		if len(messageIDs) > 0 {
+			if err := tx.Unscoped().Where("message_id IN (?)", messageIDs).Delete(&models.SupportAttachment{}).Error; err != nil {
+				return err
 			}
-
-			// Clean local gzipped compression cache if local filesystem driver
-			localPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
-			_ = os.Remove(localPath)
-			_ = os.Remove(localPath + ".fiber.gz")
-
-			stats.PurgedFiles++
-			stats.FreedBytes += int64(att.FileSize)
 		}
-	}
 
-	// 3. Database Purge (Relational Hard-Delete)
-	tx := db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+		if err := tx.Unscoped().Where("ticket_id IN (?)", ticketIDs).Delete(&models.SupportMessage{}).Error; err != nil {
+			return err
 		}
-	}()
 
-	var messageIDs []uint
-	tx.Model(&models.SupportMessage{}).
-		Where("ticket_id IN (?)", ticketIDs).
-		Pluck("id", &messageIDs)
+		return tx.Unscoped().Where("id IN (?)", ticketIDs).Delete(&models.SupportTicket{}).Error
+	})
 
-	if len(messageIDs) > 0 {
-		_ = tx.Unscoped().Where("message_id IN (?)", messageIDs).Delete(&models.SupportAttachment{}).Error
+	if txErr != nil {
+		return stats, fmt.Errorf("failed to commit ticket purge transaction: %w", txErr)
 	}
 
-	_ = tx.Unscoped().Where("ticket_id IN (?)", ticketIDs).Delete(&models.SupportMessage{}).Error
-	if err := tx.Unscoped().Where("id IN (?)", ticketIDs).Delete(&models.SupportTicket{}).Error; err != nil {
-		tx.Rollback()
-		return stats, fmt.Errorf("failed to hard delete support tickets: %w", err)
-	}
+	// 3. Multi-Layer Rollback (AGENTS.md Rule 10):
+	// Physical File Deletion (Storage Erasure) executed ONLY AFTER database commit succeeds.
+	storageRoot := GetStorageRoot()
+	ctx := context.Background()
 
-	if err := tx.Commit().Error; err != nil {
-		return stats, fmt.Errorf("failed to commit ticket purge transaction: %w", err)
+	for _, item := range filesToDelete {
+		if storageDriver != nil {
+			_ = storageDriver.Delete(ctx, item.cleanKey)
+		}
+
+		localPath := filepath.Join(storageRoot, filepath.FromSlash(item.cleanKey))
+		_ = os.Remove(localPath)
+		_ = os.Remove(localPath + ".fiber.gz")
+
+		stats.PurgedFiles++
+		stats.FreedBytes += int64(item.fileSize)
 	}
 
 	stats.PurgedTickets = int64(len(expiredTickets))
@@ -144,9 +155,7 @@ func PurgeUserTicketsAndAttachments(db *gorm.DB, storageDriver storage.StorageSe
 		Where("support_messages.ticket_id IN (?)", ticketIDs).
 		Find(&attachments)
 
-	storageRoot := GetStorageRoot()
-	ctx := context.Background()
-
+	var filesToDelete []string
 	for _, att := range attachments {
 		cleanKey := strings.TrimLeft(filepath.ToSlash(att.StorageKey), "/")
 		if cleanKey == "" && att.FileURL != "" {
@@ -156,26 +165,47 @@ func PurgeUserTicketsAndAttachments(db *gorm.DB, storageDriver storage.StorageSe
 		}
 
 		if cleanKey != "" {
-			if storageDriver != nil {
-				_ = storageDriver.Delete(ctx, cleanKey)
-			}
-			localPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
-			_ = os.Remove(localPath)
-			_ = os.Remove(localPath + ".fiber.gz")
-			purgedFiles++
+			filesToDelete = append(filesToDelete, cleanKey)
 		}
 	}
 
-	var messageIDs []uint
-	db.Model(&models.SupportMessage{}).
-		Where("ticket_id IN (?)", ticketIDs).
-		Pluck("id", &messageIDs)
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := db.Transaction(func(tx *gorm.DB) error {
+		var messageIDs []uint
+		if err := tx.Model(&models.SupportMessage{}).
+			Where("ticket_id IN (?)", ticketIDs).
+			Pluck("id", &messageIDs).Error; err != nil {
+			return err
+		}
 
-	if len(messageIDs) > 0 {
-		_ = db.Unscoped().Where("message_id IN (?)", messageIDs).Delete(&models.SupportAttachment{})
+		if len(messageIDs) > 0 {
+			if err := tx.Unscoped().Where("message_id IN (?)", messageIDs).Delete(&models.SupportAttachment{}).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Unscoped().Where("ticket_id IN (?)", ticketIDs).Delete(&models.SupportMessage{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Where("id IN (?)", ticketIDs).Delete(&models.SupportTicket{}).Error
+	})
+
+	if txErr != nil {
+		return 0, 0, fmt.Errorf("failed to delete user support tickets: %w", txErr)
 	}
-	_ = db.Unscoped().Where("ticket_id IN (?)", ticketIDs).Delete(&models.SupportMessage{})
-	_ = db.Unscoped().Where("id IN (?)", ticketIDs).Delete(&models.SupportTicket{})
+
+	// Multi-Layer Rollback (AGENTS.md Rule 10): Purge physical files ONLY AFTER DB commit
+	storageRoot := GetStorageRoot()
+	ctx := context.Background()
+
+	for _, cleanKey := range filesToDelete {
+		if storageDriver != nil {
+			_ = storageDriver.Delete(ctx, cleanKey)
+		}
+		localPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
+		_ = os.Remove(localPath)
+		_ = os.Remove(localPath + ".fiber.gz")
+		purgedFiles++
+	}
 
 	purgedTickets = int64(len(tickets))
 	return purgedTickets, purgedFiles, nil

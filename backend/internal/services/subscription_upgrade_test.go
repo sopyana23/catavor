@@ -421,3 +421,44 @@ func TestCancelStoreDowngrade(t *testing.T) {
 		t.Errorf("next_plan_code = %q, want nil", *got.NextPlanCode)
 	}
 }
+
+func TestApproveSubscriptionOrder_Transaction(t *testing.T) {
+	db := newUpgradeDB(t)
+	st := seedStore(t, db, "free", nil)
+
+	order := models.SubscriptionOrder{
+		StoreID:        st.ID,
+		UserID:         st.UserID,
+		OrderNumber:    "INV-SUB-TEST-001",
+		PlanCode:       "pro_starter",
+		BillingCycle:   "monthly",
+		DurationMonths: 1,
+		FinalAmount:    99000,
+		PaymentStatus:  "pending",
+	}
+	if err := db.Create(&order).Error; err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+
+	adminID := uint(99)
+	approvedOrder, quota, err := ApproveSubscriptionOrder(db, order.ID, adminID)
+	if err != nil {
+		t.Fatalf("ApproveSubscriptionOrder: %v", err)
+	}
+
+	if approvedOrder.PaymentStatus != "paid" {
+		t.Errorf("order.PaymentStatus = %q, want 'paid'", approvedOrder.PaymentStatus)
+	}
+	if approvedOrder.ApprovedByUserID == nil || *approvedOrder.ApprovedByUserID != adminID {
+		t.Errorf("order.ApprovedByUserID = %v, want %d", approvedOrder.ApprovedByUserID, adminID)
+	}
+	if quota == nil || quota.Plan.Code != "pro_starter" {
+		t.Errorf("quota plan = %v, want 'pro_starter'", quota)
+	}
+
+	// Verify store plan in DB was updated atomically
+	reloaded := reloadStore(t, db, st.ID)
+	if reloaded.Plan != "pro_starter" {
+		t.Errorf("store.Plan = %q, want 'pro_starter'", reloaded.Plan)
+	}
+}

@@ -360,30 +360,55 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
-	for k, v := range payload {
-		sanitizedKey := security.SanitizePlainText(k, 100)
-		if sanitizedKey == "" {
-			continue
-		}
-		sanitizedVal := security.SanitizeRichText(v, 10000)
+	var filesToDelete []string
 
-		var s models.Setting
-		if err := h.db.Where("key = ?", sanitizedKey).First(&s).Error; err != nil {
-			h.db.Create(&models.Setting{Key: sanitizedKey, Value: sanitizedVal})
-		} else {
-			// Standar Industri: jika aset dinamis platform diganti atau dikosongkan,
-			// bersihkan file lama dari Cloudflare R2 / Storage agar tidak menjadi orphan object.
-			if h.storage != nil && (sanitizedKey == "payment_qris_manual_image" || sanitizedKey == "rekber_logo_url") {
-				oldKey := extractPlatformStorageKey(s.Value)
-				newKey := extractPlatformStorageKey(sanitizedVal)
-				if oldKey != "" && oldKey != newKey {
-					go func(k string) {
-						_ = h.storage.Delete(context.Background(), k)
-					}(oldKey)
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		for k, v := range payload {
+			sanitizedKey := security.SanitizePlainText(k, 100)
+			if sanitizedKey == "" {
+				continue
+			}
+			sanitizedVal := security.SanitizeRichText(v, 10000)
+
+			var s models.Setting
+			if err := tx.Where("key = ?", sanitizedKey).First(&s).Error; err != nil {
+				if err := tx.Create(&models.Setting{Key: sanitizedKey, Value: sanitizedVal}).Error; err != nil {
+					return err
+				}
+			} else {
+				// Standar Industri: jika aset dinamis platform diganti atau dikosongkan,
+				// catat file lama untuk dibersihkan dari Cloudflare R2 / Storage setelah commit.
+				if h.storage != nil && (sanitizedKey == "payment_qris_manual_image" || sanitizedKey == "rekber_logo_url") {
+					oldKey := extractPlatformStorageKey(s.Value)
+					newKey := extractPlatformStorageKey(sanitizedVal)
+					if oldKey != "" && oldKey != newKey {
+						filesToDelete = append(filesToDelete, oldKey)
+					}
+				}
+				s.Value = sanitizedVal
+				if err := tx.Save(&s).Error; err != nil {
+					return err
 				}
 			}
-			s.Value = sanitizedVal
-			h.db.Save(&s)
+		}
+		return nil
+	})
+
+	if txErr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyimpan pengaturan platform.",
+		})
+	}
+
+	// Multi-Layer Rollback (AGENTS.md Rule 10): Hapus berkas fisik lama dari Cloudflare R2 / storage
+	// HANYA setelah transaksi database berhasil di-commit.
+	if len(filesToDelete) > 0 && h.storage != nil {
+		for _, k := range filesToDelete {
+			go func(key string) {
+				_ = h.storage.Delete(context.Background(), key)
+			}(k)
 		}
 	}
 
@@ -448,19 +473,28 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 		"rekber_template_fauna",
 	}
 
+	var fileToDelete string
 	if h.storage != nil {
 		var oldLogo models.Setting
 		if err := h.db.Where("key = ?", "rekber_logo_url").First(&oldLogo).Error; err == nil && oldLogo.Value != "" {
-			oldKey := extractPlatformStorageKey(oldLogo.Value)
-			if oldKey != "" {
-				go func(k string) {
-					_ = h.storage.Delete(context.Background(), k)
-				}(oldKey)
-			}
+			fileToDelete = extractPlatformStorageKey(oldLogo.Value)
 		}
 	}
 
-	h.db.Where("key IN ?", keys).Delete(&models.Setting{})
+	// ACID Atomic Database Transaction: Hapus entri setting rekber
+	if err := h.db.Where("key IN ?", keys).Delete(&models.Setting{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mereset konfigurasi Rekber Syariah.",
+		})
+	}
+
+	// Multi-Layer Rollback: Hapus berkas fisik lama dari storage HANYA setelah DB delete sukses
+	if fileToDelete != "" && h.storage != nil {
+		go func(k string) {
+			_ = h.storage.Delete(context.Background(), k)
+		}(fileToDelete)
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,

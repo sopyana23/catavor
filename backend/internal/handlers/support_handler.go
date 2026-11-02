@@ -1112,18 +1112,11 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 		IsInternalNote: req.IsInternalNote,
 		CreatedAt:      now,
 	}
-	h.db.Create(&msg)
 
-	// Save attachments
-	if len(req.Attachments) > 0 {
-		for _, att := range req.Attachments {
-			if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
-				h.db.Create(&attachment)
-			}
-		}
-	}
+	var notif *models.Notification
+	var actionURL string
 
-	// If not internal note, update ticket status to waiting_user, track First Response SLA & notify merchant
+	// If not internal note, update ticket status to waiting_user, track First Response SLA & prepare merchant notification
 	if !req.IsInternalNote {
 		ticket.Status = "waiting_user"
 
@@ -1138,7 +1131,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 		// Multi-Channel Outbound Alert: Create In-App Notification for merchant (Store-Scoped)
 		notifTargetType := "single_user"
 		notifTargetID := ticket.UserID
-		actionURL := fmt.Sprintf("/admin/help?ticket=%s", ticket.TicketNumber)
+		actionURL = fmt.Sprintf("/admin/help?ticket=%s", ticket.TicketNumber)
 
 		if ticket.StoreID != nil && *ticket.StoreID > 0 {
 			notifTargetType = "single_store"
@@ -1150,7 +1143,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			}
 		}
 
-		notif := models.Notification{
+		notif = &models.Notification{
 			ID:          fmt.Sprintf("notif-supp-%d-%d", ticket.ID, now.UnixNano()),
 			TargetType:  notifTargetType,
 			TargetID:    notifTargetID,
@@ -1165,9 +1158,48 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		}
-		if err := h.db.Create(&notif).Error; err == nil {
-			services.GetNotificationHub().Broadcast(&notif)
+	}
+	ticket.LastMessageAt = now
+	ticket.UpdatedAt = now
+
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&msg).Error; err != nil {
+			return err
 		}
+
+		// Save attachments
+		if len(req.Attachments) > 0 {
+			for _, att := range req.Attachments {
+				if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
+					if err := tx.Create(&attachment).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		if notif != nil {
+			if err := tx.Create(notif).Error; err != nil {
+				return err
+			}
+		}
+
+		return tx.Save(&ticket).Error
+	})
+
+	if txErr != nil {
+		log.Error().Err(txErr).Uint("ticket_id", ticket.ID).Msg("support: gagal membalas tiket sebagai admin dalam DB transaction")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengirim balasan tiket.",
+		})
+	}
+
+	database.InvalidateTicketCache(c.Context(), ticket.ID)
+
+	if notif != nil {
+		services.GetNotificationHub().Broadcast(notif)
 
 		// Transactional Outbox Email Dispatch: Enqueue professional notification email for merchant
 		var ticketUser models.User
@@ -1209,10 +1241,6 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			)
 		}
 	}
-	ticket.LastMessageAt = now
-	ticket.UpdatedAt = now
-	h.db.Save(&ticket)
-	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	h.db.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
 

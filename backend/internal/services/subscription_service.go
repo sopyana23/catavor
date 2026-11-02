@@ -861,13 +861,24 @@ func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.
 		order.ApprovedByUserID = &adminID
 	}
 
-	if err := db.Save(&order).Error; err != nil {
-		return nil, nil, fmt.Errorf("gagal memperbarui status invoice: %w", err)
-	}
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	// Mutasi status invoice dan aktivasi paket toko wajib atomik (anti-inconsistent state)
+	var quota *StoreQuotaInfo
+	txErr := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&order).Error; err != nil {
+			return fmt.Errorf("gagal memperbarui status invoice: %w", err)
+		}
 
-	quota, err := UpgradeStorePlan(db, order.StoreID, order.PlanCode, order.DurationMonths)
-	if err != nil {
-		return nil, nil, fmt.Errorf("gagal mengaktifkan paket langganan: %w", err)
+		var err error
+		quota, err = UpgradeStorePlan(tx, order.StoreID, order.PlanCode, order.DurationMonths)
+		if err != nil {
+			return fmt.Errorf("gagal mengaktifkan paket langganan: %w", err)
+		}
+		return nil
+	})
+
+	if txErr != nil {
+		return nil, nil, txErr
 	}
 
 	log.Info().

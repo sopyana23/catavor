@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"catavor-backend/internal/database"
@@ -30,12 +31,12 @@ func StartStorageSweeper(ctx context.Context, db *gorm.DB, interval time.Duratio
 		defer ticker.Stop()
 
 		// Run sweep on initial staggered start
-		runStorageSweep(db)
+		RunStorageSweep(db)
 
 		for {
 			select {
 			case <-ticker.C:
-				runStorageSweep(db)
+				RunStorageSweep(db)
 			case <-ctx.Done():
 				log.Info().Msg("Storage Sweeper background worker stopped gracefully")
 				return
@@ -44,16 +45,16 @@ func StartStorageSweeper(ctx context.Context, db *gorm.DB, interval time.Duratio
 	}()
 }
 
-// runStorageSweep walks all active stores and recalculates live storage while pruning stale abandoned files (>2 hours).
-func runStorageSweep(db *gorm.DB) {
+// RunStorageSweep walks all active stores and recalculates live storage while pruning stale abandoned files (>2 hours).
+func RunStorageSweep(db *gorm.DB) int {
 	if db == nil {
-		return
+		return 0
 	}
 
 	var stores []models.Store
 	if err := db.Select("id, slug").Find(&stores).Error; err != nil {
 		log.Warn().Err(err).Msg("Storage Sweeper: Failed to list stores for audit")
-		return
+		return 0
 	}
 
 	totalAudited := 0
@@ -64,7 +65,22 @@ func runStorageSweep(db *gorm.DB) {
 		totalAudited++
 	}
 
+	now := time.Now().UTC()
+	summary := fmt.Sprintf("Audit kuota & pembersihan unggahan yatim piatu selesai: %d toko dipindai.", totalAudited)
+	tracker := GetAutomationTracker()
+	if tracker != nil {
+		tracker.RecordWorkerHeartbeat(
+			"storage_sweeper",
+			"running",
+			summary,
+			"",
+			int64(totalAudited),
+			now.Add(1*time.Hour),
+		)
+	}
+
 	if totalAudited > 0 {
 		log.Info().Int("stores_audited", totalAudited).Msg("Storage Sweeper: Completed periodic storage audit & orphan cleanup")
 	}
+	return totalAudited
 }
