@@ -348,6 +348,13 @@ func (h *SubscriptionHandler) CreateOrder(c *fiber.Ctx) error {
 	order, quota, err := services.CreateSubscriptionOrder(h.db, storeID, userID, req)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: CreateSubscriptionOrder gagal")
+		if strings.Contains(err.Error(), "PAYMENT_GATEWAY_MAINTENANCE") {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"success": false,
+				"code":    "PAYMENT_GATEWAY_MAINTENANCE",
+				"message": "Sistem transaksi pembayaran sedang dalam masa pemeliharaan berkala. Silakan coba kembali beberapa saat lagi.",
+			})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": safeErrMsg(err, "Gagal membuat pesanan langganan."),
@@ -518,6 +525,110 @@ func catatAktivitasApprove(db *gorm.DB, c *fiber.Ctx, action, deskripsi string,
 			"duration_month": order.DurationMonths,
 			"payment_status": order.PaymentStatus,
 			"approved_by":    adminID,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+}
+
+// RejectOrder allows platform admin to reject an invalid subscription payment
+func (h *SubscriptionHandler) RejectOrder(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	orderIDVal, err := c.ParamsInt("id")
+	if err != nil || orderIDVal <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID pesanan langganan tidak valid.",
+		})
+	}
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	_ = c.BodyParser(&req)
+
+	adminIDVal := c.Locals("user_id")
+	var adminID uint = 0
+	if adminIDVal != nil {
+		adminID = adminIDVal.(uint)
+	}
+
+	order, err := services.RejectSubscriptionOrder(h.db, uint(orderIDVal), adminID, req.Reason)
+	if err != nil {
+		log.Error().Err(err).Msg("subscription: RejectSubscriptionOrder gagal")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": safeErrMsg(err, "Gagal menolak pesanan langganan."),
+		})
+	}
+
+	adminEmail, _ := c.Locals("email").(string)
+	catatAktivitasReject(h.db, c, "billing.subscription_reject", "Invoice langganan ditolak",
+		order, adminID, adminEmail, req.Reason)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Invoice langganan berhasil ditolak.",
+		"order":   order,
+	})
+}
+
+// AdminUpdateOrder handles PUT /api/admin/subscription/orders/:id for frontend compatibility
+func (h *SubscriptionHandler) AdminUpdateOrder(c *fiber.Ctx) error {
+	var req struct {
+		Status string `json:"status"` // active | paid | rejected
+		Reason string `json:"reason"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Payload permintaan tidak valid.",
+		})
+	}
+
+	st := strings.ToLower(strings.TrimSpace(req.Status))
+	if st == "active" || st == "paid" {
+		return h.ApproveOrder(c)
+	} else if st == "rejected" {
+		return h.RejectOrder(c)
+	}
+
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		"success": false,
+		"message": "Status tidak valid. Gunakan 'active' atau 'rejected'.",
+	})
+}
+
+func catatAktivitasReject(db *gorm.DB, c *fiber.Ctx, action, deskripsi string,
+	order *models.SubscriptionOrder, adminID uint, adminEmail string, reason string) {
+	if order == nil {
+		return
+	}
+	storeID := order.StoreID
+	entityID := order.ID
+	actorID := adminID
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          db,
+		StoreID:     &storeID,
+		UserID:      &actorID,
+		ActorRole:   "superadmin",
+		ActorEmail:  adminEmail,
+		Action:      action,
+		Category:    "billing",
+		EntityType:  "plan",
+		EntityID:    &entityID,
+		EntityTitle: order.OrderNumber,
+		Description: deskripsi,
+		Changes: map[string]interface{}{
+			"plan_code":        order.PlanCode,
+			"payment_status":   order.PaymentStatus,
+			"rejection_reason": reason,
+			"rejected_by":      adminID,
 		},
 		IPAddress: c.IP(),
 		UserAgent: c.Get("User-Agent"),

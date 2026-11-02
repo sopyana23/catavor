@@ -181,16 +181,28 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
     }
   }, [isOpen]);
 
-  const handleDownloadCsv = () => {
+  const handleDownloadCsv = async () => {
     setDownloadingCsv(true);
-    const downloadUrl = `${apiBase}/api/market-intelligence/export?format=csv`;
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = `catavor-market-intelligence-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => setDownloadingCsv(false), 1000);
+    try {
+      const downloadUrl = `${apiBase}/api/market-intelligence/export?format=csv`;
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        throw new Error('Gagal mengunduh data CSV riset pasar.');
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `catavor-market-intelligence-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (e) {
+      console.error('Download CSV error:', e);
+    } finally {
+      setDownloadingCsv(false);
+    }
   };
 
   if (!isOpen) return null;

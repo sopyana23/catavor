@@ -80,11 +80,16 @@ import {
   PhoneCall,
   Link as LinkIcon,
   Upload,
+  QrCode,
+  EyeOff,
+  SlidersHorizontal,
   Server,
-  ArrowLeft
+  ArrowLeft,
+  ImageOff
 } from 'lucide-react';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
+import { SafeImage } from './SafeImage';
 import { TabletRailNav } from './TabletRailNav';
 import { TabletMarketIntelView } from './TabletMarketIntelView';
 import { TabletMasterDetailView } from './TabletMasterDetailView';
@@ -370,6 +375,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
   const canManageReports = isSuperAdmin(currentUser) || hasPermission(currentUser, 'compliance:reports:manage');
   const canManageFinance = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage');
+  const canManagePaymentSettings = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage') || hasPermission(currentUser, 'system:settings:manage');
   const canSendBroadcast = isSuperAdmin(currentUser) || hasPermission(currentUser, 'content:broadcast:send');
 
   // Header Title metadata
@@ -1383,11 +1389,83 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   };
 
   // =========================================================================
+  // PLATFORM SYSTEM SETTINGS (Payments, Monetization, Rekber)
+  // =========================================================================
+  const [googleSettings, setGoogleSettings] = useState<Record<string, string>>({
+    ads_enabled: '0',
+    ads_client_id: '',
+    ads_auto_enabled: '1',
+    ads_slot_header: '',
+    ads_slot_infeed: '',
+    ads_slot_product_detail: '',
+    ads_slot_bottom: '',
+    ads_test_mode: '1',
+    ads_txt_content: 'google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0',
+    ga_enabled: '0',
+    ga_measurement_id: '',
+    rekber_enabled: '1',
+    rekber_partner_name: 'Rekber Syariah',
+    rekber_website_url: 'https://rekbersyariah.com',
+    rekber_wa_number: '62811220227',
+    rekber_logo_url: '',
+    payment_system_mode: 'gateway_aulaa',
+    ...REKBER_FACTORY_DEFAULTS
+  });
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [copiedAdsTxt, setCopiedAdsTxt] = useState(false);
+  const savedQrisImageRef = useRef<string>('');
+
+  const handleCopyAdsTxt = () => {
+    if (!googleSettings.ads_txt_content) return;
+    try {
+      navigator.clipboard.writeText(googleSettings.ads_txt_content);
+      setCopiedAdsTxt(true);
+      setTimeout(() => setCopiedAdsTxt(false), 2000);
+    } catch {
+      showToast('Gagal menyalin konten ads.txt', 'error');
+    }
+  };
+
+  const fetchSettings = useCallback(async () => {
+    if (!canAccessMonetization && activeView === 'monetization') return;
+    if (!canAccessMasterData && activeView === 'master-data') return;
+    if (!canAccessFinance && activeView === 'finance') return;
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const j = await res.json();
+        if (j.data) {
+          const d = j.data;
+          savedQrisImageRef.current = (d.payment_qris_manual_image || '').trim();
+          const stripIcons = (s?: string) => (s || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/^[ \t]+/gm, '');
+          setGoogleSettings(prev => ({
+            ...prev,
+            ...d,
+            rekber_template_physical: stripIcons(d.rekber_template_physical || d.rekber_template_general) || REKBER_FACTORY_DEFAULTS.rekber_template_physical,
+            rekber_template_general: stripIcons(d.rekber_template_general || d.rekber_template_physical) || REKBER_FACTORY_DEFAULTS.rekber_template_general,
+            rekber_template_food: stripIcons(d.rekber_template_food) || REKBER_FACTORY_DEFAULTS.rekber_template_food,
+            rekber_template_digital: stripIcons(d.rekber_template_digital) || REKBER_FACTORY_DEFAULTS.rekber_template_digital,
+            rekber_template_service: stripIcons(d.rekber_template_service) || REKBER_FACTORY_DEFAULTS.rekber_template_service,
+            rekber_template_plant: stripIcons(d.rekber_template_plant) || REKBER_FACTORY_DEFAULTS.rekber_template_plant,
+            rekber_template_fauna: stripIcons(d.rekber_template_fauna) || REKBER_FACTORY_DEFAULTS.rekber_template_fauna,
+          }));
+        }
+      }
+    } catch {
+      // Fail silently
+    }
+  }, [canAccessMonetization, canAccessMasterData, canAccessFinance, activeView]);
+
+  // =========================================================================
   // SUB-VIEW: FINANCE (Keuangan & Billing)
   // =========================================================================
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [financeFilter, setFinanceFilter] = useState<'all' | 'pending_verification' | 'pending_payment' | 'paid' | 'rejected'>('all');
+  const [financeSubTab, setFinanceSubTab] = useState<'orders' | 'settings'>('orders');
+  const [showAulaaSecrets, setShowAulaaSecrets] = useState(false);
+  const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
+  const [isUploadingQRISImage, setIsUploadingQRISImage] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<any | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -1410,8 +1488,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   useEffect(() => {
     if (activeView === 'finance') {
       fetchOrders();
+      fetchSettings();
     }
-  }, [activeView, fetchOrders]);
+  }, [activeView, fetchOrders, fetchSettings]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
@@ -1446,6 +1525,87 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       }
     } catch {
       showToast('Kesalahan server', 'error');
+    }
+  };
+
+  const handleSavePaymentSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!token || !canManagePaymentSettings) return;
+    setIsSavingSettings(true);
+    try {
+      const payload = {
+        ...googleSettings,
+        payment_qris_manual_image: (googleSettings.payment_qris_manual_image || '').trim(),
+      };
+      let res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        res = await fetch('/api/admin/settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+      }
+      if (res.ok) {
+        savedQrisImageRef.current = (googleSettings.payment_qris_manual_image || '').trim();
+        showToast('Konfigurasi sistem pembayaran berhasil disimpan!', 'success');
+        fetchSettings();
+      } else {
+        showToast('Gagal menyimpan konfigurasi pembayaran', 'error');
+      }
+    } catch {
+      showToast('Terjadi kesalahan jaringan saat menyimpan', 'error');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleUploadQRISImage = async (file: File) => {
+    if (!token || !file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Ukuran berkas QRIS maksimal 5MB', 'error');
+      return;
+    }
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+    if (!validTypes.includes(file.type.toLowerCase()) && !file.name.match(/\.(png|jpe?g|webp|svg)$/i)) {
+      showToast('Format berkas harus berupa gambar (PNG, JPG, WebP, SVG)', 'error');
+      return;
+    }
+    setIsUploadingQRISImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('file', file);
+      formData.append('category', 'platform_qris');
+      const res = await authFetch('/api/storage/upload?category=platform_qris', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      if (res.ok) {
+        const j = await res.json();
+        const url = j.url || j.data?.url || j.path || j.file_url;
+        if (url) {
+          setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: url }));
+          showToast('Gambar QRIS berhasil diunggah! Pratinjau diperbarui (klik Simpan untuk menerapkan)', 'success');
+        }
+      } else {
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal mengunggah berkas QRIS', 'error');
+      }
+    } catch {
+      showToast('Kesalahan jaringan saat mengunggah berkas QRIS', 'error');
+    } finally {
+      setIsUploadingQRISImage(false);
     }
   };
 
@@ -2305,66 +2465,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // SUB-VIEW: MONETIZATION (AdSense & GA4)
   // =========================================================================
   const [monetizationSubTab, setMonetizationSubTab] = useState<'adsense' | 'analytics'>('adsense');
-  const [googleSettings, setGoogleSettings] = useState<Record<string, string>>({
-    ads_enabled: '0',
-    ads_client_id: '',
-    ads_auto_enabled: '1',
-    ads_slot_header: '',
-    ads_slot_infeed: '',
-    ads_slot_product_detail: '',
-    ads_slot_bottom: '',
-    ads_test_mode: '1',
-    ads_txt_content: 'google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0',
-    ga_enabled: '0',
-    ga_measurement_id: '',
-    rekber_enabled: '1',
-    rekber_partner_name: 'Rekber Syariah',
-    rekber_website_url: 'https://rekbersyariah.com',
-    rekber_wa_number: '62811220227',
-    rekber_logo_url: '',
-    ...REKBER_FACTORY_DEFAULTS
-  });
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [copiedAdsTxt, setCopiedAdsTxt] = useState(false);
-
-  const handleCopyAdsTxt = () => {
-    if (!googleSettings.ads_txt_content) return;
-    try {
-      navigator.clipboard.writeText(googleSettings.ads_txt_content);
-      setCopiedAdsTxt(true);
-      setTimeout(() => setCopiedAdsTxt(false), 2000);
-    } catch {
-      showToast('Gagal menyalin konten ads.txt', 'error');
-    }
-  };
-
-  const fetchSettings = useCallback(async () => {
-    if (!canAccessMonetization && activeView === 'monetization') return;
-    if (!canAccessMasterData && activeView === 'master-data') return;
-    try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        const j = await res.json();
-        if (j.data) {
-          const d = j.data;
-          const stripIcons = (s?: string) => (s || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/^[ \t]+/gm, '');
-          setGoogleSettings(prev => ({
-            ...prev,
-            ...d,
-            rekber_template_physical: stripIcons(d.rekber_template_physical || d.rekber_template_general) || REKBER_FACTORY_DEFAULTS.rekber_template_physical,
-            rekber_template_general: stripIcons(d.rekber_template_general || d.rekber_template_physical) || REKBER_FACTORY_DEFAULTS.rekber_template_general,
-            rekber_template_food: stripIcons(d.rekber_template_food) || REKBER_FACTORY_DEFAULTS.rekber_template_food,
-            rekber_template_digital: stripIcons(d.rekber_template_digital) || REKBER_FACTORY_DEFAULTS.rekber_template_digital,
-            rekber_template_service: stripIcons(d.rekber_template_service) || REKBER_FACTORY_DEFAULTS.rekber_template_service,
-            rekber_template_plant: stripIcons(d.rekber_template_plant) || REKBER_FACTORY_DEFAULTS.rekber_template_plant,
-            rekber_template_fauna: stripIcons(d.rekber_template_fauna) || REKBER_FACTORY_DEFAULTS.rekber_template_fauna,
-          }));
-        }
-      }
-    } catch {
-      // Fail silently
-    }
-  }, [canAccessMonetization, canAccessMasterData, activeView]);
 
   useEffect(() => {
     if ((activeView === 'monetization' && canAccessMonetization) || (activeView === 'master-data' && canAccessMasterData)) {
@@ -4729,31 +4829,33 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         )}
 
                         {/* Evidence Attachment Image Preview */}
-                        {activeRep.evidence_image_url && (
-                          <div style={{ marginTop: '0.25rem' }}>
-                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                              Lampiran Berkas / Foto Barang Bukti:
-                            </div>
-                            <img
+                        <div style={{ marginTop: '0.25rem' }}>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                            Lampiran Berkas / Foto Barang Bukti:
+                          </div>
+                          <div style={{ width: '120px', height: '120px', borderRadius: '0.65rem', overflow: 'hidden' }}>
+                            <SafeImage
                               src={activeRep.evidence_image_url}
                               alt="Bukti Laporan"
-                              onClick={() => {
-                                openDocumentPreview({
-                                  file_url: activeRep.evidence_image_url,
-                                  file_name: `Bukti_Laporan_${activeRep.report_number || `#RPT-${activeRep.id}`}.jpg`
-                                });
+                              emptyLabel="Tidak Ada Bukti"
+                              emptySubLabel="Foto belum dilampirkan"
+                              errorLabel="Foto Rusak"
+                              errorSubLabel="Tidak terbaca"
+                              showLabel={false}
+                              compact={false}
+                              objectFit="cover"
+                              onPreview={() => {
+                                if (activeRep.evidence_image_url) {
+                                  openDocumentPreview({
+                                    file_url: activeRep.evidence_image_url,
+                                    file_name: `Bukti_Laporan_${activeRep.report_number || `#RPT-${activeRep.id}`}.jpg`
+                                  });
+                                }
                               }}
-                              style={{
-                                width: '120px',
-                                height: '120px',
-                                objectFit: 'cover',
-                                borderRadius: '0.65rem',
-                                border: '1px solid var(--border-light)',
-                                cursor: 'pointer'
-                              }}
+                              title={activeRep.evidence_image_url ? "Klik untuk melihat pratinjau bukti" : "Foto bukti belum dilampirkan"}
                             />
                           </div>
-                        )}
+                        </div>
 
                         {/* Multi-Reporter Active Evidence Timeline */}
                         {reportActiveEvidence && reportActiveEvidence.length > 0 && (
@@ -6408,9 +6510,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       <FileText size={20} color="#ef4444" />
                                     </div>
                                   ) : (
-                                    <img
+                                    <SafeImage
                                       src={att.blob_url || att.file_url}
                                       alt="Attachment"
+                                      compact
                                       onClick={() => openDocumentPreview(att)}
                                       style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
                                       title="Klik untuk melihat pratinjau gambar"
@@ -6591,8 +6694,99 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
           {/* TAB 5: FINANCE (KEUANGAN & BILLING) */}
           {activeView === 'finance' && canAccessFinance && (
-            <TabletMasterDetailView
-              title="Billing Langganan Pro"
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+              {/* Finance Sub-Tabs Navigation */}
+              <div style={{
+                padding: '0.75rem 1.25rem',
+                borderBottom: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-deep)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexShrink: 0
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setFinanceSubTab('orders')}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0 1rem',
+                      borderRadius: '0.65rem',
+                      border: `1px solid ${financeSubTab === 'orders' ? '#10b981' : 'var(--border-light)'}`,
+                      backgroundColor: financeSubTab === 'orders' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                      color: financeSubTab === 'orders' ? '#10b981' : 'var(--text-muted)',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <CreditCard size={16} />
+                    <span>Daftar Transaksi Billing ({filteredOrders.length})</span>
+                  </button>
+
+                  {canManagePaymentSettings && (
+                    <button
+                      type="button"
+                      onClick={() => setFinanceSubTab('settings')}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0 1rem',
+                        borderRadius: '0.65rem',
+                        border: `1px solid ${financeSubTab === 'settings' ? '#10b981' : 'var(--border-light)'}`,
+                        backgroundColor: financeSubTab === 'settings' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                        color: financeSubTab === 'settings' ? '#10b981' : 'var(--text-muted)',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <SlidersHorizontal size={16} />
+                      <span>Konfigurasi Sistem Pembayaran</span>
+                    </button>
+                  )}
+                </div>
+
+                {financeSubTab === 'settings' && canManagePaymentSettings && (
+                  <button
+                    type="button"
+                    onClick={handleSavePaymentSettings}
+                    disabled={isSavingSettings}
+                    style={{
+                      minHeight: '44px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0 1.25rem',
+                      backgroundColor: '#10b981',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '0.65rem',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      cursor: isSavingSettings ? 'not-allowed' : 'pointer',
+                      opacity: isSavingSettings ? 0.7 : 1,
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                    }}
+                  >
+                    {isSavingSettings ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                    <span>{isSavingSettings ? 'Menyimpan...' : 'Simpan Konfigurasi'}</span>
+                  </button>
+                )}
+              </div>
+
+              {financeSubTab === 'orders' ? (
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <TabletMasterDetailView
+                    title="Billing Langganan Pro"
               subtitle={`${filteredOrders.length} order transaksi`}
               hideHeaderTitle={true}
               selectedId={selectedOrderId}
@@ -6781,28 +6975,30 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       </div>
 
                       {/* Transfer Proof Section */}
-                      {selectedOrder.transfer_proof_url ? (
-                        <div style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Bukti Transfer Bank:</div>
+                      <div style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Bukti Transfer Bank:</div>
+                        {selectedOrder.transfer_proof_url ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <img
-                              src={selectedOrder.transfer_proof_url}
-                              alt="Bukti Transfer"
-                              onClick={() => {
-                                openDocumentPreview({
-                                  file_url: selectedOrder.transfer_proof_url,
-                                  file_name: `Bukti_Transfer_Invoice_#${selectedOrder.invoice_number || selectedOrder.id}.jpg`
-                                });
-                              }}
-                              style={{
-                                width: '100px',
-                                height: '100px',
-                                objectFit: 'cover',
-                                borderRadius: '0.5rem',
-                                border: '1px solid var(--border-light)',
-                                cursor: 'pointer'
-                              }}
-                            />
+                            <div style={{ width: '100px', height: '100px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                              <SafeImage
+                                src={selectedOrder.transfer_proof_url}
+                                alt="Bukti Transfer"
+                                emptyText="Belum Ada Bukti"
+                                errorText="Bukti Rusak"
+                                onClick={() => {
+                                  openDocumentPreview({
+                                    file_url: selectedOrder.transfer_proof_url,
+                                    file_name: `Bukti_Transfer_Invoice_#${selectedOrder.invoice_number || selectedOrder.id}.jpg`
+                                  });
+                                }}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                  cursor: 'pointer'
+                                }}
+                              />
+                            </div>
                             <button
                               type="button"
                               onClick={() => {
@@ -6829,12 +7025,23 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               <span>Lihat Bukti Penuh</span>
                             </button>
                           </div>
-                        </div>
-                      ) : (
-                        <div style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          &bull; Merchant belum mengunggah foto bukti transfer
-                        </div>
-                      )}
+                        ) : (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px dashed var(--border-light)',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.78rem'
+                          }}>
+                            <ImageIcon size={18} style={{ opacity: 0.7 }} />
+                            <span>Merchant belum mengunggah foto bukti transfer pembayaran</span>
+                          </div>
+                        )}
+                      </div>
 
                       {/* Approval Actions */}
                       {selectedOrder.status !== 'paid' && selectedOrder.status !== 'active' && canManageFinance && (
@@ -6879,7 +7086,789 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 ) : null
               }
             />
-          )}
+          </div>
+        ) : (
+          /* VIEW 2: KONFIGURASI SISTEM PEMBAYARAN PLATFORM */
+          <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Mode Switcher Tabs (3 Interactive Cards for Tablet) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Pilih Mode Sistem Pembayaran Platform:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                {[
+                  { key: 'gateway_aulaa', label: 'Aulaa Gateway', desc: 'Otomatis via API Aulaa.co (QRIS Instan, VA, E-Wallet, CC)', icon: Zap, color: '#10b981' },
+                  { key: 'manual_qris', label: 'QRIS & Transfer Manual', desc: 'Scan QRIS Shopee/BCA mandiri dengan kode unik 3-digit', icon: QrCode, color: '#0284c7' },
+                  { key: 'maintenance', label: 'Pemeliharaan', desc: 'Menutup sementara seluruh checkout paket di platform', icon: ShieldAlert, color: '#ef4444' }
+                ].map(mode => {
+                  const isSelected = (googleSettings.payment_system_mode || 'gateway_aulaa') === mode.key;
+                  const ModeIcon = mode.icon;
+                  const activeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.08)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.08)' : 'rgba(239, 68, 68, 0.08)';
+                  const activeBadgeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.15)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+
+                  return (
+                    <div
+                      key={mode.key}
+                      onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: mode.key }))}
+                      style={{
+                        minHeight: '44px',
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: isSelected ? activeBg : 'var(--bg-card)',
+                        border: `2px solid ${isSelected ? mode.color : 'var(--border-light)'}`,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.45rem',
+                        boxShadow: isSelected ? `0 0 0 1px ${mode.color}` : undefined,
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{
+                          width: '34px',
+                          height: '34px',
+                          borderRadius: '0.5rem',
+                          backgroundColor: isSelected ? mode.color : 'var(--bg-main)',
+                          color: isSelected ? '#ffffff' : 'var(--text-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <ModeIcon size={18} />
+                        </div>
+                        {isSelected ? (
+                          <span style={{ fontSize: '0.66rem', fontWeight: 800, color: mode.color, backgroundColor: activeBadgeBg, padding: '0.2rem 0.5rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <CheckCircle2 size={11} /> MODE AKTIF
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                            Klik untuk aktifkan
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)' }}>{mode.label}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{mode.desc}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Focused Configuration Panel for Selected Mode */}
+            {(() => {
+              const activeMode = googleSettings.payment_system_mode || 'gateway_aulaa';
+
+              // PANEL 1: AULAA GATEWAY
+              if (activeMode === 'gateway_aulaa') {
+                return (
+                  <div style={{
+                    padding: '1.25rem',
+                    backgroundColor: 'var(--bg-card)',
+                    borderRadius: '0.85rem',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.25rem'
+                  }}>
+                    {/* Active Banner */}
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <Zap size={20} color="#10b981" />
+                        <div>
+                          <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', display: 'block' }}>
+                            Konfigurasi Gateway Aulaa.co (Mode Aktif)
+                          </strong>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                            Transaksi pendaftaran dan upgrade merchant diproses otomatis via gateway Aulaa.
+                          </span>
+                        </div>
+                      </div>
+                      <a
+                        href="https://aulaa.co/docs"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          minHeight: '44px',
+                          fontSize: '0.74rem',
+                          color: '#10b981',
+                          textDecoration: 'none',
+                          fontWeight: 700,
+                          padding: '0 0.75rem',
+                          borderRadius: '0.45rem',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <ExternalLink size={13} /> Dokumentasi API
+                      </a>
+                    </div>
+
+                    {/* 2-Column Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem' }}>
+                      {/* Left: Sub-channel Toggles */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
+                            Sub-Kanal yang Ditampilkan di Checkout:
+                          </label>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                            Centang metode pembayaran yang ingin Anda aktifkan untuk dilihat oleh calon pengguna.
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {[
+                            { key: 'payment_aulaa_channel_qris', label: 'QRIS Instan', desc: 'GoPay, OVO, ShopeePay, BCA', icon: QrCode, color: '#10b981' },
+                            { key: 'payment_aulaa_channel_va', label: 'Virtual Account', desc: 'BCA, Mandiri, BRI, BNI', icon: CreditCard, color: '#0284c7' },
+                            { key: 'payment_aulaa_channel_ewallet', label: 'Dompet Digital', desc: 'DANA, LinkAja, AstraPay', icon: Zap, color: '#f59e0b' },
+                            { key: 'payment_aulaa_channel_cc', label: 'Kartu Kredit / Debit', desc: 'Visa, Mastercard, JCB', icon: CreditCard, color: '#a855f7' },
+                          ].map(ch => {
+                            const isEnabled = googleSettings[ch.key] !== '0';
+                            const ChIcon = ch.icon;
+                            return (
+                              <div
+                                key={ch.key}
+                                onClick={() => setGoogleSettings(prev => ({ ...prev, [ch.key]: isEnabled ? '0' : '1' }))}
+                                style={{
+                                  minHeight: '44px',
+                                  padding: '0.65rem 0.85rem',
+                                  borderRadius: '0.6rem',
+                                  backgroundColor: isEnabled ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-main)',
+                                  border: `1px solid ${isEnabled ? '#10b981' : 'var(--border-light)'}`,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                  <ChIcon size={18} color={ch.color} />
+                                  <div>
+                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>{ch.label}</div>
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>{ch.desc}</div>
+                                  </div>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={isEnabled}
+                                  onChange={() => {}}
+                                  style={{ accentColor: '#10b981', cursor: 'pointer', width: '18px', height: '18px' }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Right: API Credentials & Webhook Listener */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              Aulaa API Key:
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setShowAulaaSecrets(!showAulaaSecrets)}
+                              style={{ minHeight: '44px', background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                            >
+                              {showAulaaSecrets ? <EyeOff size={13} /> : <Eye size={13} />}
+                              <span>{showAulaaSecrets ? 'Sembunyikan' : 'Tampilkan'}</span>
+                            </button>
+                          </div>
+                          <input
+                            type={showAulaaSecrets ? 'text' : 'password'}
+                            value={googleSettings.aulaa_api_key || ''}
+                            onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_api_key: e.target.value }))}
+                            placeholder="aulk_live_xxxxxxxxxxxxxxxx"
+                            style={{
+                              width: '100%',
+                              minHeight: '44px',
+                              padding: '0.6rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-main)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.82rem',
+                              fontFamily: 'monospace'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
+                            Aulaa Webhook Secret (HMAC-SHA256):
+                          </label>
+                          <input
+                            type={showAulaaSecrets ? 'text' : 'password'}
+                            value={googleSettings.aulaa_webhook_secret || ''}
+                            onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_webhook_secret: e.target.value }))}
+                            placeholder="whsec_xxxxxxxxxxxxxxxxxxxxxxxx"
+                            style={{
+                              width: '100%',
+                              minHeight: '44px',
+                              padding: '0.6rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-main)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.82rem',
+                              fontFamily: 'monospace'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
+                            Base URL API:
+                          </label>
+                          <input
+                            type="text"
+                            value={googleSettings.aulaa_base_url || 'https://api.aulaa.co/v1'}
+                            onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_base_url: e.target.value }))}
+                            placeholder="https://api.aulaa.co/v1"
+                            style={{
+                              width: '100%',
+                              minHeight: '44px',
+                              padding: '0.6rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-main)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.82rem'
+                            }}
+                          />
+                        </div>
+
+                        {/* Webhook URL Box */}
+                        <div style={{
+                          padding: '0.75rem',
+                          borderRadius: '0.6rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.35rem'
+                        }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#10b981' }}>
+                            URL Webhook Catavor:
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <code style={{
+                              flex: 1,
+                              fontSize: '0.72rem',
+                              padding: '0.35rem 0.5rem',
+                              backgroundColor: 'var(--bg-card)',
+                              borderRadius: '0.35rem',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {typeof window !== 'undefined' ? `${window.location.origin}/api/payments/webhook/aulaa` : '/api/payments/webhook/aulaa'}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (typeof window !== 'undefined') {
+                                  navigator.clipboard.writeText(`${window.location.origin}/api/payments/webhook/aulaa`);
+                                  setCopiedWebhookUrl(true);
+                                  setTimeout(() => setCopiedWebhookUrl(false), 2000);
+                                  showToast('URL webhook berhasil disalin!', 'success');
+                                }
+                              }}
+                              style={{
+                                minHeight: '44px',
+                                padding: '0 0.65rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: copiedWebhookUrl ? '#10b981' : 'var(--bg-card)',
+                                color: copiedWebhookUrl ? '#ffffff' : 'var(--text-primary)',
+                                border: '1px solid var(--border-light)',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}
+                            >
+                              {copiedWebhookUrl ? <CheckCheck size={13} /> : <Copy size={13} />}
+                              <span>{copiedWebhookUrl ? 'Tersalin' : 'Salin'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // PANEL 2: MANUAL QRIS & REKENING
+              if (activeMode === 'manual_qris') {
+                return (
+                  <div style={{
+                    padding: '1.25rem',
+                    backgroundColor: 'var(--bg-card)',
+                    borderRadius: '0.85rem',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.25rem'
+                  }}>
+                    {/* Active Banner */}
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                      border: '1px solid rgba(2, 132, 199, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem'
+                    }}>
+                      <QrCode size={20} color="#0284c7" />
+                      <div>
+                        <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', display: 'block' }}>
+                          Konfigurasi QRIS &amp; Rekening Manual (Mode Aktif)
+                        </strong>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                          Pengguna membayar via scan QRIS merchant atau transfer bank langsung dengan alokasi otomatis kode unik nominal 3-digit.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 2-Column Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem' }}>
+                      {/* Left: QRIS Merchant Settings */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
+                            Nama Merchant QRIS:
+                          </label>
+                          <input
+                            type="text"
+                            value={googleSettings.payment_qris_manual_merchant || 'Catavor Official Store'}
+                            onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_merchant: e.target.value }))}
+                            placeholder="Catavor Official Store"
+                            style={{
+                              width: '100%',
+                              minHeight: '44px',
+                              padding: '0.6rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-main)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.82rem'
+                            }}
+                          />
+                        </div>
+
+                        {/* QRIS Image Upload / URL */}
+                        {(() => {
+                          const isQrisStaged = (googleSettings.payment_qris_manual_image || '').trim() !== savedQrisImageRef.current;
+                          return (
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.45rem' }}>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                                  <span>Gambar QRIS Merchant:</span>
+                                  {isQrisStaged ? (
+                                    <span style={{
+                                      fontSize: '0.66rem',
+                                      fontWeight: 800,
+                                      padding: '0.12rem 0.45rem',
+                                      borderRadius: '0.35rem',
+                                      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                      color: '#d97706',
+                                      border: '1px solid rgba(245, 158, 11, 0.3)'
+                                    }}>
+                                      Draf Belum Disimpan
+                                    </span>
+                                  ) : googleSettings.payment_qris_manual_image ? (
+                                    <span style={{
+                                      fontSize: '0.66rem',
+                                      fontWeight: 800,
+                                      padding: '0.12rem 0.45rem',
+                                      borderRadius: '0.35rem',
+                                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                      color: '#10b981',
+                                      border: '1px solid rgba(16, 185, 129, 0.25)'
+                                    }}>
+                                      Tersimpan Aktif
+                                    </span>
+                                  ) : null}
+                                </label>
+
+                                {isQrisStaged && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: savedQrisImageRef.current }))}
+                                    style={{
+                                      border: 'none',
+                                      background: 'transparent',
+                                      color: 'var(--text-muted)',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      padding: '0.1rem 0.35rem',
+                                      textDecoration: 'underline'
+                                    }}
+                                    title="Kembalikan ke gambar QRIS yang terakhir disimpan"
+                                  >
+                                    Batal / Kembalikan ke Awal
+                                  </button>
+                                )}
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{
+                                  width: '74px',
+                                  height: '74px',
+                                  borderRadius: '0.65rem',
+                                  overflow: 'hidden',
+                                  flexShrink: 0
+                                }}>
+                                  <SafeImage
+                                    src={googleSettings.payment_qris_manual_image}
+                                    alt="QRIS Merchant"
+                                    emptyLabel="Belum Ada QRIS"
+                                    emptySubLabel="Unggah berkas QRIS"
+                                    errorLabel="QRIS Rusak"
+                                    errorSubLabel="Tidak terbaca"
+                                    compact={true}
+                                    objectFit="contain"
+                                    title={googleSettings.payment_qris_manual_image ? "Pratinjau Gambar QRIS" : "QRIS belum diunggah"}
+                                  />
+                                </div>
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                                  <input
+                                    type="text"
+                                    value={googleSettings.payment_qris_manual_image || ''}
+                                    onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: e.target.value }))}
+                                    placeholder="Unggah file atau masukkan URL gambar..."
+                                    style={{
+                                      width: '100%',
+                                      minHeight: '44px',
+                                      padding: '0.45rem 0.65rem',
+                                      borderRadius: '0.45rem',
+                                      backgroundColor: 'var(--bg-main)',
+                                      border: '1px solid var(--border-light)',
+                                      color: 'var(--text-primary)',
+                                      fontSize: '0.76rem'
+                                    }}
+                                  />
+                                  <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <label style={{
+                                      minHeight: '44px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      padding: '0 0.75rem',
+                                      borderRadius: '0.45rem',
+                                      backgroundColor: 'var(--bg-card)',
+                                      border: '1px solid var(--border-light)',
+                                      color: 'var(--text-primary)',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      cursor: isUploadingQRISImage ? 'not-allowed' : 'pointer',
+                                      width: 'fit-content'
+                                    }}>
+                                      <Upload size={13} color="#0284c7" />
+                                      <span>{isUploadingQRISImage ? 'Mengunggah...' : 'Unggah File QRIS'}</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        disabled={isUploadingQRISImage}
+                                        onChange={(e) => {
+                                          const f = e.target.files?.[0];
+                                          if (f) handleUploadQRISImage(f);
+                                          e.target.value = '';
+                                        }}
+                                        style={{ display: 'none' }}
+                                      />
+                                    </label>
+                                    {googleSettings.payment_qris_manual_image && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setGoogleSettings(prev => ({ ...prev, payment_qris_manual_image: '' }))}
+                                        style={{
+                                          minHeight: '44px',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          padding: '0 0.75rem',
+                                          borderRadius: '0.45rem',
+                                          backgroundColor: 'transparent',
+                                          border: '1px solid var(--border-light)',
+                                          color: '#ef4444',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        <Trash2 size={13} />
+                                        <span>Hapus</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                  {isQrisStaged && (
+                                    <div style={{ fontSize: '0.71rem', color: '#d97706', lineHeight: 1.35, marginTop: '0.15rem' }}>
+                                      Gambar QRIS berada dalam status pratinjau draf. Klik tombol <strong>"Simpan Pengaturan Pembayaran"</strong> di atas untuk menerapkan perubahan secara permanen ke sistem.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Right: Bank Details & Unique Code Notice */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                          <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
+                              Nama Bank:
+                            </label>
+                            <input
+                              type="text"
+                              value={googleSettings.payment_bank_name || 'Bank Central Asia (BCA)'}
+                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_name: e.target.value }))}
+                              placeholder="BCA"
+                              style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                padding: '0.6rem 0.75rem',
+                                borderRadius: '0.55rem',
+                                backgroundColor: 'var(--bg-main)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.82rem'
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
+                              Nomor Rekening:
+                            </label>
+                            <input
+                              type="text"
+                              value={googleSettings.payment_bank_account || '8830-1928-3920'}
+                              onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_account: e.target.value }))}
+                              placeholder="8830-1928-3920"
+                              style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                padding: '0.6rem 0.75rem',
+                                borderRadius: '0.55rem',
+                                backgroundColor: 'var(--bg-main)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.82rem'
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
+                            Atas Nama Pemilik Rekening:
+                          </label>
+                          <input
+                            type="text"
+                            value={googleSettings.payment_bank_holder || 'PT Catavor Media Digital'}
+                            onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_bank_holder: e.target.value }))}
+                            placeholder="PT Catavor Media Digital"
+                            style={{
+                              width: '100%',
+                              minHeight: '44px',
+                              padding: '0.6rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-main)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.82rem'
+                            }}
+                          />
+                        </div>
+
+                        {/* Unique Code Info Box */}
+                        <div style={{
+                          padding: '0.75rem',
+                          borderRadius: '0.6rem',
+                          backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                          border: '1px solid rgba(2, 132, 199, 0.25)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.3rem'
+                        }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0284c7' }}>
+                            Sistem Kode Unik 3-Digit Otomatis:
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                            Setiap transaksi manual akan secara otomatis dialokasikan 3 angka unik acak (100–999) pada digit nominal transfer untuk memudahkan pencocokan mutasi manual.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // PANEL 3: MAINTENANCE MODE
+              if (activeMode === 'maintenance') {
+                return (
+                  <div style={{
+                    padding: '1.25rem',
+                    backgroundColor: 'var(--bg-card)',
+                    borderRadius: '0.85rem',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.25rem'
+                  }}>
+                    {/* Active Banner */}
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem'
+                    }}>
+                      <ShieldAlert size={20} color="#ef4444" />
+                      <div>
+                        <strong style={{ fontSize: '0.88rem', color: '#ef4444', display: 'block' }}>
+                          PERINGATAN: Mode Pemeliharaan Sedang Dipilih Sebagai Mode Aktif
+                        </strong>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                          Seluruh formulir pembayaran dan pendaftaran berbayar saat ini ditutup sementara. Pengunjung akan melihat pengumuman di bawah ini.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 2-Column Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '1.25rem' }}>
+                      {/* Left: Inputs */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
+                            Judul Pengumuman:
+                          </label>
+                          <input
+                            type="text"
+                            value={googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan'}
+                            onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_maintenance_title: e.target.value }))}
+                            placeholder="Sistem Pembayaran Dalam Pemeliharaan"
+                            style={{
+                              width: '100%',
+                              minHeight: '44px',
+                              padding: '0.6rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-main)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.82rem'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
+                            Isi Pesan Peringatan Pemeliharaan:
+                          </label>
+                          <textarea
+                            rows={4}
+                            value={googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.'}
+                            onChange={(e) => setGoogleSettings(prev => ({ ...prev, payment_maintenance_message: e.target.value }))}
+                            placeholder="Pesan pemeliharaan..."
+                            style={{
+                              width: '100%',
+                              padding: '0.6rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--bg-main)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.8rem',
+                              lineHeight: 1.45,
+                              resize: 'vertical'
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Right: Live Preview Box */}
+                      <div>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
+                          Pratinjau Tampilan Pengunjung (Live Preview):
+                        </label>
+                        <div style={{
+                          padding: '1.25rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.06)',
+                          border: '1.5px solid rgba(239, 68, 68, 0.3)',
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.65rem'
+                        }}>
+                          <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '50%',
+                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ef4444'
+                          }}>
+                            <ShieldAlert size={22} />
+                          </div>
+                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan'}
+                          </h4>
+                          <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.45, maxWidth: '280px' }}>
+                            {googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.'}
+                          </p>
+                          <div style={{
+                            marginTop: '0.25rem',
+                            fontSize: '0.7rem',
+                            color: 'var(--text-muted)',
+                            padding: '0.35rem 0.65rem',
+                            backgroundColor: 'var(--bg-card)',
+                            borderRadius: '0.45rem',
+                            border: '1px solid var(--border-light)'
+                          }}>
+                            Tombol checkout dinonaktifkan sementara
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              return null;
+            })()}
+          </div>
+        )}
+      </div>
+    )}
 
           {/* TAB 6: STAFF & RBAC */}
           {(activeView === 'staff' || activeView === 'rbac') && canAccessRBAC && (
@@ -10574,27 +11563,21 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   <div style={{
                                     width: '64px',
                                     height: '64px',
-                                    borderRadius: '12px',
-                                    backgroundColor: 'var(--bg-card)',
-                                    border: '1px solid var(--border-light)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
+                                    borderRadius: '0.65rem',
                                     overflow: 'hidden',
                                     flexShrink: 0
                                   }}>
-                                    {googleSettings.rekber_logo_url ? (
-                                      <img
-                                        src={googleSettings.rekber_logo_url}
-                                        alt="Logo Partner"
-                                        style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
-                                        onError={(e) => {
-                                          (e.target as HTMLElement).style.display = 'none';
-                                        }}
-                                      />
-                                    ) : (
-                                      <ShieldCheck size={28} style={{ color: '#10b981' }} />
-                                    )}
+                                    <SafeImage
+                                      src={googleSettings.rekber_logo_url}
+                                      alt="Logo Partner"
+                                      emptyLabel="Logo Belum Diunggah"
+                                      emptySubLabel="Pilih berkas PNG/SVG"
+                                      errorLabel="Logo Rusak"
+                                      errorSubLabel="Tidak terbaca"
+                                      compact={true}
+                                      objectFit="contain"
+                                      title={googleSettings.rekber_logo_url ? "Logo Partner Rekber" : "Logo mitra belum diunggah"}
+                                    />
                                   </div>
 
                                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

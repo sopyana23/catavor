@@ -84,6 +84,7 @@ func main() {
 	handlers.LoadMasterCategoryCache(database.DB)
 	handlers.LoadMasterPresetCache(database.DB)
 	subscriptionHandler := handlers.NewSubscriptionHandler(database.DB)
+	paymentHandler := handlers.NewPaymentHandler(database.DB)
 	productHandler := handlers.NewProductHandler(cfg, database.DB, storageService)
 	categoryHandler := handlers.NewCategoryHandler(database.DB)
 	settingHandler := handlers.NewSettingHandler(database.DB)
@@ -325,8 +326,9 @@ func main() {
 	api.Get("/stores/reactivate", dormancyHandler.HandlePublicReactivateStore)
 	api.Get("/auth/reactivate-store", dormancyHandler.HandlePublicReactivateStore)
 
-	// Public Subscription Plans
+	// Public Subscription Plans & Payment Webhooks
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
+	api.Post("/webhooks/payment/aulaa", paymentHandler.HandleAulaaWebhook)
 
 	// Public Telemetry & Analytics Tracking (Isolated High-Capacity Rate Limiter, Zero PII)
 	api.Post("/analytics/track", middleware.TelemetryRateLimiter(), analyticsHandler.TrackEvent)
@@ -477,6 +479,7 @@ func main() {
 		guardedMutations.Post("/subscription/cancel-downgrade", subscriptionHandler.CancelDowngrade)
 		guardedMutations.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
 		guardedMutations.Post("/subscription/order", subscriptionHandler.CreateOrder)
+		guardedMutations.Post("/subscription/orders/:id/sync", paymentHandler.SyncOrderStatus)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
 
 		// Merchant Analytics & Store Telemetry
@@ -613,6 +616,8 @@ func main() {
 		// Finance & Billing
 		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.AdminListOrders)
 		adminApi.Post("/subscription/orders/:id/approve", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.ApproveOrder)
+		adminApi.Post("/subscription/orders/:id/reject", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.RejectOrder)
+		adminApi.Put("/subscription/orders/:id", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.AdminUpdateOrder)
 
 		// Audit & Market Intelligence
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)

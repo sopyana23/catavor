@@ -160,21 +160,30 @@ export const PlatformMarketIntelView: React.FC<PlatformMarketIntelViewProps> = (
     fetchMarketIntel();
   }, [token]);
 
-  const handleDownloadCsv = () => {
+  const handleDownloadCsv = async () => {
     setIsExportingCsv(true);
     try {
       const downloadUrl = `/api/admin/market-intelligence/export?format=csv`;
+      const res = await fetch(downloadUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        throw new Error('Gagal mengunduh data riset pasar dari server.');
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = downloadUrl;
+      a.href = blobUrl;
       a.download = `catavor-market-intelligence-${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
       showToast?.('Laporan data riset pasar CSV berhasil diunduh.', 'success');
-    } catch {
-      showToast?.('Gagal mengunduh laporan CSV.', 'error');
+    } catch (err: any) {
+      showToast?.(err.message || 'Gagal mengunduh laporan CSV.', 'error');
     } finally {
-      setTimeout(() => setIsExportingCsv(false), 1200);
+      setIsExportingCsv(false);
     }
   };
 

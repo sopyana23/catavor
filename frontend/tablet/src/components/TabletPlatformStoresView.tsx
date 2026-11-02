@@ -27,6 +27,7 @@ import {
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import { useModalBackHandler } from '../utils/navigation';
+import { SafeImage } from './SafeImage';
 
 export interface AdminStoreItem {
   id: number;
@@ -1314,28 +1315,19 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                                 width: '44px',
                                 height: '44px',
                                 borderRadius: '0.75rem',
-                                backgroundColor: 'var(--bg-deep)',
-                                border: '1px solid var(--border-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifySelf: 'center',
-                                justifyContent: 'center',
                                 overflow: 'hidden',
-                                flexShrink: 0
+                                flexShrink: 0,
+                                justifySelf: 'center'
                               }}
                             >
-                              {item.store_logo_url ? (
-                                <img
-                                  src={item.store_logo_url}
-                                  alt={item.store_title}
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  onError={(e) => {
-                                    (e.target as HTMLElement).style.display = 'none';
-                                  }}
-                                />
-                              ) : (
-                                <Store size={22} color="var(--text-muted)" />
-                              )}
+                              <SafeImage
+                                src={item.store_logo_url}
+                                alt={item.store_title}
+                                compact={true}
+                                emptyLabel="Belum Ada Logo"
+                                errorLabel="Logo Rusak"
+                                objectFit="cover"
+                              />
                             </div>
                             <div style={{ minWidth: 0 }}>
                               <div
@@ -1731,30 +1723,21 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
                       <div
                         style={{
-                          width: '48px',
-                          height: '48px',
+                          width: '44px',
+                          height: '44px',
                           borderRadius: '0.75rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
                           overflow: 'hidden',
                           flexShrink: 0
                         }}
                       >
-                        {item.store_logo_url ? (
-                          <img
-                            src={item.store_logo_url}
-                            alt={item.store_title}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <Store size={22} color="var(--text-muted)" />
-                        )}
+                        <SafeImage
+                          src={item.store_logo_url}
+                          alt={item.store_title}
+                          compact={true}
+                          emptyLabel="Belum Ada Logo"
+                          errorLabel="Logo Rusak"
+                          objectFit="cover"
+                        />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
@@ -2763,22 +2746,21 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                       >
                         <div
                           style={{
-                            width: '56px',
-                            height: '56px',
+                            width: '44px',
+                            height: '44px',
                             borderRadius: '0.75rem',
-                            backgroundColor: 'var(--bg-card)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
                             overflow: 'hidden',
                             flexShrink: 0
                           }}
                         >
-                          {s.store_logo_url ? (
-                            <img src={s.store_logo_url} alt={s.store_title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <Store size={26} color="#10b981" />
-                          )}
+                          <SafeImage
+                            src={s.store_logo_url}
+                            alt={s.store_title}
+                            compact={true}
+                            emptyLabel="Belum Ada Logo"
+                            errorLabel="Logo Rusak"
+                            objectFit="cover"
+                          />
                         </div>
                         <div>
                           <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
@@ -2864,14 +2846,29 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                                   padding: '0.65rem 0.85rem',
                                   borderRadius: '0.55rem',
                                   backgroundColor: 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)',
                                   display: 'flex',
                                   justifyContent: 'space-between',
                                   alignItems: 'center',
                                   fontSize: '0.82rem'
                                 }}
                               >
-                                <span style={{ fontWeight: 600 }}>{p.name}</span>
-                                <span style={{ color: '#10b981', fontWeight: 700 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '0.4rem', overflow: 'hidden', flexShrink: 0 }}>
+                                    <SafeImage
+                                      src={p.image_url || p.cover_url || (Array.isArray(p.images) && p.images[0]) || ''}
+                                      alt={p.name}
+                                      compact={true}
+                                      emptyLabel="Belum ada gambar"
+                                      errorLabel="Gambar rusak"
+                                      objectFit="cover"
+                                    />
+                                  </div>
+                                  <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {p.name}
+                                  </span>
+                                </div>
+                                <span style={{ color: '#10b981', fontWeight: 700, flexShrink: 0 }}>
                                   {formatCurrency(p.price || 0)}
                                 </span>
                               </div>
